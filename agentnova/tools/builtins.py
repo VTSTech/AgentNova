@@ -392,9 +392,15 @@ def make_builtin_registry() -> ToolRegistry:
     # ================================================================== #
 
     @registry.tool(
-        description="Run a shell command and return its output. Use with caution.",
+        description=(
+            "Execute shell commands and return their output. "
+            "Common commands: 'pwd' (current directory), 'date' (date/time), "
+            "'ls' (list files), 'cat FILE' (read file), 'echo TEXT' (print text), "
+            "'whoami' (current user), 'hostname' (machine name). "
+            "Use this for system information, file operations, and command execution."
+        ),
         param_descriptions={
-            "command": "Shell command to execute",
+            "command": "Shell command to execute (e.g., 'pwd', 'date', 'ls -la')",
             "timeout": "Maximum seconds to wait (default 120)",
         },
     )
