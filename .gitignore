@@ -179,3 +179,12 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+*.bak
+R0.zip
+*.zip
+examples/model_comparison_results.json
+examples/expanded_benchmark_results.json
+examples/model_comparison_results.json
+examples/model_comparison_results.json
+GLM-FileManager.py
+localclaw/tested_models.json

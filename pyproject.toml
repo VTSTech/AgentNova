@@ -1,0 +1,87 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentnova"
+version = "0.4.0.0"
+description = "A minimal, hackable agentic framework for Ollama and BitNet - local-first AI agent toolkit"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "VTSTech", email = "veritas@vts-tech.org"}
+]
+maintainers = [
+    {name = "VTSTech", email = "veritas@vts-tech.org"}
+]
+keywords = [
+    "ai",
+    "agent",
+    "llm",
+    "ollama",
+    "bitnet",
+    "local-ai",
+    "agentic",
+    "agent-mode",
+    "tool-use",
+    "function-calling",
+    "cli",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Terminals",
+]
+requires-python = ">=3.9"
+# Zero dependencies - uses only Python stdlib!
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "black>=23.0",
+    "ruff>=0.1.0",
+]
+
+[project.urls]
+Homepage = "https://www.vts-tech.org"
+Documentation = "https://github.com/VTSTech/AgentNova#readme"
+Repository = "https://github.com/VTSTech/AgentNova"
+Issues = "https://github.com/VTSTech/AgentNova/issues"
+Changelog = "https://github.com/VTSTech/AgentNova/blob/main/CHANGELOG.md"
+
+[project.scripts]
+agentnova = "agentnova.cli:main"
+localclaw = "localclaw.__main__:main"
+
+[project.entry-points."agentnova.backends"]
+ollama = "agentnova.core.ollama_client:OllamaClient"
+
+[tool.setuptools.packages.find]
+include = ["agentnova", "agentnova.*", "localclaw"]
+
+[tool.setuptools.package-data]
+agentnova = ["skills/*/SKILL.md", "skills/*/scripts/*.py", "skills/*/references/*.md"]
+
+[tool.black]
+line-length = 100
+target-version = ["py39", "py310", "py311", "py312"]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "W", "I"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
