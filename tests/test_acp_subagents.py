@@ -7,7 +7,7 @@ Tests sub-agent orchestration with ACP monitoring.
 
 Uses centralized config from agentnova/config.py
 
-Written for VTSTech AgentNova R04 + ACP v1.0.2
+Written for VTSTech AgentNova R00 + ACP v1.0.2
 """
 
 import sys
@@ -260,7 +260,7 @@ def test_builtin_tools():
 def main():
     print(f"""
 ╔═══════════════════════════════════════════════════════════════════╗
-║     🦞 AgentNova R04 + ACP Integration Test                        ║
+║     ⚛️ AgentNova R00 + ACP Integration Test                        ║
 ╠═══════════════════════════════════════════════════════════════════╣
 ║  Ollama: {OLLAMA_BASE_URL[8:48]:<48} ║
 ║  ACP:    {ACP_BASE_URL[8:48]:<48} ║

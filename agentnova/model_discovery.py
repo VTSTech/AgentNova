@@ -1,5 +1,5 @@
 """
-🦞 AgentNova R04 — Model Discovery
+⚛️ AgentNova R00 — Model Discovery
 
 Dynamic model discovery for Ollama and BitNet backends.
 Discovers available models at runtime instead of hardcoding.

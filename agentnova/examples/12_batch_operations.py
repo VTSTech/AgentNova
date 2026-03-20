@@ -45,7 +45,7 @@ DEBUG = config.debug
 
 
 def main():
-    print("🦞 AgentNova R04 - Batch Operations Demo (ACP)")
+    print("⚛️ AgentNova R00 - Batch Operations Demo (ACP)")
     print("=" * 60)
     
     # ── Create and bootstrap ACP ─────────────────────────────────

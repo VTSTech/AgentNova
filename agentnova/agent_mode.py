@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-⚛️ AgentNova R04 — Agent Mode
+⚛️ AgentNova R00 — Agent Mode
 
 A goal-driven execution mode where the agent autonomously works through tasks.
 Unlike chat mode (which is user-driven), agent mode:

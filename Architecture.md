@@ -30,10 +30,10 @@ agentnova/
 │   └── ...                         # More examples
 ├── cli.py                 # CLI entry point (agentnova command)
 ├── config.py              # Central configuration
-├── bitnet_client.py       # R04: BitNet backend client (Microsoft 1.58-bit quantization)
-├── bitnet_setup.py        # R04: BitNet setup/compilation helper
+├── bitnet_client.py       # R00: BitNet backend client (Microsoft 1.58-bit quantization)
+├── bitnet_setup.py        # R00: BitNet setup/compilation helper
 ├── acp_plugin.py          # ACP integration for activity tracking and A2A messaging
-└── model_discovery.py     # R04: Dynamic model discovery for both backends
+└── model_discovery.py     # R00: Dynamic model discovery for both backends
 ```
 
 ---
@@ -43,14 +43,14 @@ agentnova/
 | Concern | Approach |
 |---|---|
 | **HTTP Client** | Zero external dependencies — uses Python stdlib `urllib` only |
-| **Backends** | Ollama (default) or BitNet (R04) — switch via `--backend` flag |
+| **Backends** | Ollama (default) or BitNet (R00) — switch via `--backend` flag |
 | **Tool calling** | Native Ollama tool-call protocol when supported; automatic ReAct text-parsing fallback for other models |
 | **Memory** | Sliding window — older turns are archived and optionally compressed via LLM summarization |
 | **Tools** | Decorator-based, auto-generates JSON schemas from Python type hints |
 | **Orchestration** | Router (LLM picks agent), Pipeline (chain), or Parallel (concurrent + merge) |
 | **Streaming** | First-class via generator interface |
 | **Error handling** | Automatic retry with exponential backoff for transient network/server errors |
-| **Security** | Path validation, command blocklist, SSRF protection (R04) |
+| **Security** | Path validation, command blocklist, SSRF protection (R00) |
 
 ---
 

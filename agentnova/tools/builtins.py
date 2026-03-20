@@ -1,5 +1,5 @@
 """
-🦞 AgentNova R04 — Built-in Tools
+⚛️ AgentNova R00 — Built-in Tools
 A curated set of safe, practical tools for local agents.
 Import whichever you need and add them to a ToolRegistry.
 
@@ -395,10 +395,10 @@ def make_builtin_registry() -> ToolRegistry:
         description="Run a shell command and return its output. Use with caution.",
         param_descriptions={
             "command": "Shell command to execute",
-            "timeout": "Maximum seconds to wait (default 30)",
+            "timeout": "Maximum seconds to wait (default 120)",
         },
     )
-    def shell(command: str, timeout: int = 30) -> str:
+    def shell(command: str, timeout: int = 120) -> str:
         """Execute a shell command via subprocess with security checks."""
         # Validate command against blocklist
         is_valid, error_msg = _validate_command(command)
@@ -621,6 +621,26 @@ def make_builtin_registry() -> ToolRegistry:
         """Clears the REPL global namespace."""
         _repl_globals.clear()
         return "REPL session reset."
+
+    # ================================================================== #
+    #  Sandboxed Python REPL (secure subprocess isolation)               #
+    # ================================================================== #
+
+    @registry.tool(
+        description=(
+            "Execute Python code in a SECURE SANDBOXED environment. "
+            "Use this for running Python code safely with memory limits (100MB), "
+            "time limits (30s), and restricted module access. Only safe modules "
+            "like math, json, re, datetime, collections are available. "
+            "File system, network, and subprocess operations are BLOCKED. "
+            "Use this instead of python_repl for untrusted code."
+        ),
+        param_descriptions={"code": "Valid Python code to execute (only safe builtins and modules allowed)"},
+    )
+    def python_repl_safe(code: str) -> str:
+        """Execute Python code in a sandboxed subprocess with resource limits."""
+        from .sandboxed_repl import sandboxed_exec
+        return sandboxed_exec(code)
 
     # ================================================================== #
     #  Memory / notes  (stateful — isolated per registry instance)        #

@@ -1,5 +1,5 @@
 """
-🦞 AgentNova ACP Plugin - Bridge to Agent Control Panel
+⚛️ AgentNova ACP Plugin - Bridge to Agent Control Panel
 
 This plugin connects AgentNova agents to an ACP (Agent Control Panel) server,
 enabling real-time monitoring, token tracking, and STOP/Resume control.

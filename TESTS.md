@@ -1,4 +1,4 @@
-# ⚛️ AgentNova R04
+# ⚛️ AgentNova R00
 
 ## Test 07 Benchmark Results (15-Test Suite)
 
@@ -409,7 +409,7 @@ agentnova models --tool_support
 
 Example output:
 ```
-🦞 AgentNova R04 Models
+⚛️ AgentNova R00 Models
   Model                                      Family       Context    Tool Support
   ──────────────────────────────────────────────────────────────────────────────
   gemma3:270m                                gemma3       32K        ○ none

@@ -1,5 +1,5 @@
 """
-🦞 AgentNova R04 — Ollama Client
+⚛️ AgentNova R00 — Ollama Client
 Zero-dependency wrapper around the local Ollama HTTP API.
 Uses only Python stdlib (urllib + json) — no pip install required.
 
