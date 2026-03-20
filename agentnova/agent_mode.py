@@ -774,7 +774,8 @@ def format_status(status: dict) -> str:
         for line in response.split("\n")[:10]:  # Limit to 10 lines
             lines.append(f"    {line}")
         if len(response.split("\n")) > 10:
-            lines.append(f"    ... ({len(response.split('\n')) - 10} more lines)")
+            more_lines = len(response.split("\n")) - 10
+            lines.append(f"    ... ({more_lines} more lines)")
     
     return "\n".join(lines)
 
