@@ -1,0 +1,11 @@
+{
+  "_comment": "Tool support test results for AgentNova models",
+  "_version": "1.0",
+  "_updated": "2026-03-20T15:44:58.843217",
+  "models": {
+    "qwen2.5-coder:0.5b-instruct-q4_k_m": {
+      "tool_support": "react",
+      "tested_at": "2026-03-20T15:44:58.727011"
+    }
+  }
+}

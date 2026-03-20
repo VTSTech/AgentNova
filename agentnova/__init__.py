@@ -1,5 +1,5 @@
 """
-🦞 AgentNova R00 - A minimal, hackable agentic framework for Ollama and BitNet
+⚛️ AgentNova R00 - A minimal, hackable agentic framework for Ollama and BitNet
 
 Written by VTSTech
 https://www.vts-tech.org
