@@ -1,4 +1,4 @@
-# 🦞 AgentNova R04
+# ⚛️ AgentNova R04
 
 ## Test 07 Benchmark Results (15-Test Suite)
 
