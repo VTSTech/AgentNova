@@ -1,11 +1,19 @@
 {
   "_comment": "Tool support test results for AgentNova models",
   "_version": "1.0",
-  "_updated": "2026-03-20T15:44:58.843217",
+  "_updated": "2026-03-20T18:52:01.745859",
   "models": {
     "qwen2.5-coder:0.5b-instruct-q4_k_m": {
       "tool_support": "react",
-      "tested_at": "2026-03-20T15:44:58.727011"
+      "tested_at": "2026-03-20T18:52:01.613502"
+    },
+    "gemma3:270m": {
+      "tool_support": "none",
+      "tested_at": "2026-03-20T18:51:32.472757"
+    },
+    "granite4:350m": {
+      "tool_support": "native",
+      "tested_at": "2026-03-20T18:51:47.310949"
     }
   }
 }

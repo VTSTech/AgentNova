@@ -115,35 +115,54 @@ TOOL_ARG_ALIASES = {
 FEW_SHOT_SUFFIX = """
 
 ═══════════════════════════════════════════════════════════════
-TOOL USAGE EXAMPLES - Use these EXACT argument names:
+TOOL USAGE EXAMPLES - Follow this EXACT format:
 ═══════════════════════════════════════════════════════════════
 
-✓ CORRECT: calculator(expression="15 * 8")
-✗ WRONG:   calculator(a=15, b=8)
+Example 1 - Math calculation:
+Thought: I need to calculate 2 to the power of 20
+Action: calculator
+Action Input: {"expression": "2 ** 20"}
 
-✓ CORRECT: write_file(path="/tmp/test.txt", content="Hello")
-✗ WRONG:   write_file(file="/tmp/test.txt", data="Hello")
+Example 2 - Get current date:
+Thought: User wants to know today's date
+Action: shell
+Action Input: {"command": "date"}
 
-✓ CORRECT: python_repl(code="print(2**10)")
-✗ WRONG:   python_repl(script="print(2**10)")
+Example 3 - Run Python code:
+Thought: I need to compute something in Python
+Action: python_repl
+Action Input: {"code": "print(2 ** 10)"}
 
-✓ CORRECT: shell(command="date")
-✗ WRONG:   shell(cmd="date")
+Example 4 - Write to file:
+Thought: Save the result to a file
+Action: write_file
+Action Input: {"path": "/tmp/result.txt", "content": "Hello World"}
 
-✓ CORRECT: web_search(query="capital of France")
-✗ WRONG:   web_search(search="capital of France")
+Example 5 - Web search:
+Thought: I need to find current information
+Action: web_search
+Action Input: {"query": "capital of France"}
 
-IMPORTANT: Always use the EXACT argument names shown above.
-Do NOT invent your own argument names.
+CRITICAL RULES:
+1. Action line: just the tool name (no backticks, no quotes)
+2. Action Input: valid JSON with correct argument names
+3. Use "expression" for calculator, "command" for shell, "code" for python_repl
 ═══════════════════════════════════════════════════════════════
 """
 
 # Compact version for models that need minimal prompting
 FEW_SHOT_COMPACT = """
-TOOL EXAMPLES (use EXACT arg names):
-- calculator(expression="2+2") NOT calculator(a=2, b=2)
-- write_file(path="x", content="y") NOT write_file(file="x", data="y")
-- python_repl(code="print(x)") NOT python_repl(script="print(x)")
+TOOL EXAMPLES (ReAct format):
+Action: calculator
+Action Input: {"expression": "2 ** 10"}
+
+Action: shell  
+Action Input: {"command": "date"}
+
+Action: python_repl
+Action Input: {"code": "print(2**10)"}
+
+Remember: Action = tool name, Action Input = JSON with correct arg names.
 """
 
 
@@ -835,8 +854,21 @@ class AgentRun:
 #  ReAct text parser                                                   #
 # ------------------------------------------------------------------ #
 
+# Enhanced regex patterns to handle common small model output variations:
+# - Backticks around tool names: Action: `shell`
+# - Same-line format: Action: shell Action Input: {...}
+# - Quotes around tool names: Action: "shell"
+# - Extra whitespace
 _THOUGHT_RE = re.compile(r"Thought:\s*(.*?)(?=Action:|Final Answer:|$)", re.DOTALL | re.IGNORECASE)
-_ACTION_RE  = re.compile(r"Action:\s*(\w+)\s*\nAction Input:\s*(.*?)(?=Observation:|Thought:|Final Answer:|$)", re.DOTALL | re.IGNORECASE)
+_ACTION_RE  = re.compile(
+    r"Action:\s*[`\"']?(\w+)[`\"']?\s*\n?\s*Action Input:\s*(.*?)(?=Observation:|Thought:|Final Answer:|$)",
+    re.DOTALL | re.IGNORECASE
+)
+# Alternative pattern for same-line format: Action: tool_name Action Input: {...}
+_ACTION_RE_SAMELINE = re.compile(
+    r"Action:\s*[`\"']?(\w+)[`\"']?\s+Action Input:\s*(.*?)(?=Observation:|Thought:|Final Answer:|$)",
+    re.DOTALL | re.IGNORECASE
+)
 _FINAL_RE   = re.compile(r"Final Answer:\s*(.*?)$", re.DOTALL | re.IGNORECASE)
 _PYTHON_CODE_RE = re.compile(r"```(?:python)?\s*\n(.*?)```", re.DOTALL | re.IGNORECASE)
 
@@ -1013,26 +1045,53 @@ def _parse_react(text: str) -> tuple[str | None, str | None, dict | None, str | 
     """
     Returns (thought, tool_name, tool_args, final_answer).
     Any field may be None if not present.
+    
+    Handles multiple format variations from small models:
+    - Standard ReAct format with newline separation
+    - Same-line format: Action: tool Action Input: {...}
+    - Backticks around tool names: Action: `tool`
+    - Quotes around tool names: Action: "tool"
     """
     thought = None
     tool_name = None
     tool_args = None
     final_answer = None
 
+    # Extract thought
     m = _THOUGHT_RE.search(text)
     if m:
         thought = m.group(1).strip()
 
+    # Try to extract action - try multiple patterns
     m = _ACTION_RE.search(text)
+    if not m:
+        m = _ACTION_RE_SAMELINE.search(text)
+    
     if m:
         tool_name = m.group(1).strip()
         raw_args = m.group(2).strip()
+        
+        # Strip any trailing backticks or quotes from tool name
+        tool_name = tool_name.strip('`"\'')
+        
+        # Try to parse JSON args
         try:
             tool_args = json.loads(raw_args)
         except json.JSONDecodeError:
-            # Try to salvage key=value style
-            tool_args = {"input": raw_args}
+            # Try sanitizing first
+            sanitized = _sanitize_model_json(raw_args)
+            try:
+                tool_args = json.loads(sanitized)
+            except json.JSONDecodeError:
+                # Try to salvage key=value style or wrapped content
+                # Handle cases like `{command="echo", arguments={...}}`
+                if raw_args.startswith('{') and '=' in raw_args and 'arguments' not in raw_args.lower():
+                    # Likely malformed JSON, try to extract values
+                    tool_args = {"input": raw_args}
+                else:
+                    tool_args = {"input": raw_args}
 
+    # Extract final answer
     m = _FINAL_RE.search(text)
     if m:
         final_answer = m.group(1).strip()

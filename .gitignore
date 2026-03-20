@@ -188,3 +188,4 @@ examples/model_comparison_results.json
 examples/model_comparison_results.json
 GLM-FileManager.py
 localclaw/tested_models.json
+agentnova/tested_models.json
