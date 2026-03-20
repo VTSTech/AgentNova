@@ -6,7 +6,7 @@ Inspired by the architecture of OpenClaw, rebuilt from scratch for local-first o
 
 **Written by [VTSTech](https://www.vts-tech.org)** · [GitHub](https://github.com/VTSTech/AgentNova)
 
-[![PyPI version fury.io](https://badge.fury.io/py/agentnova.svg)](https://pypi.python.org/pypi/agentnova/) [![PyPI status](https://img.shields.io/pypi/status/agentnova.svg)](https://pypi.python.org/pypi/agentnova/) [![GitHub commits](https://badgen.net/github/commits/VTSTech/AgentNova)](https://GitHub.com/VTSTech/AgentNova/commit/)
+[![PyPI version fury.io](https://badge.fury.io/py/agentnova.svg?style=plastic)](https://pypi.python.org/pypi/agentnova/) [![PyPI status](https://img.shields.io/pypi/status/agentnova.svg?style=plastic)](https://pypi.python.org/pypi/agentnova/) [![GitHub commits](https://badgen.net/github/commits/VTSTech/AgentNova?style=plastic)](https://GitHub.com/VTSTech/AgentNova/commit/)
 
 [![PyPI download month](https://img.shields.io/pypi/dm/agentnova.svg?style=plastic)](https://pypi.python.org/pypi/agentnova/) [![PyPI download week](https://img.shields.io/pypi/dw/agentnova.svg?style=plastic)](https://pypi.python.org/pypi/agentnova/) [![PyPI download day](https://img.shields.io/pypi/dd/agentnova.svg?style=plastic)](https://pypi.python.org/pypi/agentnova/)
 
