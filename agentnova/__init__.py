@@ -1,5 +1,5 @@
 """
-🦞 AgentNova R04 - A minimal, hackable agentic framework for Ollama and BitNet
+🦞 AgentNova R00 - A minimal, hackable agentic framework for Ollama and BitNet
 
 Written by VTSTech
 https://www.vts-tech.org
@@ -27,7 +27,7 @@ from .config import (
     AGENTNOVA_BACKEND,
 )
 
-# R04: BitNet backend support
+# R00: BitNet backend support
 try:
     from .bitnet_client import BitnetClient, KNOWN_MODELS
     _BITNET_AVAILABLE = True
@@ -136,7 +136,7 @@ def get_system_prompt(model: str, client=None, default_prompt: str = None):
     
     return default_prompt
 
-# R04 Enhancements
+# R00 Enhancements
 from .core.orchestrator_enhanced import Orchestrator as EnhancedOrchestrator, AgentCard as EnhancedAgentCard
 
 # Tool support detection
@@ -145,7 +145,7 @@ from .cli import get_tool_support
 # Shared args for test scripts
 from .shared_args import add_shared_args, parse_shared_args, SharedConfig
 
-# R04: Agent Mode
+# R00: Agent Mode
 from .agent_mode import (
     AgentMode, AgentState, TaskPlan, Step, Action,
     create_file_write_action, create_file_delete_action,
@@ -160,10 +160,10 @@ __all__ = [
     "OllamaClient", "Orchestrator", "AgentCard",
     # Skills
     "SkillLoader", "Skill", "SkillRegistry",
-    # R04 Enhancements
+    # R00 Enhancements
     "EnhancedOrchestrator", "EnhancedAgentCard",
     "ACPPlugin",
-    # R04: Backend-agnostic helpers
+    # R00: Backend-agnostic helpers
     "get_default_client",
     "get_available_models",
     "get_system_prompt",
@@ -172,7 +172,7 @@ __all__ = [
     "add_shared_args",   # Shared CLI args for test scripts
     "parse_shared_args",
     "SharedConfig",
-    # R04: Agent Mode
+    # R00: Agent Mode
     "AgentMode", "AgentState", "TaskPlan", "Step", "Action",
     "create_file_write_action", "create_file_delete_action",
     "create_mkdir_action", "create_shell_action",
