@@ -623,6 +623,26 @@ def make_builtin_registry() -> ToolRegistry:
         return "REPL session reset."
 
     # ================================================================== #
+    #  Sandboxed Python REPL (secure subprocess isolation)               #
+    # ================================================================== #
+
+    @registry.tool(
+        description=(
+            "Execute Python code in a SECURE SANDBOXED environment. "
+            "Use this for running Python code safely with memory limits (100MB), "
+            "time limits (30s), and restricted module access. Only safe modules "
+            "like math, json, re, datetime, collections are available. "
+            "File system, network, and subprocess operations are BLOCKED. "
+            "Use this instead of python_repl for untrusted code."
+        ),
+        param_descriptions={"code": "Valid Python code to execute (only safe builtins and modules allowed)"},
+    )
+    def python_repl_safe(code: str) -> str:
+        """Execute Python code in a sandboxed subprocess with resource limits."""
+        from .sandboxed_repl import sandboxed_exec
+        return sandboxed_exec(code)
+
+    # ================================================================== #
     #  Memory / notes  (stateful — isolated per registry instance)        #
     # ================================================================== #
 
