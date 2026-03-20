@@ -395,10 +395,10 @@ def make_builtin_registry() -> ToolRegistry:
         description="Run a shell command and return its output. Use with caution.",
         param_descriptions={
             "command": "Shell command to execute",
-            "timeout": "Maximum seconds to wait (default 30)",
+            "timeout": "Maximum seconds to wait (default 120)",
         },
     )
-    def shell(command: str, timeout: int = 30) -> str:
+    def shell(command: str, timeout: int = 120) -> str:
         """Execute a shell command via subprocess with security checks."""
         # Validate command against blocklist
         is_valid, error_msg = _validate_command(command)
