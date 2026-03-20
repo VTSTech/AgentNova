@@ -6,7 +6,52 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [R04.0.0] - 03-20-2026 12:02:02 PM
+## [R00] - 2026-03-21
+
+### 🔄 Project Rename & Version Reset
+
+**LocalClaw is now AgentNova!**
+
+This release marks the transition from `localclaw` to `agentnova` as the official package name. The project has been renamed to avoid conflicts with other projects using similar names.
+
+#### What Changed
+- **Package name**: `localclaw` → `agentnova`
+- **CLI command**: `localclaw` → `agentnova` (old command still works with deprecation warning)
+- **Environment variables**: `LOCALCLAW_*` → `AGENTNOVA_*` (old vars still work for backward compatibility)
+- **Version reset**: R04.0.0 → R00.0.0 (starting fresh with the new name)
+- **Repository**: https://github.com/VTSTech/AgentNova
+
+#### Backward Compatibility
+The `localclaw` package is still available as a thin compatibility shim:
+```python
+import localclaw  # Works, shows deprecation warning, redirects to agentnova
+```
+```bash
+localclaw run "prompt"  # Works, redirects to agentnova
+```
+
+#### Migration Guide
+```python
+# Old (still works, deprecated)
+import localclaw
+from localclaw import Agent
+
+# New (recommended)
+import agentnova
+from agentnova import Agent
+```
+
+```bash
+# Old (still works)
+localclaw run "What is the capital of Japan?"
+localclaw chat -m llama3.2:3b
+
+# New (recommended)
+agentnova run "What is the capital of Japan?"
+agentnova chat -m llama3.2:3b
+```
+
+---
 
 ### Major Release - Agent Mode
 
@@ -57,7 +102,7 @@ This release introduces full Agent Mode with autonomous task execution, complete
   - Notes content limit increased from 400 to 2000 chars
   - Note importance changed from "normal" to "high"
 
-- **Version bump**: R03 → R04, 0.3.x → 0.4.0.0
+- **Version reset**: Starting fresh with AgentNova name (was R04 under LocalClaw)
 
 ### Fixed
 - Final responses now displayed in full when Agent Mode tasks complete
@@ -307,7 +352,7 @@ agentnova agent --use-mf-sys --tools shell
 
 ### Example Output
 ```
-🦞 AgentNova R04 Models
+🦞 AgentNova R00 Models
   Model                                      Family       Context    Tool Support
   ──────────────────────────────────────────────────────────────────────────────
   gemma3:270m                                gemma3       32K        ○ none
@@ -352,7 +397,7 @@ Detection is now simplified and more accurate:
 
 ### Example Output
 ```
-🦞 AgentNova R04 Models · Written by VTSTech · https://www.vts-tech.org · https://github.com/VTSTech/AgentNova
+🦞 AgentNova R00 Models · Written by VTSTech · https://www.vts-tech.org · https://github.com/VTSTech/AgentNova
   Model                                      Family       Context    Tool Support
   ──────────────────────────────────────────────────────────────────────────────
   driaforall/tiny-agent-a:1.5b               qwen2        32K        ReAct
@@ -554,7 +599,7 @@ Detection is now simplified and more accurate:
   - `test-bitnet.sh` / `test-bitnet.cmd` - Run benchmark tests with BitNet backend
 
 ### Changed
-- Version tags updated from R02 to R04 across all files
+- Version tags updated from R02 to R00 across all files
 - CLI now supports `--backend ollama|bitnet` flag for backend selection
 - Tool system now has comprehensive security validation layer
 - ACP streaming functionality consolidated into main plugin
