@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-🦞 AgentNova R04 — BitnetClient
+⚛️ AgentNova R04 — BitnetClient
 Drop-in replacement for OllamaClient that uses Microsoft's bitnet.cpp
 (llama-server) as the inference backend instead of Ollama.
 

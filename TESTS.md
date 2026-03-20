@@ -409,7 +409,7 @@ agentnova models --tool_support
 
 Example output:
 ```
-🦞 AgentNova R04 Models
+⚛️ AgentNova R04 Models
   Model                                      Family       Context    Tool Support
   ──────────────────────────────────────────────────────────────────────────────
   gemma3:270m                                gemma3       32K        ○ none

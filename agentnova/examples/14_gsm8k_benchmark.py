@@ -307,7 +307,7 @@ def main():
     total_tests = len(MODELS) * len(QUESTIONS)
     completed = 0
     
-    log(f"\n🦞 GSM8K Agent Benchmark")
+    log(f"\n⚛️ GSM8K Agent Benchmark")
     log(f"   Backend: {BACKEND_NAME}")
     log(f"   Models: {len(MODELS)}")
     log(f"   Questions per model: {len(QUESTIONS)}")

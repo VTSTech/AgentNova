@@ -330,7 +330,7 @@ def main():
         return
     
     available = get_available_models(client)
-    print(f"\n🦞 AgentNova Model Comparison")
+    print(f"\n⚛️ AgentNova Model Comparison")
     print(f"   Backend: {BACKEND_NAME}")
     print(f"   Available models: {', '.join(available)}")
     if USE_ACP:

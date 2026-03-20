@@ -1,5 +1,5 @@
 """
-🦞 AgentNova R04 — Enhanced Orchestrator with Parallel Execution
+⚛️ AgentNova R04 — Enhanced Orchestrator with Parallel Execution
 
 Enhanced orchestrator with:
   • True parallel execution mode (all agents run simultaneously)

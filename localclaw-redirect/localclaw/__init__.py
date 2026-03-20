@@ -1,5 +1,5 @@
 """
-🦞 localclaw - DEPRECATED - Use agentnova instead
+⚛️ localclaw - DEPRECATED - Use agentnova instead
 
 This package has been renamed to 'agentnova'.
 Install: pip install agentnova

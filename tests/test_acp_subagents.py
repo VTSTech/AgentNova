@@ -260,7 +260,7 @@ def test_builtin_tools():
 def main():
     print(f"""
 ╔═══════════════════════════════════════════════════════════════════╗
-║     🦞 AgentNova R04 + ACP Integration Test                        ║
+║     ⚛️ AgentNova R04 + ACP Integration Test                        ║
 ╠═══════════════════════════════════════════════════════════════════╣
 ║  Ollama: {OLLAMA_BASE_URL[8:48]:<48} ║
 ║  ACP:    {ACP_BASE_URL[8:48]:<48} ║

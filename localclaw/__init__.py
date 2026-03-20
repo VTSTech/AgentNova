@@ -1,5 +1,5 @@
 """
-🦞 localclaw - Compatibility shim for AgentNova
+⚛️ localclaw - Compatibility shim for AgentNova
 
 This package has been renamed to 'agentnova'.
 Please update your imports to use 'agentnova' instead.

@@ -352,7 +352,7 @@ agentnova agent --use-mf-sys --tools shell
 
 ### Example Output
 ```
-🦞 AgentNova R00 Models
+⚛️ AgentNova R00 Models
   Model                                      Family       Context    Tool Support
   ──────────────────────────────────────────────────────────────────────────────
   gemma3:270m                                gemma3       32K        ○ none
@@ -397,7 +397,7 @@ Detection is now simplified and more accurate:
 
 ### Example Output
 ```
-🦞 AgentNova R00 Models · Written by VTSTech · https://www.vts-tech.org · https://github.com/VTSTech/AgentNova
+⚛️ AgentNova R00 Models · Written by VTSTech · https://www.vts-tech.org · https://github.com/VTSTech/AgentNova
   Model                                      Family       Context    Tool Support
   ──────────────────────────────────────────────────────────────────────────────
   driaforall/tiny-agent-a:1.5b               qwen2        32K        ReAct
@@ -512,7 +512,7 @@ Detection is now simplified and more accurate:
 ### Changed
 - **Re-enabled ANSI colors** - Set `_NO_COLOR = False` in CLI
   - Colors now display correctly in most terminals
-  - Lobster emoji 🦞 displays properly across all commands
+  - Atom emoji ⚛️ displays properly across all commands
 ### Fixed
 - **Test parser for `_acp` suffix tests** - Glob patterns now correctly match ACP test files
   - `gsm8k_acp` now correctly finds `gsm8k_agent_benchmark_acp.py`

@@ -1,5 +1,5 @@
 """
-🦞 AgentNova R04 - Skills Module
+⚛️ AgentNova R04 - Skills Module
 
 Agent Skills support for AgentNova.
 Loads skills from SKILL.md files following the Agent Skills specification.

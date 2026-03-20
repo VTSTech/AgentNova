@@ -26,7 +26,7 @@ from agentnova.tools.builtins import BUILTIN_REGISTRY
 
 print(f"""
 ╔═══════════════════════════════════════════════════════════════════╗
-║     🦞 AgentNova R04 + ACP Integration Test                        ║
+║     ⚛️ AgentNova R04 + ACP Integration Test                        ║
 ╠═══════════════════════════════════════════════════════════════════╣
 ║  Using centralized config from agentnova/config.py                ║
 ║  Model:  {DEFAULT_MODEL:<48} ║
