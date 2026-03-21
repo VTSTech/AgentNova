@@ -65,8 +65,8 @@ FAMILY_CONFIGS: dict[str, ModelFamilyConfig] = {
         },
         stop_tokens=["<|end_of_text|>"],
         tool_format="xml",
-        tool_call_start="Ȑ\n",
-        tool_call_end="\nȐ",
+        tool_call_start="<tool_call>\n",
+        tool_call_end="\n</tool_call>",
         supports_native_tools=True,
         system_prompt_style="separate",
         preferred_temperature=0.7,
@@ -74,7 +74,7 @@ FAMILY_CONFIGS: dict[str, ModelFamilyConfig] = {
         few_shot_style="native",
     ),
     
-    # GRANITEMOE - IBM's Granite MoE models (similar to granite but may have issues)
+    # GRANITEMOE - IBM's Granite MoE models (different tool format than granite4)
     "granitemoe": ModelFamilyConfig(
         family="granitemoe",
         start_tokens={
@@ -84,8 +84,8 @@ FAMILY_CONFIGS: dict[str, ModelFamilyConfig] = {
         },
         stop_tokens=["<|end_of_text|>"],
         tool_format="xml",
-        tool_call_start="Ȑ\n",
-        tool_call_end="\nȐ",
+        tool_call_start="<|tool_call|>\n",  # granite3.1-moe uses <|tool_call|> not <tool_call>
+        tool_call_end="",  # No closing tag for granite3.1-moe
         supports_native_tools=True,
         system_prompt_style="separate",
         preferred_temperature=0.6,
@@ -105,8 +105,8 @@ FAMILY_CONFIGS: dict[str, ModelFamilyConfig] = {
         },
         stop_tokens=["<|im_end|>"],
         tool_format="xml",
-        tool_call_start="Ȑ\n",
-        tool_call_end="\nȐ",
+        tool_call_start="<tool_call>\n",
+        tool_call_end="\n</tool_call>",
         supports_native_tools=True,
         system_prompt_style="separate",
         preferred_temperature=0.7,
@@ -124,8 +124,8 @@ FAMILY_CONFIGS: dict[str, ModelFamilyConfig] = {
         },
         stop_tokens=["<|im_start|>", "<|im_end|>"],
         tool_format="xml",
-        tool_call_start="Ȑ\n",
-        tool_call_end="\nȐ",
+        tool_call_start="<tool_call>\n",
+        tool_call_end="\n</tool_call>",
         supports_native_tools=True,
         system_prompt_style="separate",
         preferred_temperature=0.6,  # Qwen3 recommends lower temp
@@ -144,6 +144,8 @@ FAMILY_CONFIGS: dict[str, ModelFamilyConfig] = {
         },
         stop_tokens=["<|eot_id|>", "<|end_of_text|>"],
         tool_format="native",
+        tool_call_start="",  # Llama uses raw JSON without wrapper
+        tool_call_end="",
         supports_native_tools=True,
         system_prompt_style="separate",
         preferred_temperature=0.7,
