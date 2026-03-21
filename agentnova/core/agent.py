@@ -85,6 +85,8 @@ TOOL_ARG_ALIASES = {
         "cmd": "command", "exec": "command", "shell_cmd": "command",
         "bash": "command", "script": "command", "instruction": "command",
         "run": "command", "execute": "command", "op": "command",
+        "text": "command", "input": "command", "arg": "command",
+        "args": "command", "str": "command", "value": "command",
     },
     "web_search": {
         "query": "query",  # correct
@@ -133,12 +135,17 @@ Thought: User wants to know today's date
 Action: shell
 Action Input: {"command": "date"}
 
-Example 4 - Run Python code:
+Example 4 - Echo text:
+Thought: User wants to print some text
+Action: shell
+Action Input: {"command": "echo Hello World"}
+
+Example 5 - Run Python code:
 Thought: I need to compute something in Python
 Action: python_repl
 Action Input: {"code": "print(2 ** 10)"}
 
-Example 5 - Write to file:
+Example 6 - Write to file:
 Thought: Save the result to a file
 Action: write_file
 Action Input: {"path": "/tmp/result.txt", "content": "Hello World"}
@@ -147,7 +154,8 @@ CRITICAL RULES:
 1. Action line: just the tool name (no backticks, no quotes)
 2. Action Input: valid JSON with correct argument names
 3. Use "expression" for calculator, "command" for shell, "code" for python_repl
-4. MATH OPERATORS: * (multiply), ** (power), / (divide), + (add), - (subtract)
+4. For shell echo: {"command": "echo Your Text Here"} - put the text after echo
+5. MATH OPERATORS: * (multiply), ** (power), / (divide), + (add), - (subtract)
 ═══════════════════════════════════════════════════════════════
 """
 
@@ -1420,10 +1428,22 @@ class Agent:
 
                     # If the tool name isn't in the registry, try fuzzy matching
                     if t_name and not self.tools.get(t_name):
+                        original_t_name = t_name
                         fuzzy = _fuzzy_match_tool_name(t_name, self.tools)
                         if self.debug:
                             print(f"    native fuzzy_match({t_name!r}) -> {fuzzy!r}")
                         if fuzzy:
+                            # Handle echo -> shell: synthesize proper command
+                            if fuzzy == "shell" and original_t_name.lower() in ("echo", "print", "say"):
+                                text_val = (
+                                    t_args.get("text") or t_args.get("value") or
+                                    t_args.get("message") or t_args.get("content") or
+                                    t_args.get("input") or t_args.get("arg") or ""
+                                )
+                                if text_val:
+                                    t_args = {"command": f"echo {text_val}"}
+                                    if self.debug:
+                                        print(f"    shell: synthesized 'echo' command from text={text_val!r}")
                             t_name = fuzzy
                         else:
                             if self.debug:
@@ -1603,11 +1623,36 @@ class Agent:
                         code_indicators = ["(", ")", "+", "-", "*", "/"]
                         if fuzzy_name == "calculator" and any(c in original_t_name for c in code_indicators):
                             t_args = {"expression": original_t_name}
+                        elif fuzzy_name == "calculator" and original_t_name.lower() in ("sqrt", "square", "root", "squareroot"):
+                            # Model called "sqrt" as a tool - synthesize calculator expression
+                            val = (
+                                t_args.get("value") or t_args.get("number") or
+                                t_args.get("n") or t_args.get("x") or
+                                t_args.get("input") or t_args.get("arg") or
+                                t_args.get("expression") or ""
+                            )
+                            if val:
+                                t_args = {"expression": f"sqrt({val})"}
+                                if self.debug:
+                                    print(f"    calculator: synthesized sqrt expression from value={val!r}")
                         elif fuzzy_name == "python_repl" and any(c in original_t_name for c in code_indicators):
                             if not t_args.get("code"):
                                 code = original_t_name if original_t_name.strip().startswith("print") \
                                     else f"print({original_t_name})"
                                 t_args = {"code": code}
+                        # Handle echo -> shell: synthesize proper command
+                        elif fuzzy_name == "shell" and original_t_name.lower() in ("echo", "print", "say"):
+                            # Model called "echo" as a tool - synthesize shell command
+                            text_val = (
+                                t_args.get("text") or t_args.get("value") or
+                                t_args.get("message") or t_args.get("content") or
+                                t_args.get("input") or t_args.get("arg") or
+                                t_args.get("string") or ""
+                            )
+                            if text_val:
+                                t_args = {"command": f"echo {text_val}"}
+                                if self.debug:
+                                    print(f"    shell: synthesized 'echo' command from text={text_val!r}")
                         t_name = fuzzy_name
 
                 # If python_repl was resolved but 'code' is missing, recover from alt arg names
@@ -1836,10 +1881,34 @@ class Agent:
                 if t_name and t_name.strip() and t_args is not None:
                     # Check if tool exists, try fuzzy matching if not
                     if not self.tools.get(t_name):
+                        original_t_name = t_name
                         fuzzy_name = _fuzzy_match_tool_name(t_name, self.tools)
                         if self.debug:
                             print(f"    ReAct fuzzy_match({t_name!r}) -> {fuzzy_name!r}")
                         if fuzzy_name:
+                            # Handle sqrt -> calculator: synthesize proper expression
+                            if fuzzy_name == "calculator" and original_t_name.lower() in ("sqrt", "square", "root", "squareroot"):
+                                val = (
+                                    t_args.get("value") or t_args.get("number") or
+                                    t_args.get("n") or t_args.get("x") or
+                                    t_args.get("input") or t_args.get("arg") or
+                                    t_args.get("expression") or ""
+                                )
+                                if val:
+                                    t_args = {"expression": f"sqrt({val})"}
+                                    if self.debug:
+                                        print(f"    calculator: synthesized sqrt expression from value={val!r}")
+                            # Handle echo -> shell: synthesize proper command
+                            elif fuzzy_name == "shell" and original_t_name.lower() in ("echo", "print", "say"):
+                                text_val = (
+                                    t_args.get("text") or t_args.get("value") or
+                                    t_args.get("message") or t_args.get("content") or
+                                    t_args.get("input") or t_args.get("arg") or ""
+                                )
+                                if text_val:
+                                    t_args = {"command": f"echo {text_val}"}
+                                    if self.debug:
+                                        print(f"    shell: synthesized 'echo' command from text={text_val!r}")
                             t_name = fuzzy_name
                         else:
                             if self.debug:
