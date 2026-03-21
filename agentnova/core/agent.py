@@ -995,6 +995,48 @@ _ACTION_RE_SAMELINE = re.compile(
 _FINAL_RE   = re.compile(r"Final Answer:\s*(.*?)$", re.DOTALL | re.IGNORECASE)
 _PYTHON_CODE_RE = re.compile(r"```(?:python)?\s*\n(.*?)```", re.DOTALL | re.IGNORECASE)
 
+# Repetition detection pattern - catches "Final Answer: X" repeated multiple times
+_REPETITION_RE = re.compile(r'(Final Answer:\s*[^\n]+)(\s*\1){2,}', re.IGNORECASE)
+
+
+def _detect_and_fix_repetition(text: str) -> str:
+    """
+    Detect and fix repetitive output from small models.
+    
+    Some models (like qwen3:0.6b) get stuck in loops repeating the same phrase:
+        "Final Answer: 120\nFinal Answer: 120\nFinal Answer: 120..."
+    
+    This function detects such patterns and returns the text with only one instance.
+    Also handles general repetition of any phrase 3+ times.
+    """
+    if not text:
+        return text
+    
+    # Fix "Final Answer:" repetition specifically
+    match = _REPETITION_RE.search(text)
+    if match:
+        # Keep only one instance of the repeated phrase
+        text = _REPETITION_RE.sub(r'\1', text)
+    
+    # Also detect and fix any line repeated 3+ times at the end
+    lines = text.split('\n')
+    if len(lines) >= 3:
+        # Check if the last 3+ lines are identical
+        last_line = lines[-1].strip()
+        if last_line:
+            repeat_count = 1
+            for i in range(len(lines) - 2, -1, -1):
+                if lines[i].strip() == last_line:
+                    repeat_count += 1
+                else:
+                    break
+            
+            if repeat_count >= 3:
+                # Keep only one instance
+                text = '\n'.join(lines[:-repeat_count + 1])
+    
+    return text
+
 REACT_SYSTEM_SUFFIX = """
 You have access to tools. Use the following format EXACTLY:
 
@@ -1250,7 +1292,11 @@ def _parse_react(text: str) -> tuple[str | None, str | None, dict | None, str | 
     - Same-line format: Action: tool Action Input: {...}
     - Backticks around tool names: Action: `tool`
     - Quotes around tool names: Action: "tool"
+    - Repetitive output loops (e.g., "Final Answer: X" repeated 100 times)
     """
+    # Fix repetitive output before parsing
+    text = _detect_and_fix_repetition(text)
+    
     thought = None
     tool_name = None
     tool_args = None
@@ -1291,9 +1337,9 @@ def _parse_react(text: str) -> tuple[str | None, str | None, dict | None, str | 
                     tool_args = {"input": raw_args}
 
     # Extract final answer
-    m = _FINAL_RE.search(text)
-    if m:
-        final_answer = m.group(1).strip()
+    fa_match = _FINAL_RE.search(text)
+    if fa_match:
+        final_answer = fa_match.group(1).strip()
 
     return thought, tool_name, tool_args, final_answer
 
@@ -1398,6 +1444,20 @@ class Agent:
         # "none" = don't use tools at all
         self._native_tools = (self._tool_support == "native")
         self._no_tools = (self._tool_support == "none")
+        
+        # Add stop tokens for ReAct mode to prevent runaway generation
+        # Models sometimes loop "Final Answer: X\nFinal Answer: X..."
+        if self._tool_support == "react" and self.tools.all():
+            # Get family-specific stop tokens
+            family_stops = get_stop_tokens(self.model_family or "")
+            # Add ReAct-specific stop tokens
+            react_stops = ["\nFinal Answer:", "\nThought:", "\nAction:"]
+            # Merge with existing stop tokens from model_options
+            existing_stops = self.model_options.get("stop", [])
+            if isinstance(existing_stops, str):
+                existing_stops = [existing_stops]
+            all_stops = list(set(existing_stops + family_stops + react_stops))
+            self.model_options["stop"] = all_stops
         
         # Get family-specific configuration
         from .model_family_config import (
