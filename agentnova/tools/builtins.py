@@ -21,6 +21,7 @@ import ast
 import io
 import math
 import os
+import platform
 import re
 import shlex
 import subprocess
@@ -29,6 +30,12 @@ import textwrap
 import traceback
 from contextlib import redirect_stdout, redirect_stderr
 from datetime import datetime
+
+# Platform detection for cross-platform shell command hints
+_IS_WINDOWS = platform.system() == "Windows"
+_PLATFORM_DIR_CMD = "cd" if _IS_WINDOWS else "pwd"
+_PLATFORM_LIST_CMD = "dir" if _IS_WINDOWS else "ls"
+_PLATFORM_DATE_HINT = "echo %DATE%" if _IS_WINDOWS else "date"
 from pathlib import Path
 from typing import Any
 
@@ -391,16 +398,19 @@ def make_builtin_registry() -> ToolRegistry:
     #  Shell                                                               #
     # ================================================================== #
 
+    # Platform-aware shell command examples
+    _shell_examples = (
+        f"Execute shell commands and return their output. "
+        f"Common commands: 'echo TEXT' (print text), "
+        f"'{_PLATFORM_DIR_CMD}' (current directory), '{_PLATFORM_LIST_CMD}' (list files), "
+        f"'whoami' (current user), 'hostname' (machine name). "
+        f"Use this for system information, file operations, and command execution."
+    )
+
     @registry.tool(
-        description=(
-            "Execute shell commands and return their output. "
-            "Common commands: 'pwd' (current directory), 'date' (date/time), "
-            "'ls' (list files), 'cat FILE' (read file), 'echo TEXT' (print text), "
-            "'whoami' (current user), 'hostname' (machine name). "
-            "Use this for system information, file operations, and command execution."
-        ),
+        description=_shell_examples,
         param_descriptions={
-            "command": "Shell command to execute (e.g., 'pwd', 'date', 'ls -la')",
+            "command": f"Shell command to execute (e.g., 'echo Hello', '{_PLATFORM_DIR_CMD}', '{_PLATFORM_LIST_CMD}')",
             "timeout": "Maximum seconds to wait (default 120)",
         },
     )
@@ -535,7 +545,7 @@ def make_builtin_registry() -> ToolRegistry:
             return f"[Security] {error_msg}"
         
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": "AgentNova-R01/1.0"})
+            req = urllib.request.Request(url, headers={"User-Agent": "AgentNova-R02/1.0"})
             with urllib.request.urlopen(req, timeout=15) as resp:
                 text = resp.read().decode("utf-8", errors="replace")
             return text[:max_chars] + ("..." if len(text) > max_chars else "")
