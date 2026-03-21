@@ -1806,11 +1806,12 @@ class Agent:
                         arg_hint = "input"
                         if first_tool and first_tool.params:
                             arg_hint = first_tool.params[0].name  # params is list[ToolParam]
-                        # Short, direct reminder - no extra text to echo
+                        # Include the ORIGINAL question to prevent model from using example values
                         reminder = (
-                            f"Use this format to call {tool_names[0]}:\n"
+                            f"Answer this question: {user_input}\n\n"
+                            f"Use this format:\n"
                             f"Action: {tool_names[0]}\n"
-                            f"Action Input: {{\"{arg_hint}\": \"...\"}}"
+                            f"Action Input: {{\"{arg_hint}\": \"<your calculation>\"}}"
                         )
                         self.memory.add_user(reminder)
                         continue  # Let the model try again
@@ -2026,7 +2027,7 @@ class Agent:
         # For synthesis, don't include the model's potentially wrong pre-tool responses
         # Just use the system prompt and the synthesis request
         synthesis_messages = [
-            {"role": "system", "content": self.memory._system_prompt},
+            {"role": "system", "content": self.memory.system_prompt},
             {"role": "user", "content": (
                 f"You have already gathered the following information using your tools:\n"
                 f"{results_text}\n\n"
