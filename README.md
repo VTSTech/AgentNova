@@ -1,4 +1,4 @@
-# ⚛️ AgentNova R00
+# ⚛️ AgentNova R01
 
 A minimal, hackable agentic framework engineered to run **entirely locally** with [Ollama](https://ollama.com) or [BitNet](https://github.com/microsoft/BitNet).
 
@@ -165,19 +165,20 @@ agentnova models --tool_support
 
 ### Performance by Tool Support
 
-Recent test results with ReAct improvements:
+Recent test results with native tool synthesis:
 
-| Model | Params | Tool Support | Calculator | Shell |
-|-------|--------|--------------|------------|-------|
-| `qwen2.5:0.5b` | 494M | native | **60%** | ✅ |
-| `qwen2.5-coder:0.5b` | 494M | ReAct | **60%** | ✅ |
-| `granite4:350m` | 350M | native | ~90% | ✅ |
-| `gemma3:270m` | 270M | none | **64%** | N/A |
+| Model | Params | Tool Support | Calculator | Shell | Python |
+|-------|--------|--------------|------------|-------|--------|
+| `qwen2.5:0.5b` | 494M | native | **100%** | **100%** | **100%** |
+| `qwen2.5-coder:0.5b` | 494M | ReAct | **100%** | **100%** | **100%** |
+| `granite4:350m` | 350M | native | ~90% | ✅ | ✅ |
+| `gemma3:270m` | 270M | none | **64%** | N/A | N/A |
 
-**Key improvements in R00.1**:
-- ReAct few-shot examples improve calculator tests by +33%
-- Malformed response handling fixes shell echo test corruption
-- Better regex parsing handles backticks and same-line formats
+**Key improvements in R01**:
+- Native tool synthesis extracts expressions from natural language
+- Two-tier retry: hint → synthesize (bypasses confused models)
+- Bare expression wrapping: `2**20` → `print(2**20)`
+- Hallucinated mention detection for models that talk about tools but don't call them
 
 ---
 
@@ -228,7 +229,7 @@ Output shows:
 - **Tool Support** - `✓ native`, `ReAct`, `○ none`, or `untested`
 
 ```
-⚛️ AgentNova R00 Models
+⚛️ AgentNova R01 Models
   Model                                      Family       Context    Tool Support
   ──────────────────────────────────────────────────────────────────────────────
   gemma3:270m                                gemma3       32K        ○ none

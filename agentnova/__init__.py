@@ -1,5 +1,5 @@
 """
-⚛️ AgentNova R00 - A minimal, hackable agentic framework for Ollama and BitNet
+⚛️ AgentNova R01 - A minimal, hackable agentic framework for Ollama and BitNet
 
 Written by VTSTech
 https://www.vts-tech.org
@@ -191,7 +191,7 @@ __all__ = [
 if _BITNET_AVAILABLE:
     __all__.extend(["BitnetClient", "KNOWN_MODELS"])
 
-__version__ = "0.0"
+__version__ = "0.1"
 __author__ = "VTSTech"
 __author_email__ = "contact@vts-tech.org"
 __url__ = "https://github.com/VTSTech/AgentNova"
