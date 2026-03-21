@@ -367,8 +367,8 @@ NEVER respond with empty content. ALWAYS call a tool when asked to compute."""
     if family == "granite":
         return hints + "\n\nFor tool calls, use XML format: <tool_calljson</tool_call"
     
-    elif family == "qwen2":
-        return hints  # qwen2.5 handles this well
+#    elif family == "qwen2":
+#        return hints  # qwen2.5 handles this well
     
     return hints
 
