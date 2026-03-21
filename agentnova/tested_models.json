@@ -1,19 +1,51 @@
 {
   "_comment": "Tool support test results for AgentNova models",
   "_version": "1.0",
-  "_updated": "2026-03-20T18:52:01.745859",
+  "_updated": "2026-03-21T12:30:15.119640",
   "models": {
     "qwen2.5-coder:0.5b-instruct-q4_k_m": {
       "tool_support": "react",
-      "tested_at": "2026-03-20T18:52:01.613502"
+      "tested_at": "2026-03-21T12:29:41.960964"
     },
     "gemma3:270m": {
       "tool_support": "none",
-      "tested_at": "2026-03-20T18:51:32.472757"
+      "tested_at": "2026-03-21T12:28:29.180559"
     },
     "granite4:350m": {
       "tool_support": "native",
-      "tested_at": "2026-03-20T18:51:47.310949"
+      "tested_at": "2026-03-21T12:29:08.673006"
+    },
+    "granite3.1-moe:1b": {
+      "tool_support": "react",
+      "tested_at": "2026-03-21T12:28:56.868085"
+    },
+    "llama3.2:1b": {
+      "tool_support": "native",
+      "tested_at": "2026-03-21T12:29:28.983566"
+    },
+    "nchapman/dolphin3.0-llama3:1b": {
+      "tool_support": "none",
+      "tested_at": "2026-03-21T12:29:29.684140"
+    },
+    "nchapman/dolphin3.0-qwen2.5:0.5b": {
+      "tool_support": "none",
+      "tested_at": "2026-03-21T12:29:30.367811"
+    },
+    "qwen2.5:0.5b": {
+      "tool_support": "native",
+      "tested_at": "2026-03-21T12:29:52.487627"
+    },
+    "qwen3:0.6b": {
+      "tool_support": "react",
+      "tested_at": "2026-03-21T12:30:14.051234"
+    },
+    "tinydolphin:1.1b": {
+      "tool_support": "none",
+      "tested_at": "2026-03-21T12:30:14.431570"
+    },
+    "tinyllama:1.1b": {
+      "tool_support": "none",
+      "tested_at": "2026-03-21T12:30:15.021034"
     }
   }
 }

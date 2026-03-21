@@ -2,7 +2,7 @@
 
 ## Test 07 Benchmark Results (15-Test Suite)
 
-> **Updated:** 2026-03-21 - Fresh single-run results with accurate timing.
+> **Updated:** 2026-03-22 - Fresh single-run results with accurate timing.
 
 ---
 
@@ -21,6 +21,64 @@
 | 8 | `tinydolphin:1.1b` | 1.1B | 10/15 (67%) | 242.6s | 1/3 | 2/3 | **3/3** ✅ | 1/3 | 3/3 ✅ |
 | 10 | `gemma3:270m` | 270M | 8/15 (53%) | 31.1s | **3/3** ✅ | 1/3 | 1/3 | 0/3 ❌ | 3/3 ✅ |
 | 11 | `nchapman/dolphin3.0-llama3:1b` | 1B | 7/15 (47%) | 47.7s | 1/3 | 1/3 | 2/3 | 0/3 ❌ | 3/3 ✅ |
+
+---
+
+## Test 08 Benchmark Results (15-Test Suite with Debug)
+
+> **Updated:** 2026-03-22 - Run with `--debug --num-ctx 4096 --num-predict 256`
+
+Test 08 uses the same 15 tests but with enhanced debug output showing tool support detection, ReAct parsing, and synthesis fallback behavior.
+
+### Test 08 Leaderboard
+
+| Rank | Model | Score | Time | Math | Reason | Know | Calc | Code | Notes |
+|:----:|-------|------:|-----:|:----:|:------:|:----:|:----:|:----:|-------|
+| 🥇 | **`granite3.1-moe:1b`** | **13/15 (87%)** | 192.3s | 3/3 ✅ | 2/3 | **3/3** ✅ | 2/3 | 3/3 ✅ | Only model with perfect Math |
+| 🥈 | `nchapman/dolphin3.0-qwen2.5:0.5b` | 12/15 (80%) | **25.1s** | 2/3 | 2/3 | **3/3** ✅ | 2/3 | 3/3 ✅ | ⚡ Fastest! |
+| 🥉 | `llama3.2:1b` | 12/15 (80%) | 336.0s | 2/3 | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | Calc champion |
+| 4 | `granite4:350m` | 11/15 (73%) | 49.2s | 2/3 | 1/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | Calc champion |
+| 4 | `qwen2.5:0.5b` | 11/15 (73%) | 61.8s | 1/3 | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | Calc champion |
+| 6 | `tinydolphin:1.1b` | 9/15 (60%) | 115.6s | 1/3 | 1/3 | **3/3** ✅ | 1/3 | 3/3 ✅ | Verbose |
+| 6 | `nchapman/dolphin3.0-llama3:1b` | 8/15 (53%) | 47.9s | 2/3 | 1/3 | 2/3 | 0/3 ❌ | 3/3 ✅ | No tool support |
+| 6 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | 8/15 (53%) | 88.2s | 2/3 | 1/3 | 2/3 | 0/3 ❌ | 3/3 ✅ | |
+| 6 | `tinyllama:1.1b` | 8/15 (53%) | 113.7s | 1/3 | 1/3 | **3/3** ✅ | 0/3 ❌ | 3/3 ✅ | Verbose |
+| 10 | `gemma3:270m` | 7/15 (47%) | 25.8s | 2/3 | 1/3 | 1/3 | 0/3 ❌ | 3/3 ✅ | No tool support |
+| 11 | `qwen3:0.6b` | 0/15 (0%) | 263.6s | 0/3 ❌ | 0/3 ❌ | 0/3 ❌ | 0/3 ❌ | 0/3 ❌ | ❌ Complete failure! |
+
+### Test 08 Category Champions
+
+| Category | 🏆 Champion | Score | Notes |
+|----------|-------------|-------|-------|
+| **Math** | `granite3.1-moe:1b` | 3/3 | Only perfect Math score |
+| **Reasoning** | Multiple models | 2/3 | No model passed all 3 |
+| **Knowledge** | `granite3.1-moe:1b` / `dolphin3.0-qwen2.5` / `tinydolphin` / `tinyllama` | 3/3 | Tie |
+| **Calc** | `llama3.2:1b` / `granite4:350m` / `qwen2.5:0.5b` | 3/3 | Tie - all native tools |
+| **Code** | 10 models | 3/3 | Almost all models perfect |
+
+### Key Findings (Test 08)
+
+1. **`granite3.1-moe:1b` still leads at 87%** - only model with perfect Math
+2. **`dolphin3.0-qwen2.5:0.5b` is fastest at 80%** - 25.1s, 13x faster than llama3.2:1b
+3. **`qwen3:0.6b` complete failure at 0%** - dropped from 80% in Test 07!
+4. **Calc category shows tool support impact** - native tools models dominate
+5. **Debug revealed granite3.1-moe truncates ReAct JSON** - causes Calc errors
+6. **Code is easy** - 10/11 models got perfect 3/3
+
+### Test 07 vs Test 08 Comparison
+
+| Model | Test 07 | Test 08 | Δ | Notes |
+|-------|---------|---------|---|-------|
+| `granite3.1-moe:1b` | 93% (14/15) | 87% (13/15) | -6% | Calc dropped |
+| `llama3.2:1b` | 87% (13/15) | 80% (12/15) | -7% | Math dropped |
+| `qwen3:0.6b` | 80% (12/15) | **0% (0/15)** | -80% | ❌ Complete failure |
+| `dolphin3.0-qwen2.5:0.5b` | 73% (11/15) | 80% (12/15) | +7% | Improved! |
+| `granite4:350m` | 73% (11/15) | 73% (11/15) | = | Consistent |
+| `qwen2.5:0.5b` | 73% (11/15) | 73% (11/15) | = | Consistent |
+| `tinydolphin:1.1b` | 67% (10/15) | 60% (9/15) | -7% | Dropped |
+| `tinyllama:1.1b` | 67% (10/15) | 53% (8/15) | -14% | Dropped |
+| `dolphin3.0-llama3:1b` | 47% (7/15) | 53% (8/15) | +6% | Improved! |
+| `gemma3:270m` | 53% (8/15) | 47% (7/15) | -6% | Dropped |
 
 ---
 
