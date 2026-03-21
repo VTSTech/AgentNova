@@ -1324,6 +1324,9 @@ class Agent:
         Called after each step — useful for live UI updates.
     model_options : dict | None
         Passed through to Ollama (temperature, num_ctx, etc.).
+    model_family : str | None
+        Model family (e.g., "llama", "qwen2", "gemma3"). If None, auto-detected from Ollama API.
+        Useful for family-specific handling in subclasses or custom logic.
     few_shot : bool | None
         If True, add few-shot examples for small models. If None, auto-detect based on model size.
     use_compact_prompt : bool
@@ -1344,6 +1347,7 @@ class Agent:
         debug: bool = False,
         few_shot: bool | None = None,
         use_compact_prompt: bool = False,
+        model_family: str | None = None,
     ):
         self.model = model
         self.tools = tools or ToolRegistry()
@@ -1362,6 +1366,14 @@ class Agent:
         self.model_options = model_options or {}
         self.debug = debug
         self.use_compact_prompt = use_compact_prompt
+
+        # Determine model family (auto-detect if not provided)
+        if model_family is not None:
+            self.model_family = model_family
+        elif hasattr(self.client, 'get_model_family'):
+            self.model_family = self.client.get_model_family(model)
+        else:
+            self.model_family = None
 
         # Determine tool support level: "native", "react", "none", or "untested"
         # Priority: force_react > tested_models.json
@@ -1416,6 +1428,7 @@ class Agent:
             print(f"    _tool_support={self._tool_support}")
             print(f"    _use_few_shot={self._use_few_shot}")
             print(f"    _is_small_model={self._is_small_model}")
+            print(f"    model_family={self.model_family}")
             print(f"    System prompt length: {len(base_sys)} chars")
 
         self.memory = Memory(
