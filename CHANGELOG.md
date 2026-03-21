@@ -6,6 +6,76 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [R02] - 2026-03-21
+
+### 🎯 Model Family Configuration System
+
+Major improvements to model-specific behavior with automatic family detection and family-aware prompting.
+
+### Added
+- **Model Family Configuration System** (`core/model_family_config.py`)
+  - Automatic model family detection (gemma, granite, qwen2, qwen3, llama, dolphin, etc.)
+  - Family-specific tool call formats (`<tool_call\>`, `<|tool_call|>`, raw JSON)
+  - Family-specific stop tokens for preventing runaway generation
+  - Family-specific ReAct format hints in system prompts
+  - Few-shot style preferences per family
+  - `get_stop_tokens()` - Returns family-specific stop tokens
+  - `get_react_system_suffix()` - Returns family-specific ReAct format hints
+  - `get_native_tool_hints()` - Returns hints for native tool mode
+  - `should_use_few_shot()` - Determines if few-shot is beneficial
+  - `get_few_shot_style()` - Returns appropriate few-shot format
+
+- **Repetition Loop Fixes**
+  - Stop tokens for ReAct mode (`\nFinal Answer:`, `\nThought:`, `\nAction:`)
+  - Repetition detection regex collapses repeated "Final Answer:" outputs
+  - Prevents small models from looping the same text 100+ times (was causing 269s test times)
+
+- **Few-Shot Prompting for Small Models**
+  - Automatic few-shot example injection for models <2B parameters
+  - Family-aware few-shot styles (native vs ReAct format)
+  - Improved accuracy on benchmark tests for small models
+
+- **Interactive Test Controls** (test files 07/08)
+  - `[s]tatus` - Show current progress
+  - `[b]ypass model` - Skip current model
+  - `[q]uit` - Exit test early
+
+- **Debug Output** (optional `--debug` flag)
+  - System prompt construction details
+  - Response parsing debug info
+  - Tool call extraction logging
+
+### Fixed
+- Corrupted tool_call tags in model_family_config.py (encoding issue where `<tool_call\>` appeared as `Ȑ`)
+- Import order for `get_stop_tokens` function in agent.py
+- ReAct parsing for models with non-standard output formats
+
+### Changed
+- Agent initialization now detects model family automatically via `model_family` parameter
+- Few-shot prompting enabled by default for small models with tools
+- Stop tokens merged from family config + ReAct-specific tokens
+- Import moved before usage to prevent NameError
+
+### Benchmark Results (Small Models)
+
+| Model | Params | Tool Support | Score | Time |
+|-------|--------|--------------|-------|------|
+| gemma3:270m | 270M | none | 53% (8/15) | ~23s |
+| granite4:350m | 350M | native | 73% (11/15) | ~78s |
+| qwen2.5:0.5b | 494M | native | 73% (11/15) | ~54s |
+| qwen3:0.6b | 600M | react | Testing... | - |
+
+### Technical Details
+- New `ModelFamilyConfig` dataclass with per-family settings
+- Family detection from model name patterns
+- Support for different tool call wrappers:
+  - granite4/qwen2.5: `<tool_call\>{"name": "...", "arguments": {...}}<\tool_call>`
+  - granite3.1-moe: `<|tool_call|>{"name": "...", "parameters": {...}}`
+  - llama3.2: Raw JSON with "parameters" key
+  - gemma3: No tool wrapper
+
+---
+
 ## [R01] - 2026-03-21 3:52:01 AM
 
 ### 🚀 Native Tool Synthesis for Small Models

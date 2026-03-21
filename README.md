@@ -1,4 +1,4 @@
-# ⚛️ AgentNova R01
+# ⚛️ AgentNova R02
 
 A minimal, hackable agentic framework engineered to run **entirely locally** with [Ollama](https://ollama.com) or [BitNet](https://github.com/microsoft/BitNet).
 
@@ -229,7 +229,7 @@ Output shows:
 - **Tool Support** - `✓ native`, `ReAct`, `○ none`, or `untested`
 
 ```
-⚛️ AgentNova R01 Models
+⚛️ AgentNova R02 Models
   Model                                      Family       Context    Tool Support
   ──────────────────────────────────────────────────────────────────────────────
   gemma3:270m                                gemma3       32K        ○ none
