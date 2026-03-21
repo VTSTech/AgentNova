@@ -174,11 +174,24 @@ Remember: Action = tool name, Action Input = JSON with correct arg names.
 
 # Few-shot for native tool models - focuses on WHEN to call tools
 NATIVE_TOOL_HINTS = """
-IMPORTANT: Always use tools when asked to calculate, compute, or run commands.
-- Math questions → Use calculator tool with expression like "15 * 8"
-- System info → Use shell tool with command like "date" or "pwd"
-- Code execution → Use python_repl tool
-- NEVER skip tool calls for math/computation tasks
+TOOL USAGE RULES - YOU MUST CALL TOOLS:
+
+1. MATH QUESTIONS: Always call calculator tool
+   - "times/multiplied" → calculator(expression="A * B")
+   - "power of/to the power" → calculator(expression="A ** B")
+   - "square root" → calculator(expression="sqrt(N)")
+   - "divided by" → calculator(expression="A / B")
+   - Parentheses matter: "(10 + 5) times 3" → calculator(expression="(10 + 5) * 3")
+
+2. SHELL QUESTIONS: Always call shell tool
+   - "echo" something → shell(command="echo YourText")
+   - "current directory/pwd" → shell(command="pwd")
+   - "date/today" → shell(command="date")
+
+3. PYTHON: Use python_repl with correct syntax
+   - Power is ** not ^ : python_repl(code="print(2 ** 20)")
+
+NEVER respond with empty content. ALWAYS call a tool when asked to compute or execute.
 """
 
 
