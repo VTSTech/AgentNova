@@ -4,16 +4,17 @@
 
 ---
 
-### Sub-1B Models (R01 - Latest)
+### Sub-1B Models (R01 - Current)
 
 The following sub-1B parameter models were tested on the **15-test benchmark**:
 
-| Rank | Model | Score | Time | Math | Reason | Know | Calc | Code |
-|:----:|-------|------:|-----:|:-----:|:------:|:----:|:----:|:----:|
-| 🥇 | **`qwen3:0.6b`** | **14/15 (93%)** | 556.3s | 3/3 ✅ | **3/3** ✅ | **3/3** ✅ | 3/3 ✅ | 2/3 |
-| 🥈 | `granite4:350m` | 11/15 (73%) | 47.3s | 2/3 | 1/3 | 2/3 | 3/3 ✅ | 3/3 ✅ |
-| 🥈 | `qwen2.5:0.5b` | 11/15 (73%) | 60.1s | 1/3 | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ |
-| 4 | `gemma3:270m` | 8/15 (53%) | **30.6s** | 3/3 ✅ | 1/3 | 1/3 | 0/3 ❌ | 3/3 ✅ |
+| Rank | Model | Score | Time | Math | Reason | Know | Calc | Code | Δ vs Pre-R01 |
+|:----:|-------|------:|-----:|:-----:|:------:|:----:|:----:|:----:|:------------:|
+| 🥇 | **`qwen3:0.6b`** | **14/15 (93%)** | 556.3s | 3/3 ✅ | **3/3** ✅ | **3/3** ✅ | 3/3 ✅ | 2/3 | ↑ +93% |
+| 🥈 | `granite4:350m` | 11/15 (73%) | 47.3s | 2/3 | 1/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | = |
+| 🥈 | `qwen2.5:0.5b` | 11/15 (73%) | 60.1s | 1/3 | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | ↑ +20% |
+| 4 | `gemma3:270m` | 8/15 (53%) | **30.6s** | 3/3 ✅ | 1/3 | 1/3 | 0/3 ❌ | 3/3 ✅ | = |
+| 5 | `functiongemma:270m` | 4/15 (27%) | 60.4s | 0/3 ❌ | 1/3 | 0/3 ❌ | 3/3 ✅ | 0/3 ❌ | ↑ +14% |
 
 #### Category Champions (Sub-1B R01)
 
@@ -22,12 +23,12 @@ The following sub-1B parameter models were tested on the **15-test benchmark**:
 | **Math** | `qwen3:0.6b` / `gemma3:270m` | 3/3 | Tie - both perfect |
 | **Reasoning** | `qwen3:0.6b` | **3/3** | 🌟 **ONLY model to pass all reasoning!** |
 | **Knowledge** | `qwen3:0.6b` | **3/3** | 🌟 **ONLY model to get Brasília correct!** |
-| **Calc** | `qwen3:0.6b` / `granite4:350m` / `qwen2.5:0.5b` | 3/3 | Tie - all perfect |
+| **Calc** | `qwen3:0.6b` / `granite4:350m` / `qwen2.5:0.5b` / `functiongemma:270m` | 3/3 | Tie - all perfect |
 | **Code** | `granite4:350m` / `qwen2.5:0.5b` / `gemma3:270m` | 3/3 | Tie - all perfect |
 
 #### Key Findings (R01)
 
-1. **`qwen3:0.6b` is the new sub-1B champion** - 93% accuracy, only failed 1 code test
+1. **`qwen3:0.6b` is the new sub-1B champion** - 93% accuracy (was 0% pre-R01!)
 2. **`qwen3:0.6b` is the ONLY model to:**
    - Pass all 3 reasoning tests (Apples, Sequence, Logic)
    - Correctly identify Brasília as Brazil's capital
@@ -35,22 +36,24 @@ The following sub-1B parameter models were tested on the **15-test benchmark**:
    - `qwen3:0.6b`: 93% accuracy but 556s (slowest)
    - `granite4:350m`: 73% accuracy in only 47s (10x faster)
 4. **`gemma3:270m` cannot use tools** - 0/3 on Calc but perfect on Math (pure reasoning)
-5. **Native tool synthesis working** - qwen2.5:0.5b gets 3/3 Calc with AgentNova's tool synthesis
+5. **`functiongemma:270m` inverse profile** - 3/3 Calc (uses tools) but 0/3 Math (can't reason directly)
+6. **Native tool synthesis working** - qwen2.5:0.5b gets 3/3 Calc with AgentNova's tool synthesis
 
 #### Tool Support (Sub-1B R01)
 
 | Model | Params | Tool Support | Calc Score | Notes |
 |-------|--------|--------------|------------|-------|
-| `qwen3:0.6b` | 600M | native | 3/3 ✅ | Excellent tool use |
+| `qwen3:0.6b` | 600M | ReAct | 3/3 ✅ | Excellent tool use |
 | `qwen2.5:0.5b` | 500M | native | 3/3 ✅ | Works with synthesis fallback |
 | `granite4:350m` | 350M | native | 3/3 ✅ | Excellent tool use |
-| `gemma3:270m` | 270M | none | 0/3 ❌ | Cannot call tools |
+| `functiongemma:270m` | 270M | native | 3/3 ✅ | Can use tools, can't reason |
+| `gemma3:270m` | 270M | none | 0/3 ❌ | Can reason, can't use tools |
 
 ---
 
-### 1B+ Models with Modelfile Prompts (R03.1.1)
+### 1B+ Models (Pre-R01 - Historical)
 
-The following 1B-2B parameter models were tested on the **15-test benchmark** using Modelfile system prompts:
+*Results from R03.1.1 - will be updated with R01 tests shortly.*
 
 | Rank | Model | Score | Time | Math | Reason | Know | Calc | Code |
 |:----:|-------|------:|-----:|:-----:|:------:|:----:|:----:|:----:|
