@@ -213,6 +213,7 @@ def test_model_with_agent(model: str, question: str, expected: str, client, acp=
             model_options=opts,
             on_step=on_step,
             force_react=force_react,  # Agent handles this appropriately
+            debug=DEBUG,
         )
         
         start = time.time()
