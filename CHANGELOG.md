@@ -60,15 +60,17 @@ Major improvements to model-specific behavior with automatic family detection an
 
 | Model | Params | Tool Support | Score | Time |
 |-------|--------|--------------|-------|------|
+| **granite3.1-moe:1b** | 1B MoE | react | **80% (12/15)** | 60.6s |
 | **qwen3:0.6b** | 600M | react | **80% (12/15)** | 473s |
-| granite4:350m | 350M | native | 73% (11/15) | ~78s |
-| qwen2.5:0.5b | 494M | native | 73% (11/15) | ~54s |
-| dolphin3.0-qwen2.5:0.5b | 494M | none | 73% (11/15) | 24.5s |
-| gemma3:270m | 270M | none | 53% (8/15) | ~23s |
+| dolphin3.0-qwen2.5:0.5b | 500M | none | 73% (11/15) | 24.5s |
+| qwen2.5:0.5b | 500M | native | 73% (11/15) | 84.2s |
+| llama3.2:1b | 1.2B | native | 67% (10/15) | 180.1s |
+| tinyllama:1.1b | 1.1B | none | 67% (10/15) | 253.1s |
+| tinydolphin:1.1b | 1.1B | none | 67% (10/15) | 391.9s |
 | qwen2.5-coder:0.5b | 494M | react | 53% (8/15) | 65.8s |
 | dolphin3.0-llama3:1b | 1B | none | 47% (7/15) | 43.8s |
 
-**qwen3:0.6b is the new champion for small models!** Excellent at Math, Reasoning, Knowledge, and Code (all 100%) but struggles with tool-based Calc tests (returns empty responses in ReAct mode).
+**`granite3.1-moe:1b` and `qwen3:0.6b` tie for champion at 80%!** granite3.1-moe is 8x faster (60.6s vs 473s). qwen3:0.6b is the only model with perfect Reasoning (3/3).
 
 ### Technical Details
 - New `ModelFamilyConfig` dataclass with per-family settings

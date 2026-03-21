@@ -2,7 +2,7 @@
 
 ## Test 07 Benchmark Results (15-Test Suite with Debug)
 
-> **Updated:** 2026-03-22 - R02 release with Model Family Configuration and repetition fixes.
+> **Updated:** 2026-03-21 - R02 release with Model Family Configuration and repetition fixes.
 
 Test 07 uses the 15-test benchmark with debug output showing tool support detection, ReAct parsing, and family-specific configuration.
 
@@ -26,12 +26,13 @@ Test 07 uses the 15-test benchmark with debug output showing tool support detect
 
 ### R02 Key Findings
 
-1. **`qwen3:0.6b` is the NEW sub-1B champion at 80%!** - Perfect Math, Reasoning, Knowledge, and Code
-2. **`granite3.1-moe:1b` ties at 80% but 8x faster** (60.6s vs 473s) 
+1. **`granite3.1-moe:1b` ties for first at 80%** - **8x faster** than qwen3 (60.6s vs 473s)
+2. **`qwen3:0.6b` is the sub-1B champion** - Only model with perfect Reasoning (3/3)
 3. **Model Family Detection Working** - `granite3.1-moe` shows `family_issues={'schema_dump': True, 'truncate_json': True}`
 4. **Repetition Loop Fix Working** - No more 269s timeouts from "Final Answer:" loops
 5. **Calc tests challenging for ReAct models** - Many output "Thought:" without completing "Action:"
 6. **Code is universally easy** - All models score 100% on Code generation
+7. **`tinyllama` and `tinydolphin` at 67%** - Both score 10/15 but very slow (253s/392s)
 
 ---
 
@@ -53,18 +54,15 @@ Test 07 uses the 15-test benchmark with debug output showing tool support detect
 |:----:|-------|-------:|------:|-----:|:------:|:------:|:----:|:----:|:----:|--------------|
 | 🥇 | **`qwen3:0.6b`** | 600M | **12/15 (80%)** | 473.0s | 3/3 ✅ | 3/3 ✅ | 3/3 ✅ | 0/3 ❌ | 3/3 ✅ | react |
 | 🥈 | `nchapman/dolphin3.0-qwen2.5:0.5b` | 500M | 11/15 (73%) | **24.5s** | 1/3 | 2/3 | 3/3 ✅ | 2/3 | 3/3 ✅ | none |
-| 🥈 | `granite4:350m` | 350M | 11/15 (73%) | ~78s | 2/3 | 1/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | native |
-| 🥈 | `qwen2.5:0.5b` | 500M | 11/15 (73%) | ~54s | 1/3 | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | native |
-| 5 | `gemma3:270m` | 270M | 8/15 (53%) | ~23s | 2/3 | 1/3 | 1/3 | 0/3 ❌ | 3/3 ✅ | none |
-| 5 | `qwen2.5-coder:0.5b` | 494M | 8/15 (53%) | 65.8s | 2/3 | 1/3 | 2/3 | 0/3 ❌ | 3/3 ✅ | react |
+| 🥈 | `qwen2.5:0.5b` | 500M | 11/15 (73%) | 84.2s | 1/3 | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | native |
+| 4 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | 494M | 8/15 (53%) | 65.8s | 2/3 | 1/3 | 2/3 | 0/3 ❌ | 3/3 ✅ | react |
 
 #### Sub-1B Key Findings (R02)
 
 1. **`qwen3:0.6b` is the sub-1B champion** - 80% with perfect Reasoning (only model!)
 2. **Fastest 73%+ model: `dolphin3.0-qwen2.5:0.5b`** at 24.5s
 3. **`qwen3:0.6b` Calc issue** - Returns empty responses in ReAct mode (0/3)
-4. **Native tools models excel at Calc** - `granite4:350m` and `qwen2.5:0.5b` both 3/3
-5. **`gemma3:270m` fastest pure reasoning** - No tool overhead, 23s total
+4. **Native tools models excel at Calc** - `qwen2.5:0.5b` gets 3/3 on Calc
 
 ---
 
@@ -74,13 +72,16 @@ Test 07 uses the 15-test benchmark with debug output showing tool support detect
 |:----:|-------|-------:|------:|-----:|:------:|:------:|:----:|:----:|:----:|--------------|
 | 🥇 | **`granite3.1-moe:1b`** | 1B MoE | **12/15 (80%)** | **60.6s** | 3/3 ✅ | 2/3 | 3/3 ✅ | 1/3 | 3/3 ✅ | react |
 | 🥈 | `llama3.2:1b` | 1.2B | 10/15 (67%) | 180.1s | 3/3 ✅ | 2/3 | 2/3 | 0/3 ❌ | 3/3 ✅ | native |
-| 3 | `nchapman/dolphin3.0-llama3:1b` | 1B | 7/15 (47%) | 43.8s | 1/3 | 1/3 | 2/3 | 0/3 ❌ | 3/3 ✅ | none |
+| 🥈 | `tinyllama:1.1b` | 1.1B | 10/15 (67%) | 253.1s | 1/3 | 2/3 | 3/3 ✅ | 1/3 | 3/3 ✅ | none |
+| 🥈 | `tinydolphin:1.1b` | 1.1B | 10/15 (67%) | 391.9s | 1/3 | 2/3 | 3/3 ✅ | 1/3 | 3/3 ✅ | none |
+| 4 | `nchapman/dolphin3.0-llama3:1b` | 1B | 7/15 (47%) | 43.8s | 1/3 | 1/3 | 2/3 | 0/3 ❌ | 3/3 ✅ | none |
 
 #### 1B+ Key Findings (R02)
 
-1. **`granite3.1-moe:1b` leads at 80%** - MoE architecture very efficient
-2. **`llama3.2:1b` dropped to 67%** - Calc tests failing (0/3)
-3. **Dolphin fine-tunes lose tool support** - `dolphin3.0-llama3:1b` at 47%
+1. **`granite3.1-moe:1b` leads at 80%** - MoE architecture very efficient, 60.6s
+2. **`llama3.2:1b` at 67%** - Calc tests failing (0/3) but fastest 1B+ after granite3.1-moe
+3. **`tinyllama` and `tinydolphin` verbose** - Both 67% but slow (253s/392s)
+4. **Dolphine fine-tunes lose tool support** - `dolphin3.0-llama3:1b` at 47%, fastest of the 1B models
 
 ---
 
@@ -88,16 +89,17 @@ Test 07 uses the 15-test benchmark with debug output showing tool support detect
 
 | Model | Tool Support | Calc Score | Notes |
 |-------|--------------|------------|-------|
-| `granite4:350m` | native | 3/3 ✅ | Native API tool calling |
-| `qwen2.5:0.5b` | native | 3/3 ✅ | Native + synthesis fallback |
-| `granite3.1-moe:1b` | react | 1/3 | Gets "Thought:" but incomplete "Action:" |
+| `qwen2.5:0.5b` | native | 3/3 ✅ | Native API tool calling |
+| `granite3.1-moe:1b` | react | 1/3 | Gets "Thought:" but sometimes incomplete "Action:" |
 | `qwen3:0.6b` | react | 0/3 ❌ | Returns empty in Calc tests |
 | `qwen2.5-coder:0.5b` | react | 0/3 ❌ | Gets "Thought:" without "Action:" |
+| `llama3.2:1b` | native | 0/3 ❌ | Calc tests failing |
 | `dolphin3.0-qwen2.5:0.5b` | none | 2/3 | Pure reasoning, no tools |
-| `gemma3:270m` | none | 0/3 ❌ | Pure reasoning, small model |
+| `tinyllama:1.1b` | none | 1/3 | Verbose responses |
+| `tinydolphin:1.1b` | none | 1/3 | Verbose responses |
 | `dolphin3.0-llama3:1b` | none | 0/3 ❌ | Pure reasoning, no tools |
 
-**Key Insight**: Native tool models dominate Calc. ReAct models struggle to complete the Action step.
+**Key Insight**: Native tool models dominate Calc, but `qwen2.5:0.5b` is the only one scoring 3/3 in this test. ReAct models struggle to complete the Action step.
 
 ---
 
@@ -199,7 +201,7 @@ AgentNova has been tested with **Microsoft BitNet-b1.58-2B-4T** — a 2B paramet
 | **Best Sub-1B** | **`qwen3:0.6b`** | **80%** - only perfect Reasoning score! |
 | **Best GSM8K** | **`qwen2.5:0.5b`** | **90% GSM8K** - matches 1B at half the size! |
 | **Best Speed (73%+)** | `nchapman/dolphin3.0-qwen2.5:0.5b` | **24.5s**, 73% accuracy |
-| **Best Calc** | `granite4:350m` / `qwen2.5:0.5b` | **3/3 Calc** with native tools |
+| **Best Calc** | `qwen2.5:0.5b` | **3/3 Calc** with native tools |
 | **Large context** | `llama3.2:1b` | **128k context window** |
 | **CPU-only** | `BitNet-b1.58-2B-4T` | Efficient ternary weights |
 
@@ -210,10 +212,10 @@ AgentNova has been tested with **Microsoft BitNet-b1.58-2B-4T** — a 2B paramet
 | **`granite3.1-moe:1b`** | ReAct | 🏆 **Champion!** 80% in 60.6s |
 | **`qwen3:0.6b`** | ReAct | 80%, perfect Reasoning/Knowledge/Code |
 | **`qwen2.5:0.5b`** | Native | 🎯 **90% GSM8K** - Calc champion |
-| `granite4:350m` | Native | 73%, Calc champion |
 | `llama3.2:1b` | Native | 67%, 128k context |
 | `nchapman/dolphin3.0-qwen2.5:0.5b` | None | 73% pure reasoning, fastest |
-| `gemma3:270m` | None | Cannot use tools, pure reasoning |
+| `tinyllama:1.1b` | None | 67%, verbose responses |
+| `tinydolphin:1.1b` | None | 67%, verbose responses |
 | `qwen2.5-coder:0.5b` | ReAct | 53%, Code focused |
 | `nchapman/dolphin3.0-llama3:1b` | None | 47%, no tool support |
 
