@@ -858,14 +858,15 @@ class AgentRun:
 # - Same-line format: Action: shell Action Input: {...}
 # - Quotes around tool names: Action: "shell"
 # - Extra whitespace
+# - Stop at next Action, Example, Observation, Thought, Final Answer, or end
 _THOUGHT_RE = re.compile(r"Thought:\s*(.*?)(?=Action:|Final Answer:|$)", re.DOTALL | re.IGNORECASE)
 _ACTION_RE  = re.compile(
-    r"Action:\s*[`\"']?(\w+)[`\"']?\s*\n?\s*Action Input:\s*(.*?)(?=Observation:|Thought:|Final Answer:|$)",
+    r"Action:\s*[`\"']?(\w+)[`\"']?\s*\n?\s*Action Input:\s*(.*?)(?=\n\s*(?:Observation:|Thought:|Final Answer:|Action:|Example)|$)",
     re.DOTALL | re.IGNORECASE
 )
 # Alternative pattern for same-line format: Action: tool_name Action Input: {...}
 _ACTION_RE_SAMELINE = re.compile(
-    r"Action:\s*[`\"']?(\w+)[`\"']?\s+Action Input:\s*(.*?)(?=Observation:|Thought:|Final Answer:|$)",
+    r"Action:\s*[`\"']?(\w+)[`\"']?\s+Action Input:\s*(.*?)(?=\n\s*(?:Observation:|Thought:|Final Answer:|Action:|Example)|$)",
     re.DOTALL | re.IGNORECASE
 )
 _FINAL_RE   = re.compile(r"Final Answer:\s*(.*?)$", re.DOTALL | re.IGNORECASE)
