@@ -1,5 +1,52 @@
 # ⚛️ AgentNova R02
 
+## Test 05 Tool Tests (Multi-Platform)
+
+> **Updated:** 2026-03-21 - R02 with multi-platform shell command support.
+
+Test 05 tests calculator, shell, and Python REPL tools. Shell commands are now platform-aware (Windows: `cd`/`dir`, Linux: `pwd`/`ls`).
+
+---
+
+### Test 05 Results by Platform
+
+#### Linux (Colab)
+
+| Model | Tool Support | Calculator | Shell | Python REPL | Total | Notes |
+|-------|--------------|------------|-------|-------------|-------|-------|
+| **`qwen2.5:0.5b`** | native | **5/5 (100%)** | **3/3 (100%)** | 1/3 (33%) | **9/11 (82%)** | Native JSON fallback working |
+| `gemma3:270m` | none | 2/5 (40%) | 0/3 (0%) | 0/3 (0%) | 2/11 (18%) | No tool support, guesses answers |
+
+#### Windows (Native)
+
+| Model | Tool Support | Calculator | Shell | Python REPL | Total | Notes |
+|-------|--------------|------------|-------|-------------|-------|-------|
+| **`granite4:350m`** | native | **5/5 (100%)** | 2/3 (66%) | 2/3 (66%) | **9/11 (81%)** | Best small model on Windows! |
+| `qwen2.5-coder:0.5b` | react | 4/5 (80%) | 2/3 (66%) | 1/3 (33%) | 7/11 (63%) | Model math error on `(10+5)*3` |
+
+---
+
+### Multi-Platform Shell Commands (R02)
+
+| Platform | Directory | List Files | Date/Time |
+|----------|-----------|------------|-----------|
+| **Windows** | `cd` | `dir` | `python_repl` |
+| **Linux/Mac** | `pwd` | `ls` | `python_repl` |
+
+**Key Change:** Date/time queries now use `python_repl` (cross-platform) instead of shell `date` command.
+
+---
+
+### Key Findings (Test 05)
+
+1. **`granite4:350m` excellent on Windows** - 81% with native tool calling
+2. **Native tool models dominate** - granite4 and qwen2.5 both score 100% on Calculator
+3. **Multi-platform fix working** - Windows uses `cd`/`dir`, Linux uses `pwd`/`ls`
+4. **Small models struggle with Python REPL** - Need `print()` for output
+5. **Model hallucination issue** - Some models ignore tool results and generate unrelated text
+
+---
+
 ## Test 07 Benchmark Results (15-Test Suite with Debug)
 
 > **Updated:** 2026-03-21 - R02 release with Model Family Configuration and repetition fixes.
