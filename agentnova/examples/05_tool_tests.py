@@ -243,8 +243,7 @@ def test_calculator():
     # Summary
     passed = sum(results)
     total = len(results)
-    print(f"\n{'='*60}")
-    print(f"📊 Calculator: {passed}/{total} tests passed ({100*passed//total}%)")
+    print(f"\n📊 Calculator: {passed}/{total} tests passed ({100*passed//total}%)")
     print(f"{'='*60}")
     return passed, total
 
@@ -272,11 +271,16 @@ def test_shell():
     
     tools = make_builtin_registry().subset(["shell"])
     
+    # Detect platform for cross-platform commands
+    import platform
+    is_windows = platform.system() == "Windows"
+    
     # Ask questions - model must use shell tool
+    # Use cross-platform commands that work on both Windows and Unix
     tests = [
         ("Echo test", "Use shell to echo the text 'Hello AgentNova'", "Hello AgentNova", "shell"),
-        ("Current directory", "What is the current working directory?", None, "shell"),
-        ("Date", "What is today's date? Use shell to find out.", None, "shell"),
+        ("Current directory", "What is the current working directory? Use the appropriate command for this platform.", None, "shell"),
+        ("List files", "List the files in the current directory.", None, "shell"),
     ]
     
     results = []
@@ -285,11 +289,17 @@ def test_shell():
         print(f"\n📋 {name}")
         print(f"   Prompt: {prompt}")
         
+        # Platform-aware system prompt
+        if is_windows:
+            sys_prompt = "Use the shell tool to run Windows commands. Use 'dir' to list files, 'cd' to show directory, 'echo' for text output."
+        else:
+            sys_prompt = "Use the shell tool to run commands. Use 'ls' to list files, 'pwd' for current directory, 'echo' for text output."
+        
         agent = Agent(
             model=MODEL,
             client=client,
             tools=tools,
-            system_prompt="Use the shell tool to run commands when asked.",
+            system_prompt=sys_prompt,
             max_steps=5,
             on_step=make_step_callback(VERBOSE, test_acp),
             debug=DEBUG,
