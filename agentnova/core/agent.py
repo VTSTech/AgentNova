@@ -1715,12 +1715,14 @@ class Agent:
 
                 # Format reminder: if model didn't use ReAct format, remind it once
                 # This helps code-focused models like qwen2.5-coder that default to Python blocks
+                # Only send on FIRST response (before any tool calls) to avoid confusion
                 if not t_name and not final_answer and not thought:
-                    if not hasattr(self, '_format_reminder_sent'):
+                    # Only send reminder if no tools have been called yet
+                    if not _successful_results and not hasattr(self, '_format_reminder_sent'):
                         self._format_reminder_sent = True
                         if self.debug:
                             print(f"\n  🔍 DEBUG: Model didn't use ReAct format, sending reminder")
-                        # Re-prompt with format reminder - include ORIGINAL question to prevent confusion
+                        # Re-prompt with format reminder - SHORT and DIRECT
                         self.memory.add_assistant(content)
                         tool_names = [t.name for t in self.tools.all()]
                         # Get tool-specific arg name hint
@@ -1728,14 +1730,11 @@ class Agent:
                         arg_hint = "input"
                         if first_tool and first_tool.params:
                             arg_hint = first_tool.params[0].name  # params is list[ToolParam]
+                        # Short, direct reminder - no extra text to echo
                         reminder = (
-                            f"Please answer the original question using the ReAct format:\n\n"
-                            f"Thought: <your reasoning about the question>\n"
-                            f"Action: <tool_name>\n"
-                            f"Action Input: <JSON with correct argument name>\n\n"
-                            f"Original question: {user_input}\n\n"
-                            f"Available tools: {', '.join(tool_names)}\n"
-                            f"Remember: Use '{arg_hint}' as the argument name for {tool_names[0]}."
+                            f"Use this format to call {tool_names[0]}:\n"
+                            f"Action: {tool_names[0]}\n"
+                            f"Action Input: {{\"{arg_hint}\": \"...\"}}"
                         )
                         self.memory.add_user(reminder)
                         continue  # Let the model try again
