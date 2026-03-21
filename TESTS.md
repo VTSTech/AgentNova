@@ -15,8 +15,9 @@ The following sub-1B parameter models were tested on the **15-test benchmark**:
 | 🥇 | **`qwen3:0.6b`** | **14/15 (93%)** | 556.3s | 3/3 ✅ | **3/3** ✅ | **3/3** ✅ | 3/3 ✅ | 2/3 | ↑ +93% |
 | 🥈 | `granite4:350m` | 11/15 (73%) | 47.3s | 2/3 | 1/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | = |
 | 🥈 | `qwen2.5:0.5b` | 11/15 (73%) | 60.1s | 1/3 | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | ↑ +20% |
-| 4 | `gemma3:270m` | 8/15 (53%) | **30.6s** | 3/3 ✅ | 1/3 | 1/3 | 0/3 ❌ | 3/3 ✅ | = |
-| 5 | `functiongemma:270m` | 4/15 (27%) | 60.4s | 0/3 ❌ | 1/3 | 0/3 ❌ | 3/3 ✅ | 0/3 ❌ | ↑ +14% |
+| 🥈 | `dolphin3.0-qwen2.5:0.5b` | 11/15 (73%) | **39.5s** | 1/3 | 2/3 | 3/3 ✅ | 2/3 | 3/3 ✅ | = |
+| 5 | `gemma3:270m` | 8/15 (53%) | 30.6s | 3/3 ✅ | 1/3 | 1/3 | 0/3 ❌ | 3/3 ✅ | = |
+| 6 | `functiongemma:270m` | 4/15 (27%) | 60.4s | 0/3 ❌ | 1/3 | 0/3 ❌ | 3/3 ✅ | 0/3 ❌ | ↑ +14% |
 
 #### Category Champions (Sub-1B R01)
 
@@ -24,9 +25,9 @@ The following sub-1B parameter models were tested on the **15-test benchmark**:
 |----------|-------------|-------|-------|
 | **Math** | `qwen3:0.6b` / `gemma3:270m` | 3/3 | Tie - both perfect |
 | **Reasoning** | `qwen3:0.6b` | **3/3** | 🌟 **ONLY model to pass all reasoning!** |
-| **Knowledge** | `qwen3:0.6b` | **3/3** | 🌟 **ONLY model to get Brasília correct!** |
+| **Knowledge** | `qwen3:0.6b` / `dolphin3.0-qwen2.5:0.5b` | 3/3 | Tie - both perfect |
 | **Calc** | `qwen3:0.6b` / `granite4:350m` / `qwen2.5:0.5b` / `functiongemma:270m` | 3/3 | Tie - all perfect |
-| **Code** | `granite4:350m` / `qwen2.5:0.5b` / `gemma3:270m` | 3/3 | Tie - all perfect |
+| **Code** | `granite4:350m` / `qwen2.5:0.5b` / `gemma3:270m` / `dolphin3.0-qwen2.5:0.5b` | 3/3 | Tie - all perfect |
 
 #### Key Findings (R01)
 
