@@ -10,8 +10,13 @@ Written by VTSTech — https://www.vts-tech.org
 
 from __future__ import annotations
 
+import platform
 from dataclasses import dataclass, field
 from typing import Literal
+
+# Platform detection for cross-platform hints
+_IS_WINDOWS = platform.system() == "Windows"
+_PLATFORM_DIR_CMD = "cd" if _IS_WINDOWS else "pwd"
 
 
 @dataclass
@@ -334,7 +339,8 @@ def get_native_tool_hints(family: str) -> str:
     if not config.supports_native_tools:
         return ""
     
-    hints = """TOOL USAGE RULES - YOU MUST CALL TOOLS:
+    # Platform-aware hints - use python_repl for date (cross-platform)
+    hints = f"""TOOL USAGE RULES - YOU MUST CALL TOOLS:
 
 1. MATH QUESTIONS: Always call calculator tool
    - "times/multiplied" → expression="A * B"
@@ -342,11 +348,14 @@ def get_native_tool_hints(family: str) -> str:
    - "square root" → expression="sqrt(N)"
    - "divided by" → expression="A / B"
 
-2. SHELL/DATE: Use shell tool
+2. SHELL: Use shell tool
    - "echo X" → command="echo X"
-   - "current date" → command="date"
+   - "directory" → command="{_PLATFORM_DIR_CMD}"
 
-3. PYTHON: Use python_repl
+3. DATE/TIME: Use python_repl (works on all platforms)
+   - python_repl(code="from datetime import datetime; print(datetime.now())")
+
+4. PYTHON: Use python_repl
    - Power is ** not ^
 
 NEVER respond with empty content. ALWAYS call a tool when asked to compute."""
