@@ -61,20 +61,32 @@ The following sub-1B parameter models were tested on the **15-test benchmark**:
 
 | Rank | Model | Score | Time | Math | Reason | Know | Calc | Code | Δ vs Pre-R01 |
 |:----:|-------|------:|-----:|:-----:|:------:|:----:|:----:|:----:|:------------:|
+| 🥇 | **`granite3.1-moe:1b`** | **14/15 (93%)** | 142.3s | 3/3 ✅ | 2/3 | **3/3** ✅ | 3/3 ✅ | **3/3** ✅ | ↑ +13% |
 | 🥇 | **`llama3.2:1b`** | **13/15 (87%)** | 283.2s | 3/3 ✅ | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | = |
-| 2 | `nchapman/dolphin3.0-llama3:1b` | 7/15 (47%) | 76.0s | 1/3 | 1/3 | 2/3 | 0/3 ❌ | 3/3 ✅ | = |
+| 3 | `nchapman/dolphin3.0-llama3:1b` | 7/15 (47%) | 76.0s | 1/3 | 1/3 | 2/3 | 0/3 ❌ | 3/3 ✅ | = |
 | | *More results pending...* | | | | | | | | |
+
+#### 🏆 TIE FOR CHAMPION!
+
+| Model | Score | Time | Notes |
+|-------|-------|------|-------|
+| **`qwen3:0.6b`** | **93%** | 556.3s | Sub-1B champion, best reasoning |
+| **`granite3.1-moe:1b`** | **93%** | **142.3s** ⚡ | 1B MoE, 4x faster! |
+
+**`granite3.1-moe:1b` ties `qwen3:0.6b` at 93% but is 4x faster!**
 
 #### Key Findings (1B+ R01)
 
-1. **`llama3.2:1b` maintains 87%** - same score as pre-R01, but now uses native tools (was ReAct)
-2. **`llama3.2:1b` cannot beat `qwen3:0.6b`** - 87% vs 93%, the sub-1B model wins!
-3. **`dolphin3.0-llama3:1b` unchanged** - 47%, no tool support, strong Code (3/3)
+1. **`granite3.1-moe:1b` surges to 93%** - improved from 80% with R01, ties for overall champion!
+2. **MoE efficiency** - `granite3.1-moe:1b` achieves same 93% as `qwen3:0.6b` but 4x faster
+3. **`llama3.2:1b` at 87%** - strong but now 3rd place overall
+4. **`dolphin3.0-llama3:1b` unchanged** - 47%, no tool support, strong Code (3/3)
 
 #### Tool Support (1B+ R01)
 
 | Model | Params | Tool Support | Calc Score | Notes |
 |-------|--------|--------------|------------|-------|
+| `granite3.1-moe:1b` | 1B MoE | ReAct | 3/3 ✅ | Excellent via ReAct |
 | `llama3.2:1b` | 1.2B | native | 3/3 ✅ | Was ReAct pre-R01 |
 | `dolphin3.0-llama3:1b` | 1B | none | 0/3 ❌ | No tool support |
 
