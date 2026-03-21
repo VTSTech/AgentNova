@@ -21,6 +21,7 @@ import json
 import re
 import unicodedata
 import argparse
+import select
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agentnova import Agent, get_default_client, get_tool_support, AGENTNOVA_BACKEND, StepResult
@@ -47,6 +48,19 @@ if USE_ACP:
 DEBUG = config.debug
 
 BACKEND_NAME = AGENTNOVA_BACKEND.upper()
+
+# Global flags for interactive control
+_bypass_mode = False
+_quit_requested = False
+
+
+def check_user_input():
+    """Check for user input without blocking. Returns command or None."""
+    if select.select([sys.stdin], [], [], 0.0)[0]:
+        char = sys.stdin.read(1)
+        if char:
+            return char.lower()
+    return None
 
 
 def normalize_text(text: str) -> str:
@@ -181,6 +195,9 @@ def save_results(results):
 
 def test_model(client, model: str, results: dict, force_react: bool = False, main_acp=None) -> dict:
     """Test a single model, saving progress after each test with optional ACP logging."""
+    global _quit_requested
+    
+    print(f"  Controls: [s]tatus | [b]ypass model | [q]uit")
     
     # Create model-specific ACP instance if ACP is enabled
     model_acp = None
@@ -208,8 +225,23 @@ def test_model(client, model: str, results: dict, force_react: bool = False, mai
         }
 
     model_results = results[model]
+    _bypass_this_model = False
 
     for cat, test_name, prompt, tools, expected in TESTS:
+        # Check for user input
+        cmd = check_user_input()
+        if cmd == 'q':
+            print("\n\n⏹️ Quit requested by user")
+            _quit_requested = True
+            break
+        elif cmd == 'b':
+            print("\n\n⏭️ Bypassing current model")
+            _bypass_this_model = True
+            break
+        elif cmd == 's':
+            passed = sum(1 for t in model_results['tests'].values() if t.get('passed', False))
+            print(f"\n\n📊 Status: {passed}/{len(TESTS)} passed so far")
+        
         full_name = f"{cat}:{test_name}"
 
         # Skip already tested
@@ -410,12 +442,23 @@ def main():
     if acp_connected and main_acp:
         main_acp.log_chat("system", f"Benchmark started: {len(models_to_test)} models", complete=True)
 
+    global _quit_requested
+
     for model in models_to_test:
+        # Check if user requested quit
+        if _quit_requested:
+            print("\n⏹️ Test terminated by user")
+            break
+        
         print(f"\n{'='*50}")
         print(f"🧪 Testing: {model}")
         print(f"{'='*50}")
 
         test_model(client, model, results, force_react=force_react, main_acp=main_acp)
+        
+        # Check again after test
+        if _quit_requested:
+            break
 
     # Print rankings
     print(f"\n{'='*50}")
