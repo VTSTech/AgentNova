@@ -1445,11 +1445,18 @@ class Agent:
         self._native_tools = (self._tool_support == "native")
         self._no_tools = (self._tool_support == "none")
         
+        # Get family-specific configuration (import needed for stop tokens)
+        from .model_family_config import (
+            get_family_config, should_use_few_shot, get_few_shot_style,
+            get_react_system_suffix, get_native_tool_hints, has_known_issues,
+            get_stop_tokens
+        )
+        self._family_config = get_family_config(self.model_family)
+        self._family_issues = has_known_issues(self.model_family)
+        
         # Add stop tokens for ReAct mode to prevent runaway generation
         # Models sometimes loop "Final Answer: X\nFinal Answer: X..."
         if self._tool_support == "react" and self.tools.all():
-            # Import stop tokens helper
-            from .model_family_config import get_stop_tokens
             # Get family-specific stop tokens
             family_stops = get_stop_tokens(self.model_family or "")
             # Add ReAct-specific stop tokens
@@ -1460,14 +1467,6 @@ class Agent:
                 existing_stops = [existing_stops]
             all_stops = list(set(existing_stops + family_stops + react_stops))
             self.model_options["stop"] = all_stops
-        
-        # Get family-specific configuration
-        from .model_family_config import (
-            get_family_config, should_use_few_shot, get_few_shot_style,
-            get_react_system_suffix, get_native_tool_hints, has_known_issues
-        )
-        self._family_config = get_family_config(self.model_family)
-        self._family_issues = has_known_issues(self.model_family)
         
         # Determine if we should use few-shot prompting
         self._is_small_model = _is_small_model(model)
