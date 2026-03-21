@@ -15,6 +15,7 @@ Test 05 tests calculator, shell, and Python REPL tools. Shell commands are now p
 | Model | Tool Support | Calculator | Shell | Python REPL | Total | Notes |
 |-------|--------------|------------|-------|-------------|-------|-------|
 | **`qwen2.5:0.5b`** | native | **5/5 (100%)** | **3/3 (100%)** | 1/3 (33%) | **9/11 (82%)** | Native JSON fallback working |
+| `granite3.1-moe:1b` | react | **5/5 (100%)** | 2/3 (66%) | 1/3 (33%) | 8/11 (72%) | Wrong arg names in ReAct |
 | `gemma3:270m` | none | 2/5 (40%) | 0/3 (0%) | 0/3 (0%) | 2/11 (18%) | No tool support, guesses answers |
 
 #### Windows (Native)
