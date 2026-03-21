@@ -6,7 +6,7 @@ Inspired by the architecture of OpenClaw, rebuilt from scratch for local-first o
 
 **Written by [VTSTech](https://www.vts-tech.org)** · [GitHub](https://github.com/VTSTech/AgentNova)
 
-[![GitHub commits](https://badgen.net/github/commits/VTSTech/AgentNova.js)](https://GitHub.com/VTSTech/AgentNova.js/commit/) [![GitHub latest commit](https://badgen.net/github/last-commit/VTSTech/AgentNova.js)](https://GitHub.com/VTSTech/AgentNova.js/commit/)
+[![GitHub commits](https://badgen.net/github/commits/VTSTech/AgentNova)](https://GitHub.com/VTSTech/AgentNova/commit/) [![GitHub latest commit](https://badgen.net/github/last-commit/VTSTech/AgentNova)](https://GitHub.com/VTSTech/AgentNova/commit/)
 ---
 
 ## 📚 Documentation
