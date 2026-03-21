@@ -1484,6 +1484,16 @@ class Agent:
             # Use family config + model size to decide
             self._use_few_shot = should_use_few_shot(self.model_family or "", model)
         
+        # ═══════════════════════════════════════════════════════════════════
+        # ⚠️ CRITICAL: ReAct models ALWAYS need few-shot examples!
+        # ═══════════════════════════════════════════════════════════════════
+        # Family configs set prefers_few_shot=False for NATIVE tool models.
+        # But ReAct models need few-shot to learn the text-based format.
+        # Without examples, they output malformed Action/Action Input lines.
+        # ═══════════════════════════════════════════════════════════════════
+        if self._tool_support == "react" and self.tools.all():
+            self._use_few_shot = True
+        
         # Get family-specific few-shot style
         self._few_shot_style = get_few_shot_style(self.model_family or "")
 
