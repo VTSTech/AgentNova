@@ -2,6 +2,8 @@
 
 ## Test 07 Benchmark Results (15-Test Suite)
 
+> ⚠️ **Note:** R01 tests were run concurrently (Test 07 on Colab + Test 14 GSM8K on Desktop sharing same Ollama instance). Timing values are **inflated** compared to dedicated single-test runs. Relative performance between models remains valid.
+
 ---
 
 ### Sub-1B Models (R01 - Current)
@@ -98,6 +100,8 @@ The following sub-1B parameter models were tested on the **15-test benchmark**:
 ## GSM8K Benchmark Results
 
 The following models have been tested on a **50-question GSM8K-style benchmark** using the Agent system with tool support detection.
+
+> ⚠️ **Note:** R01 GSM8K tests were run concurrently with Test 07. Timing values are **inflated**.
 
 ---
 
