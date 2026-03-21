@@ -84,19 +84,19 @@ The following sub-1B parameter models were tested on the **15-test benchmark**:
 
 | Rank | Model | Score | Time | Math | Reason | Know | Calc | Code | Notes |
 |:----:|-------|------:|-----:|:-----:|:------:|:----:|:----:|:----:|-------|
-| 🥇 | **`granite3.1-moe:1b`** | **14/15 (93%)** | **94.9s** | 3/3 ✅ | 2/3 | **3/3** ✅ | 3/3 ✅ | 3/3 ✅ | 🏆 CHAMPION |
-| 🥈 | `llama3.2:1b` | 13/15 (87%) | 201.1s | 3/3 ✅ | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | Strong all-around |
-| 3 | `tinydolphin:1.1b` | 10/15 (67%) | 263.0s | 1/3 | 2/3 | **3/3** ✅ | 1/3 | 3/3 ✅ | Verbose |
-| 4 | `tinyllama:1.1b` | 10/15 (67%) | 243.4s | 1/3 | 2/3 | **3/3** ✅ | 1/3 | 3/3 ✅ | Verbose |
-| 5 | `dolphin3.0-llama3:1b` | 7/15 (47%) | 49.9s | 1/3 | 1/3 | 2/3 | 0/3 ❌ | 3/3 ✅ | No tool support |
+| 🥇 | **`granite3.1-moe:1b`** | **14/15 (93%)** | **95.7s** | 3/3 ✅ | 2/3 | **3/3** ✅ | 3/3 ✅ | 3/3 ✅ | 🏆 CHAMPION |
+| 🥈 | `llama3.2:1b` | 13/15 (87%) | 189.3s | 3/3 ✅ | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | Strong all-around |
+| 3 | `tinyllama:1.1b` | 10/15 (67%) | 226.6s | 1/3 | 2/3 | **3/3** ✅ | 1/3 | 3/3 ✅ | Verbose |
+| 4 | `tinydolphin:1.1b` | 10/15 (67%) | 242.6s | 1/3 | 2/3 | **3/3** ✅ | 1/3 | 3/3 ✅ | Verbose |
+| 5 | `nchapman/dolphin3.0-llama3:1b` | 7/15 (47%) | 47.7s | 1/3 | 1/3 | 2/3 | 0/3 ❌ | 3/3 ✅ | No tool support |
 
 #### 🏆 CHAMPION: `granite3.1-moe:1b`
 
-**`granite3.1-moe:1b` is the sole champion at 93% in 94.9s!**
+**`granite3.1-moe:1b` is the sole champion at 93% in 95.7s!**
 
 #### Key Findings (1B+ R01)
 
-1. **`granite3.1-moe:1b` is the clear champion** - 93% in 94.9s, fastest top performer!
+1. **`granite3.1-moe:1b` is the clear champion** - 93% in 95.7s, fastest top performer!
 2. **MoE efficiency** - Mix-of-Experts architecture excels at this benchmark
 3. **`llama3.2:1b` solid at 87%** - native tools working well
 4. **`dolphin3.0-llama3:1b` struggles** - 47%, no tool support
@@ -288,12 +288,12 @@ The following models have been tested on a **50-question GSM8K-style benchmark**
 
 | Model | Params | Tool Support | Test 07 Score | Time |
 |-------|--------|--------------|---------------|------|
-| **`granite3.1-moe:1b`** | 1B MoE | ReAct | **93% (14/15)** | **94.9s** |
-| `llama3.2:1b` | 1.2B | native | 87% (13/15) | 201.1s |
-| `qwen3:0.6b` | 600M | ReAct | 80% (12/15) | 370.8s |
-| `qwen2.5:0.5b` | 500M | native | 73% (11/15) | 61.0s |
+| **`granite3.1-moe:1b`** | 1B MoE | ReAct | **93% (14/15)** | **95.7s** |
+| `llama3.2:1b` | 1.2B | native | 87% (13/15) | 189.3s |
+| `qwen3:0.6b` | 600M | ReAct | 80% (12/15) | 388.9s |
+| `qwen2.5:0.5b` | 500M | native | 73% (11/15) | 62.8s |
 
-**Insight**: `granite3.1-moe:1b` is the **clear champion** with 93% accuracy in just 94.9s! The MoE architecture proves highly efficient.
+**Insight**: `granite3.1-moe:1b` is the **clear champion** with 93% accuracy in just 95.7s! The MoE architecture proves highly efficient.
 
 **Note on qwen3:0.6b**: Dropped from earlier 93% tests to 80% - failed 2 Code tests with empty responses. May be sensitive to context/temperature settings.
 
