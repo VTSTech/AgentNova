@@ -101,6 +101,9 @@ FAMILY_CONFIGS: dict[str, ModelFamilyConfig] = {
     ),
     
     # QWEN2 - Alibaba's Qwen 2.x models (ChatML format, native tools)
+    # ⚠️ CRITICAL: Do NOT add few-shot to native tool models!
+    # This has caused regressions TWICE (R01→R02: qwen2.5:0.5b dropped 90%→58% on GSM8K)
+    # Native models know how to call tools via API - few-shot only confuses them.
     "qwen2": ModelFamilyConfig(
         family="qwen2",
         start_tokens={
@@ -115,8 +118,8 @@ FAMILY_CONFIGS: dict[str, ModelFamilyConfig] = {
         supports_native_tools=True,
         system_prompt_style="separate",
         preferred_temperature=0.7,
-        prefers_few_shot=True,
-        few_shot_style="react",  # ReAct works well for small qwen2
+        prefers_few_shot=False,  # Native tools don't need few-shot
+        few_shot_style="native",
     ),
     
     # QWEN3 - Alibaba's Qwen 3.x models (ChatML + thinking directives)
