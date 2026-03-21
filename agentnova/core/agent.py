@@ -2114,9 +2114,13 @@ class Agent:
                             else:
                                 tool_hint = "You must call the shell tool. Use it with {\"command\": \"echo YourText\"}."
                         elif "directory" in q_lower or "pwd" in q_lower or "folder" in q_lower:
-                            tool_hint = "You must call the shell tool. Use it with {\"command\": \"pwd\"}."
+                            tool_hint = f"You must call the shell tool. Use it with {{\"command\": \"{_PLATFORM_DIR_CMD}\"}}."
                         elif "date" in q_lower or "time" in q_lower or "today" in q_lower:
-                            tool_hint = "You must call the shell tool. Use it with {\"command\": \"date\"}."
+                            # Use python_repl for date/time (cross-platform)
+                            if "python_repl" in available_tools:
+                                tool_hint = "You must call python_repl with code to get the date. Use: from datetime import datetime; print(datetime.now())"
+                            else:
+                                tool_hint = f"You must call the shell tool. Use it with {{\"command\": \"{_PLATFORM_DATE_CMD}\"}}."
                         else:
                             tool_hint = "You must call the shell tool to answer this question."
                     elif "python_repl" in available_tools and any(kw in q_lower for kw in 
@@ -2164,10 +2168,15 @@ class Agent:
                                     print(f"    synthesized: shell(echo {echo_text})")
                         elif "directory" in q_lower or "pwd" in q_lower or "folder" in q_lower:
                             synthesized_tool = "shell"
-                            synthesized_args = {"command": "pwd"}
+                            synthesized_args = {"command": _PLATFORM_DIR_CMD}
                         elif "date" in q_lower or "time" in q_lower or "today" in q_lower:
-                            synthesized_tool = "shell"
-                            synthesized_args = {"command": "date"}
+                            # Use python_repl for date/time (cross-platform)
+                            if "python_repl" in available_tools:
+                                synthesized_tool = "python_repl"
+                                synthesized_args = {"code": "from datetime import datetime; print(datetime.now())"}
+                            else:
+                                synthesized_tool = "shell"
+                                synthesized_args = {"command": _PLATFORM_DATE_CMD}
                     
                     # If we synthesized a tool call, execute it
                     if synthesized_tool and synthesized_args:
@@ -2463,10 +2472,15 @@ class Agent:
                                     print(f"    synthesized: shell(echo {echo_text})")
                         elif "directory" in q_lower or "pwd" in q_lower or "folder" in q_lower:
                             synthesized_tool = "shell"
-                            synthesized_args = {"command": "pwd"}
+                            synthesized_args = {"command": _PLATFORM_DIR_CMD}
                         elif "date" in q_lower or "time" in q_lower or "today" in q_lower:
-                            synthesized_tool = "shell"
-                            synthesized_args = {"command": "date"}
+                            # Use python_repl for date/time (cross-platform)
+                            if "python_repl" in available_tools:
+                                synthesized_tool = "python_repl"
+                                synthesized_args = {"code": "from datetime import datetime; print(datetime.now())"}
+                            else:
+                                synthesized_tool = "shell"
+                                synthesized_args = {"command": _PLATFORM_DATE_CMD}
                     
                     # Execute synthesized tool call
                     if synthesized_tool and synthesized_args:
