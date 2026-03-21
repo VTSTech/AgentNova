@@ -29,6 +29,27 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 
+# ANSI color helpers
+def dim(text: str) -> str:
+    """Return dimmed text using ANSI escape codes."""
+    return f"\033[2m{text}\033[0m"
+
+
+def green(text: str) -> str:
+    """Return green text using ANSI escape codes."""
+    return f"\033[32m{text}\033[0m"
+
+
+def yellow(text: str) -> str:
+    """Return yellow text using ANSI escape codes."""
+    return f"\033[33m{text}\033[0m"
+
+
+def cyan(text: str) -> str:
+    """Return cyan text using ANSI escape codes."""
+    return f"\033[36m{text}\033[0m"
+
+
 class AgentState(Enum):
     """Agent execution states."""
     IDLE = "idle"           # Ready for new tasks
@@ -621,6 +642,14 @@ Example: [{{"description": "Step 1"}}, {{"description": "Step 2"}}]"""
             
             # Track the result
             result_msg = run.final_answer
+            
+            # Debug output: show step completion info
+            if self.verbose and run:
+                tool_calls = [s for s in run.steps if s.type == "tool_call"]
+                tool_names = list(set(s.tool_name for s in tool_calls if hasattr(s, 'tool_name')))
+                print(dim(f"    ⏱️ {len(run.steps)} steps, {len(tool_calls)} tool calls, {run.total_ms:.0f}ms"))
+                if tool_names:
+                    print(dim(f"    🔧 Tools used: {', '.join(tool_names)}"))
             
             # Log step completion
             step.status = "done"

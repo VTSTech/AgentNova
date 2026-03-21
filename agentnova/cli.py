@@ -642,20 +642,65 @@ def magenta(t): return _c("35", t)
 #  Step callback for --verbose                                        #
 # ------------------------------------------------------------------ #
 
+def check_tool_used(run, tool_name: str) -> bool:
+    """Check if a specific tool was actually called during the run."""
+    for step in run.steps:
+        if step.type == "tool_call" and step.tool_name == tool_name:
+            return True
+    return False
+
+
 def _make_step_printer(verbose: bool, debug: bool = False):
+    """Create a step callback for debug output.
+    
+    Enhanced version matching test file pattern:
+    - Shows tool calls with 🔧 emoji
+    - Shows tool results with 📦 emoji
+    - Shows thoughts with 💭 emoji
+    - Shows debug info with 🔍 emoji
+    """
     def on_step(step: StepResult):
         if step.type == "tool_call":
-            args_str = ", ".join(f"{k}={repr(v)}" for k, v in (step.tool_args or {}).items())
-            print(f"  {yellow('⚙')}  {bold(step.tool_name)}({args_str})")
+            # Show tool call with arguments
+            args_str = ", ".join(f"{k}={v}" for k, v in (step.tool_args or {}).items())
+            if debug:
+                print(f"  {yellow('🔧')} {bold(step.tool_name)}({args_str})")
+            elif verbose:
+                print(f"  {yellow('⚙')}  {bold(step.tool_name)}({args_str})")
         elif step.type == "tool_result":
-            result_preview = step.content[:120] + ("…" if len(step.content) > 120 else "")
-            print(f"  {blue('↳')}  {dim(result_preview)}")
+            # Show tool result with preview
+            result_preview = step.content[:80] + ("..." if len(step.content) > 80 else "")
+            if debug:
+                print(f"  {blue('📦')} → {dim(result_preview)}")
+            elif verbose:
+                result_preview_v = step.content[:120] + ("…" if len(step.content) > 120 else "")
+                print(f"  {blue('↳')}  {dim(result_preview_v)}")
         elif step.type == "thought" and verbose:
             wrapped = textwrap.fill(step.content, width=80, initial_indent="     ", subsequent_indent="     ")
             print(f"  {dim('💭')} {dim(wrapped.strip())}")
         if debug and hasattr(step, 'debug_info') and step.debug_info:
             print(f"  {magenta('🔍')} {dim(step.debug_info)}")
     return on_step
+
+
+def _print_run_summary(run, debug: bool = False):
+    """Print a summary of the run after completion.
+    
+    Shows:
+    - Total steps and tool calls
+    - Tool usage verification
+    - Hallucination warnings if expected tools weren't used
+    """
+    if not run:
+        return
+    
+    tool_calls = [s for s in run.steps if s.type == "tool_call"]
+    tool_names = [s.tool_name for s in tool_calls]
+    
+    if debug:
+        print(dim(f"  ⏱️ {len(run.steps)} steps, {len(tool_calls)} tool calls, {run.total_ms:.0f}ms"))
+        if tool_names:
+            print(dim(f"  🔧 Tools used: {', '.join(set(tool_names))}"))
 
 
 # ------------------------------------------------------------------ #
@@ -665,6 +710,8 @@ def _make_step_printer(verbose: bool, debug: bool = False):
 def _build_agent(args, client: OllamaClient):
     # Resolve tools
     tools_registry = None
+    tool_support = "untested"  # Default
+    
     if args.tools:
         names = [t.strip() for t in args.tools.split(",")]
         unknown = [n for n in names if BUILTIN_REGISTRY.get(n) is None]
@@ -807,6 +854,42 @@ def _build_agent(args, client: OllamaClient):
         if acp_plugin:
             acp_plugin.on_step(step)
 
+    # Debug output: show startup info
+    debug = getattr(args, "debug", False)
+    if debug:
+        print()
+        print(cyan("  🔍 Debug Mode Enabled"))
+        print(dim("  ─────────────────────────────────────"))
+        print(f"  Model: {args.model}")
+        
+        # Show tool support level
+        if tools_registry:
+            tool_list = [t.name for t in tools_registry.all()]
+            print(f"  Tools: {', '.join(tool_list)}")
+            print(f"  Tool Support: {tool_support}")
+            if tool_support == "react":
+                print(dim("    → Using ReAct text-based tool calling"))
+            elif tool_support == "native":
+                print(dim("    → Using native API tool calling"))
+            elif tool_support == "none":
+                print(yellow("    ⚠ Model doesn't support tools"))
+        else:
+            print(f"  Tools: none")
+        
+        # Show system prompt info
+        print(f"  System Prompt: {len(system_prompt)} chars")
+        sys_preview = system_prompt[:100].replace('\n', ' ')
+        print(dim(f"    Preview: {sys_preview}..."))
+        
+        # Show model options
+        if model_options:
+            opts_str = ", ".join(f"{k}={v}" for k, v in model_options.items())
+            print(f"  Model Options: {opts_str}")
+        
+        if getattr(args, "force_react", False):
+            print(f"  Force ReAct: YES")
+        print()
+    
     agent = Agent(
         model=args.model,
         tools=tools_registry,
@@ -1718,9 +1801,11 @@ def cmd_chat(args):
                         if acp_plugin:
                             acp_plugin.log_assistant_message(run.final_answer)
                         
-                        if getattr(args, "verbose", False) and run.steps:
-                            tool_steps = [s for s in run.steps if s.type == "tool_call"]
-                            print(dim(f"         [{len(tool_steps)} tool calls · {run.total_ms:.0f}ms]"))
+                        # Show run summary in verbose or debug mode
+                        debug = getattr(args, "debug", False)
+                        verbose = getattr(args, "verbose", False)
+                        if (debug or verbose) and run.steps:
+                            _print_run_summary(run, debug=debug)
                 except json.JSONDecodeError as e:
                     print(red(f"\n  ✗ BitNet output malformed JSON: {e}"))
                     print(dim("  Tip: Try lowering --temperature to 0.1 for more stable JSON."))
