@@ -1,6 +1,50 @@
-# ⚛️ AgentNova R00
+# ⚛️ AgentNova R01
 
 ## Test 07 Benchmark Results (15-Test Suite)
+
+---
+
+### Sub-500M Models (R01 - Latest)
+
+The following sub-500M parameter models were tested on the **15-test benchmark**:
+
+| Rank | Model | Score | Time | Math | Reason | Know | Calc | Code |
+|:----:|-------|------:|-----:|:-----:|:------:|:----:|:----:|:----:|
+| 🥇 | **`qwen3:0.6b`** | **14/15 (93%)** | 556.3s | 3/3 ✅ | **3/3** ✅ | **3/3** ✅ | 3/3 ✅ | 2/3 |
+| 🥈 | `granite4:350m` | 11/15 (73%) | 47.3s | 2/3 | 1/3 | 2/3 | 3/3 ✅ | 3/3 ✅ |
+| 🥈 | `qwen2.5:0.5b` | 11/15 (73%) | 60.1s | 1/3 | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ |
+| 4 | `gemma3:270m` | 8/15 (53%) | **30.6s** | 3/3 ✅ | 1/3 | 1/3 | 0/3 ❌ | 3/3 ✅ |
+
+#### Category Champions (Sub-500M R01)
+
+| Category | 🏆 Champion | Score | Notes |
+|----------|-------------|-------|-------|
+| **Math** | `qwen3:0.6b` / `gemma3:270m` | 3/3 | Tie - both perfect |
+| **Reasoning** | `qwen3:0.6b` | **3/3** | 🌟 **ONLY model to pass all reasoning!** |
+| **Knowledge** | `qwen3:0.6b` | **3/3** | 🌟 **ONLY model to get Brasília correct!** |
+| **Calc** | `qwen3:0.6b` / `granite4:350m` / `qwen2.5:0.5b` | 3/3 | Tie - all perfect |
+| **Code** | `granite4:350m` / `qwen2.5:0.5b` / `gemma3:270m` | 3/3 | Tie - all perfect |
+
+#### Key Findings (R01)
+
+1. **`qwen3:0.6b` is the new sub-500M champion** - 93% accuracy, only failed 1 code test
+2. **`qwen3:0.6b` is the ONLY model to:**
+   - Pass all 3 reasoning tests (Apples, Sequence, Logic)
+   - Correctly identify Brasília as Brazil's capital
+3. **Speed vs Accuracy tradeoff:**
+   - `qwen3:0.6b`: 93% accuracy but 556s (slowest)
+   - `granite4:350m`: 73% accuracy in only 47s (10x faster)
+4. **`gemma3:270m` cannot use tools** - 0/3 on Calc but perfect on Math (pure reasoning)
+5. **Native tool synthesis working** - qwen2.5:0.5b gets 3/3 Calc with AgentNova's tool synthesis
+
+#### Tool Support (Sub-500M R01)
+
+| Model | Tool Support | Calc Score | Notes |
+|-------|--------------|------------|-------|
+| `qwen3:0.6b` | native | 3/3 ✅ | Excellent tool use |
+| `granite4:350m` | native | 3/3 ✅ | Excellent tool use |
+| `qwen2.5:0.5b` | native | 3/3 ✅ | Works with synthesis fallback |
+| `gemma3:270m` | none | 0/3 ❌ | Cannot call tools |
 
 ---
 
@@ -168,17 +212,19 @@ The following 1B-2B parameter models were tested on the **50-question GSM8K benc
 
 **Insight**: `functiongemma` is designed for tool calling but underperforms its base model `gemma3` when tools are used. The base model using **pure reasoning** outperforms it!
 
-#### 4. Qwen3 Underperforms
+#### 4. Qwen3 is the Sub-500M Champion (R01 Update)
 
-| Model | Params | Tool Support | Score | Issue |
-|-------|--------|--------------|-------|-------|
-| `qwen3:0.6b` | 600M | react | **8%** | Catastrophic failure |
-| `qwen2.5:0.5b` | 500M | native | 72% | Works well |
+| Model | Params | Tool Support | Test 07 Score | Time |
+|-------|--------|--------------|---------------|------|
+| **`qwen3:0.6b`** | 600M | native | **93% (14/15)** | 556.3s |
+| `qwen2.5:0.5b` | 500M | native | 73% (11/15) | 60.1s |
 
-**Insight**: Despite being newer, `qwen3:0.6b` performs poorly. Possible causes:
-- ReAct prompt format incompatibility
-- Modelfile system prompt conflicts
-- Tool support misdetected (should be `none`?)
+**Insight**: `qwen3:0.6b` is the **new sub-500M champion** with 93% accuracy! It's the ONLY model to:
+- Pass all 3 reasoning tests (Apples, Sequence, Logic)
+- Correctly identify Brasília as Brazil's capital
+- Achieve near-perfect scores across Math, Reasoning, Knowledge, and Calc
+
+**Note**: Earlier tests showed poor performance due to configuration issues. With R01 fixes, qwen3:0.6b now excels.
 
 ---
 
@@ -335,11 +381,14 @@ AgentNova has been tested with **Microsoft BitNet-b1.58-2B-4T** — a 2B paramet
 | **Best 1B Overall** | `llama3.2:1b` | **90% GSM8K**, 87% (13/15) test, 128k context |
 | **Best 1B for Math** | `llama3.2:1b` | **90% GSM8K**, best math reasoning in class |
 | **Best GSM8K Overall** | `llama3.2:1b` | **90% GSM8K**, beats all sub-500M models |
+| **Best sub-500M (accuracy)** | **`qwen3:0.6b`** | **93% (14/15)**, best reasoning & knowledge |
+| **Best sub-500M (speed)** | `granite4:350m` | **47.3s**, 73% accuracy, 10x faster than qwen3 |
 | **Best GSM8K (sub-500M)** | `qwen2.5:0.5b` + `--force-react` | **84% GSM8K**, excellent tool use via ReAct |
 | **Best GSM8K (native)** | `dolphin3.0-qwen2.5:0.5b` | **78% GSM8K**, fast (8.9s), native tools |
-| **Best speed (sub-500M)** | `gemma3:270m` | **2.7s avg**, pure reasoning (no tools) |
+| **Best reasoning (sub-500M)** | **`qwen3:0.6b`** | 🌟 **ONLY model to pass all 3 reasoning tests!** |
+| **Best speed (sub-500M)** | `gemma3:270m` | **30.6s**, pure reasoning (no tools) |
 | **Best speed (1B)** | `nchapman/dolphin3.0-llama3:1b` | **5.9s avg**, 70% GSM8K, fast inference |
-| **Best Calc tool use** | `granite4:350m` | **3/3 Calc**, 76% GSM8K with ReAct |
+| **Best Calc tool use** | `qwen3:0.6b` / `granite4:350m` / `qwen2.5:0.5b` | All **3/3 Calc**, excellent tool use |
 | **Large context** | `llama3.2:1b` | **128k context window** |
 | **CPU-only** | `BitNet-b1.58-2B-4T` | Efficient ternary weights, no GPU needed |
 
@@ -347,12 +396,12 @@ AgentNova has been tested with **Microsoft BitNet-b1.58-2B-4T** — a 2B paramet
 
 | Model | Recommended Mode | Reason |
 |-------|------------------|--------|
+| **`qwen3:0.6b`** | Native | 🌟 **Best sub-500M model!** 93% with native tools |
 | `qwen2.5:0.5b` | `--force-react` | +12% accuracy (72% → 84%) |
 | `granite4:350m` | `--force-react` | **+30% accuracy** (46% → 76%) |
 | `dolphin3.0-qwen2.5:0.5b` | Native/Modelfile | -12% with ReAct, better natively |
-| `gemma3:270m` | Modelfile (none) | Slightly faster without ReAct overhead |
+| `gemma3:270m` | Modelfile (none) | Cannot use tools, pure reasoning works best |
 | `functiongemma:270m` | Either | No significant difference |
-| `qwen3:0.6b` | Avoid | Fails in both modes |
 
 ---
 
