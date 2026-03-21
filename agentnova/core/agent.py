@@ -892,15 +892,12 @@ def _synthesize_missing_args(tool_name: str, args: dict, user_input: str, prior_
             args["code"] = "from datetime import datetime\nprint(datetime.now())"
     
     elif tool_name == "shell" and "command" in missing:
-        # Synthesize shell commands for common queries
-        if "date" in q_lower:
-            args["command"] = "date"
-        elif "time" in q_lower:
-            args["command"] = "date +%T"
-        elif "directory" in q_lower or "folder" in q_lower:
-            args["command"] = "pwd"
+        # Synthesize shell commands for common queries (platform-aware)
+        # Note: For date/time, prefer python_repl which works everywhere
+        if "directory" in q_lower or "folder" in q_lower:
+            args["command"] = _PLATFORM_DIR_CMD
         elif "files" in q_lower and "list" in q_lower:
-            args["command"] = "ls -la"
+            args["command"] = _PLATFORM_LIST_CMD
     
     elif tool_name == "write_file" and prior_results:
         # If we have prior results, maybe the model wants to write them
