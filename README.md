@@ -10,7 +10,7 @@ Inspired by the architecture of OpenClaw, rebuilt from scratch for local-first o
 
 [![PyPI download month](https://img.shields.io/pypi/dm/agentnova.svg?style=plastic)](https://pypi.org/project/agentnova/) [![PyPI download week](https://img.shields.io/pypi/dw/agentnova.svg?style=plastic)](https://pypi.org/project/agentnova/) [![PyPI download day](https://img.shields.io/pypi/dd/agentnova.svg?style=plastic)](https://pypi.org/project/agentnova/)
 
-
+![Ollama](https://img.shields.io/badge/ollama-%23000000.svg?style=for-the-badge&logo=ollama&logoColor=white)
 ---
 
 ## 📚 Documentation
