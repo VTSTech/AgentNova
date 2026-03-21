@@ -252,16 +252,24 @@ def test_model(client, model: str, config: SharedConfig, acp=None) -> dict:
                 client=client,
                 model_options=model_opts,
                 force_react=use_react,
+                on_step=make_step_callback(DEBUG),  # Debug output for tool calls
+                debug=DEBUG,  # Enable debug mode in agent
             )
             
             t0 = time.time()
-            response = agent.chat(prompt)
+            run = agent.run(prompt)  # Use run() to get steps, not chat()
             elapsed = time.time() - t0
             results["time"] += elapsed
             
+            response = run.final_answer
             response_norm = normalize_text(response)
             expected_norm = normalize_text(expected)
             passed = expected_norm in response_norm
+            
+            # Check if tools were actually used (for Calc tests)
+            tool_used = None
+            if tools and "calculator" in tools:
+                tool_used = check_tool_used(run, "calculator")
             
             # Check for near-misses (correct number but with extra text)
             near_miss = False
@@ -280,7 +288,9 @@ def test_model(client, model: str, config: SharedConfig, acp=None) -> dict:
                 "response": response,  # Full response
                 "response_norm": response_norm,
                 "expected": expected,
-                "expected_norm": expected_norm
+                "expected_norm": expected_norm,
+                "steps": len(run.steps),  # Track step count
+                "tool_used": tool_used,  # Track tool usage
             }
             
             # Log test result to ACP
@@ -292,12 +302,18 @@ def test_model(client, model: str, config: SharedConfig, acp=None) -> dict:
                 print(f"✅ ({elapsed:.1f}s)")
                 if VERBOSITY >= 2:
                     print(f"      📝 Found '{expected}' in: {response[:100].replace(chr(10), ' ')}")
+                if tool_used is not None:
+                    print(f"      ⏱️ {len(run.steps)} steps, tool_used={tool_used}")
             elif near_miss:
                 print(f"⚠️ NEAR-MISS ({elapsed:.1f}s)")
                 print(f"      ⚠️ Expected '{expected}' found in numbers: {numbers}")
                 print(f"      📝 RESPONSE: {response[:100].replace(chr(10), ' ')}")
+                if tool_used is not None:
+                    print(f"      ⏱️ {len(run.steps)} steps, tool_used={tool_used}")
             else:
                 print(f"❌ ({elapsed:.1f}s)")
+                if tool_used is not None and not tool_used:
+                    print(f"      ⚠️ WARNING: Calculator tool was NOT called - model may have hallucinated!")
                 if VERBOSITY >= 1:
                     print(f"      ❌ EXPECTED: '{expected}' (norm: '{expected_norm}')")
                     print(f"      📝 RESPONSE: {response[:100].replace(chr(10), ' ')}")
