@@ -170,7 +170,7 @@ TESTS = [
     ('Code', 'max_num', 'Write a Python function called find_max(numbers) that returns the largest number in a list.', None, 'def'),
 ]
 
-RESULTS_FILE = os.path.join(os.path.dirname(__file__), 'model_comparison_results.json')
+RESULTS_FILE = os.path.join(os.path.dirname(__file__), 'robust_comparison_results.json')
 
 
 def save_results(results):
