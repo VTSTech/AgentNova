@@ -4,9 +4,9 @@
 
 ---
 
-### Sub-500M Models (R01 - Latest)
+### Sub-1B Models (R01 - Latest)
 
-The following sub-500M parameter models were tested on the **15-test benchmark**:
+The following sub-1B parameter models were tested on the **15-test benchmark**:
 
 | Rank | Model | Score | Time | Math | Reason | Know | Calc | Code |
 |:----:|-------|------:|-----:|:-----:|:------:|:----:|:----:|:----:|
@@ -15,7 +15,7 @@ The following sub-500M parameter models were tested on the **15-test benchmark**
 | 🥈 | `qwen2.5:0.5b` | 11/15 (73%) | 60.1s | 1/3 | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ |
 | 4 | `gemma3:270m` | 8/15 (53%) | **30.6s** | 3/3 ✅ | 1/3 | 1/3 | 0/3 ❌ | 3/3 ✅ |
 
-#### Category Champions (Sub-500M R01)
+#### Category Champions (Sub-1B R01)
 
 | Category | 🏆 Champion | Score | Notes |
 |----------|-------------|-------|-------|
@@ -27,7 +27,7 @@ The following sub-500M parameter models were tested on the **15-test benchmark**
 
 #### Key Findings (R01)
 
-1. **`qwen3:0.6b` is the new sub-500M champion** - 93% accuracy, only failed 1 code test
+1. **`qwen3:0.6b` is the new sub-1B champion** - 93% accuracy, only failed 1 code test
 2. **`qwen3:0.6b` is the ONLY model to:**
    - Pass all 3 reasoning tests (Apples, Sequence, Logic)
    - Correctly identify Brasília as Brazil's capital
@@ -37,14 +37,14 @@ The following sub-500M parameter models were tested on the **15-test benchmark**
 4. **`gemma3:270m` cannot use tools** - 0/3 on Calc but perfect on Math (pure reasoning)
 5. **Native tool synthesis working** - qwen2.5:0.5b gets 3/3 Calc with AgentNova's tool synthesis
 
-#### Tool Support (Sub-500M R01)
+#### Tool Support (Sub-1B R01)
 
-| Model | Tool Support | Calc Score | Notes |
-|-------|--------------|------------|-------|
-| `qwen3:0.6b` | native | 3/3 ✅ | Excellent tool use |
-| `granite4:350m` | native | 3/3 ✅ | Excellent tool use |
-| `qwen2.5:0.5b` | native | 3/3 ✅ | Works with synthesis fallback |
-| `gemma3:270m` | none | 0/3 ❌ | Cannot call tools |
+| Model | Params | Tool Support | Calc Score | Notes |
+|-------|--------|--------------|------------|-------|
+| `qwen3:0.6b` | 600M | native | 3/3 ✅ | Excellent tool use |
+| `qwen2.5:0.5b` | 500M | native | 3/3 ✅ | Works with synthesis fallback |
+| `granite4:350m` | 350M | native | 3/3 ✅ | Excellent tool use |
+| `gemma3:270m` | 270M | none | 0/3 ❌ | Cannot call tools |
 
 ---
 
