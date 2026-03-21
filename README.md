@@ -165,15 +165,19 @@ agentnova models --tool_support
 
 ### Performance by Tool Support
 
-Recent GSM8K benchmark results (50 math questions):
+Recent test results with ReAct improvements:
 
-| Model | Params | Tool Support | Score |
-|-------|--------|--------------|-------|
-| `gemma3:270m` | 270M | none | **64%** |
-| `functiongemma:270m` | 270M | native | 36% |
-| `granite4:350m` | 350M | native | ~40% |
+| Model | Params | Tool Support | Calculator | Shell |
+|-------|--------|--------------|------------|-------|
+| `qwen2.5:0.5b` | 494M | native | **60%** | ✅ |
+| `qwen2.5-coder:0.5b` | 494M | ReAct | **60%** | ✅ |
+| `granite4:350m` | 350M | native | ~90% | ✅ |
+| `gemma3:270m` | 270M | none | **64%** | N/A |
 
-**Key insight**: Sub-500M models often perform better with `none` (pure reasoning) than with tools!
+**Key improvements in R00.1**:
+- ReAct few-shot examples improve calculator tests by +33%
+- Malformed response handling fixes shell echo test corruption
+- Better regex parsing handles backticks and same-line formats
 
 ---
 

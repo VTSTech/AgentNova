@@ -6,6 +6,54 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [R00] - 2026-03-21 12:35:03 AM
+
+### 🚀 ReAct Prompting Improvements
+
+Significant improvements to ReAct-style tool calling for models without native support.
+
+### Added
+- **ReAct few-shot examples** - Proper ReAct format examples in system prompt
+  - Shows exact `Thought: / Action: / Action Input:` format
+  - Includes calculator and shell examples with expected outputs
+  - Helps models understand the ReAct loop pattern
+- **Debug output for `--debug` flag**:
+  - Full raw LLM response before processing
+  - ReAct parsing results with matched groups
+  - Helps diagnose tool calling issues
+
+### Changed
+- **Improved ReAct regex parsing** in `agent.py`:
+  - Now handles backticks around tool names (`` `shell` ``)
+  - Supports same-line format: `Action: tool_name Action Input: {...}`
+  - More robust quote handling in JSON arguments
+- **Shell tool description enhanced** - Now mentions common commands:
+  - Lists `pwd`, `date`, `ls` as available commands
+  - Helps models understand shell capabilities
+  - Improves recognition for system info queries
+- **Malformed response handling** in `_remove_tool_schema()`:
+  - Catches responses that are just backticks (```, ``, `)
+  - Handles empty fence markers (```json, ```python)
+  - Returns fallback for content shorter than 3 characters
+  - Prevents corrupted final answers
+- **Nested value extraction** for fuzzy matching:
+  - New `_extract_nested_value()` helper function
+  - Extracts values from nested structures like `{"tool_args": {...}}`
+  - Improves argument matching for non-standard model outputs
+
+### Test Results (qwen2.5-coder:0.5b)
+
+| Test Category | Before | After | Improvement |
+|---------------|--------|-------|-------------|
+| Calculator | 27% | **60%** | +33% |
+| Shell Echo | Failed (```) | **Passed** | Fixed |
+
+### Key Fixes
+- Shell echo test was returning ` ``` ` instead of actual output - now correctly returns `Hello AgentNova`
+- Models writing Python code blocks instead of using ReAct for math - now guided by few-shot examples
+
+---
+
 ## [R00] - 2026-03-20 
 
 ### 🔄 Project Rename & Version Reset
@@ -52,6 +100,8 @@ agentnova chat -m llama3.2:3b
 ```
 
 ---
+
+[R04.0.0] - 03-20-2026 12:02:02 PM
 
 ### Major Release - Agent Mode
 
