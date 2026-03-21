@@ -1282,7 +1282,7 @@ class Agent:
                 print(f"    _tool_support={self._tool_support}")
                 print(f"    _native_tools={self._native_tools}")
                 print(f"    tool_calls_raw={tool_calls_raw!r}")
-                print(f"    content[:100]={content[:100]!r}")
+                print(f"    content (FULL): {content!r}")
 
             # ---- Greeting short-circuit (shared by both tool paths) ------- #
             # If the user sent a simple greeting and tools are registered, the model
@@ -1687,6 +1687,14 @@ class Agent:
             # ---- ReAct text parsing ---------------------------------- #
             if not self._native_tools and self.tools.all():
                 thought, t_name, t_args, final_answer = _parse_react(content)
+                
+                # Debug: show what ReAct parsing extracted
+                if self.debug:
+                    print(f"\n  🔍 DEBUG: ReAct parsing result")
+                    print(f"    thought={thought!r}")
+                    print(f"    t_name={t_name!r}")
+                    print(f"    t_args={t_args!r}")
+                    print(f"    final_answer={final_answer!r}")
 
                 # Also try JSON tool call format (BitNet, some small models)
                 # Models may output {"name": "tool", "arguments": {...}} instead of ReAct format
@@ -1830,7 +1838,16 @@ class Agent:
                 fallback_text = clean_results[0] if len(clean_results) == 1 else "\n".join(f"- {r}" for r in clean_results)
             else:
                 fallback_text = content
+            
+            if self.debug:
+                print(f"\n  🔍 DEBUG: Final answer processing")
+                print(f"    content (before clean)={content!r}")
+                print(f"    fallback_text={fallback_text!r}")
+            
             content = self._clean_json_from_response(content, fallback_text)
+            
+            if self.debug:
+                print(f"    content (after clean)={content!r}")
 
             final_step = StepResult(type="final", content=content, elapsed_ms=elapsed)
             run.steps.append(final_step)
