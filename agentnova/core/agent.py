@@ -1791,6 +1791,16 @@ class Agent:
                         if self.debug:
                             print(f"    ReAct path: parsed JSON tool call: name={t_name!r}, args={t_args!r}")
 
+                # Try Python code block detection (code-focused models like qwen2.5-coder)
+                # If model writes ```python code blocks, execute them via python_repl
+                if not t_name and not final_answer:
+                    python_code = _extract_python_code(content)
+                    if python_code and self.tools.get("python_repl"):
+                        t_name = "python_repl"
+                        t_args = {"code": python_code}
+                        if self.debug:
+                            print(f"    ReAct path: detected Python code block, using python_repl")
+
                 # Format reminder: if model didn't use ReAct format, remind it once
                 # This helps code-focused models like qwen2.5-coder that default to Python blocks
                 # Only send on FIRST response (before any tool calls) to avoid confusion
