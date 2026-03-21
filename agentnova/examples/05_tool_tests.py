@@ -419,11 +419,17 @@ def test_python_repl():
         if expected in run.final_answer:
             passed = True
         else:
-            # Normalize and compare (handles different list formats)
-            expected_clean = expected.replace("[", "").replace("]", "").replace(" ", "")
-            answer_clean = run.final_answer.replace("[", "").replace("]", "").replace(" ", "")
-            if expected_clean in answer_clean:
+            # Try normalized number matching (handles comma formatting like 1,048,576)
+            expected_num = normalize_number(expected)
+            actual_num = normalize_number(run.final_answer)
+            if expected_num and expected_num == actual_num:
                 passed = True
+            else:
+                # Normalize and compare (handles different list formats)
+                expected_clean = expected.replace("[", "").replace("]", "").replace(" ", "").replace(",", "")
+                answer_clean = run.final_answer.replace("[", "").replace("]", "").replace(" ", "").replace(",", "")
+                if expected_clean in answer_clean:
+                    passed = True
         
         results.append(passed)
         status = "✅" if passed else "❌"
