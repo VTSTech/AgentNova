@@ -2,7 +2,25 @@
 
 ## Test 07 Benchmark Results (15-Test Suite)
 
-> ⚠️ **Note:** R01 tests were run concurrently (Test 07 on Colab + Test 14 GSM8K on Desktop sharing same Ollama instance). Timing values are **inflated** compared to dedicated single-test runs. Relative performance between models remains valid.
+> **Updated:** 2026-03-21 with dedicated single-run results (no concurrent tests). Timing values are accurate.
+
+---
+
+### All Models Combined (R01 - Latest)
+
+| Rank | Model | Params | Score | Time | Math | Reason | Know | Calc | Code |
+|:----:|-------|-------:|------:|-----:|:----:|:------:|:----:|:----:|:----:|
+| 🥇 | **`granite3.1-moe:1b`** | 1B MoE | **14/15 (93%)** | **94.9s** | 3/3 ✅ | 2/3 | **3/3** ✅ | **3/3** ✅ | **3/3** ✅ |
+| 🥈 | `llama3.2:1b` | 1.2B | 13/15 (87%) | 201.1s | 3/3 ✅ | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ |
+| 🥉 | `qwen3:0.6b` | 600M | 12/15 (80%) | 370.8s | 3/3 ✅ | 2/3 | **3/3** ✅ | 3/3 ✅ | 1/3 |
+| 4 | `dolphin3.0-qwen2.5:0.5b` | 500M | 11/15 (73%) | **25.1s** | 1/3 | 2/3 | **3/3** ✅ | 2/3 | 3/3 ✅ |
+| 4 | `granite4:350m` | 350M | 11/15 (73%) | 50.0s | 2/3 | 1/3 | 2/3 | 3/3 ✅ | 3/3 ✅ |
+| 4 | `qwen2.5:0.5b` | 500M | 11/15 (73%) | 61.0s | 1/3 | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ |
+| 4 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | 494M | 11/15 (73%) | 89.2s | 2/3 | 1/3 | 2/3 | 3/3 ✅ | 3/3 ✅ |
+| 8 | `tinydolphin:1.1b` | 1.1B | 10/15 (67%) | 263.0s | 1/3 | 2/3 | **3/3** ✅ | 1/3 | 3/3 ✅ |
+| 8 | `tinyllama:1.1b` | 1.1B | 10/15 (67%) | 243.4s | 1/3 | 2/3 | **3/3** ✅ | 1/3 | 3/3 ✅ |
+| 10 | `gemma3:270m` | 270M | 8/15 (53%) | **25.0s** | **3/3** ✅ | 1/3 | 1/3 | 0/3 ❌ | 3/3 ✅ |
+| 11 | `dolphin3.0-llama3:1b` | 1B | 7/15 (47%) | 49.9s | 1/3 | 1/3 | 2/3 | 0/3 ❌ | 3/3 ✅ |
 
 ---
 
@@ -10,86 +28,79 @@
 
 The following sub-1B parameter models were tested on the **15-test benchmark**:
 
-| Rank | Model | Score | Time | Math | Reason | Know | Calc | Code | Δ vs Pre-R01 |
-|:----:|-------|------:|-----:|:-----:|:------:|:----:|:----:|:----:|:------------:|
-| 🥇 | **`qwen3:0.6b`** | **14/15 (93%)** | 556.3s | 3/3 ✅ | **3/3** ✅ | **3/3** ✅ | 3/3 ✅ | 2/3 | ↑ +93% |
-| 🥈 | `granite4:350m` | 11/15 (73%) | 47.3s | 2/3 | 1/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | = |
-| 🥈 | `qwen2.5:0.5b` | 11/15 (73%) | 60.1s | 1/3 | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | ↑ +20% |
-| 🥈 | `dolphin3.0-qwen2.5:0.5b` | 11/15 (73%) | **39.5s** | 1/3 | 2/3 | 3/3 ✅ | 2/3 | 3/3 ✅ | = |
-| 5 | `gemma3:270m` | 8/15 (53%) | 30.6s | 3/3 ✅ | 1/3 | 1/3 | 0/3 ❌ | 3/3 ✅ | = |
-| 6 | `functiongemma:270m` | 4/15 (27%) | 60.4s | 0/3 ❌ | 1/3 | 0/3 ❌ | 3/3 ✅ | 0/3 ❌ | ↑ +14% |
+| Rank | Model | Score | Time | Math | Reason | Know | Calc | Code | Notes |
+|:----:|-------|------:|-----:|:-----:|:------:|:----:|:----:|:----:|-------|
+| 🥇 | `qwen3:0.6b` | 12/15 (80%) | 370.8s | 3/3 ✅ | 2/3 | **3/3** ✅ | 3/3 ✅ | 1/3 | Empty Code responses |
+| 🥈 | `dolphin3.0-qwen2.5:0.5b` | 11/15 (73%) | **25.1s** | 1/3 | 2/3 | **3/3** ✅ | 2/3 | 3/3 ✅ | ⚡ Fastest! |
+| 🥈 | `granite4:350m` | 11/15 (73%) | 50.0s | 2/3 | 1/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | |
+| 🥈 | `qwen2.5:0.5b` | 11/15 (73%) | 61.0s | 1/3 | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | |
+| 🥈 | `qwen2.5-coder:0.5b` | 11/15 (73%) | 89.2s | 2/3 | 1/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | |
+| 5 | `gemma3:270m` | 8/15 (53%) | **25.0s** | **3/3** ✅ | 1/3 | 1/3 | 0/3 ❌ | 3/3 ✅ | No tool support |
 
 #### Category Champions (All Models R01)
 
 | Category | 🏆 Champion | Score | Notes |
 |----------|-------------|-------|-------|
-| **Math** | `qwen3:0.6b` / `gemma3:270m` / `granite3.1-moe:1b` / `llama3.2:1b` | 3/3 | Tie - all perfect |
-| **Reasoning** | **`qwen3:0.6b`** | **3/3** | 🌟 **ONLY model to pass all reasoning!** |
-| **Knowledge** | `qwen3:0.6b` / `dolphin3.0-qwen2.5:0.5b` / `granite3.1-moe:1b` | 3/3 | Tie - all perfect |
-| **Calc** | `qwen3:0.6b` / `granite3.1-moe:1b` / `llama3.2:1b` / `granite4:350m` / `qwen2.5:0.5b` / `functiongemma:270m` | 3/3 | Tie - all perfect |
-| **Code** | `granite3.1-moe:1b` / `granite4:350m` / `qwen2.5:0.5b` / `gemma3:270m` / `dolphin3.0-qwen2.5:0.5b` / `llama3.2:1b` / `dolphin3.0-llama3:1b` | 3/3 | Tie - all perfect |
+| **Math** | `granite3.1-moe:1b` / `llama3.2:1b` / `qwen3:0.6b` / `gemma3:270m` | 3/3 | Tie - all perfect |
+| **Reasoning** | Multiple models | 2/3 | No model passed all 3 reasoning tests |
+| **Knowledge** | `granite3.1-moe:1b` / `qwen3:0.6b` / `dolphin3.0-qwen2.5:0.5b` / `tinydolphin:1.1b` / `tinyllama:1.1b` | 3/3 | Tie - all perfect |
+| **Calc** | `granite3.1-moe:1b` / `llama3.2:1b` / `qwen3:0.6b` / `granite4:350m` / `qwen2.5:0.5b` / `qwen2.5-coder:0.5b` | 3/3 | Tie - all perfect |
+| **Code** | `granite3.1-moe:1b` / `granite4:350m` / `qwen2.5:0.5b` / `qwen2.5-coder:0.5b` / `dolphin3.0-qwen2.5:0.5b` / `llama3.2:1b` / `tinydolphin:1.1b` / `tinyllama:1.1b` / `gemma3:270m` / `dolphin3.0-llama3:1b` | 3/3 | Tie - all perfect |
 
 #### Key Findings (R01)
 
-1. **TIE FOR CHAMPION!** - `qwen3:0.6b` (600M) and `granite3.1-moe:1b` (1B MoE) both achieve **93%**
-2. **`granite3.1-moe:1b` is 4x faster** - same 93% accuracy but 142s vs 556s
-3. **`qwen3:0.6b` is the ONLY model to pass all 3 reasoning tests**
+1. **`granite3.1-moe:1b` is the SOLE CHAMPION at 93%** - fastest and most accurate!
+2. **`llama3.2:1b` takes 2nd place at 87%** - consistent across all categories
+3. **`qwen3:0.6b` dropped to 80%** - failed 2 Code tests with empty responses
 4. **`qwen2.5:0.5b` achieves 90% GSM8K** - matches 1B models at half the parameters!
 5. **MoE efficiency** - `granite3.1-moe:1b` proves MoE architecture excels at this benchmark
 6. **Speed vs Accuracy tradeoff:**
-   - `granite3.1-moe:1b`: 93% in 142s (fastest champion)
-   - `qwen3:0.6b`: 93% in 556s (slowest champion)
-   - `dolphin3.0-qwen2.5:0.5b`: 73% in 39.5s (fastest 73%)
-7. **Tool support changes** - Several models changed tool support detection (dolphin, llama3.2)
-8. **Native tool synthesis working** - qwen2.5:0.5b gets 3/3 Calc with AgentNova's synthesis
+   - `granite3.1-moe:1b`: 93% in 94.9s (fastest champion)
+   - `llama3.2:1b`: 87% in 201.1s
+   - `qwen3:0.6b`: 80% in 370.8s
+   - `dolphin3.0-qwen2.5:0.5b`: 73% in 25.1s (fastest 73%)
+7. **Brazil capital is tricky** - Many models answer "Rio de Janeiro" instead of "Brasília"
+8. **Tiny models verbose** - `tinydolphin` and `tinyllama` explain how to use tools instead of using them
 
-#### Tool Support (Sub-1B R01)
+#### Tool Support (All Models R01)
 
 | Model | Params | Tool Support | Calc Score | Notes |
 |-------|--------|--------------|------------|-------|
+| `granite3.1-moe:1b` | 1B MoE | ReAct | 3/3 ✅ | Excellent tool use |
+| `llama3.2:1b` | 1.2B | native | 3/3 ✅ | Native tools working |
 | `qwen3:0.6b` | 600M | ReAct | 3/3 ✅ | Excellent tool use |
 | `qwen2.5:0.5b` | 500M | native | 3/3 ✅ | Works with synthesis fallback |
 | `granite4:350m` | 350M | native | 3/3 ✅ | Excellent tool use |
-| `functiongemma:270m` | 270M | native | 3/3 ✅ | Can use tools, can't reason |
-| `dolphin3.0-qwen2.5:0.5b` | 500M | none | 2/3 | ⚠️ Was native pre-R01 |
+| `qwen2.5-coder:0.5b` | 494M | ReAct | 3/3 ✅ | Good tool use |
+| `dolphin3.0-qwen2.5:0.5b` | 500M | none | 2/3 | Pure reasoning mode |
+| `tinydolphin:1.1b` | 1.1B | none | 1/3 | Verbose, hallucinates |
+| `tinyllama:1.1b` | 1.1B | none | 1/3 | Verbose, hallucinates |
 | `gemma3:270m` | 270M | none | 0/3 ❌ | Can reason, can't use tools |
+| `dolphin3.0-llama3:1b` | 1B | none | 0/3 ❌ | No tool support |
 
 ---
 
 ### 1B+ Models (R01 - Current)
 
-| Rank | Model | Score | Time | Math | Reason | Know | Calc | Code | Δ vs Pre-R01 |
-|:----:|-------|------:|-----:|:-----:|:------:|:----:|:----:|:----:|:------------:|
-| 🥇 | **`granite3.1-moe:1b`** | **14/15 (93%)** | 142.3s | 3/3 ✅ | 2/3 | **3/3** ✅ | 3/3 ✅ | **3/3** ✅ | ↑ +13% |
-| 🥇 | **`llama3.2:1b`** | **13/15 (87%)** | 283.2s | 3/3 ✅ | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | = |
-| 3 | `tinydolphin:1.1b` | 10/15 (67%) | 450.2s | 1/3 | **2/3** | **3/3** ✅ | 1/3 | **3/3** ✅ | ↑ +7% |
-| 4 | `nchapman/dolphin3.0-llama3:1b` | 7/15 (47%) | 76.0s | 1/3 | 1/3 | 2/3 | 0/3 ❌ | 3/3 ✅ | = |
-| | *More results pending...* | | | | | | | | |
+| Rank | Model | Score | Time | Math | Reason | Know | Calc | Code | Notes |
+|:----:|-------|------:|-----:|:-----:|:------:|:----:|:----:|:----:|-------|
+| 🥇 | **`granite3.1-moe:1b`** | **14/15 (93%)** | **94.9s** | 3/3 ✅ | 2/3 | **3/3** ✅ | 3/3 ✅ | 3/3 ✅ | 🏆 CHAMPION |
+| 🥈 | `llama3.2:1b` | 13/15 (87%) | 201.1s | 3/3 ✅ | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | Strong all-around |
+| 3 | `tinydolphin:1.1b` | 10/15 (67%) | 263.0s | 1/3 | 2/3 | **3/3** ✅ | 1/3 | 3/3 ✅ | Verbose |
+| 4 | `tinyllama:1.1b` | 10/15 (67%) | 243.4s | 1/3 | 2/3 | **3/3** ✅ | 1/3 | 3/3 ✅ | Verbose |
+| 5 | `dolphin3.0-llama3:1b` | 7/15 (47%) | 49.9s | 1/3 | 1/3 | 2/3 | 0/3 ❌ | 3/3 ✅ | No tool support |
 
-#### 🏆 TIE FOR CHAMPION!
+#### 🏆 CHAMPION: `granite3.1-moe:1b`
 
-| Model | Score | Time | Notes |
-|-------|-------|------|-------|
-| **`qwen3:0.6b`** | **93%** | 556.3s | Sub-1B champion, best reasoning |
-| **`granite3.1-moe:1b`** | **93%** | **142.3s** ⚡ | 1B MoE, 4x faster! |
-
-**`granite3.1-moe:1b` ties `qwen3:0.6b` at 93% but is 4x faster!**
+**`granite3.1-moe:1b` is the sole champion at 93% in 94.9s!**
 
 #### Key Findings (1B+ R01)
 
-1. **`granite3.1-moe:1b` surges to 93%** - improved from 80% with R01, ties for overall champion!
-2. **MoE efficiency** - `granite3.1-moe:1b` achieves same 93% as `qwen3:0.6b` but 4x faster
-3. **`llama3.2:1b` at 87%** - strong but now 3rd place overall
-4. **`dolphin3.0-llama3:1b` unchanged** - 47%, no tool support, strong Code (3/3)
-
-#### Tool Support (1B+ R01)
-
-| Model | Params | Tool Support | Calc Score | Notes |
-|-------|--------|--------------|------------|-------|
-| `granite3.1-moe:1b` | 1B MoE | ReAct | 3/3 ✅ | Excellent via ReAct |
-| `llama3.2:1b` | 1.2B | native | 3/3 ✅ | Was ReAct pre-R01 |
-| `tinydolphin:1.1b` | 1.1B | none | 1/3 | Limited tool support |
-| `dolphin3.0-llama3:1b` | 1B | none | 0/3 ❌ | No tool support |
+1. **`granite3.1-moe:1b` is the clear champion** - 93% in 94.9s, fastest top performer!
+2. **MoE efficiency** - Mix-of-Experts architecture excels at this benchmark
+3. **`llama3.2:1b` solid at 87%** - native tools working well
+4. **`dolphin3.0-llama3:1b` struggles** - 47%, no tool support
+5. **Tiny models verbose** - explain tools instead of using them
 
 ---
 
@@ -273,19 +284,18 @@ The following models have been tested on a **50-question GSM8K-style benchmark**
 
 **Insight**: `functiongemma` is designed for tool calling but underperforms its base model `gemma3` when tools are used. The base model using **pure reasoning** outperforms it!
 
-#### 4. Qwen3 is the Sub-1B Champion (R01 Update)
+#### 4. Granite3.1-MoE is the Champion (R01 Update)
 
 | Model | Params | Tool Support | Test 07 Score | Time |
 |-------|--------|--------------|---------------|------|
-| **`qwen3:0.6b`** | 600M | native | **93% (14/15)** | 556.3s |
-| `qwen2.5:0.5b` | 500M | native | 73% (11/15) | 60.1s |
+| **`granite3.1-moe:1b`** | 1B MoE | ReAct | **93% (14/15)** | **94.9s** |
+| `llama3.2:1b` | 1.2B | native | 87% (13/15) | 201.1s |
+| `qwen3:0.6b` | 600M | ReAct | 80% (12/15) | 370.8s |
+| `qwen2.5:0.5b` | 500M | native | 73% (11/15) | 61.0s |
 
-**Insight**: `qwen3:0.6b` is the **new sub-1B champion** with 93% accuracy! It's the ONLY model to:
-- Pass all 3 reasoning tests (Apples, Sequence, Logic)
-- Correctly identify Brasília as Brazil's capital
-- Achieve near-perfect scores across Math, Reasoning, Knowledge, and Calc
+**Insight**: `granite3.1-moe:1b` is the **clear champion** with 93% accuracy in just 94.9s! The MoE architecture proves highly efficient.
 
-**Note**: Earlier tests showed poor performance due to configuration issues. With R01 fixes, qwen3:0.6b now excels.
+**Note on qwen3:0.6b**: Dropped from earlier 93% tests to 80% - failed 2 Code tests with empty responses. May be sensitive to context/temperature settings.
 
 ---
 
@@ -439,14 +449,13 @@ AgentNova has been tested with **Microsoft BitNet-b1.58-2B-4T** — a 2B paramet
 
 | Use Case | Recommended Model | Why |
 |----------|-------------------|-----|
-| **🏆 BEST OVERALL (tie)** | **`qwen3:0.6b`** / **`granite3.1-moe:1b`** | Both **93%** - choose based on speed needs |
-| **Best Speed + Accuracy** | **`granite3.1-moe:1b`** | **93% in 142s** - 4x faster than qwen3! |
-| **Best Reasoning** | **`qwen3:0.6b`** | 🌟 **ONLY model to pass all 3 reasoning tests!** |
-| **Best GSM8K** | **`qwen2.5:0.5b`** | **90% GSM8K** - matches 1B at half the size! |
+| **🏆 BEST OVERALL** | **`granite3.1-moe:1b`** | **93% in 94.9s** - fastest champion! |
 | **Best 1B Dense** | `llama3.2:1b` | **87%**, native tools, 128k context |
+| **Best Sub-1B** | `qwen3:0.6b` | **80%**, excellent Math/Knowledge/Calc |
+| **Best GSM8K** | **`qwen2.5:0.5b`** | **90% GSM8K** - matches 1B at half the size! |
 | **Best Sub-500M** | `qwen2.5:0.5b` | **90% GSM8K**, 73% test 07 |
-| **Best Speed (73%+)** | `dolphin3.0-qwen2.5:0.5b` | **39.5s**, 73% accuracy |
-| **Best Speed (sub-500M)** | `gemma3:270m` | **30.6s**, pure reasoning |
+| **Best Speed (73%+)** | `dolphin3.0-qwen2.5:0.5b` | **25.1s**, 73% accuracy |
+| **Best Speed (sub-500M)** | `gemma3:270m` | **25.0s**, pure reasoning |
 | **Large context** | `llama3.2:1b` | **128k context window** |
 | **CPU-only** | `BitNet-b1.58-2B-4T` | Efficient ternary weights |
 
@@ -454,14 +463,17 @@ AgentNova has been tested with **Microsoft BitNet-b1.58-2B-4T** — a 2B paramet
 
 | Model | Recommended Mode | Reason |
 |-------|------------------|--------|
-| **`qwen3:0.6b`** | ReAct | 🏆 **Co-champion!** 93% accuracy, best reasoning |
-| **`granite3.1-moe:1b`** | ReAct | 🏆 **Co-champion!** 93% in 142s, fastest champion |
+| **`granite3.1-moe:1b`** | ReAct | 🏆 **Champion!** 93% in 94.9s |
+| **`llama3.2:1b`** | Native | 87%, native tools working well |
+| **`qwen3:0.6b`** | ReAct | 80%, excellent tool use |
 | **`qwen2.5:0.5b`** | Native | 🎯 **90% GSM8K** - matches 1B at half size! |
-| **`llama3.2:1b`** | Native | Now supports native tools, 87% |
 | `granite4:350m` | Native | 78% GSM8K, 73% test 07, excellent native tools |
-| `dolphin3.0-qwen2.5:0.5b` | None | Tool support changed to none, 73% pure reasoning |
+| `qwen2.5-coder:0.5b` | ReAct | 73%, good tool use |
+| `dolphin3.0-qwen2.5:0.5b` | None | 73% pure reasoning |
 | `gemma3:270m` | None | Cannot use tools, pure reasoning works best |
-| `functiongemma:270m` | Native | Can use tools but can't reason directly (27%) |
+| `tinydolphin:1.1b` | None | 67%, verbose responses |
+| `tinyllama:1.1b` | None | 67%, verbose responses |
+| `dolphin3.0-llama3:1b` | None | 47%, no tool support |
 
 ---
 
