@@ -118,50 +118,49 @@ FEW_SHOT_SUFFIX = """
 TOOL USAGE EXAMPLES - Follow this EXACT format:
 ═══════════════════════════════════════════════════════════════
 
-Example 1 - Math calculation:
+Example 1 - Multiplication:
+Thought: I need to multiply 15 times 8
+Action: calculator
+Action Input: {"expression": "15 * 8"}
+
+Example 2 - Power:
 Thought: I need to calculate 2 to the power of 20
 Action: calculator
 Action Input: {"expression": "2 ** 20"}
 
-Example 2 - Get current date:
+Example 3 - Get current date:
 Thought: User wants to know today's date
 Action: shell
 Action Input: {"command": "date"}
 
-Example 3 - Run Python code:
+Example 4 - Run Python code:
 Thought: I need to compute something in Python
 Action: python_repl
 Action Input: {"code": "print(2 ** 10)"}
 
-Example 4 - Write to file:
+Example 5 - Write to file:
 Thought: Save the result to a file
 Action: write_file
 Action Input: {"path": "/tmp/result.txt", "content": "Hello World"}
-
-Example 5 - Web search:
-Thought: I need to find current information
-Action: web_search
-Action Input: {"query": "capital of France"}
 
 CRITICAL RULES:
 1. Action line: just the tool name (no backticks, no quotes)
 2. Action Input: valid JSON with correct argument names
 3. Use "expression" for calculator, "command" for shell, "code" for python_repl
+4. MATH OPERATORS: * (multiply), ** (power), / (divide), + (add), - (subtract)
 ═══════════════════════════════════════════════════════════════
 """
 
 # Compact version for models that need minimal prompting
 FEW_SHOT_COMPACT = """
 TOOL EXAMPLES (ReAct format):
-Action: calculator
-Action Input: {"expression": "2 ** 10"}
+Multiplication: calculator with {"expression": "15 * 8"}
+Power: calculator with {"expression": "2 ** 10"}
+Division: calculator with {"expression": "100 / 4"}
+Shell: {"command": "date"}
+Python: {"code": "print(result)"}
 
-Action: shell  
-Action Input: {"command": "date"}
-
-Action: python_repl
-Action Input: {"code": "print(2**10)"}
-
+MATH OPERATORS: * = multiply, ** = power, / = divide
 Remember: Action = tool name, Action Input = JSON with correct arg names.
 """
 
