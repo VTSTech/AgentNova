@@ -2,7 +2,7 @@
 
 ## Test 07 Benchmark Results (15-Test Suite)
 
-> **Updated:** 2026-03-21 with dedicated single-run results (no concurrent tests). Timing values are accurate.
+> **Updated:** 2026-03-21 - Fresh single-run results with accurate timing.
 
 ---
 
@@ -10,17 +10,17 @@
 
 | Rank | Model | Params | Score | Time | Math | Reason | Know | Calc | Code |
 |:----:|-------|-------:|------:|-----:|:----:|:------:|:----:|:----:|:----:|
-| 🥇 | **`granite3.1-moe:1b`** | 1B MoE | **14/15 (93%)** | **94.9s** | 3/3 ✅ | 2/3 | **3/3** ✅ | **3/3** ✅ | **3/3** ✅ |
-| 🥈 | `llama3.2:1b` | 1.2B | 13/15 (87%) | 201.1s | 3/3 ✅ | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ |
-| 🥉 | `qwen3:0.6b` | 600M | 12/15 (80%) | 370.8s | 3/3 ✅ | 2/3 | **3/3** ✅ | 3/3 ✅ | 1/3 |
-| 4 | `dolphin3.0-qwen2.5:0.5b` | 500M | 11/15 (73%) | **25.1s** | 1/3 | 2/3 | **3/3** ✅ | 2/3 | 3/3 ✅ |
-| 4 | `granite4:350m` | 350M | 11/15 (73%) | 50.0s | 2/3 | 1/3 | 2/3 | 3/3 ✅ | 3/3 ✅ |
-| 4 | `qwen2.5:0.5b` | 500M | 11/15 (73%) | 61.0s | 1/3 | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ |
-| 4 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | 494M | 11/15 (73%) | 89.2s | 2/3 | 1/3 | 2/3 | 3/3 ✅ | 3/3 ✅ |
-| 8 | `tinydolphin:1.1b` | 1.1B | 10/15 (67%) | 263.0s | 1/3 | 2/3 | **3/3** ✅ | 1/3 | 3/3 ✅ |
-| 8 | `tinyllama:1.1b` | 1.1B | 10/15 (67%) | 243.4s | 1/3 | 2/3 | **3/3** ✅ | 1/3 | 3/3 ✅ |
-| 10 | `gemma3:270m` | 270M | 8/15 (53%) | **25.0s** | **3/3** ✅ | 1/3 | 1/3 | 0/3 ❌ | 3/3 ✅ |
-| 11 | `dolphin3.0-llama3:1b` | 1B | 7/15 (47%) | 49.9s | 1/3 | 1/3 | 2/3 | 0/3 ❌ | 3/3 ✅ |
+| 🥇 | **`granite3.1-moe:1b`** | 1B MoE | **14/15 (93%)** | **95.7s** | 3/3 ✅ | 2/3 | **3/3** ✅ | **3/3** ✅ | **3/3** ✅ |
+| 🥈 | `llama3.2:1b` | 1.2B | 13/15 (87%) | 189.3s | 3/3 ✅ | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ |
+| 🥉 | `qwen3:0.6b` | 600M | 12/15 (80%) | 388.9s | 3/3 ✅ | 2/3 | **3/3** ✅ | 3/3 ✅ | 1/3 |
+| 4 | `nchapman/dolphin3.0-qwen2.5:0.5b` | 500M | 11/15 (73%) | **25.7s** | 1/3 | 2/3 | **3/3** ✅ | 2/3 | 3/3 ✅ |
+| 4 | `granite4:350m` | 350M | 11/15 (73%) | 49.6s | 2/3 | 1/3 | 2/3 | 3/3 ✅ | 3/3 ✅ |
+| 4 | `qwen2.5:0.5b` | 500M | 11/15 (73%) | 62.8s | 1/3 | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ |
+| 4 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | 494M | 11/15 (73%) | 85.8s | 2/3 | 1/3 | 2/3 | 3/3 ✅ | 3/3 ✅ |
+| 8 | `tinyllama:1.1b` | 1.1B | 10/15 (67%) | 226.6s | 1/3 | 2/3 | **3/3** ✅ | 1/3 | 3/3 ✅ |
+| 8 | `tinydolphin:1.1b` | 1.1B | 10/15 (67%) | 242.6s | 1/3 | 2/3 | **3/3** ✅ | 1/3 | 3/3 ✅ |
+| 10 | `gemma3:270m` | 270M | 8/15 (53%) | 31.1s | **3/3** ✅ | 1/3 | 1/3 | 0/3 ❌ | 3/3 ✅ |
+| 11 | `nchapman/dolphin3.0-llama3:1b` | 1B | 7/15 (47%) | 47.7s | 1/3 | 1/3 | 2/3 | 0/3 ❌ | 3/3 ✅ |
 
 ---
 
@@ -30,12 +30,12 @@ The following sub-1B parameter models were tested on the **15-test benchmark**:
 
 | Rank | Model | Score | Time | Math | Reason | Know | Calc | Code | Notes |
 |:----:|-------|------:|-----:|:-----:|:------:|:----:|:----:|:----:|-------|
-| 🥇 | `qwen3:0.6b` | 12/15 (80%) | 370.8s | 3/3 ✅ | 2/3 | **3/3** ✅ | 3/3 ✅ | 1/3 | Empty Code responses |
-| 🥈 | `dolphin3.0-qwen2.5:0.5b` | 11/15 (73%) | **25.1s** | 1/3 | 2/3 | **3/3** ✅ | 2/3 | 3/3 ✅ | ⚡ Fastest! |
-| 🥈 | `granite4:350m` | 11/15 (73%) | 50.0s | 2/3 | 1/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | |
-| 🥈 | `qwen2.5:0.5b` | 11/15 (73%) | 61.0s | 1/3 | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | |
-| 🥈 | `qwen2.5-coder:0.5b` | 11/15 (73%) | 89.2s | 2/3 | 1/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | |
-| 5 | `gemma3:270m` | 8/15 (53%) | **25.0s** | **3/3** ✅ | 1/3 | 1/3 | 0/3 ❌ | 3/3 ✅ | No tool support |
+| 🥇 | `qwen3:0.6b` | 12/15 (80%) | 388.9s | 3/3 ✅ | 2/3 | **3/3** ✅ | 3/3 ✅ | 1/3 | Empty Code responses |
+| 🥈 | `nchapman/dolphin3.0-qwen2.5:0.5b` | 11/15 (73%) | **25.7s** | 1/3 | 2/3 | **3/3** ✅ | 2/3 | 3/3 ✅ | ⚡ Fastest! |
+| 🥈 | `granite4:350m` | 11/15 (73%) | 49.6s | 2/3 | 1/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | |
+| 🥈 | `qwen2.5:0.5b` | 11/15 (73%) | 62.8s | 1/3 | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | |
+| 🥈 | `qwen2.5-coder:0.5b` | 11/15 (73%) | 85.8s | 2/3 | 1/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | |
+| 5 | `gemma3:270m` | 8/15 (53%) | 31.1s | **3/3** ✅ | 1/3 | 1/3 | 0/3 ❌ | 3/3 ✅ | No tool support |
 
 #### Category Champions (All Models R01)
 
@@ -51,14 +51,14 @@ The following sub-1B parameter models were tested on the **15-test benchmark**:
 
 1. **`granite3.1-moe:1b` is the SOLE CHAMPION at 93%** - fastest and most accurate!
 2. **`llama3.2:1b` takes 2nd place at 87%** - consistent across all categories
-3. **`qwen3:0.6b` dropped to 80%** - failed 2 Code tests with empty responses
+3. **`qwen3:0.6b` at 80%** - failed 2 Code tests with empty responses
 4. **`qwen2.5:0.5b` achieves 90% GSM8K** - matches 1B models at half the parameters!
 5. **MoE efficiency** - `granite3.1-moe:1b` proves MoE architecture excels at this benchmark
 6. **Speed vs Accuracy tradeoff:**
-   - `granite3.1-moe:1b`: 93% in 94.9s (fastest champion)
-   - `llama3.2:1b`: 87% in 201.1s
-   - `qwen3:0.6b`: 80% in 370.8s
-   - `dolphin3.0-qwen2.5:0.5b`: 73% in 25.1s (fastest 73%)
+   - `granite3.1-moe:1b`: 93% in 95.7s (fastest champion)
+   - `llama3.2:1b`: 87% in 189.3s
+   - `qwen3:0.6b`: 80% in 388.9s
+   - `nchapman/dolphin3.0-qwen2.5:0.5b`: 73% in 25.7s (fastest 73%)
 7. **Brazil capital is tricky** - Many models answer "Rio de Janeiro" instead of "Brasília"
 8. **Tiny models verbose** - `tinydolphin` and `tinyllama` explain how to use tools instead of using them
 
