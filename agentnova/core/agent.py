@@ -1459,8 +1459,9 @@ class Agent:
         if self._tool_support == "react" and self.tools.all():
             # Get family-specific stop tokens
             family_stops = get_stop_tokens(self.model_family or "")
-            # Add ReAct-specific stop tokens
-            react_stops = ["\nFinal Answer:", "\nThought:", "\nAction:"]
+            # Add ReAct-specific stop token to prevent repetition loops
+            # Only stop on Final Answer repetition, NOT on Thought/Action
+            react_stops = ["\nFinal Answer:"]
             # Merge with existing stop tokens from model_options
             existing_stops = self.model_options.get("stop", [])
             if isinstance(existing_stops, str):
