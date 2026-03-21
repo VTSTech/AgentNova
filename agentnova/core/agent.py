@@ -929,15 +929,21 @@ def _parse_json_tool_call(text: str) -> tuple[str | None, dict | None]:
         {"name": "calculator", "arguments": {"expression": "2+2"}}
         ```
 
+    Also handles bare argument objects (qwen2.5-coder style):
+
+        ```json
+        {"expression": "15 * 8"}
+        ```
+
     Returns (tool_name, tool_args) or (None, None) if not found.
-    
+
     Also handles cases where the model puts code in the 'name' field:
         {"name": "print(2 ** 20)", "arguments": {"code": "2 ** 20"}}
     """
     # Check for tool schema dump first - don't try to parse it
     if _looks_like_tool_schema_dump(text):
         return None, None
-    
+
     # Strip markdown fences
     cleaned = re.sub(r"```(?:json)?", "", text).strip().rstrip("`").strip()
 
@@ -964,6 +970,25 @@ def _parse_json_tool_call(text: str) -> tuple[str | None, dict | None]:
     # Support {"name": ..., "arguments": ...} and {"name": ..., "parameters": ...}
     name = obj.get("name") or obj.get("function")
     args = obj.get("arguments") or obj.get("parameters") or obj.get("args") or {}
+
+    # Handle bare argument objects: {"expression": "..."} without name wrapper
+    # Infer tool name from known argument keys
+    if not name and isinstance(obj, dict):
+        # Map known argument keys to tool names
+        arg_to_tool = {
+            "expression": "calculator",
+            "command": "shell",
+            "code": "python_repl",
+            "path": "read_file",
+            "content": "write_file",
+            "query": "web_search",
+            "url": "http_get",
+        }
+        for key in obj.keys():
+            if key in arg_to_tool:
+                name = arg_to_tool[key]
+                args = obj
+                break
 
     if not name or not isinstance(args, dict):
         return None, None
