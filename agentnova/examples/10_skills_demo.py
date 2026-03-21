@@ -83,7 +83,7 @@ def make_step_printer(acp=None):
 
 
 def main():
-    print("⚛️ AgentNova R00 - Skills Demo")
+    print("⚛️ AgentNova R01 - Skills Demo")
     print("=" * 60)
     
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -275,7 +275,7 @@ Use write_file to create the file."""
     
     if os.path.exists(skill_path):
         print("   ✅ FILE CREATED!")
-        with open(skill_path) as f:
+        with open(skill_path, encoding='utf-8') as f:
             content = f.read()
         print(f"   Size: {len(content)} chars")
         print("   Content:")

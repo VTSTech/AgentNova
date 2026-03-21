@@ -435,7 +435,7 @@ def main():
     # Save results
     output_path = os.path.join(os.path.dirname(__file__), "model_comparison_results.json")
     import json
-    with open(output_path, "w") as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(all_results, f, indent=2, default=str)
     print(f"\n📄 Results saved to: {output_path}")
 

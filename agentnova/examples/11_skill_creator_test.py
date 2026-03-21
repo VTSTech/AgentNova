@@ -308,7 +308,7 @@ Call write_file now."""
             }
         
         # Read and validate
-        with open(skill_path) as f:
+        with open(skill_path, encoding='utf-8') as f:
             content = f.read()
         
         validation = validate_skill(content, skill_name, expected_sections)
@@ -344,7 +344,7 @@ Call write_file now."""
 
 
 def main():
-    print("⚛️ AgentNova R00 - Skill Creator Test (Autonomous Creation)")
+    print("⚛️ AgentNova R01 - Skill Creator Test (Autonomous Creation)")
     print("=" * 60)
     print("Testing if models can CREATE skills autonomously.")
     print("The skill content is NOT provided - models must generate it!")
@@ -504,7 +504,7 @@ Instructions here.
     for skill_request in SKILL_REQUESTS:
         skill_path = os.path.join(skills_dir, skill_request["name"], "SKILL.md")
         if os.path.exists(skill_path):
-            with open(skill_path) as f:
+            with open(skill_path, encoding='utf-8') as f:
                 content = f.read()
             print(f"\n✅ {skill_request['name']}/SKILL.md ({len(content)} chars)")
         else:

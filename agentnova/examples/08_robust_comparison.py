@@ -149,7 +149,7 @@ RESULTS_FILE = os.path.join(os.path.dirname(__file__), 'model_comparison_results
 
 def save_results(results):
     """Save results to JSON."""
-    with open(RESULTS_FILE, 'w') as f:
+    with open(RESULTS_FILE, 'w', encoding='utf-8') as f:
         json.dump(results, f, indent=2)
 
 
@@ -344,7 +344,7 @@ def main():
     results = {}
     if os.path.exists(RESULTS_FILE):
         try:
-            with open(RESULTS_FILE) as f:
+            with open(RESULTS_FILE, encoding='utf-8') as f:
                 results = json.load(f)
             completed_models = list(results.keys())
             print(f"   📁 Loaded existing results: {len(completed_models)} models already tested")

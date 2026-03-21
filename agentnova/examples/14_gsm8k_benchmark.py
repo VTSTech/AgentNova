@@ -132,7 +132,7 @@ def log(msg):
     timestamp = time.strftime("%H:%M:%S")
     line = f"[{timestamp}] {msg}"
     print(line)
-    with open(LOG_FILE, "a") as f:
+    with open(LOG_FILE, "a", encoding="utf-8") as f:
         f.write(line + "\n")
 
 
