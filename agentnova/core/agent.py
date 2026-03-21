@@ -920,7 +920,7 @@ def _sanitize_model_json(text: str) -> str:
     return text
 
 
-def _parse_json_tool_call(text: str) -> tuple[str | None, dict | None]:
+def _parse_json_tool_call(text: str, debug: bool = False) -> tuple[str | None, dict | None]:
     """
     Fallback for models that output tool calls as JSON text instead of
     using the native tool_calls API field. Handles patterns like:
@@ -942,6 +942,8 @@ def _parse_json_tool_call(text: str) -> tuple[str | None, dict | None]:
     """
     # Check for tool schema dump first - don't try to parse it
     if _looks_like_tool_schema_dump(text):
+        if debug:
+            print(f"    _parse_json_tool_call: skipping - looks like schema dump")
         return None, None
 
     # Strip markdown fences
@@ -951,9 +953,13 @@ def _parse_json_tool_call(text: str) -> tuple[str | None, dict | None]:
     start = cleaned.find("{")
     end = cleaned.rfind("}")
     if start == -1 or end == -1:
+        if debug:
+            print(f"    _parse_json_tool_call: no JSON object found (start={start}, end={end})")
         return None, None
 
     json_str = cleaned[start:end + 1]
+    if debug:
+        print(f"    _parse_json_tool_call: extracted JSON: {json_str[:100]}...")
 
     # Sanitize common small-model JSON mistakes before parsing:
     #   1. Python bool/None literals  →  JSON equivalents
@@ -964,7 +970,9 @@ def _parse_json_tool_call(text: str) -> tuple[str | None, dict | None]:
 
     try:
         obj = json.loads(json_str)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        if debug:
+            print(f"    _parse_json_tool_call: JSON parse error: {e}")
         return None, None
 
     # Support {"name": ..., "arguments": ...} and {"name": ..., "parameters": ...}
@@ -991,6 +999,8 @@ def _parse_json_tool_call(text: str) -> tuple[str | None, dict | None]:
                 break
 
     if not name or not isinstance(args, dict):
+        if debug:
+            print(f"    _parse_json_tool_call: no name or args (name={name!r}, args type={type(args).__name__})")
         return None, None
 
     # Detect if the 'name' field contains code instead of a tool name.
@@ -1503,8 +1513,8 @@ class Agent:
                 if self.debug:
                     print(f"\n  🔍 DEBUG: JSON fallback triggered")
                     print(f"    content[:100]: {content[:100]!r}")
-                
-                t_name, t_args = _parse_json_tool_call(content)
+
+                t_name, t_args = _parse_json_tool_call(content, debug=self.debug)
                 
                 if self.debug:
                     print(f"    parsed JSON: name={t_name!r}, args={t_args!r}")
@@ -1703,7 +1713,7 @@ class Agent:
                         )
                         nudge_content = nudge_response.get("message", {}).get("content", "").strip()
                         # Only accept it if it doesn't look like another tool call
-                        _, check_args = _parse_json_tool_call(nudge_content)
+                        _, check_args = _parse_json_tool_call(nudge_content, debug=False)
                         if nudge_content and check_args is None:
                             final_step = StepResult(type="final", content=nudge_content, elapsed_ms=elapsed)
                             run.steps.append(final_step)
@@ -1731,7 +1741,7 @@ class Agent:
                 # Also try JSON tool call format (BitNet, some small models)
                 # Models may output {"name": "tool", "arguments": {...}} instead of ReAct format
                 if not t_name and not final_answer:
-                    json_name, json_args = _parse_json_tool_call(content)
+                    json_name, json_args = _parse_json_tool_call(content, debug=self.debug)
                     if json_name:
                         t_name = json_name
                         t_args = json_args
