@@ -1210,6 +1210,14 @@ class Agent:
             few_shot_suffix = FEW_SHOT_COMPACT if use_compact_prompt else FEW_SHOT_SUFFIX
             base_sys = base_sys + few_shot_suffix
 
+        # Debug: Show prompt construction
+        if debug:
+            print(f"\n  🔍 DEBUG: System prompt construction")
+            print(f"    _tool_support={self._tool_support}")
+            print(f"    _use_few_shot={self._use_few_shot}")
+            print(f"    _is_small_model={self._is_small_model}")
+            print(f"    System prompt length: {len(base_sys)} chars")
+
         self.memory = Memory(
             system_prompt=base_sys,
             max_turns=memory_max_turns,
