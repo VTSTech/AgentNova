@@ -1591,6 +1591,25 @@ class Agent:
                             if self.debug:
                                 print(f"    python_repl with no recoverable code, skipping")
                             continue
+                    
+                    # If python_repl code is provided but is a bare expression without print(),
+                    # wrap it so we get visible output
+                    if t_name == "python_repl" and t_args.get("code"):
+                        code = t_args["code"]
+                        # Check if it's a bare expression (single line, no print, no assignment)
+                        if (
+                            "\n" not in code.strip()
+                            and not code.strip().startswith("print(")
+                            and not "=" in code  # not an assignment
+                            and not code.strip().startswith("import")  # not an import
+                            and not code.strip().startswith("from")  # not a from import
+                            and not code.strip().startswith("def ")  # not a function def
+                            and not code.strip().startswith("class ")  # not a class def
+                        ):
+                            wrapped_code = f"print({code.strip()})"
+                            t_args["code"] = wrapped_code
+                            if self.debug:
+                                print(f"    python_repl: wrapped bare expression: {code!r} -> {wrapped_code!r}")
 
                     t_args = _fix_calculator_args(t_name, t_args, user_input, _successful_results)
                     # Redirect to calculator with the correct expression.
@@ -2274,6 +2293,89 @@ class Agent:
                     content = retry.get("message", {}).get("content", "").strip() or content
                     self.memory._history.pop()   # remove the nudge from memory
                     self.memory._history.pop()   # remove the bad assistant turn
+
+            # ---- Hallucinated tool mention fallback ---- #
+            # Model mentions a tool in its response but didn't actually call it.
+            # E.g., "To calculate the division of 100 by 4, we can use the calculator tool..."
+            # This is common with small native-tool models that talk about tools but don't call them.
+            if (
+                self._native_tools
+                and self.tools.all()
+                and not _successful_results
+                and not tool_calls_raw
+                and content
+            ):
+                content_lower = content.lower()
+                available_tools = [t.name for t in self.tools.all()]
+                synthesized_tool = None
+                synthesized_args = {}
+                
+                # Check if content mentions a tool but didn't call it
+                mentions_calculator = "calculator" in content_lower and "calculator" in available_tools
+                mentions_shell = "shell" in content_lower and "shell" in available_tools
+                
+                if mentions_calculator or mentions_shell:
+                    if self.debug:
+                        print(f"\n  🔍 DEBUG: Model mentions tool but didn't call it, synthesizing...")
+                    
+                    # Calculator synthesis
+                    if mentions_calculator:
+                        expr = _extract_calc_expression(user_input)
+                        if expr:
+                            synthesized_tool = "calculator"
+                            synthesized_args = {"expression": expr}
+                            if self.debug:
+                                print(f"    synthesized: calculator({expr})")
+                    
+                    # Shell synthesis
+                    if not synthesized_tool and mentions_shell:
+                        q_lower = user_input.lower()
+                        if "echo" in q_lower or "print" in q_lower:
+                            echo_text = _extract_echo_text(user_input)
+                            if echo_text:
+                                synthesized_tool = "shell"
+                                synthesized_args = {"command": f"echo {echo_text}"}
+                                if self.debug:
+                                    print(f"    synthesized: shell(echo {echo_text})")
+                        elif "directory" in q_lower or "pwd" in q_lower or "folder" in q_lower:
+                            synthesized_tool = "shell"
+                            synthesized_args = {"command": "pwd"}
+                        elif "date" in q_lower or "time" in q_lower or "today" in q_lower:
+                            synthesized_tool = "shell"
+                            synthesized_args = {"command": "date"}
+                    
+                    # Execute synthesized tool call
+                    if synthesized_tool and synthesized_args:
+                        t_name = synthesized_tool
+                        t_args = synthesized_args
+                        
+                        call_step = StepResult(
+                            type="tool_call",
+                            content=f"{t_name}({t_args})",
+                            tool_name=t_name,
+                            tool_args=t_args,
+                            elapsed_ms=elapsed,
+                        )
+                        run.steps.append(call_step)
+                        self._emit(call_step)
+                        
+                        result = self.tools.invoke(t_name, t_args)
+                        result_str = str(result)
+                        
+                        result_step = StepResult(type="tool_result", content=result_str, tool_name=t_name)
+                        run.steps.append(result_step)
+                        self._emit(result_step)
+                        
+                        _successful_results.append(f"{t_name} → {result_str}")
+                        _successful_tools.add(t_name)
+                        
+                        # Synthesize the final answer from the result
+                        final_answer = self._synthesize(user_input, _successful_results)
+                        final_step = StepResult(type="final", content=final_answer, elapsed_ms=elapsed)
+                        run.steps.append(final_step)
+                        self._emit(final_step)
+                        run.final_answer = final_answer
+                        break
 
             # Clean JSON from final answer if needed
             # Use successful tool results as fallback if available
