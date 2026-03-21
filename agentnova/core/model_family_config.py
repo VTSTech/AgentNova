@@ -1,5 +1,5 @@
 """
-⚛️ AgentNova R01 — Model Family Configuration
+⚛️ AgentNova R02 — Model Family Configuration
 
 Family-specific configurations for prompts, stop tokens, formatting, and tool handling.
 Each model family has unique characteristics that affect how we construct prompts

@@ -1,5 +1,5 @@
 """
-⚛️ AgentNova R00 — Agent
+⚛️ AgentNova R02 — Agent
 Core ReAct agent that drives the think → act → observe loop.
 
 Supports:
