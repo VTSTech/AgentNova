@@ -37,10 +37,11 @@ The following sub-1B parameter models were tested on the **15-test benchmark**:
    - Correctly identify Brasília as Brazil's capital
 3. **Speed vs Accuracy tradeoff:**
    - `qwen3:0.6b`: 93% accuracy but 556s (slowest)
-   - `granite4:350m`: 73% accuracy in only 47s (10x faster)
-4. **`gemma3:270m` cannot use tools** - 0/3 on Calc but perfect on Math (pure reasoning)
-5. **`functiongemma:270m` inverse profile** - 3/3 Calc (uses tools) but 0/3 Math (can't reason directly)
-6. **Native tool synthesis working** - qwen2.5:0.5b gets 3/3 Calc with AgentNova's tool synthesis
+   - `dolphin3.0-qwen2.5:0.5b`: 73% in only 39.5s (fastest of the 73% group)
+4. **`dolphin3.0-qwen2.5:0.5b` tool support changed** - Was native, now detected as none. Calc dropped 3/3 → 2/3
+5. **`gemma3:270m` cannot use tools** - 0/3 Calc but 3/3 Math (pure reasoning)
+6. **`functiongemma:270m` inverse profile** - 3/3 Calc (uses tools) but 0/3 Math (can't reason directly)
+7. **Native tool synthesis working** - qwen2.5:0.5b gets 3/3 Calc with AgentNova's synthesis
 
 #### Tool Support (Sub-1B R01)
 
@@ -50,7 +51,19 @@ The following sub-1B parameter models were tested on the **15-test benchmark**:
 | `qwen2.5:0.5b` | 500M | native | 3/3 ✅ | Works with synthesis fallback |
 | `granite4:350m` | 350M | native | 3/3 ✅ | Excellent tool use |
 | `functiongemma:270m` | 270M | native | 3/3 ✅ | Can use tools, can't reason |
+| `dolphin3.0-qwen2.5:0.5b` | 500M | none | 2/3 | ⚠️ Was native pre-R01 |
 | `gemma3:270m` | 270M | none | 0/3 ❌ | Can reason, can't use tools |
+
+---
+
+### 1B+ Models (R01 - Current)
+
+| Rank | Model | Score | Time | Math | Reason | Know | Calc | Code | Δ vs Pre-R01 |
+|:----:|-------|------:|-----:|:-----:|:------:|:----:|:----:|:----:|:------------:|
+| 1 | `nchapman/dolphin3.0-llama3:1b` | 7/15 (47%) | 76.0s | 1/3 | 1/3 | 2/3 | 0/3 ❌ | 3/3 ✅ | = |
+| | *More results pending...* | | | | | | | | |
+
+**Note:** `dolphin3.0-llama3:1b` has no tool support (none). Calc dropped 1/3 → 0/3 but Knowledge improved 1/3 → 2/3.
 
 ---
 
@@ -68,7 +81,7 @@ The following sub-1B parameter models were tested on the **15-test benchmark**:
 | 6 | `tinyllama:1.1b` | 8/15 (53%) | 68.2s | 1/3 | 1/3 | 2/3 | 2/3 | 2/3 |
 | 7 | `nchapman/dolphin3.0-llama3:1b` | 7/15 (47%) | **28.3s** | 1/3 | 1/3 | 1/3 | 1/3 | 3/3 |
 
-#### Category Champions (1B+)
+#### Category Champions (1B+ Pre-R01)
 
 | Category | 🏆 Champion | Score |
 |----------|-------------|-------|
