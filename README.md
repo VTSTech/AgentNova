@@ -24,12 +24,9 @@ Inspired by the architecture of OpenClaw, rebuilt from scratch for local-first o
 
 ## Installation
 
-### From PyPI (Recommended)
-
 ```bash
-pip install agentnova
 
-# Or install from GitHub for the latest development version:
+# Install from GitHub using pip:
 pip install git+https://github.com/VTSTech/AgentNova.git
 ```
 
