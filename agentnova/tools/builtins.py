@@ -35,7 +35,6 @@ from datetime import datetime
 _IS_WINDOWS = platform.system() == "Windows"
 _PLATFORM_DIR_CMD = "cd" if _IS_WINDOWS else "pwd"
 _PLATFORM_LIST_CMD = "dir" if _IS_WINDOWS else "ls"
-_PLATFORM_DATE_HINT = "echo %DATE%" if _IS_WINDOWS else "date"
 from pathlib import Path
 from typing import Any
 
