@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import re
 import time
+import platform as _platform
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterator, Literal
 
@@ -29,6 +30,12 @@ from .tools import ToolRegistry
 # Import config for backend selection (avoids circular import)
 import os as _os
 _AGENTNOVA_BACKEND = _os.environ.get("AGENTNOVA_BACKEND", "ollama").lower()
+
+# Platform detection for cross-platform shell commands
+_IS_WINDOWS = _platform.system() == "Windows"
+_PLATFORM_DIR_CMD = "cd" if _IS_WINDOWS else "pwd"
+_PLATFORM_LIST_CMD = "dir" if _IS_WINDOWS else "ls"
+_PLATFORM_DATE_CMD = "echo %DATE%" if _IS_WINDOWS else "date"
 
 # Try to import BitNet client if needed
 if _AGENTNOVA_BACKEND == "bitnet":
@@ -114,6 +121,13 @@ TOOL_ARG_ALIASES = {
 # ------------------------------------------------------------------ #
 # Added to system prompt when using models < 2B parameters
 
+# Platform-aware few-shot examples
+# For date/time, use python_repl which works everywhere (shell date command varies by platform)
+_FEW_SHOT_DATE_EXAMPLE = '''Example 3 - Get current date:
+Thought: User wants to know today's date
+Action: python_repl
+Action Input: {"code": "from datetime import datetime; print(datetime.now().strftime('%Y-%m-%d'))"}'''
+
 FEW_SHOT_SUFFIX = """
 
 ═══════════════════════════════════════════════════════════════
@@ -130,25 +144,20 @@ Thought: I need to calculate 2 to the power of 20
 Action: calculator
 Action Input: {"expression": "2 ** 20"}
 
-Example 3 - Get current date:
-Thought: User wants to know today's date
-Action: shell
-Action Input: {"command": "date"}
-
-Example 4 - Echo text:
+Example 3 - Echo text:
 Thought: User wants to print some text
 Action: shell
 Action Input: {"command": "echo Hello World"}
 
-Example 5 - Run Python code:
+Example 4 - Run Python code:
 Thought: I need to compute something in Python
 Action: python_repl
 Action Input: {"code": "print(2 ** 10)"}
 
-Example 6 - Write to file:
-Thought: Save the result to a file
-Action: write_file
-Action Input: {"path": "/tmp/result.txt", "content": "Hello World"}
+Example 5 - Get current date:
+Thought: User wants to know today's date
+Action: python_repl
+Action Input: {"code": "from datetime import datetime; print(datetime.now())"}
 
 CRITICAL RULES:
 1. Action line: just the tool name (no backticks, no quotes)
@@ -165,7 +174,7 @@ TOOL EXAMPLES (ReAct format):
 Multiplication: calculator with {"expression": "15 * 8"}
 Power: calculator with {"expression": "2 ** 10"}
 Division: calculator with {"expression": "100 / 4"}
-Shell: {"command": "date"}
+Shell: {"command": "echo Hello World"}
 Python: {"code": "print(result)"}
 
 MATH OPERATORS: * = multiply, ** = power, / = divide
@@ -173,6 +182,7 @@ Remember: Action = tool name, Action Input = JSON with correct arg names.
 """
 
 # Few-shot for native tool models - focuses on WHEN to call tools
+# Platform-aware: use python_repl for date/time since shell commands vary
 NATIVE_TOOL_HINTS = """
 TOOL USAGE RULES - YOU MUST CALL TOOLS:
 
@@ -185,10 +195,11 @@ TOOL USAGE RULES - YOU MUST CALL TOOLS:
 
 2. SHELL QUESTIONS: Always call shell tool
    - "echo" something → shell(command="echo YourText")
-   - "current directory/pwd" → shell(command="pwd")
-   - "date/today" → shell(command="date")
 
-3. PYTHON: Use python_repl with correct syntax
+3. DATE/TIME: Use python_repl (works on all platforms)
+   - "date/today" → python_repl(code="from datetime import datetime; print(datetime.now())")
+
+4. PYTHON: Use python_repl with correct syntax
    - Power is ** not ^ : python_repl(code="print(2 ** 20)")
 
 NEVER respond with empty content. ALWAYS call a tool when asked to compute or execute.
