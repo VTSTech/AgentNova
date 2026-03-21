@@ -1728,7 +1728,7 @@ class Agent:
                         first_tool = self.tools.all()[0] if self.tools.all() else None
                         arg_hint = "input"
                         if first_tool and first_tool.params:
-                            arg_hint = list(first_tool.params.keys())[0]
+                            arg_hint = first_tool.params[0].name  # params is list[ToolParam]
                         reminder = (
                             f"Please answer the original question using the ReAct format:\n\n"
                             f"Thought: <your reasoning about the question>\n"
