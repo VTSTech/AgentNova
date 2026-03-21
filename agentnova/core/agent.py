@@ -1508,16 +1508,29 @@ class Agent:
         # For "none" level: don't add any tool-related prompts
         # Model should use its Modelfile system prompt as-is
         
+        # ═══════════════════════════════════════════════════════════════════
+        # ⚠️ FEW-SHOT WARNING - DO NOT ADD TO NATIVE TOOL MODELS!
+        # ═══════════════════════════════════════════════════════════════════
+        # This has caused major regressions TWICE:
+        #   - R01→R02: qwen2.5:0.5b dropped 90%→58% on GSM8K when few-shot was added
+        # 
+        # Native tool models (supports_native_tools=True) already know how to
+        # call tools via the Ollama API. Adding few-shot examples CONFUSES them
+        # with conflicting instructions and degrades performance.
+        #
+        # Family configs MUST set prefers_few_shot=False for native tool models.
+        # The only exception is ReAct-only models (tool_support="react").
+        # ═══════════════════════════════════════════════════════════════════
+        
         # Add few-shot examples based on family preference
         # For react mode: always add if enabled
-        # For native mode: add for small models that need guidance on WHEN to call tools
+        # For native mode: should almost NEVER add (controlled by family config)
         add_few_shot = False
         if self._use_few_shot and self.tools.all():
             if self._tool_support == "react":
                 add_few_shot = True
-            elif self._tool_support == "native" and self._is_small_model:
-                # Small native models benefit from examples showing WHEN to call tools
-                add_few_shot = True
+            # NOTE: Native models should NOT get few-shot (prefers_few_shot=False in family config)
+            # The only exception is if family explicitly sets prefers_few_shot=True (very rare)
         
         if add_few_shot:
             # Use compact for families that prefer it or small models
