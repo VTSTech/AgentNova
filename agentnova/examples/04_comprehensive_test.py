@@ -37,6 +37,14 @@ from agentnova.tools.builtins import make_builtin_registry
 from agentnova.model_discovery import pick_best_model, get_available_models
 from agentnova.shared_args import add_shared_args, parse_shared_args
 
+
+def check_tool_used(run, tool_name: str) -> bool:
+    """Verify that a specific tool was actually called during the run."""
+    for step in run.steps:
+        if step.type == "tool_call" and step.tool_name == tool_name:
+            return True
+    return False
+
 # Parse CLI args (with env var fallbacks)
 parser = argparse.ArgumentParser(description="AgentNova Comprehensive Test")
 add_shared_args(parser)
@@ -214,16 +222,17 @@ def run_tests():
                 if acp:
                     acp.log_user_message(test["prompt"])
                 
-                response = agent.chat(test["prompt"])
+                run = agent.run(test["prompt"])
                 elapsed = time.time() - t0
                 total_time += elapsed
                 
+                response = run.final_answer
                 passed = test["check"](response)
                 total_passed += int(passed)
                 
                 status = "✅ PASS" if passed else "❌ FAIL"
                 preview = response[:60].replace("\n", " ")
-                print(f"  {status} ({elapsed:.1f}s): {preview}...")
+                print(f"  {status} ({elapsed:.1f}s, {len(run.steps)} steps): {preview}...")
                 
                 if acp:
                     acp.log_assistant_message(response)

@@ -23,7 +23,7 @@ import unicodedata
 import argparse
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from agentnova import Agent, get_default_client, get_tool_support, AGENTNOVA_BACKEND
+from agentnova import Agent, get_default_client, get_tool_support, AGENTNOVA_BACKEND, StepResult
 from agentnova.tools.builtins import make_builtin_registry
 from agentnova.model_discovery import get_available_models
 from agentnova.shared_args import add_shared_args, parse_shared_args
@@ -53,6 +53,32 @@ def normalize_text(text: str) -> str:
     """Normalize text: lowercase, remove accents."""
     normalized = unicodedata.normalize('NFD', text.lower())
     return ''.join(c for c in normalized if unicodedata.category(c) != 'Mn')
+
+
+def print_step(step: StepResult):
+    """Print step information for debug output."""
+    if step.type == "tool_call":
+        args = ", ".join(f"{k}={v}" for k, v in (step.tool_args or {}).items())
+        print(f"      🔧 {step.tool_name}({args})")
+    elif step.type == "tool_result":
+        preview = step.content[:80] + "..." if len(step.content) > 80 else step.content
+        print(f"      📦 → {preview}")
+
+
+def check_tool_used(run, tool_name: str) -> bool:
+    """Verify that a specific tool was actually called during the run."""
+    for step in run.steps:
+        if step.type == "tool_call" and step.tool_name == tool_name:
+            return True
+    return False
+
+
+def make_step_callback(verbose: bool = True):
+    """Create a step callback for debug output."""
+    def on_step(step: StepResult):
+        if verbose:
+            print_step(step)
+    return on_step
 
 
 # System prompts for different test types
@@ -232,15 +258,23 @@ def test_model(client, model: str, results: dict, force_react: bool = False, mai
                     "num_predict": 64,      # Very short answers
                 },
                 force_react=use_react,
+                on_step=make_step_callback(DEBUG),  # Debug output for tool calls
+                debug=DEBUG,  # Enable debug mode in agent
             )
 
             t0 = time.time()
-            response = agent.chat(prompt)
+            run = agent.run(prompt)
             elapsed = time.time() - t0
 
+            response = run.final_answer
             response_norm = normalize_text(response)
             expected_norm = normalize_text(expected)
             passed = expected_norm in response_norm
+            
+            # Check if tools were actually used (for Calc tests)
+            tool_used = None
+            if tools and "calculator" in tools:
+                tool_used = check_tool_used(run, "calculator")
             
             # Check for near-misses (e.g., correct number but with extra text)
             near_miss = False
@@ -257,7 +291,9 @@ def test_model(client, model: str, results: dict, force_react: bool = False, mai
                 'response': response,  # Full response for analysis
                 'response_norm': response_norm,
                 'expected': expected,
-                'expected_norm': expected_norm
+                'expected_norm': expected_norm,
+                'steps': len(run.steps),  # Track step count
+                'tool_used': tool_used,  # Track tool usage
             }
 
             model_results['time'] += elapsed
@@ -271,12 +307,18 @@ def test_model(client, model: str, results: dict, force_react: bool = False, mai
                 print(f"✅ ({elapsed:.1f}s)")
                 if VERBOSITY >= 2:
                     print(f"    📝 Found '{expected}' in: {response[:150]}")
+                if tool_used is not None:
+                    print(f"    ⏱️ {len(run.steps)} steps, tool_used={tool_used}")
             elif near_miss:
                 print(f"⚠️ NEAR-MISS ({elapsed:.1f}s)")
                 print(f"    ⚠️ Expected '{expected}' found in numbers: {numbers}")
                 print(f"    📝 RESPONSE: {response}")
+                if tool_used is not None:
+                    print(f"    ⏱️ {len(run.steps)} steps, tool_used={tool_used}")
             else:
                 print(f"❌ ({elapsed:.1f}s)")
+                if tool_used is not None and not tool_used:
+                    print(f"    ⚠️ WARNING: Calculator tool was NOT called - model may have hallucinated!")
                 if VERBOSITY >= 1:
                     print(f"    ❌ EXPECTED: '{expected}' (norm: '{expected_norm}')")
                     print(f"    📝 RESPONSE: {response}")
@@ -285,6 +327,8 @@ def test_model(client, model: str, results: dict, force_react: bool = False, mai
                     if expected_norm[:3] in response_norm:
                         idx = response_norm.find(expected_norm[:3])
                         print(f"    🔍 Partial match at pos {idx}: '...{response_norm[max(0,idx-5):idx+10]}...'")
+                if tool_used is not None:
+                    print(f"    ⏱️ {len(run.steps)} steps, tool_used={tool_used}")
 
         except Exception as e:
             model_results['tests'][full_name] = {
