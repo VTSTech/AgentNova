@@ -15,6 +15,13 @@ from .core.ollama_client import OllamaClient
 from .core.orchestrator import Orchestrator, AgentCard
 from .skills import SkillLoader, Skill, SkillRegistry
 from .acp_plugin import ACPPlugin, create_acp_agent
+from .core.model_family_config import (
+    ModelFamilyConfig, FAMILY_CONFIGS,
+    get_family_config, get_stop_tokens, supports_tools,
+    get_tool_format, get_preferred_temperature, should_use_few_shot,
+    get_few_shot_style, has_known_issues, get_react_system_suffix,
+    get_native_tool_hints,
+)
 
 # Config exports
 from .config import (
@@ -177,6 +184,12 @@ __all__ = [
     "create_file_write_action", "create_file_delete_action",
     "create_mkdir_action", "create_shell_action",
     "format_status", "format_progress",
+    # R01: Model Family Configuration
+    "ModelFamilyConfig", "FAMILY_CONFIGS",
+    "get_family_config", "get_stop_tokens", "supports_tools",
+    "get_tool_format", "get_preferred_temperature", "should_use_few_shot",
+    "get_few_shot_style", "has_known_issues", "get_react_system_suffix",
+    "get_native_tool_hints",
     # Config exports
     "OLLAMA_BASE_URL",
     "BITNET_BASE_URL", 

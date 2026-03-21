@@ -1399,27 +1399,56 @@ class Agent:
         self._native_tools = (self._tool_support == "native")
         self._no_tools = (self._tool_support == "none")
         
+        # Get family-specific configuration
+        from .model_family_config import (
+            get_family_config, should_use_few_shot, get_few_shot_style,
+            get_react_system_suffix, get_native_tool_hints, has_known_issues
+        )
+        self._family_config = get_family_config(self.model_family)
+        self._family_issues = has_known_issues(self.model_family)
+        
         # Determine if we should use few-shot prompting
         self._is_small_model = _is_small_model(model)
-        self._use_few_shot = few_shot if few_shot is not None else self._is_small_model
+        if few_shot is not None:
+            self._use_few_shot = few_shot
+        else:
+            # Use family config + model size to decide
+            self._use_few_shot = should_use_few_shot(self.model_family or "", model)
+        
+        # Get family-specific few-shot style
+        self._few_shot_style = get_few_shot_style(self.model_family or "")
 
-        # Build system prompt based on tool support level
+        # Build system prompt based on tool support level AND family
         base_sys = system_prompt
         
-        # For "react" level: add tool descriptions and ReAct format instructions
+        # For "react" level: add tool descriptions and family-specific ReAct format
         if self._tool_support == "react" and self.tools.all():
             tool_descriptions = "\n".join(
                 f"- {t.name}: {t.description}" for t in self.tools.all()
             )
-            base_sys = base_sys + f"\n\nAvailable tools:\n{tool_descriptions}" + REACT_SYSTEM_SUFFIX
+            # Use family-specific ReAct suffix
+            react_suffix = get_react_system_suffix(self.model_family or "")
+            base_sys = base_sys + f"\n\nAvailable tools:\n{tool_descriptions}\n{react_suffix}"
+        
+        # For "native" level: add family-specific tool hints
+        elif self._tool_support == "native" and self.tools.all():
+            native_hints = get_native_tool_hints(self.model_family or "")
+            if native_hints:
+                base_sys = base_sys + "\n\n" + native_hints
         
         # For "none" level: don't add any tool-related prompts
         # Model should use its Modelfile system prompt as-is
         
-        # Add few-shot examples ONLY for ReAct mode
-        # Native tool models use tool schemas via API - text hints confuse them
+        # Add few-shot examples based on family preference
         if self._use_few_shot and self.tools.all() and self._tool_support == "react":
-            few_shot_suffix = FEW_SHOT_COMPACT if use_compact_prompt else FEW_SHOT_SUFFIX
+            # Use compact for families that prefer it or small models
+            use_compact = use_compact_prompt or self._few_shot_style == "compact"
+            few_shot_suffix = FEW_SHOT_COMPACT if use_compact else FEW_SHOT_SUFFIX
+            
+            # For families with truncate_json issue, use extra compact
+            if self._family_issues.get("truncate_json"):
+                few_shot_suffix = FEW_SHOT_COMPACT
+            
             base_sys = base_sys + few_shot_suffix
 
         # Debug: Show prompt construction
@@ -1427,8 +1456,10 @@ class Agent:
             print(f"\n  🔍 DEBUG: System prompt construction")
             print(f"    _tool_support={self._tool_support}")
             print(f"    _use_few_shot={self._use_few_shot}")
+            print(f"    _few_shot_style={self._few_shot_style}")
             print(f"    _is_small_model={self._is_small_model}")
             print(f"    model_family={self.model_family}")
+            print(f"    _family_issues={self._family_issues}")
             print(f"    System prompt length: {len(base_sys)} chars")
 
         self.memory = Memory(
