@@ -257,9 +257,9 @@ def should_use_few_shot(family: str, model_size_hint: str = "") -> bool:
         return False
     
     # For small models, always use few-shot
-    small_indicators = ["270m", "350m", "500m", "0.5b", "0.6b", "1b"]
-    if model_size_hint and any(ind in model_size_hint.lower() for ind in small_indicators):
-        return True
+#    small_indicators = ["270m", "350m", "500m", "0.5b", "0.6b", "1b"]
+#    if model_size_hint and any(ind in model_size_hint.lower() for ind in small_indicators):
+#        return True
     
     return config.prefers_few_shot
 
