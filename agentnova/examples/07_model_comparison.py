@@ -21,6 +21,7 @@ import re
 import json
 import argparse
 import unicodedata
+import select
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agentnova import Agent, get_default_client, get_tool_support, AGENTNOVA_BACKEND, StepResult
@@ -158,11 +159,23 @@ TESTS = [
 ]
 
 
+def check_user_input():
+    """Check for user input without blocking. Returns command or None."""
+    if select.select([sys.stdin], [], [], 0.0)[0]:
+        char = sys.stdin.read(1)
+        if char:
+            return char.lower()
+    return None
+
+
 def test_model(client, model: str, config: SharedConfig, acp=None) -> dict:
     """Test a single model and return results."""
+    global MODELS, _bypass_mode, _quit_requested
+    
     print(f"\n{'='*60}")
     print(f"🧪 Testing: {model}")
     print(f"{'='*60}")
+    print(f"  Controls: [s]tatus | [b]ypass model | [q]uit")
     
     # Get force_react from config
     force_react = config.force_react
