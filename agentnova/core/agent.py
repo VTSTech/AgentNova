@@ -946,26 +946,65 @@ def _parse_json_tool_call(text: str, debug: bool = False) -> tuple[str | None, d
             print(f"    _parse_json_tool_call: skipping - looks like schema dump")
         return None, None
 
-    # Strip markdown fences
-    cleaned = re.sub(r"```(?:json)?", "", text).strip().rstrip("`").strip()
-
-    # Find the outermost JSON object
-    start = cleaned.find("{")
-    end = cleaned.rfind("}")
-    if start == -1 or end == -1:
+    # First, try to extract JSON from markdown code blocks (most reliable)
+    # Find ALL code blocks and try each one as JSON
+    # Pattern: ```json followed by newline, then content, then closing ```
+    # Use [^\n]* to handle optional whitespace after ```json before newline
+    # Don't require newline before closing fence
+    code_block_pattern = re.compile(r'```(?:json)?[^\n]*\n(.*?)```', re.DOTALL)
+    code_blocks = code_block_pattern.findall(text)
+    if debug and code_blocks:
+        print(f"    _parse_json_tool_call: found {len(code_blocks)} code blocks")
+    for block in code_blocks:
+        block = block.strip()
         if debug:
-            print(f"    _parse_json_tool_call: no JSON object found (start={start}, end={end})")
+            print(f"    _parse_json_tool_call: checking block (starts with '{block[0] if block else ''}'): {block[:60]}...")
+        if block.startswith('{'):
+            if debug:
+                print(f"    _parse_json_tool_call: found JSON code block: {block[:80]}...")
+            json_str = _sanitize_model_json(block)
+            try:
+                obj = json.loads(json_str)
+                result = _extract_tool_from_json(obj, debug)
+                if result[0]:  # Found valid tool
+                    return result
+            except json.JSONDecodeError as e:
+                if debug:
+                    print(f"    _parse_json_tool_call: code block JSON parse error: {e}")
+                continue
+
+    # Fallback: Strip all markdown and find first JSON object
+    cleaned = re.sub(r"```(?:json|python)?", "", text).strip().rstrip("`").strip()
+    
+    # Find the outermost JSON object - be more careful about matching braces
+    start = cleaned.find("{")
+    if start == -1:
+        if debug:
+            print(f"    _parse_json_tool_call: no JSON object found")
+        return None, None
+    
+    # Find matching closing brace
+    depth = 0
+    end = -1
+    for i, ch in enumerate(cleaned[start:], start):
+        if ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+            if depth == 0:
+                end = i
+                break
+    
+    if end == -1:
+        if debug:
+            print(f"    _parse_json_tool_call: no matching closing brace")
         return None, None
 
     json_str = cleaned[start:end + 1]
     if debug:
         print(f"    _parse_json_tool_call: extracted JSON: {json_str[:100]}...")
 
-    # Sanitize common small-model JSON mistakes before parsing:
-    #   1. Python bool/None literals  →  JSON equivalents
-    #   2. Python string concatenation  →  keep only the string literal part
-    #      e.g. "Today: " + datetime.now()...  →  "Today: "
-    #   3. Trailing commas before } or ]
+    # Sanitize common small-model JSON mistakes
     json_str = _sanitize_model_json(json_str)
 
     try:
@@ -975,6 +1014,11 @@ def _parse_json_tool_call(text: str, debug: bool = False) -> tuple[str | None, d
             print(f"    _parse_json_tool_call: JSON parse error: {e}")
         return None, None
 
+    return _extract_tool_from_json(obj, debug)
+
+
+def _extract_tool_from_json(obj: dict, debug: bool = False) -> tuple[str | None, dict | None]:
+    """Extract tool name and args from a parsed JSON object."""
     # Support {"name": ..., "arguments": ...} and {"name": ..., "parameters": ...}
     name = obj.get("name") or obj.get("function")
     args = obj.get("arguments") or obj.get("parameters") or obj.get("args") or {}
@@ -1000,13 +1044,10 @@ def _parse_json_tool_call(text: str, debug: bool = False) -> tuple[str | None, d
 
     if not name or not isinstance(args, dict):
         if debug:
-            print(f"    _parse_json_tool_call: no name or args (name={name!r}, args type={type(args).__name__})")
+            print(f"    _extract_tool_from_json: no name or args (name={name!r}, args type={type(args).__name__})")
         return None, None
 
     # Detect if the 'name' field contains code instead of a tool name.
-    # Models sometimes put the expression/code in 'name' instead of the tool name.
-    # Rather than discarding, return name+args so callers with a registry can
-    # fuzzy-match the name to a real tool (e.g. "sqrt(144)" -> calculator).
     code_indicators = ["(", ")", "+", "-", "*", "/", "=", "[", "]", "print", "def ", "return"]
     if any(indicator in name for indicator in code_indicators):
         return name, args
