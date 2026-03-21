@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [R02] - 2026-03-21
+## [R02] - 2026-03-21 3:25:54 PM
 
 ### 🎯 Model Family Configuration System
 
@@ -60,10 +60,15 @@ Major improvements to model-specific behavior with automatic family detection an
 
 | Model | Params | Tool Support | Score | Time |
 |-------|--------|--------------|-------|------|
-| gemma3:270m | 270M | none | 53% (8/15) | ~23s |
+| **qwen3:0.6b** | 600M | react | **80% (12/15)** | 473s |
 | granite4:350m | 350M | native | 73% (11/15) | ~78s |
 | qwen2.5:0.5b | 494M | native | 73% (11/15) | ~54s |
-| qwen3:0.6b | 600M | react | Testing... | - |
+| dolphin3.0-qwen2.5:0.5b | 494M | none | 73% (11/15) | 24.5s |
+| gemma3:270m | 270M | none | 53% (8/15) | ~23s |
+| qwen2.5-coder:0.5b | 494M | react | 53% (8/15) | 65.8s |
+| dolphin3.0-llama3:1b | 1B | none | 47% (7/15) | 43.8s |
+
+**qwen3:0.6b is the new champion for small models!** Excellent at Math, Reasoning, Knowledge, and Code (all 100%) but struggles with tool-based Calc tests (returns empty responses in ReAct mode).
 
 ### Technical Details
 - New `ModelFamilyConfig` dataclass with per-family settings
