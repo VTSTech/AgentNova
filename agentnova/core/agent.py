@@ -379,22 +379,23 @@ def _fuzzy_match_tool_name(hallucinated_name: str, tools_registry) -> str | None
     # Strategy 2: Word mappings for common hallucinations
     # Maps keyword → list of acceptable tools (in priority order)
     word_mappings = {
-        # Calculator-related
-        "calculate": ["calculator"],
-        "calc": ["calculator"],
-        "math": ["calculator"],
-        "compute": ["calculator"],
+        # Calculator-related - can also use python_repl
+        "calculate": ["calculator", "python_repl"],
+        "calc": ["calculator", "python_repl"],
+        "math": ["calculator", "python_repl"],
+        "compute": ["calculator", "python_repl"],
         "eval": ["calculator", "python_repl"],
-        "expression": ["calculator"],
-        "power": ["calculator"],
-        "pow": ["calculator"],
-        "square": ["calculator"],
-        "sqrt": ["calculator"],
-        "root": ["calculator"],
-        "add": ["calculator"],
-        "subtract": ["calculator"],
-        "multiply": ["calculator"],
-        "divide": ["calculator"],
+        "expression": ["calculator", "python_repl"],
+        "power": ["calculator", "python_repl"],
+        "pow": ["calculator", "python_repl"],
+        "square": ["calculator", "python_repl"],
+        "sqrt": ["calculator", "python_repl"],
+        "root": ["calculator", "python_repl"],
+        "add": ["calculator", "python_repl"],
+        "subtract": ["calculator", "python_repl"],
+        "multiply": ["calculator", "python_repl"],
+        "divide": ["calculator", "python_repl"],
+        "calculator": ["calculator", "python_repl"],
         
         # Python REPL - can fallback to shell for many operations
         "python": ["python_repl", "shell"],
