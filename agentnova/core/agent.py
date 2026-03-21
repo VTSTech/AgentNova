@@ -172,6 +172,15 @@ MATH OPERATORS: * = multiply, ** = power, / = divide
 Remember: Action = tool name, Action Input = JSON with correct arg names.
 """
 
+# Few-shot for native tool models - focuses on WHEN to call tools
+NATIVE_TOOL_HINTS = """
+IMPORTANT: Always use tools when asked to calculate, compute, or run commands.
+- Math questions → Use calculator tool with expression like "15 * 8"
+- System info → Use shell tool with command like "date" or "pwd"
+- Code execution → Use python_repl tool
+- NEVER skip tool calls for math/computation tasks
+"""
+
 
 # ------------------------------------------------------------------ #
 #  Shared tiny helpers                                                 #
@@ -1290,10 +1299,16 @@ class Agent:
         # For "none" level: don't add any tool-related prompts
         # Model should use its Modelfile system prompt as-is
         
-        # Add few-shot examples for small models with tools (only for react mode)
-        if self._use_few_shot and self.tools.all() and self._tool_support == "react":
-            few_shot_suffix = FEW_SHOT_COMPACT if use_compact_prompt else FEW_SHOT_SUFFIX
-            base_sys = base_sys + few_shot_suffix
+        # Add few-shot examples for small models with tools
+        # - For ReAct mode: Full examples showing format
+        # - For Native mode: Hints about WHEN to call tools
+        if self._use_few_shot and self.tools.all():
+            if self._tool_support == "react":
+                few_shot_suffix = FEW_SHOT_COMPACT if use_compact_prompt else FEW_SHOT_SUFFIX
+                base_sys = base_sys + few_shot_suffix
+            elif self._native_tools:
+                # Native tools get hints about WHEN to call tools
+                base_sys = base_sys + NATIVE_TOOL_HINTS
 
         # Debug: Show prompt construction
         if debug:
