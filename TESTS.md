@@ -136,11 +136,17 @@ The following models have been tested on a **50-question GSM8K-style benchmark**
 
 | Rank | Model | Score | Accuracy | Time | Tool Support | Δ vs Pre-R01 |
 |:----:|-------|------:|--------:|-----:|--------------|:------------:|
-| 🥇 | **`granite4:350m`** | **39/50** | **78.0%** | 787.6s | native | ↑ +32% |
-| 🥈 | `gemma3:270m` | 31/50 | 62.0% | 242.6s | none | = |
+| 🥇 | **`qwen2.5:0.5b`** | **45/50** | **90.0%** | 2772.2s | native | ↑ +18% |
+| 🥈 | `granite4:350m` | 39/50 | 78.0% | 787.6s | native | ↑ +32% |
+| 🥉 | `gemma3:270m` | 31/50 | 62.0% | 242.6s | none | = |
 | | *More results pending...* | | | | | |
 
-**Key Finding:** `granite4:350m` improved dramatically from 46% → 78% with R01 native tool synthesis!
+#### Key Findings (GSM8K R01)
+
+1. **`qwen2.5:0.5b` achieves 90%** - matches `llama3.2:1b` at half the parameters!
+2. **R01 native synthesis massive improvement** - 72% → 90% (+18%)
+3. **`granite4:350m` improved 46% → 78%** - also huge gains
+4. **Sub-500M models now competitive with 1B models** on GSM8K math
 
 ---
 
@@ -421,15 +427,15 @@ AgentNova has been tested with **Microsoft BitNet-b1.58-2B-4T** — a 2B paramet
 | Use Case | Recommended Model | Why |
 |----------|-------------------|-----|
 | **🏆 BEST OVERALL** | **`qwen3:0.6b`** | **93% (14/15)** - beats ALL models including 1B+! |
+| **Best GSM8K (overall)** | **`qwen2.5:0.5b`** | **90% GSM8K** - matches llama3.2:1b at half the size! |
 | **Best reasoning** | **`qwen3:0.6b`** | 🌟 **ONLY model to pass all 3 reasoning tests!** |
 | **Best 1B Overall** | `llama3.2:1b` | **87% (13/15)**, now with native tools |
-| **Best GSM8K Overall** | `llama3.2:1b` | **90% GSM8K** (pre-R01), 128k context |
+| **Best sub-500M** | **`qwen2.5:0.5b`** | **90% GSM8K**, 73% test 07, 3/3 Calc |
 | **Best sub-1B (accuracy)** | **`qwen3:0.6b`** | **93%**, best reasoning & knowledge |
 | **Best sub-1B (speed)** | `dolphin3.0-qwen2.5:0.5b` | **39.5s**, 73% accuracy, fastest 73% |
-| **Best sub-500M** | `qwen2.5:0.5b` | **73%**, 3/3 Calc with native tools |
 | **Best speed (sub-500M)** | `gemma3:270m` | **30.6s**, pure reasoning (no tools) |
 | **Best speed (1B)** | `nchapman/dolphin3.0-llama3:1b` | **~28s** (pre-R01), fast inference |
-| **Best Calc tool use** | `qwen3:0.6b` / `llama3.2:1b` / `granite4:350m` / `qwen2.5:0.5b` | All **3/3 Calc** |
+| **Best Calc tool use** | `qwen3:0.6b` / `llama3.2:1b` / `qwen2.5:0.5b` / `granite4:350m` | All **3/3 Calc** |
 | **Large context** | `llama3.2:1b` | **128k context window** |
 | **CPU-only** | `BitNet-b1.58-2B-4T` | Efficient ternary weights, no GPU needed |
 
@@ -438,9 +444,9 @@ AgentNova has been tested with **Microsoft BitNet-b1.58-2B-4T** — a 2B paramet
 | Model | Recommended Mode | Reason |
 |-------|------------------|--------|
 | **`qwen3:0.6b`** | ReAct | 🏆 **Best model overall!** 93% accuracy |
+| **`qwen2.5:0.5b`** | Native | 🎯 **90% GSM8K** - matches 1B models at half size! |
 | **`llama3.2:1b`** | Native | Now supports native tools (was ReAct), 87% |
-| `qwen2.5:0.5b` | Native | 73% with synthesis fallback |
-| `granite4:350m` | Native | 73%, excellent native tool use |
+| `granite4:350m` | Native | 78% GSM8K, 73% test 07, excellent native tools |
 | `dolphin3.0-qwen2.5:0.5b` | None | Tool support changed to none, 73% pure reasoning |
 | `gemma3:270m` | None | Cannot use tools, pure reasoning works best |
 | `functiongemma:270m` | Native | Can use tools but can't reason directly (27%) |
