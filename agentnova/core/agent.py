@@ -1448,6 +1448,8 @@ class Agent:
         # Add stop tokens for ReAct mode to prevent runaway generation
         # Models sometimes loop "Final Answer: X\nFinal Answer: X..."
         if self._tool_support == "react" and self.tools.all():
+            # Import stop tokens helper
+            from .model_family_config import get_stop_tokens
             # Get family-specific stop tokens
             family_stops = get_stop_tokens(self.model_family or "")
             # Add ReAct-specific stop tokens
