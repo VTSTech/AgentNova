@@ -33,7 +33,7 @@ Major improvements to model-specific behavior with automatic family detection an
   - `get_few_shot_style()` - Returns appropriate few-shot format
 
 - **Repetition Loop Fixes**
-  - Stop tokens for ReAct mode (`\nFinal Answer:`, `\nThought:`, `\nAction:`)
+  - Stop token for ReAct mode (`\nFinal Answer:`) to prevent repetition loops
   - Repetition detection regex collapses repeated "Final Answer:" outputs
   - Prevents small models from looping the same text 100+ times (was causing 269s test times)
 
