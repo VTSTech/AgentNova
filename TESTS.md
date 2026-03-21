@@ -101,13 +101,21 @@ The following models have been tested on a **50-question GSM8K-style benchmark**
 
 ---
 
-### GSM8K with Modelfile Prompts + Tool Support Detection (R03.1.0)
+### GSM8K Sub-1B Models (R01 - Current)
 
-Models are tested using their own **Modelfile system prompts** combined with AgentNova's new tool support detection logic:
+| Rank | Model | Score | Accuracy | Time | Tool Support | Δ vs Pre-R01 |
+|:----:|-------|------:|--------:|-----:|--------------|:------------:|
+| 🥇 | **`granite4:350m`** | **39/50** | **78.0%** | 787.6s | native | ↑ +32% |
+| 🥈 | `gemma3:270m` | 31/50 | 62.0% | 242.6s | none | = |
+| | *More results pending...* | | | | | |
 
-- **`native`** models → Tools passed via API, standard math prompt
-- **`react`** models → Tools via text-based ReAct prompting
-- **`none`** models → **No tools**, uses `MATH_SYSTEM_PROMPT_NO_TOOLS` (pure reasoning)
+**Key Finding:** `granite4:350m` improved dramatically from 46% → 78% with R01 native tool synthesis!
+
+---
+
+### GSM8K Sub-1B Models (Pre-R01 - Historical)
+
+*Results from R03.1.0 - kept for reference until R01 tests complete.*
 
 #### Modelfile Prompts (auto-detected tool support)
 
@@ -150,9 +158,9 @@ Models are tested using their own **Modelfile system prompts** combined with Age
 
 ---
 
-### GSM8K 1B+ Models (Test 14, R03.1.1)
+### GSM8K 1B+ Models (Pre-R01 - Historical)
 
-The following 1B-2B parameter models were tested on the **50-question GSM8K benchmark** using Modelfile system prompts:
+*Results from R03.1.1 - will be updated with R01 tests shortly.*
 
 | Rank | Model | Score | Accuracy | Avg Time | Tool Support | Notes |
 |:----:|-------|------:|--------:|--------:|--------------|-------|
@@ -170,7 +178,7 @@ The following 1B-2B parameter models were tested on the **50-question GSM8K benc
 4. **`deepseek-coder:1.3b` fails** - Despite 60% on 15-test, only 8% on GSM8K math
 5. **Tiny models struggle** - Both tinydolphin and tinyllama under 25%
 
-#### 1B+ vs Sub-500M Comparison (GSM8K)
+#### 1B+ vs Sub-1B Comparison (GSM8K Pre-R01)
 
 | Rank | Model | Params | Accuracy | Avg Time |
 |:----:|-------|-------:|--------:|--------:|
