@@ -204,6 +204,98 @@ def _strip_tool_prefix(result: str) -> str:
     return result.split("→")[-1].strip() if "→" in result else result.strip()
 
 
+def _extract_calc_expression(prompt: str) -> str | None:
+    """
+    Extract a calculator expression from a natural language prompt.
+    Returns a Python math expression or None if no pattern matches.
+    
+    Handles:
+    - "What is X times Y?" → "X * Y"
+    - "What is X divided by Y?" → "X / Y"
+    - "What is X to the power of Y?" → "X ** Y"
+    - "What is the square root of X?" → "sqrt(X)"
+    - "What is (X + Y) times Z?" → "(X + Y) * Z"
+    """
+    import re
+    q = prompt.strip()
+    q_lower = q.lower()
+    
+    # Pattern: "square root of X" or "sqrt of X"
+    sqrt_match = re.search(r'square\s*root\s*of\s*(\d+(?:\.\d+)?)', q_lower)
+    if not sqrt_match:
+        sqrt_match = re.search(r'sqrt\s*of\s*(\d+(?:\.\d+)?)', q_lower)
+    if sqrt_match:
+        return f"sqrt({sqrt_match.group(1)})"
+    
+    # Pattern: "X to the power of Y" or "X raised to Y"
+    power_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:to\s*the\s*power\s*of|raised\s*to|to\s*the\s*\d*(?:th|st|nd|rd)?\s*power|\*\*|\^)\s*(\d+(?:\.\d+)?)', q_lower)
+    if power_match:
+        return f"{power_match.group(1)} ** {power_match.group(2)}"
+    
+    # Pattern: "(X + Y) times Z" - complex expression with parentheses
+    complex_times = re.search(r'\(([^)]+)\)\s*(?:times|multiplied\s*by|\*)\s*(\d+(?:\.\d+)?)', q_lower)
+    if complex_times:
+        inner = complex_times.group(1).replace('plus', '+').replace('minus', '-').replace(' ', ' ')
+        # Clean up the inner expression
+        inner = re.sub(r'\s+', '', inner)
+        return f"({inner}) * {complex_times.group(2)}"
+    
+    # Pattern: "X times Y" or "X multiplied by Y"
+    times_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:times|multiplied\s*by|\*)\s*(\d+(?:\.\d+)?)', q_lower)
+    if times_match:
+        return f"{times_match.group(1)} * {times_match.group(2)}"
+    
+    # Pattern: "X divided by Y"
+    div_match = re.search(r'(\d+(?:\.\d+)?)\s*divided\s*by\s*(\d+(?:\.\d+)?)', q_lower)
+    if div_match:
+        return f"{div_match.group(1)} / {div_match.group(2)}"
+    
+    # Pattern: "X plus Y" or "X minus Y"
+    plus_match = re.search(r'(\d+(?:\.\d+)?)\s*plus\s*(\d+(?:\.\d+)?)', q_lower)
+    if plus_match:
+        return f"{plus_match.group(1)} + {plus_match.group(2)}"
+    
+    minus_match = re.search(r'(\d+(?:\.\d+)?)\s*minus\s*(\d+(?:\.\d+)?)', q_lower)
+    if minus_match:
+        return f"{minus_match.group(1)} - {minus_match.group(2)}"
+    
+    return None
+
+
+def _extract_echo_text(prompt: str) -> str | None:
+    """
+    Extract text to echo from a prompt like "Echo the text 'Hello'" or "Print Hello World".
+    Returns the text to echo or None.
+    """
+    import re
+    q = prompt.strip()
+    
+    # Pattern: echo 'text' or echo "text" or echo text
+    quoted_match = re.search(r"echo\s*['\"]([^'\"]+)['\"]", q, re.IGNORECASE)
+    if quoted_match:
+        return quoted_match.group(1)
+    
+    # Pattern: "echo the text 'X'" or "echo text 'X'"
+    text_match = re.search(r"echo\s*(?:the\s*)?text\s*['\"]([^'\"]+)['\"]", q, re.IGNORECASE)
+    if text_match:
+        return text_match.group(1)
+    
+    # Pattern: "print 'X'" or "print X"
+    print_match = re.search(r"print\s*['\"]?([^'\"]+)['\"]?", q, re.IGNORECASE)
+    if print_match:
+        return print_match.group(1).strip()
+    
+    # Pattern: "echo X" at end of prompt
+    echo_match = re.search(r"echo\s+['\"]?([^'\"]+)['\"]?$", q, re.IGNORECASE)
+    if echo_match:
+        text = echo_match.group(1).strip()
+        # Don't return if it looks like a command flag
+        if not text.startswith('-'):
+            return text
+    
+    return None
+
+
 # ------------------------------------------------------------------ #
 #  Argument key normalizer                                             #
 # ------------------------------------------------------------------ #
@@ -1841,35 +1933,139 @@ class Agent:
             # When native tool model returns empty content with no tool calls,
             # send a direct instruction to use the appropriate tool
             if self._native_tools and not tool_calls_raw and not content and self.tools.all():
-                if not hasattr(self, '_empty_retry_sent'):
-                    self._empty_retry_sent = True
+                retry_count = getattr(self, '_empty_retry_count', 0)
+                
+                # First retry: send a specific hint
+                if retry_count == 0:
+                    self._empty_retry_count = 1
                     if self.debug:
                         print(f"\n  🔍 DEBUG: Native tool returned empty, retrying with direct instruction")
                     
                     # Pick the most relevant tool based on the question
                     q_lower = user_input.lower()
                     tool_hint = ""
-                    if any(kw in q_lower for kw in ["times", "multiply", "plus", "minus", "divided", "power", "sqrt", "square root"]):
-                        first_tool = "calculator"
-                        tool_hint = f"Call the {first_tool} tool with the expression to solve this math problem."
-                    elif any(kw in q_lower for kw in ["echo", "print", "say"]):
-                        first_tool = "shell"
-                        tool_hint = f"Call the {first_tool} tool with command=\"echo <text>\"."
-                    elif any(kw in q_lower for kw in ["directory", "pwd", "folder"]):
-                        first_tool = "shell"
-                        tool_hint = f"Call the {first_tool} tool with command=\"pwd\"."
-                    elif any(kw in q_lower for kw in ["date", "time", "today"]):
-                        first_tool = "shell"
-                        tool_hint = f"Call the {first_tool} tool with command=\"date\"."
+                    available_tools = [t.name for t in self.tools.all()]
+                    
+                    # Determine best tool and hint based on question keywords
+                    # Use extracted expressions for more specific hints
+                    if "calculator" in available_tools and any(kw in q_lower for kw in 
+                        ["times", "multiply", "plus", "minus", "divided", "power", "sqrt", 
+                         "square root", "what is", "calculate", "compute", " * ", " + ", " - ", " / "]):
+                        # Try to extract the actual expression from the prompt
+                        extracted_expr = _extract_calc_expression(user_input)
+                        if extracted_expr:
+                            tool_hint = f"You must call the calculator tool NOW. Use it with {{\"expression\": \"{extracted_expr}\"}}."
+                            if self.debug:
+                                print(f"    extracted expression: {extracted_expr}")
+                        else:
+                            tool_hint = "You must call the calculator tool. Use it with an expression like {\"expression\": \"15 * 8\"}."
+                    elif "shell" in available_tools and any(kw in q_lower for kw in 
+                        ["echo", "print", "directory", "pwd", "folder", "date", "time", "today"]):
+                        if "echo" in q_lower or "print" in q_lower:
+                            # Try to extract the actual text to echo
+                            echo_text = _extract_echo_text(user_input)
+                            if echo_text:
+                                tool_hint = f"You must call the shell tool NOW. Use it with {{\"command\": \"echo {echo_text}\"}}."
+                                if self.debug:
+                                    print(f"    extracted echo text: {echo_text}")
+                            else:
+                                tool_hint = "You must call the shell tool. Use it with {\"command\": \"echo YourText\"}."
+                        elif "directory" in q_lower or "pwd" in q_lower or "folder" in q_lower:
+                            tool_hint = "You must call the shell tool. Use it with {\"command\": \"pwd\"}."
+                        elif "date" in q_lower or "time" in q_lower or "today" in q_lower:
+                            tool_hint = "You must call the shell tool. Use it with {\"command\": \"date\"}."
+                        else:
+                            tool_hint = "You must call the shell tool to answer this question."
+                    elif "python_repl" in available_tools and any(kw in q_lower for kw in 
+                        ["python", "code", "execute", "run"]):
+                        tool_hint = "You must call the python_repl tool with the code to execute."
                     else:
-                        # Generic hint - use first available tool
-                        first_tool = self.tools.all()[0].name if self.tools.all() else ""
-                        tool_hint = f"Call the {first_tool} tool to answer this question."
+                        # Generic hint - pick first available tool
+                        first_tool = available_tools[0] if available_tools else ""
+                        tool_hint = f"You must call the {first_tool} tool to answer this question."
                     
                     if tool_hint:
                         self.memory.add_assistant("")
                         self.memory.add_user(f"{tool_hint}\n\nOriginal question: {user_input}")
                         continue
+                
+                # Second retry: SYNTHESIZE the tool call directly
+                # The model is too confused - we'll do it ourselves
+                elif retry_count == 1:
+                    self._empty_retry_count = 2
+                    if self.debug:
+                        print(f"\n  🔍 DEBUG: Second empty response, synthesizing tool call directly")
+                    
+                    q_lower = user_input.lower()
+                    synthesized_tool = None
+                    synthesized_args = {}
+                    available_tools = [t.name for t in self.tools.all()]
+                    
+                    # Calculator synthesis
+                    if "calculator" in available_tools:
+                        expr = _extract_calc_expression(user_input)
+                        if expr:
+                            synthesized_tool = "calculator"
+                            synthesized_args = {"expression": expr}
+                            if self.debug:
+                                print(f"    synthesized: calculator({expr})")
+                    
+                    # Shell synthesis
+                    if not synthesized_tool and "shell" in available_tools:
+                        if "echo" in q_lower or "print" in q_lower:
+                            echo_text = _extract_echo_text(user_input)
+                            if echo_text:
+                                synthesized_tool = "shell"
+                                synthesized_args = {"command": f"echo {echo_text}"}
+                                if self.debug:
+                                    print(f"    synthesized: shell(echo {echo_text})")
+                        elif "directory" in q_lower or "pwd" in q_lower or "folder" in q_lower:
+                            synthesized_tool = "shell"
+                            synthesized_args = {"command": "pwd"}
+                        elif "date" in q_lower or "time" in q_lower or "today" in q_lower:
+                            synthesized_tool = "shell"
+                            synthesized_args = {"command": "date"}
+                    
+                    # If we synthesized a tool call, execute it
+                    if synthesized_tool and synthesized_args:
+                        t_name = synthesized_tool
+                        t_args = synthesized_args
+                        
+                        # Record the synthesized call
+                        call_step = StepResult(
+                            type="tool_call",
+                            content=f"{t_name}({t_args})",
+                            tool_name=t_name,
+                            tool_args=t_args,
+                            elapsed_ms=elapsed,
+                        )
+                        run.steps.append(call_step)
+                        self._emit(call_step)
+                        
+                        # Execute the tool
+                        result = self.tools.invoke(t_name, t_args)
+                        result_str = str(result)
+                        
+                        result_step = StepResult(type="tool_result", content=result_str, tool_name=t_name)
+                        run.steps.append(result_step)
+                        self._emit(result_step)
+                        
+                        _successful_results.append(f"{t_name} → {result_str}")
+                        _successful_tools.add(t_name)
+                        
+                        # Synthesize the final answer
+                        final_answer = self._synthesize(user_input, _successful_results)
+                        final_step = StepResult(type="final", content=final_answer, elapsed_ms=elapsed)
+                        run.steps.append(final_step)
+                        self._emit(final_step)
+                        run.final_answer = final_answer
+                        break
+                    
+                    # If we couldn't synthesize, give up gracefully
+                    if self.debug:
+                        print(f"    could not synthesize tool call, giving up")
+                    run.final_answer = ""
+                    break
 
             # ---- ReAct text parsing ---------------------------------- #
             if not self._native_tools and self.tools.all():
