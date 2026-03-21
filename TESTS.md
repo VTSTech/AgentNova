@@ -72,11 +72,11 @@ The following sub-1B parameter models were tested on the **15-test benchmark**:
 | `qwen2.5:0.5b` | 500M | native | 3/3 ✅ | Works with synthesis fallback |
 | `granite4:350m` | 350M | native | 3/3 ✅ | Excellent tool use |
 | `qwen2.5-coder:0.5b` | 494M | ReAct | 3/3 ✅ | Good tool use |
-| `dolphin3.0-qwen2.5:0.5b` | 500M | none | 2/3 | Pure reasoning mode |
-| `tinydolphin:1.1b` | 1.1B | none | 1/3 | Verbose, hallucinates |
+| `nchapman/dolphin3.0-qwen2.5:0.5b` | 500M | none | 2/3 | Pure reasoning mode |
 | `tinyllama:1.1b` | 1.1B | none | 1/3 | Verbose, hallucinates |
+| `tinydolphin:1.1b` | 1.1B | none | 1/3 | Verbose, hallucinates |
 | `gemma3:270m` | 270M | none | 0/3 ❌ | Can reason, can't use tools |
-| `dolphin3.0-llama3:1b` | 1B | none | 0/3 ❌ | No tool support |
+| `nchapman/dolphin3.0-llama3:1b` | 1B | none | 0/3 ❌ | No tool support |
 
 ---
 
@@ -449,13 +449,13 @@ AgentNova has been tested with **Microsoft BitNet-b1.58-2B-4T** — a 2B paramet
 
 | Use Case | Recommended Model | Why |
 |----------|-------------------|-----|
-| **🏆 BEST OVERALL** | **`granite3.1-moe:1b`** | **93% in 94.9s** - fastest champion! |
+| **🏆 BEST OVERALL** | **`granite3.1-moe:1b`** | **93% in 95.7s** - fastest champion! |
 | **Best 1B Dense** | `llama3.2:1b` | **87%**, native tools, 128k context |
 | **Best Sub-1B** | `qwen3:0.6b` | **80%**, excellent Math/Knowledge/Calc |
 | **Best GSM8K** | **`qwen2.5:0.5b`** | **90% GSM8K** - matches 1B at half the size! |
 | **Best Sub-500M** | `qwen2.5:0.5b` | **90% GSM8K**, 73% test 07 |
-| **Best Speed (73%+)** | `dolphin3.0-qwen2.5:0.5b` | **25.1s**, 73% accuracy |
-| **Best Speed (sub-500M)** | `gemma3:270m` | **25.0s**, pure reasoning |
+| **Best Speed (73%+)** | `nchapman/dolphin3.0-qwen2.5:0.5b` | **25.7s**, 73% accuracy |
+| **Best Speed (sub-500M)** | `gemma3:270m` | **31.1s**, pure reasoning |
 | **Large context** | `llama3.2:1b` | **128k context window** |
 | **CPU-only** | `BitNet-b1.58-2B-4T` | Efficient ternary weights |
 
@@ -463,17 +463,17 @@ AgentNova has been tested with **Microsoft BitNet-b1.58-2B-4T** — a 2B paramet
 
 | Model | Recommended Mode | Reason |
 |-------|------------------|--------|
-| **`granite3.1-moe:1b`** | ReAct | 🏆 **Champion!** 93% in 94.9s |
+| **`granite3.1-moe:1b`** | ReAct | 🏆 **Champion!** 93% in 95.7s |
 | **`llama3.2:1b`** | Native | 87%, native tools working well |
 | **`qwen3:0.6b`** | ReAct | 80%, excellent tool use |
 | **`qwen2.5:0.5b`** | Native | 🎯 **90% GSM8K** - matches 1B at half size! |
 | `granite4:350m` | Native | 78% GSM8K, 73% test 07, excellent native tools |
 | `qwen2.5-coder:0.5b` | ReAct | 73%, good tool use |
-| `dolphin3.0-qwen2.5:0.5b` | None | 73% pure reasoning |
+| `nchapman/dolphin3.0-qwen2.5:0.5b` | None | 73% pure reasoning |
 | `gemma3:270m` | None | Cannot use tools, pure reasoning works best |
-| `tinydolphin:1.1b` | None | 67%, verbose responses |
 | `tinyllama:1.1b` | None | 67%, verbose responses |
-| `dolphin3.0-llama3:1b` | None | 47%, no tool support |
+| `tinydolphin:1.1b` | None | 67%, verbose responses |
+| `nchapman/dolphin3.0-llama3:1b` | None | 47%, no tool support |
 
 ---
 
