@@ -1312,16 +1312,11 @@ class Agent:
         # For "none" level: don't add any tool-related prompts
         # Model should use its Modelfile system prompt as-is
         
-        # Add few-shot examples for small models with tools
-        # - For ReAct mode: Full examples showing format
-        # - For Native mode: Hints about WHEN to call tools
-        if self._use_few_shot and self.tools.all():
-            if self._tool_support == "react":
-                few_shot_suffix = FEW_SHOT_COMPACT if use_compact_prompt else FEW_SHOT_SUFFIX
-                base_sys = base_sys + few_shot_suffix
-            elif self._native_tools:
-                # Native tools get hints about WHEN to call tools
-                base_sys = base_sys + NATIVE_TOOL_HINTS
+        # Add few-shot examples ONLY for ReAct mode
+        # Native tool models use tool schemas via API - text hints confuse them
+        if self._use_few_shot and self.tools.all() and self._tool_support == "react":
+            few_shot_suffix = FEW_SHOT_COMPACT if use_compact_prompt else FEW_SHOT_SUFFIX
+            base_sys = base_sys + few_shot_suffix
 
         # Debug: Show prompt construction
         if debug:
@@ -1841,6 +1836,40 @@ class Agent:
                             # Model still wants to use tools — remove nudge from memory and let it
                             self.memory._history.pop()
                     continue
+
+            # ---- Native tool empty response retry ----------------------- #
+            # When native tool model returns empty content with no tool calls,
+            # send a direct instruction to use the appropriate tool
+            if self._native_tools and not tool_calls_raw and not content and self.tools.all():
+                if not hasattr(self, '_empty_retry_sent'):
+                    self._empty_retry_sent = True
+                    if self.debug:
+                        print(f"\n  🔍 DEBUG: Native tool returned empty, retrying with direct instruction")
+                    
+                    # Pick the most relevant tool based on the question
+                    q_lower = user_input.lower()
+                    tool_hint = ""
+                    if any(kw in q_lower for kw in ["times", "multiply", "plus", "minus", "divided", "power", "sqrt", "square root"]):
+                        first_tool = "calculator"
+                        tool_hint = f"Call the {first_tool} tool with the expression to solve this math problem."
+                    elif any(kw in q_lower for kw in ["echo", "print", "say"]):
+                        first_tool = "shell"
+                        tool_hint = f"Call the {first_tool} tool with command=\"echo <text>\"."
+                    elif any(kw in q_lower for kw in ["directory", "pwd", "folder"]):
+                        first_tool = "shell"
+                        tool_hint = f"Call the {first_tool} tool with command=\"pwd\"."
+                    elif any(kw in q_lower for kw in ["date", "time", "today"]):
+                        first_tool = "shell"
+                        tool_hint = f"Call the {first_tool} tool with command=\"date\"."
+                    else:
+                        # Generic hint - use first available tool
+                        first_tool = self.tools.all()[0].name if self.tools.all() else ""
+                        tool_hint = f"Call the {first_tool} tool to answer this question."
+                    
+                    if tool_hint:
+                        self.memory.add_assistant("")
+                        self.memory.add_user(f"{tool_hint}\n\nOriginal question: {user_input}")
+                        continue
 
             # ---- ReAct text parsing ---------------------------------- #
             if not self._native_tools and self.tools.all():
