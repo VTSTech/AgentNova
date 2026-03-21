@@ -62,7 +62,8 @@ The following sub-1B parameter models were tested on the **15-test benchmark**:
 |:----:|-------|------:|-----:|:-----:|:------:|:----:|:----:|:----:|:------------:|
 | 🥇 | **`granite3.1-moe:1b`** | **14/15 (93%)** | 142.3s | 3/3 ✅ | 2/3 | **3/3** ✅ | 3/3 ✅ | **3/3** ✅ | ↑ +13% |
 | 🥇 | **`llama3.2:1b`** | **13/15 (87%)** | 283.2s | 3/3 ✅ | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | = |
-| 3 | `nchapman/dolphin3.0-llama3:1b` | 7/15 (47%) | 76.0s | 1/3 | 1/3 | 2/3 | 0/3 ❌ | 3/3 ✅ | = |
+| 3 | `tinydolphin:1.1b` | 10/15 (67%) | 450.2s | 1/3 | **2/3** | **3/3** ✅ | 1/3 | **3/3** ✅ | ↑ +7% |
+| 4 | `nchapman/dolphin3.0-llama3:1b` | 7/15 (47%) | 76.0s | 1/3 | 1/3 | 2/3 | 0/3 ❌ | 3/3 ✅ | = |
 | | *More results pending...* | | | | | | | | |
 
 #### 🏆 TIE FOR CHAMPION!
@@ -87,6 +88,7 @@ The following sub-1B parameter models were tested on the **15-test benchmark**:
 |-------|--------|--------------|------------|-------|
 | `granite3.1-moe:1b` | 1B MoE | ReAct | 3/3 ✅ | Excellent via ReAct |
 | `llama3.2:1b` | 1.2B | native | 3/3 ✅ | Was ReAct pre-R01 |
+| `tinydolphin:1.1b` | 1.1B | none | 1/3 | Limited tool support |
 | `dolphin3.0-llama3:1b` | 1B | none | 0/3 ❌ | No tool support |
 
 ---
