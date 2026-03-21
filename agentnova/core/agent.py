@@ -35,7 +35,6 @@ _AGENTNOVA_BACKEND = _os.environ.get("AGENTNOVA_BACKEND", "ollama").lower()
 _IS_WINDOWS = _platform.system() == "Windows"
 _PLATFORM_DIR_CMD = "cd" if _IS_WINDOWS else "pwd"
 _PLATFORM_LIST_CMD = "dir" if _IS_WINDOWS else "ls"
-_PLATFORM_DATE_CMD = "echo %DATE%" if _IS_WINDOWS else "date"
 
 # Try to import BitNet client if needed
 if _AGENTNOVA_BACKEND == "bitnet":
@@ -796,7 +795,7 @@ def _generate_helpful_error_message(tool_name: str, tool, provided_args: dict, e
         "write_file": 'write_file(path="/tmp/file.txt", content="Hello")',
         "read_file": 'read_file(path="/tmp/file.txt")',
         "python_repl": 'python_repl(code="print(2**10)")',
-        "shell": 'shell(command="date")',
+        "shell": 'shell(command="echo Hello")',  # echo works on all platforms
         "web_search": 'web_search(query="capital of France")',
         "get_weather": 'get_weather(city="Tokyo")',
         "convert_currency": 'convert_currency(amount=100, from_currency="USD", to_currency="EUR")',
@@ -2116,11 +2115,11 @@ class Agent:
                         elif "directory" in q_lower or "pwd" in q_lower or "folder" in q_lower:
                             tool_hint = f"You must call the shell tool. Use it with {{\"command\": \"{_PLATFORM_DIR_CMD}\"}}."
                         elif "date" in q_lower or "time" in q_lower or "today" in q_lower:
-                            # Use python_repl for date/time (cross-platform)
+                            # Always use python_repl for date/time (truly cross-platform)
                             if "python_repl" in available_tools:
                                 tool_hint = "You must call python_repl with code to get the date. Use: from datetime import datetime; print(datetime.now())"
                             else:
-                                tool_hint = f"You must call the shell tool. Use it with {{\"command\": \"{_PLATFORM_DATE_CMD}\"}}."
+                                tool_hint = "You must call a tool to get the date/time. Use python_repl if available."
                         else:
                             tool_hint = "You must call the shell tool to answer this question."
                     elif "python_repl" in available_tools and any(kw in q_lower for kw in 
@@ -2170,13 +2169,10 @@ class Agent:
                             synthesized_tool = "shell"
                             synthesized_args = {"command": _PLATFORM_DIR_CMD}
                         elif "date" in q_lower or "time" in q_lower or "today" in q_lower:
-                            # Use python_repl for date/time (cross-platform)
+                            # Always use python_repl for date/time (truly cross-platform)
                             if "python_repl" in available_tools:
                                 synthesized_tool = "python_repl"
                                 synthesized_args = {"code": "from datetime import datetime; print(datetime.now())"}
-                            else:
-                                synthesized_tool = "shell"
-                                synthesized_args = {"command": _PLATFORM_DATE_CMD}
                     
                     # If we synthesized a tool call, execute it
                     if synthesized_tool and synthesized_args:
@@ -2474,13 +2470,10 @@ class Agent:
                             synthesized_tool = "shell"
                             synthesized_args = {"command": _PLATFORM_DIR_CMD}
                         elif "date" in q_lower or "time" in q_lower or "today" in q_lower:
-                            # Use python_repl for date/time (cross-platform)
+                            # Always use python_repl for date/time (truly cross-platform)
                             if "python_repl" in available_tools:
                                 synthesized_tool = "python_repl"
                                 synthesized_args = {"code": "from datetime import datetime; print(datetime.now())"}
-                            else:
-                                synthesized_tool = "shell"
-                                synthesized_args = {"command": _PLATFORM_DATE_CMD}
                     
                     # Execute synthesized tool call
                     if synthesized_tool and synthesized_args:
