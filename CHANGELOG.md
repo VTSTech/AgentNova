@@ -8,10 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [R02.1] - 2026-03-21 4:11:21 PM
 
-- Possibly last version published to PyPi.
+- Possibly last version published to PyPi for awhile
 - One line fix I missed in R02, had to completely re-package and bump version just to fix.
-- Latest version always available on GitHub.
-- 'pip install git+https://github.com/VTSTech/AgentNova.git' will be the only supported install method going forward.
+- Development is too fast in Alpha to keep PyPi package always up to date
+- The current and latest version will always available on GitHub.
+- 'pip install git+https://github.com/VTSTech/AgentNova.git' will be the only supported install method for the near future.
 
 ## [R02] - 2026-03-21 3:25:54 PM
 
