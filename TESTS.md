@@ -31,17 +31,18 @@ The following sub-1B parameter models were tested on the **15-test benchmark**:
 
 #### Key Findings (R01)
 
-1. **`qwen3:0.6b` is the new sub-1B champion** - 93% accuracy (was 0% pre-R01!)
+1. **`qwen3:0.6b` is the overall champion** - 93% beats ALL models including 1B+!
 2. **`qwen3:0.6b` is the ONLY model to:**
    - Pass all 3 reasoning tests (Apples, Sequence, Logic)
    - Correctly identify Brasília as Brazil's capital
 3. **Speed vs Accuracy tradeoff:**
    - `qwen3:0.6b`: 93% accuracy but 556s (slowest)
    - `dolphin3.0-qwen2.5:0.5b`: 73% in only 39.5s (fastest of the 73% group)
-4. **`dolphin3.0-qwen2.5:0.5b` tool support changed** - Was native, now detected as none. Calc dropped 3/3 → 2/3
-5. **`gemma3:270m` cannot use tools** - 0/3 Calc but 3/3 Math (pure reasoning)
-6. **`functiongemma:270m` inverse profile** - 3/3 Calc (uses tools) but 0/3 Math (can't reason directly)
-7. **Native tool synthesis working** - qwen2.5:0.5b gets 3/3 Calc with AgentNova's synthesis
+4. **`llama3.2:1b` at 87%** - best 1B+ model but can't beat qwen3:0.6b's 93%
+5. **`dolphin3.0-qwen2.5:0.5b` tool support changed** - Was native, now detected as none. Calc dropped 3/3 → 2/3
+6. **`gemma3:270m` cannot use tools** - 0/3 Calc but 3/3 Math (pure reasoning)
+7. **`functiongemma:270m` inverse profile** - 3/3 Calc (uses tools) but 0/3 Math (can't reason directly)
+8. **Native tool synthesis working** - qwen2.5:0.5b gets 3/3 Calc with AgentNova's synthesis
 
 #### Tool Support (Sub-1B R01)
 
@@ -60,10 +61,22 @@ The following sub-1B parameter models were tested on the **15-test benchmark**:
 
 | Rank | Model | Score | Time | Math | Reason | Know | Calc | Code | Δ vs Pre-R01 |
 |:----:|-------|------:|-----:|:-----:|:------:|:----:|:----:|:----:|:------------:|
-| 1 | `nchapman/dolphin3.0-llama3:1b` | 7/15 (47%) | 76.0s | 1/3 | 1/3 | 2/3 | 0/3 ❌ | 3/3 ✅ | = |
+| 🥇 | **`llama3.2:1b`** | **13/15 (87%)** | 283.2s | 3/3 ✅ | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ | = |
+| 2 | `nchapman/dolphin3.0-llama3:1b` | 7/15 (47%) | 76.0s | 1/3 | 1/3 | 2/3 | 0/3 ❌ | 3/3 ✅ | = |
 | | *More results pending...* | | | | | | | | |
 
-**Note:** `dolphin3.0-llama3:1b` has no tool support (none). Calc dropped 1/3 → 0/3 but Knowledge improved 1/3 → 2/3.
+#### Key Findings (1B+ R01)
+
+1. **`llama3.2:1b` maintains 87%** - same score as pre-R01, but now uses native tools (was ReAct)
+2. **`llama3.2:1b` cannot beat `qwen3:0.6b`** - 87% vs 93%, the sub-1B model wins!
+3. **`dolphin3.0-llama3:1b` unchanged** - 47%, no tool support, strong Code (3/3)
+
+#### Tool Support (1B+ R01)
+
+| Model | Params | Tool Support | Calc Score | Notes |
+|-------|--------|--------------|------------|-------|
+| `llama3.2:1b` | 1.2B | native | 3/3 ✅ | Was ReAct pre-R01 |
+| `dolphin3.0-llama3:1b` | 1B | none | 0/3 ❌ | No tool support |
 
 ---
 
@@ -407,18 +420,16 @@ AgentNova has been tested with **Microsoft BitNet-b1.58-2B-4T** — a 2B paramet
 
 | Use Case | Recommended Model | Why |
 |----------|-------------------|-----|
-| **Best 1B Overall** | `llama3.2:1b` | **90% GSM8K**, 87% (13/15) test, 128k context |
-| **Best 1B for Math** | `llama3.2:1b` | **90% GSM8K**, best math reasoning in class |
-| **Best GSM8K Overall** | `llama3.2:1b` | **90% GSM8K**, beats all sub-1B models |
-| **Best sub-1B (accuracy)** | **`qwen3:0.6b`** | **93% (14/15)**, best reasoning & knowledge |
-| **Best sub-1B (speed)** | `granite4:350m` | **47.3s**, 73% accuracy, 10x faster than qwen3 |
-| **Best sub-500M** | `qwen2.5:0.5b` | **73% (11/15)**, 3/3 Calc with native tools |
-| **Best GSM8K (sub-500M)** | `qwen2.5:0.5b` + `--force-react` | **84% GSM8K**, excellent tool use via ReAct |
-| **Best GSM8K (native)** | `dolphin3.0-qwen2.5:0.5b` | **78% GSM8K**, fast (8.9s), native tools |
-| **Best reasoning (sub-1B)** | **`qwen3:0.6b`** | 🌟 **ONLY model to pass all 3 reasoning tests!** |
+| **🏆 BEST OVERALL** | **`qwen3:0.6b`** | **93% (14/15)** - beats ALL models including 1B+! |
+| **Best reasoning** | **`qwen3:0.6b`** | 🌟 **ONLY model to pass all 3 reasoning tests!** |
+| **Best 1B Overall** | `llama3.2:1b` | **87% (13/15)**, now with native tools |
+| **Best GSM8K Overall** | `llama3.2:1b` | **90% GSM8K** (pre-R01), 128k context |
+| **Best sub-1B (accuracy)** | **`qwen3:0.6b`** | **93%**, best reasoning & knowledge |
+| **Best sub-1B (speed)** | `dolphin3.0-qwen2.5:0.5b` | **39.5s**, 73% accuracy, fastest 73% |
+| **Best sub-500M** | `qwen2.5:0.5b` | **73%**, 3/3 Calc with native tools |
 | **Best speed (sub-500M)** | `gemma3:270m` | **30.6s**, pure reasoning (no tools) |
-| **Best speed (1B)** | `nchapman/dolphin3.0-llama3:1b` | **5.9s avg**, 70% GSM8K, fast inference |
-| **Best Calc tool use** | `qwen3:0.6b` / `granite4:350m` / `qwen2.5:0.5b` | All **3/3 Calc**, excellent tool use |
+| **Best speed (1B)** | `nchapman/dolphin3.0-llama3:1b` | **~28s** (pre-R01), fast inference |
+| **Best Calc tool use** | `qwen3:0.6b` / `llama3.2:1b` / `granite4:350m` / `qwen2.5:0.5b` | All **3/3 Calc** |
 | **Large context** | `llama3.2:1b` | **128k context window** |
 | **CPU-only** | `BitNet-b1.58-2B-4T` | Efficient ternary weights, no GPU needed |
 
@@ -426,12 +437,13 @@ AgentNova has been tested with **Microsoft BitNet-b1.58-2B-4T** — a 2B paramet
 
 | Model | Recommended Mode | Reason |
 |-------|------------------|--------|
-| **`qwen3:0.6b`** | Native | 🌟 **Best sub-1B model!** 93% with native tools |
-| `qwen2.5:0.5b` | `--force-react` | +12% accuracy (72% → 84%) |
-| `granite4:350m` | `--force-react` | **+30% accuracy** (46% → 76%) |
-| `dolphin3.0-qwen2.5:0.5b` | Native/Modelfile | -12% with ReAct, better natively |
-| `gemma3:270m` | Modelfile (none) | Cannot use tools, pure reasoning works best |
-| `functiongemma:270m` | Either | No significant difference |
+| **`qwen3:0.6b`** | ReAct | 🏆 **Best model overall!** 93% accuracy |
+| **`llama3.2:1b`** | Native | Now supports native tools (was ReAct), 87% |
+| `qwen2.5:0.5b` | Native | 73% with synthesis fallback |
+| `granite4:350m` | Native | 73%, excellent native tool use |
+| `dolphin3.0-qwen2.5:0.5b` | None | Tool support changed to none, 73% pure reasoning |
+| `gemma3:270m` | None | Cannot use tools, pure reasoning works best |
+| `functiongemma:270m` | Native | Can use tools but can't reason directly (27%) |
 
 ---
 
