@@ -175,6 +175,19 @@ class ToolRegistry:
             filtered_args = {k: v for k, v in args.items() if k in valid_params}
             dropped = set(args) - valid_params
             
+            # Handle nested values: if dropped arg contains a dict with valid params, extract them
+            if dropped:
+                for wrong_key in list(dropped):
+                    wrong_val = args.get(wrong_key)
+                    if isinstance(wrong_val, dict):
+                        # Extract any valid params from the nested dict
+                        for nested_key, nested_val in wrong_val.items():
+                            if nested_key in valid_params and nested_key not in filtered_args:
+                                filtered_args[nested_key] = nested_val
+                                # Remove from dropped since we recovered it
+                                if wrong_key in dropped:
+                                    dropped.discard(wrong_key)
+            
             # Fuzzy argument name matching for small models
             if dropped and len(filtered_args) < len(valid_params):
                 fuzzy_mappings = self._fuzzy_match_args(dropped, valid_params, name)
@@ -196,31 +209,40 @@ class ToolRegistry:
         """Map incorrectly named args to correct ones using common patterns."""
         mappings = {}
         
+        # Get the first required param for this tool (used for generic aliases)
+        first_required = None
+        tool = self.get(tool_name)
+        if tool:
+            for p in tool.params:
+                if p.required:
+                    first_required = p.name
+                    break
+        
         # Common argument name aliases/mappings - expanded for small models
         arg_aliases = {
             # path variants
             "filepath": "path", "file_path": "path", "filename": "path", "file": "path",
             "output_path": "path", "outputfile": "path", "dest": "path", "destination": "path",
-            "location": "path", "source": "path", "input": "path",
+            "location": "path", "source": "path",
             # content variants
             "data": "content", "text": "content", "body": "content", "output": "content",
-            "string": "content", "value": "content", "input": "content", 
+            "string": "content", "value": "content", 
             "result": "content", "write": "content", "output_data": "content",
             # query variants
             "search": "query", "q": "query", "term": "query", "search_query": "query",
-            "keywords": "query", "text": "query",
+            "keywords": "query",
             # command variants
             "cmd": "command", "shell": "command", "exec": "command",
             "bash": "command", "script": "command", "run": "command",
             "instruction": "command", "execute": "command", "op": "command",
             # expression variants (for calculator)
             "expr": "expression", "formula": "expression", "math": "expression",
-            "calc": "expression", "input": "expression", "value": "expression",
+            "calc": "expression", "value": "expression",
             "a": "expression", "b": "expression", "x": "expression", "y": "expression",
             "num": "expression", "number": "expression",
             # code variants (for python_repl)
-            "script": "code", "python": "code", "py": "code",
-            "exec": "code", "execute": "code", "program": "code", "source": "code",
+            "python": "code", "py": "code",
+            "program": "code", "source": "code",
             "statement": "code",
             # url variants
             "uri": "url", "link": "url", "endpoint": "url",
@@ -229,7 +251,7 @@ class ToolRegistry:
             # timeout variants
             "time": "timeout", "seconds": "timeout", "max_time": "timeout",
             # city variants
-            "location": "city", "place": "city", "town": "city",
+            "place": "city", "town": "city",
             "where": "city", "area": "city", "region": "city",
             # currency variants
             "from": "from_currency", "to": "to_currency",
@@ -245,6 +267,13 @@ class ToolRegistry:
                 target = arg_aliases[wrong_lower]
                 if target in valid_names:
                     mappings[wrong] = target
+                    continue
+            
+            # Handle generic aliases that map to first required param
+            # "input", "arg", "argument", "param", "parameter" -> first required param
+            if wrong_lower in ("input", "arg", "argument", "param", "parameter", "args"):
+                if first_required and first_required not in mappings.values():
+                    mappings[wrong] = first_required
                     continue
             
             # Substring match (e.g., "filePath" contains "path")
