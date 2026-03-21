@@ -19,29 +19,28 @@ The following sub-1B parameter models were tested on the **15-test benchmark**:
 | 5 | `gemma3:270m` | 8/15 (53%) | 30.6s | 3/3 ✅ | 1/3 | 1/3 | 0/3 ❌ | 3/3 ✅ | = |
 | 6 | `functiongemma:270m` | 4/15 (27%) | 60.4s | 0/3 ❌ | 1/3 | 0/3 ❌ | 3/3 ✅ | 0/3 ❌ | ↑ +14% |
 
-#### Category Champions (Sub-1B R01)
+#### Category Champions (All Models R01)
 
 | Category | 🏆 Champion | Score | Notes |
 |----------|-------------|-------|-------|
-| **Math** | `qwen3:0.6b` / `gemma3:270m` | 3/3 | Tie - both perfect |
-| **Reasoning** | `qwen3:0.6b` | **3/3** | 🌟 **ONLY model to pass all reasoning!** |
-| **Knowledge** | `qwen3:0.6b` / `dolphin3.0-qwen2.5:0.5b` | 3/3 | Tie - both perfect |
-| **Calc** | `qwen3:0.6b` / `granite4:350m` / `qwen2.5:0.5b` / `functiongemma:270m` | 3/3 | Tie - all perfect |
-| **Code** | `granite4:350m` / `qwen2.5:0.5b` / `gemma3:270m` / `dolphin3.0-qwen2.5:0.5b` | 3/3 | Tie - all perfect |
+| **Math** | `qwen3:0.6b` / `gemma3:270m` / `granite3.1-moe:1b` / `llama3.2:1b` | 3/3 | Tie - all perfect |
+| **Reasoning** | **`qwen3:0.6b`** | **3/3** | 🌟 **ONLY model to pass all reasoning!** |
+| **Knowledge** | `qwen3:0.6b` / `dolphin3.0-qwen2.5:0.5b` / `granite3.1-moe:1b` | 3/3 | Tie - all perfect |
+| **Calc** | `qwen3:0.6b` / `granite3.1-moe:1b` / `llama3.2:1b` / `granite4:350m` / `qwen2.5:0.5b` / `functiongemma:270m` | 3/3 | Tie - all perfect |
+| **Code** | `granite3.1-moe:1b` / `granite4:350m` / `qwen2.5:0.5b` / `gemma3:270m` / `dolphin3.0-qwen2.5:0.5b` / `llama3.2:1b` / `dolphin3.0-llama3:1b` | 3/3 | Tie - all perfect |
 
 #### Key Findings (R01)
 
-1. **`qwen3:0.6b` is the overall champion** - 93% beats ALL models including 1B+!
-2. **`qwen3:0.6b` is the ONLY model to:**
-   - Pass all 3 reasoning tests (Apples, Sequence, Logic)
-   - Correctly identify Brasília as Brazil's capital
-3. **Speed vs Accuracy tradeoff:**
-   - `qwen3:0.6b`: 93% accuracy but 556s (slowest)
-   - `dolphin3.0-qwen2.5:0.5b`: 73% in only 39.5s (fastest of the 73% group)
-4. **`llama3.2:1b` at 87%** - best 1B+ model but can't beat qwen3:0.6b's 93%
-5. **`dolphin3.0-qwen2.5:0.5b` tool support changed** - Was native, now detected as none. Calc dropped 3/3 → 2/3
-6. **`gemma3:270m` cannot use tools** - 0/3 Calc but 3/3 Math (pure reasoning)
-7. **`functiongemma:270m` inverse profile** - 3/3 Calc (uses tools) but 0/3 Math (can't reason directly)
+1. **TIE FOR CHAMPION!** - `qwen3:0.6b` (600M) and `granite3.1-moe:1b` (1B MoE) both achieve **93%**
+2. **`granite3.1-moe:1b` is 4x faster** - same 93% accuracy but 142s vs 556s
+3. **`qwen3:0.6b` is the ONLY model to pass all 3 reasoning tests**
+4. **`qwen2.5:0.5b` achieves 90% GSM8K** - matches 1B models at half the parameters!
+5. **MoE efficiency** - `granite3.1-moe:1b` proves MoE architecture excels at this benchmark
+6. **Speed vs Accuracy tradeoff:**
+   - `granite3.1-moe:1b`: 93% in 142s (fastest champion)
+   - `qwen3:0.6b`: 93% in 556s (slowest champion)
+   - `dolphin3.0-qwen2.5:0.5b`: 73% in 39.5s (fastest 73%)
+7. **Tool support changes** - Several models changed tool support detection (dolphin, llama3.2)
 8. **Native tool synthesis working** - qwen2.5:0.5b gets 3/3 Calc with AgentNova's synthesis
 
 #### Tool Support (Sub-1B R01)
@@ -438,26 +437,25 @@ AgentNova has been tested with **Microsoft BitNet-b1.58-2B-4T** — a 2B paramet
 
 | Use Case | Recommended Model | Why |
 |----------|-------------------|-----|
-| **🏆 BEST OVERALL** | **`qwen3:0.6b`** | **93% (14/15)** - beats ALL models including 1B+! |
-| **Best GSM8K (overall)** | **`qwen2.5:0.5b`** | **90% GSM8K** - matches llama3.2:1b at half the size! |
-| **Best reasoning** | **`qwen3:0.6b`** | 🌟 **ONLY model to pass all 3 reasoning tests!** |
-| **Best 1B Overall** | `llama3.2:1b` | **87% (13/15)**, now with native tools |
-| **Best sub-500M** | **`qwen2.5:0.5b`** | **90% GSM8K**, 73% test 07, 3/3 Calc |
-| **Best sub-1B (accuracy)** | **`qwen3:0.6b`** | **93%**, best reasoning & knowledge |
-| **Best sub-1B (speed)** | `dolphin3.0-qwen2.5:0.5b` | **39.5s**, 73% accuracy, fastest 73% |
-| **Best speed (sub-500M)** | `gemma3:270m` | **30.6s**, pure reasoning (no tools) |
-| **Best speed (1B)** | `nchapman/dolphin3.0-llama3:1b` | **~28s** (pre-R01), fast inference |
-| **Best Calc tool use** | `qwen3:0.6b` / `llama3.2:1b` / `qwen2.5:0.5b` / `granite4:350m` | All **3/3 Calc** |
+| **🏆 BEST OVERALL (tie)** | **`qwen3:0.6b`** / **`granite3.1-moe:1b`** | Both **93%** - choose based on speed needs |
+| **Best Speed + Accuracy** | **`granite3.1-moe:1b`** | **93% in 142s** - 4x faster than qwen3! |
+| **Best Reasoning** | **`qwen3:0.6b`** | 🌟 **ONLY model to pass all 3 reasoning tests!** |
+| **Best GSM8K** | **`qwen2.5:0.5b`** | **90% GSM8K** - matches 1B at half the size! |
+| **Best 1B Dense** | `llama3.2:1b` | **87%**, native tools, 128k context |
+| **Best Sub-500M** | `qwen2.5:0.5b` | **90% GSM8K**, 73% test 07 |
+| **Best Speed (73%+)** | `dolphin3.0-qwen2.5:0.5b` | **39.5s**, 73% accuracy |
+| **Best Speed (sub-500M)** | `gemma3:270m` | **30.6s**, pure reasoning |
 | **Large context** | `llama3.2:1b` | **128k context window** |
-| **CPU-only** | `BitNet-b1.58-2B-4T` | Efficient ternary weights, no GPU needed |
+| **CPU-only** | `BitNet-b1.58-2B-4T` | Efficient ternary weights |
 
 ### Mode Recommendations by Model
 
 | Model | Recommended Mode | Reason |
 |-------|------------------|--------|
-| **`qwen3:0.6b`** | ReAct | 🏆 **Best model overall!** 93% accuracy |
-| **`qwen2.5:0.5b`** | Native | 🎯 **90% GSM8K** - matches 1B models at half size! |
-| **`llama3.2:1b`** | Native | Now supports native tools (was ReAct), 87% |
+| **`qwen3:0.6b`** | ReAct | 🏆 **Co-champion!** 93% accuracy, best reasoning |
+| **`granite3.1-moe:1b`** | ReAct | 🏆 **Co-champion!** 93% in 142s, fastest champion |
+| **`qwen2.5:0.5b`** | Native | 🎯 **90% GSM8K** - matches 1B at half size! |
+| **`llama3.2:1b`** | Native | Now supports native tools, 87% |
 | `granite4:350m` | Native | 78% GSM8K, 73% test 07, excellent native tools |
 | `dolphin3.0-qwen2.5:0.5b` | None | Tool support changed to none, 73% pure reasoning |
 | `gemma3:270m` | None | Cannot use tools, pure reasoning works best |
