@@ -1440,7 +1440,17 @@ class Agent:
         # Model should use its Modelfile system prompt as-is
         
         # Add few-shot examples based on family preference
-        if self._use_few_shot and self.tools.all() and self._tool_support == "react":
+        # For react mode: always add if enabled
+        # For native mode: add for small models that need guidance on WHEN to call tools
+        add_few_shot = False
+        if self._use_few_shot and self.tools.all():
+            if self._tool_support == "react":
+                add_few_shot = True
+            elif self._tool_support == "native" and self._is_small_model:
+                # Small native models benefit from examples showing WHEN to call tools
+                add_few_shot = True
+        
+        if add_few_shot:
             # Use compact for families that prefer it or small models
             use_compact = use_compact_prompt or self._few_shot_style == "compact"
             few_shot_suffix = FEW_SHOT_COMPACT if use_compact else FEW_SHOT_SUFFIX
