@@ -1921,10 +1921,21 @@ class Agent:
         """
         Remove JSON tool-call schemas from a response.
         Small models sometimes output tool schemas instead of plain text answers.
-        Returns the fallback if the content is just a tool schema.
+        Returns the fallback if the content is just a tool schema or clearly malformed.
         """
         if not content:
             return fallback
+        
+        # Check for clearly malformed/too-short responses
+        # Just backticks, empty after stripping, or very short garbage
+        stripped = content.strip()
+        if len(stripped) < 3:
+            return fallback if fallback else content
+        if stripped in ("```", "``", "`", "```json", "```python"):
+            return fallback if fallback else content
+        # Just markdown fence with nothing inside
+        if stripped.startswith("```") and stripped.endswith("```") and len(stripped) < 10:
+            return fallback if fallback else content
         
         # Check if this looks like a tool schema JSON
         if not _looks_like_tool_schema(content):
