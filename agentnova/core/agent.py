@@ -1714,6 +1714,28 @@ class Agent:
                         if self.debug:
                             print(f"    ReAct path: parsed JSON tool call: name={t_name!r}, args={t_args!r}")
 
+                # Format reminder: if model didn't use ReAct format, remind it once
+                # This helps code-focused models like qwen2.5-coder that default to Python blocks
+                if not t_name and not final_answer and not thought:
+                    if not hasattr(self, '_format_reminder_sent'):
+                        self._format_reminder_sent = True
+                        if self.debug:
+                            print(f"\n  🔍 DEBUG: Model didn't use ReAct format, sending reminder")
+                        # Re-prompt with format reminder
+                        self.memory.add_assistant(content)
+                        tool_names = [t.name for t in self.tools.all()]
+                        reminder = (
+                            f"Please use the ReAct format to call tools:\n"
+                            f"Thought: <your reasoning>\n"
+                            f"Action: <tool_name>\n"
+                            f"Action Input: <JSON arguments>\n\n"
+                            f"Available tools: {', '.join(tool_names)}\n"
+                            f"Example: Action: {tool_names[0]}\n"
+                            f"Action Input: {{\"arg\": \"value\"}}"
+                        )
+                        self.memory.add_user(reminder)
+                        continue  # Let the model try again
+
                 if thought:
                     step = StepResult(type="thought", content=thought, elapsed_ms=elapsed)
                     run.steps.append(step)
