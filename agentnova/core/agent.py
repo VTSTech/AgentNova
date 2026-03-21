@@ -1721,17 +1721,22 @@ class Agent:
                         self._format_reminder_sent = True
                         if self.debug:
                             print(f"\n  🔍 DEBUG: Model didn't use ReAct format, sending reminder")
-                        # Re-prompt with format reminder
+                        # Re-prompt with format reminder - include ORIGINAL question to prevent confusion
                         self.memory.add_assistant(content)
                         tool_names = [t.name for t in self.tools.all()]
+                        # Get tool-specific arg name hint
+                        first_tool = self.tools.all()[0] if self.tools.all() else None
+                        arg_hint = "input"
+                        if first_tool and first_tool.params:
+                            arg_hint = list(first_tool.params.keys())[0]
                         reminder = (
-                            f"Please use the ReAct format to call tools:\n"
-                            f"Thought: <your reasoning>\n"
+                            f"Please answer the original question using the ReAct format:\n\n"
+                            f"Thought: <your reasoning about the question>\n"
                             f"Action: <tool_name>\n"
-                            f"Action Input: <JSON arguments>\n\n"
+                            f"Action Input: <JSON with correct argument name>\n\n"
+                            f"Original question: {user_input}\n\n"
                             f"Available tools: {', '.join(tool_names)}\n"
-                            f"Example: Action: {tool_names[0]}\n"
-                            f"Action Input: {{\"arg\": \"value\"}}"
+                            f"Remember: Use '{arg_hint}' as the argument name for {tool_names[0]}."
                         )
                         self.memory.add_user(reminder)
                         continue  # Let the model try again
