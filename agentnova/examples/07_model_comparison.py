@@ -23,7 +23,7 @@ import argparse
 import unicodedata
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from agentnova import Agent, get_default_client, get_tool_support, AGENTNOVA_BACKEND
+from agentnova import Agent, get_default_client, get_tool_support, AGENTNOVA_BACKEND, StepResult
 from agentnova.tools.builtins import make_builtin_registry
 from agentnova.model_discovery import get_available_models
 from agentnova.shared_args import add_shared_args, parse_shared_args, SharedConfig
@@ -47,6 +47,32 @@ if USE_ACP:
 DEBUG = config.debug
 
 BACKEND_NAME = AGENTNOVA_BACKEND.upper()
+
+
+def print_step(step: StepResult):
+    """Print step information for debug output."""
+    if step.type == "tool_call":
+        args = ", ".join(f"{k}={v}" for k, v in (step.tool_args or {}).items())
+        print(f"      🔧 {step.tool_name}({args})")
+    elif step.type == "tool_result":
+        preview = step.content[:80] + "..." if len(step.content) > 80 else step.content
+        print(f"      📦 → {preview}")
+
+
+def check_tool_used(run, tool_name: str) -> bool:
+    """Verify that a specific tool was actually called during the run."""
+    for step in run.steps:
+        if step.type == "tool_call" and step.tool_name == tool_name:
+            return True
+    return False
+
+
+def make_step_callback(verbose: bool = True):
+    """Create a step callback for debug output."""
+    def on_step(step: StepResult):
+        if verbose:
+            print_step(step)
+    return on_step
 
 
 def normalize_text(text: str) -> str:
