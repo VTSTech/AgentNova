@@ -92,6 +92,10 @@ VERBOSITY = 2
 # Will be populated from available models (no hardcoded list)
 MODELS = None  # None means "use all available"
 
+# Global flags for interactive control
+_bypass_mode = False
+_quit_requested = False
+
 # System prompts for different test types
 SYSTEM_PROMPT_NO_TOOLS = """You are a helpful assistant. Follow these rules:
 - Answer directly and concisely
@@ -202,8 +206,22 @@ def test_model(client, model: str, config: SharedConfig, acp=None) -> dict:
     current_category = None
     category_passed = 0
     category_total = 0
+    _bypass_this_model = False
     
     for test_name, prompt, tools, expected in TESTS:
+        # Check for user input
+        cmd = check_user_input()
+        if cmd == 'q':
+            print("\n\n⏹️ Quit requested by user")
+            _quit_requested = True
+            break
+        elif cmd == 'b':
+            print("\n\n⏭️ Bypassing current model")
+            _bypass_this_model = True
+            break
+        elif cmd == 's':
+            print(f"\n\n📊 Status: {results['passed']}/{results['total']} passed so far")
+        
         # Extract category from test name
         category = test_name.split(":")[0]
         
@@ -422,12 +440,22 @@ def main():
     
     # Clear old results - start fresh
     all_results = []
+    global _quit_requested
     
     for model in models_to_test:
+        # Check if user requested quit
+        if _quit_requested:
+            print("\n⏹️ Test terminated by user")
+            break
+        
         # Find the exact model name from available
         exact_name = next((a for a in available if model.split(':')[0] in a), model)
         result = test_model(client, exact_name, config=config, acp=main_acp)
         all_results.append(result)
+        
+        # Check again after test
+        if _quit_requested:
+            break
         
         # Log model result to main ACP
         if main_acp:
