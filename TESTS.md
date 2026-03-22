@@ -192,8 +192,9 @@ agentnova test 15 --model all --debug
 | 7 | `dolphin3.0-qwen2.5:0.5b` | 3/5 (60%) | 41.9s | none | Pure reasoning, division error |
 | 7 | `dolphin3.0-llama3:1b` | 3/5 (60%) | 40.5s | none | Pure reasoning, edge case failed |
 | 11 | `gemma3:270m` | 2/5 (40%) | 11.4s | none | No tool support |
-| 12 | `tinydolphin:1.1b` | 1/5 (20%) | 102.4s | none | No tool support |
 | 12 | `qwen:0.5b` | 1/5 (20%) | 32s | none | No tool support |
+| 12 | `tinydolphin:1.1b` | 1/5 (20%) | 102.4s | none | No tool support, verbose |
+| 12 | `tinyllama:1.1b` | 1/5 (20%) | 103.8s | none | No tool support, verbose |
 
 ### Test Questions (5 Targeted Tests)
 
