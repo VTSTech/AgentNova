@@ -7,6 +7,10 @@ Inspired by the architecture of OpenClaw, rebuilt from scratch for local-first o
 **Written by [VTSTech](https://www.vts-tech.org)** · [GitHub](https://github.com/VTSTech/AgentNova)
 
 [![GitHub commits](https://badgen.net/github/commits/VTSTech/AgentNova)](https://GitHub.com/VTSTech/AgentNova/commit/) [![GitHub latest commit](https://badgen.net/github/last-commit/VTSTech/AgentNova)](https://GitHub.com/VTSTech/AgentNova/commit/)
+
+[![GitHub tag](https://img.shields.io/github/tag/VTSTech/AgentNova?include_prereleases=&sort=semver&color=blue)](https://github.com/VTSTech/AgentNova/releases/)
+[![License](https://img.shields.io/badge/License-MIT-blue)](#license) [![Go to Python website](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2FVTSTech%2FAgentNova%2Frefs%2Fheads%2Fmain%2Fpyproject.toml&query=project.requires-python&label=python&logo=python&logoColor=white)](https://python.org)
+
 ---
 
 ## 📚 Documentation
