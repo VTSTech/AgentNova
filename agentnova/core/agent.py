@@ -2346,6 +2346,16 @@ class Agent:
                         t_args = _synthesize_missing_args(t_name, t_args, user_input, _successful_results, self.tools)
                         
                         _tool_call_counts[t_name] = _tool_call_counts.get(t_name, 0) + 1
+                        
+                        # Check loop limits - was missing in ReAct path!
+                        total_calls = sum(_tool_call_counts.values())
+                        if _tool_call_counts[t_name] > _max_calls_per_tool or total_calls > _max_total_tool_calls:
+                            final_answer = self._synthesize(user_input, _successful_results)
+                            final_step = StepResult(type="final", content=final_answer, elapsed_ms=elapsed)
+                            run.steps.append(final_step)
+                            self._emit(final_step)
+                            run.final_answer = final_answer
+                            break
 
                         call_step = StepResult(
                             type="tool_call",
@@ -2713,21 +2723,4 @@ class Agent:
         )
         full = ""
         for chunk in chunks:
-            # Handle both Ollama (dict) and BitNet (string) streaming formats
-            if isinstance(chunk, dict):
-                token = chunk.get("message", {}).get("content", "")
-            elif isinstance(chunk, str):
-                token = chunk
-            else:
-                token = str(chunk) if chunk else ""
-            full += token
-            yield token
-        self.memory.add_assistant(full)
-
-    # ------------------------------------------------------------------ #
-    #  Internal                                                            #
-    # ------------------------------------------------------------------ #
-
-    def _emit(self, step: StepResult):
-        if self.on_step:
-            self.on_step(step)
+            # Handle both Ollama (dict) and BitNet (string) 
