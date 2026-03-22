@@ -432,10 +432,14 @@ class Agent:
         max_total_tool_calls = 4
         format_reminder_sent = False
         
-        # ReAct patterns
+        # ReAct patterns (including same-line variant for small models)
         thought_re = re.compile(r"Thought:\s*(.*?)(?=Action:|Final Answer:|$)", re.DOTALL | re.IGNORECASE)
         action_re = re.compile(
             r"Action:\s*[`\"']?(\w+)[`\"']?\s*\n?\s*Action Input:\s*(.*?)(?=\n\s*(?:Observation:|Thought:|Final Answer:|Action:)|$)",
+            re.DOTALL | re.IGNORECASE
+        )
+        action_same_line_re = re.compile(
+            r"Action:\s*[`\"']?(\w+)[`\"']?\s+Action Input:\s*(.*?)(?=\n\s*(?:Observation:|Thought:|Final Answer:|Action:)|$)",
             re.DOTALL | re.IGNORECASE
         )
         final_re = re.compile(r"Final Answer:\s*(.*?)$", re.DOTALL | re.IGNORECASE)
@@ -462,7 +466,11 @@ class Agent:
             thought_match = thought_re.search(content)
             thought = thought_match.group(1).strip() if thought_match else None
             
+            # Try multiline action first, then same-line format (for small models)
             action_match = action_re.search(content)
+            if not action_match:
+                action_match = action_same_line_re.search(content)
+            
             t_name = action_match.group(1).strip() if action_match else None
             raw_args = action_match.group(2).strip() if action_match else None
             
