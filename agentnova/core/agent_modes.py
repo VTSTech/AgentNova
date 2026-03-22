@@ -18,7 +18,7 @@ from typing import Callable, Any
 from .tools import ToolRegistry, Tool, ToolParam
 from .memory import Memory
 from .ollama_client import OllamaClient
-from .model_family_config import get_model_config, ModelFamilyConfig
+from .model_family_config import get_family_config, ModelFamilyConfig
 
 
 class StepResult:
