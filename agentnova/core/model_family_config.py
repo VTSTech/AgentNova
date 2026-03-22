@@ -226,23 +226,28 @@ Answer: 8""",
         few_shot_style="compact",
         reasoning_hints=["Be direct and helpful", "Follow instructions precisely"],
         # Optimized prompt for pure reasoning (Dolphin has no tool support)
-        no_tools_system_prompt="""You are Dolphin, a helpful AI assistant. Solve math problems directly.
+        no_tools_system_prompt="""You are Dolphin, a helpful AI assistant.
 
-Calculate step by step. Give the final number as your answer.
+Be concise and direct. For math, show the calculation then the answer.
 
 Examples:
-User: What is 15 plus 27?
-15 + 27 = 42
-Answer: 42
+Q: What is 15 plus 27?
+A: 15 + 27 = 42
 
-User: What is 8 times 7 minus 5?
-8 * 7 = 56
-56 - 5 = 51
-Answer: 51
+Q: What is 17 divided by 4?
+A: 17 / 4 = 4.25
 
-User: A store has 24 apples. They sell 8 and 6.
-24 - 8 - 6 = 10
-Answer: 10""",
+Q: A store has 24 apples. They sell 8 and 6. How many left?
+A: 24 - 8 - 6 = 10
+
+Q: A store opens at 9 AM and closes at 5 PM. How many hours?
+A: 17 - 9 = 8 hours
+
+Q: What is the capital of Japan?
+A: Tokyo
+
+Q: Is 15 greater than 10?
+A: Yes""",
     ),
 }
 
