@@ -2595,24 +2595,20 @@ class Agent:
 
         results_text = "\n".join(f"- {r}" for r in results)
         
-        # For simple numeric results, use directly without LLM synthesis
-        # This prevents the model from repeating its pre-tool-call wrong answer
-        if len(results) == 1:
-            r_clean = _strip_tool_prefix(results[0])
+        # For numeric results, use the LAST one directly without LLM synthesis
+        # The last result is typically the final answer in multi-step calculations
+        r_clean = _strip_tool_prefix(results[-1])
+        if self.debug:
+            print(f"    synthesize: checking if numeric: '{r_clean}'")
+        try:
+            num = float(r_clean)
             if self.debug:
-                print(f"    synthesize: checking if numeric: '{r_clean}'")
-            # Check if result is just a number (possibly with decimal)
-            try:
-                num = float(r_clean)
-                # It's a number - construct a simple answer
-                if self.debug:
-                    print(f"    synthesize: using numeric result directly: {num}")
-                # Return just the number as string - test expects this
-                return r_clean
-            except (ValueError, TypeError) as e:
-                if self.debug:
-                    print(f"    synthesize: not numeric: {e}")
-                pass
+                print(f"    synthesize: using numeric result directly: {num}")
+            return r_clean
+        except (ValueError, TypeError):
+            if self.debug:
+                print(f"    synthesize: not numeric: could not convert string to float: '{r_clean}'")
+            pass
         
         # Check if any result already looks like a complete answer
         # (starts with common answer patterns and is reasonably short)
