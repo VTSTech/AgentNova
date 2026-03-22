@@ -2,7 +2,7 @@
 
 ## Test 05 Tool Tests (Multi-Platform)
 
-> **Updated:** 2026-03-21 - R02 with multi-platform shell command support.
+> **Updated:** 2026-03-21 - R02.2 with multi-platform shell command support.
 
 Test 05 tests calculator, shell, and Python REPL tools. Shell commands are now platform-aware (Windows: `cd`/`dir`, Linux: `pwd`/`ls`).
 
@@ -58,7 +58,7 @@ Test 07 uses the 15-test benchmark with debug output showing tool support detect
 
 ### All Models Combined (R02.2 - Latest)
 
-| Rank | Model | Params | Score | Time | Tool Support | Δ vs R02 |
+| Rank | Model | Params | Score | Time | Tool Support | Δ vs R01 |
 |:----:|-------|-------:|------:|-----:|:-----------:|:--------:|
 | 🥇 | **`granite3.1-moe:1b`** | 1B MoE | **14/15 (93%)** | 87.8s | react | **+13%** ✅ |
 | 🥈 | **`llama3.2:1b`** | 1.2B | **13/15 (87%)** | 150.2s | native | **+20%** ✅ |
@@ -105,7 +105,7 @@ Test 07 uses the 15-test benchmark with debug output showing tool support detect
 
 ### Sub-1B Models (R02.2 - Current)
 
-| Rank | Model | Params | Score | Time | Tool Support | Δ vs R02 |
+| Rank | Model | Params | Score | Time | Tool Support | Δ vs R01 |
 |:----:|-------|-------:|------:|-----:|:-----------:|:--------:|
 | 🥇 | `nchapman/dolphin3.0-qwen2.5:0.5b` | 500M | 11/15 (73%) | **27.2s** | none | = |
 | 🥈 | `qwen3:0.6b` | 600M | 10/15 (67%) | 189.3s | react | **Fixed** ✅ |
@@ -121,7 +121,7 @@ Test 07 uses the 15-test benchmark with debug output showing tool support detect
 
 ### 1B+ Models (R02.2 - Current)
 
-| Rank | Model | Params | Score | Time | Tool Support | Δ vs R02 |
+| Rank | Model | Params | Score | Time | Tool Support | Δ vs R01 |
 |:----:|-------|-------:|------:|-----:|:-----------:|:--------:|
 | 🥇 | **`granite3.1-moe:1b`** | 1B MoE | **14/15 (93%)** | 87.8s | react | **+13%** ✅ |
 | 🥈 | **`llama3.2:1b`** | 1.2B | **13/15 (87%)** | 150.2s | native | **+20%** ✅ |
@@ -186,11 +186,14 @@ agentnova test 15 --model all --debug
 | 🥇 | **`qwen2.5-coder:0.5b`** | **5/5 (100%)** | 69.7s | react | 🏆 Perfect! ReAct mode works great |
 | 4 | `functiongemma:270m` | 4/5 (80%) | 27.4s | native | Word problem misinterpretation |
 | 4 | `granite4:350m` | 4/5 (80%) | 88.2s | native | Synthesis returned raw JSON |
-| 6 | `qwen3:0.6b` | 3/5 (60%) | 119.6s | react | Multi-step extraction issue |
-| 6 | `dolphin3.0-qwen2.5:0.5b` | 3/5 (60%) | 41.9s | none | Pure reasoning, division error |
-| 6 | `dolphin3.0-llama3:1b` | 3/5 (60%) | 40.5s | none | Pure reasoning, edge case failed |
-| 9 | `gemma3:270m` | 2/5 (40%) | 11.4s | none | No tool support |
-| 10 | `qwen:0.5b` | 1/5 (20%) | 32s | none | No tool support |
+| 4 | `granite3.1-moe:1b` | 4/5 (80%) | 96.5s | react | Multi-step stopped after first op |
+| 7 | `llama3.2:1b` | 3/5 (60%) | 256.9s | native | Malformed JSON tool calls |
+| 7 | `qwen3:0.6b` | 3/5 (60%) | 119.6s | react | Multi-step extraction issue |
+| 7 | `dolphin3.0-qwen2.5:0.5b` | 3/5 (60%) | 41.9s | none | Pure reasoning, division error |
+| 7 | `dolphin3.0-llama3:1b` | 3/5 (60%) | 40.5s | none | Pure reasoning, edge case failed |
+| 11 | `gemma3:270m` | 2/5 (40%) | 11.4s | none | No tool support |
+| 12 | `tinydolphin:1.1b` | 1/5 (20%) | 102.4s | none | No tool support |
+| 12 | `qwen:0.5b` | 1/5 (20%) | 32s | none | No tool support |
 
 ### Test Questions (5 Targeted Tests)
 
@@ -206,9 +209,11 @@ agentnova test 15 --model all --debug
 
 1. **`qwen3.5:0.8b` is the sub-1B champion** - 100% with native tools!
 2. **ReAct models perfect** - qwen2.5:0.5b and qwen2.5-coder:0.5b both at 100%
-3. **No-tool models struggle** - Pure reasoning can't match tool usage for math
-4. **Multi-step is hardest** - Q2 catches models that don't chain observations
-5. **Edge case Q5 catches many** - Store hours problem causes reasoning errors
+3. **`llama3.2:1b` regression** - Dropped to 60% (from 87% on test 07) - malformed JSON tool calls
+4. **`granite3.1-moe:1b` multi-step issue** - Stopped after first operation on Q2 (56 instead of 51)
+5. **No-tool models struggle** - Pure reasoning can't match tool usage for math
+6. **Multi-step is hardest** - Q2 catches models that don't chain observations
+7. **Edge case Q5 catches many** - Store hours problem causes reasoning errors
 
 ---
 
