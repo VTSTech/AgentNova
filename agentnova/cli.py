@@ -916,6 +916,7 @@ def _build_agent(args, client: OllamaClient):
 def cmd_models(args):
     backend = getattr(args, "backend", "ollama")
     tool_support = getattr(args, "tool_support", False)
+    retest = getattr(args, "retest", False)
     verbose = getattr(args, "verbose", False)
     
     if backend == "bitnet":
@@ -958,10 +959,31 @@ def cmd_models(args):
     
     # If --tool_support flag, test each model
     if tool_support:
-        print(cyan("\n  Testing tool support for all models..."))
-        print(dim("  Using Modelfile system prompts (no custom prompts)\n"))
+        # Count how many need testing (or all if --retest)
+        if retest:
+            need_testing = sorted(models)
+            print(cyan(f"\n  Re-testing all {len(need_testing)} model(s)..."))
+            print(dim("  Using Modelfile system prompts (no custom prompts)\n"))
+        else:
+            need_testing = [m for m in sorted(models) if m not in tested_models or 
+                            tested_models[m].get("tool_support") not in ("native", "react", "none")]
+            
+            if need_testing:
+                print(cyan(f"\n  Testing tool support for {len(need_testing)} model(s)..."))
+                print(dim("  Using Modelfile system prompts (no custom prompts)"))
+                print(dim(f"  Skipping {len(models) - len(need_testing)} already tested\n"))
+            else:
+                print(green("\n  All models already tested! Use --retest to re-test."))
+                print(dim(f"  Results stored in {_TESTED_MODELS_FILE}\n"))
         
         for m in sorted(models):
+            # Skip already tested models (unless --retest)
+            if not retest and m in tested_models:
+                existing = tested_models[m].get("tool_support")
+                if existing in ("native", "react", "none"):
+                    print(dim(f"  ⊙ {m}: {existing} (already tested, skipping)"))
+                    continue
+            
             result = _test_model_tool_support(client, m, verbose=True)
             tested_models[m] = {
                 "tool_support": result,
@@ -2575,6 +2597,7 @@ def build_parser() -> argparse.ArgumentParser:
     # ── models ──────────────────────────────────────────────────────
     p_models = sub.add_parser("models", parents=[shared], help="List available models")
     p_models.add_argument("--tool_support", action="store_true", help="Test each model for native tool support")
+    p_models.add_argument("--retest", action="store_true", help="Force re-test all models (use with --tool_support)")
     p_models.set_defaults(func=cmd_models)
 
     # ── tools ───────────────────────────────────────────────────────
