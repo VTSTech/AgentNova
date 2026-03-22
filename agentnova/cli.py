@@ -2290,6 +2290,7 @@ def cmd_test(args):
         "13_acp": "Shutdown demo with ACP tracking",
         "14": "GSM8K benchmark - 50 math questions",
         "14_acp": "GSM8K benchmark with ACP tracking",
+        "15": "Quick diagnostic - 5 questions, ~30s/model",
         "backend": "Backend demo - Ollama/BitNet switching",
     }
     
