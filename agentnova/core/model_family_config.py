@@ -142,6 +142,26 @@ FAMILY_CONFIGS: dict[str, ModelFamilyConfig] = {
         few_shot_style="react",
     ),
     
+    # QWEN3.5 - Alibaba's Qwen 3.5 models (successor to Qwen3)
+    "qwen35": ModelFamilyConfig(
+        family="qwen35",
+        start_tokens={
+            "system": "<|im_start|>system",
+            "user": "<|im_start|>user",
+            "assistant": "<|im_start|>assistant",
+        },
+        stop_tokens=["<|im_end|>"],
+        tool_format="xml",
+        tool_call_start=".special\n",
+        tool_call_end="\n",
+        supports_native_tools=True,
+        system_prompt_style="separate",
+        preferred_temperature=0.6,
+        needs_think_directive=True,  # Qwen3.5 also has thinking mode
+        prefers_few_shot=True,
+        few_shot_style="react",
+    ),
+    
     # LLAMA - Meta's Llama models (varies by fine-tune)
     "llama": ModelFamilyConfig(
         family="llama",
