@@ -2723,4 +2723,21 @@ class Agent:
         )
         full = ""
         for chunk in chunks:
-            # Handle both Ollama (dict) and BitNet (string) 
+            # Handle both Ollama (dict) and BitNet (string) streaming formats
+            if isinstance(chunk, dict):
+                token = chunk.get("message", {}).get("content", "")
+            elif isinstance(chunk, str):
+                token = chunk
+            else:
+                token = str(chunk) if chunk else ""
+            full += token
+            yield token
+        self.memory.add_assistant(full)
+
+    # ------------------------------------------------------------------ #
+    #  Internal                                                            #
+    # ------------------------------------------------------------------ #
+
+    def _emit(self, step: StepResult):
+        if self.on_step:
+            self.on_step(step)
