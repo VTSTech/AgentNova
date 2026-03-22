@@ -73,6 +73,21 @@ Complete restructuring of `agent.py` with significant code reduction and improve
   - Shows correct argument names (`expression`, `command`, `code`)
   - Platform-aware examples for directory commands
 
+### Fixed (Post-Refactor Bug Fixes)
+- **ReAct mode tool execution priority** - Critical bug where `final_answer` was checked BEFORE tool execution
+  - Models hallucinating `Observation:` and `Final Answer:` would skip actual tool calls
+  - Now prioritizes tool execution (`if t_name and t_args`) over final_answer
+  - Test impact: "Square root" test now correctly executes calculator instead of accepting hallucinated result
+- **Fuzzy tool name matching** - Small models often call tools by wrong names
+  - Added `_fuzzy_match_tool_name()` function with word mappings
+  - `Action: ls` → `shell` with synthesized `{"command": "ls"}`
+  - `Action: echo` → `shell` with synthesized `{"command": "echo ..."}`
+  - `Action: sqrt` → `calculator`
+  - `Action: pwd` → `shell`
+- **Shell command synthesis** - When model calls a command as a tool name
+  - Automatically synthesizes correct `shell` tool arguments
+  - Handles: `ls`, `dir`, `pwd`, `echo`, `cat`, `grep`
+
 ### Architecture Impact
 
 | Component | Before | After | Change |
