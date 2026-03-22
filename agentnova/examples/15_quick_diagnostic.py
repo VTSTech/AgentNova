@@ -150,7 +150,7 @@ After getting the result, provide the final answer as a number."""
                 max_steps=5,
                 client=fresh_client,
                 model_options=model_opts,
-                force_react=(tool_support == "react"),
+                force_react=config.force_react or (tool_support == "react"),
                 on_step=make_step_callback(DEBUG),
                 debug=DEBUG,
             )
