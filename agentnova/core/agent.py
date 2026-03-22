@@ -2595,45 +2595,19 @@ class Agent:
 
         results_text = "\n".join(f"- {r}" for r in results)
 
-        # Check if this is a multi-step calculation that might be incomplete
-        # A TRUE multi-step question has "then X" pattern where X is a separate operation
-        # Just containing "plus/minus" as part of expression description doesn't count
-        q_lower = user_input.lower()
-        
-        # Only consider it multi-step if there's explicit "then" + operation pattern
-        # e.g., "8 * 7, then subtract 5" or "calculate X, then add Y"
-        has_then_operation = (
-            "then" in q_lower and 
-            any(op in q_lower for op in ["subtract", "add", "multiply", "divide", "plus", "minus"])
-        )
-        
-        # Also check for comma-separated steps pattern
-        # e.g., "first do X, then do Y"
-        has_sequential_pattern = (
-            (", then " in q_lower or " and then " in q_lower) and
-            any(op in q_lower for op in ["subtract", "add", "multiply", "divide"])
-        )
-        
-        is_multi_step_question = has_then_operation or has_sequential_pattern
-
         # For numeric results, use the LAST one directly without LLM synthesis
-        # BUT: Skip this if the question implies multi-step operations and we only have one result
+        # NOTE: We no longer try to detect incomplete multi-step calculations
+        # because we can't tell if the model computed the full expression or not
+        # (e.g., "8 * 7 - 5" vs just "8 * 7"). Returning the numeric result directly
+        # is safer than forcing LLM synthesis which might hallucinate.
         r_clean = _strip_tool_prefix(results[-1])
         if self.debug:
             print(f"    synthesize: checking if numeric: '{r_clean}'")
-            print(f"    synthesize: is_multi_step_question={is_multi_step_question}, num_results={len(results)}")
         try:
             num = float(r_clean)
-            # If this looks like a multi-step question but we only have one result,
-            # the calculation is likely incomplete - use LLM synthesis instead
-            if is_multi_step_question and len(results) == 1:
-                if self.debug:
-                    print(f"    synthesize: multi-step question with single result, using LLM synthesis")
-                # Fall through to LLM synthesis
-            else:
-                if self.debug:
-                    print(f"    synthesize: using numeric result directly: {num}")
-                return r_clean
+            if self.debug:
+                print(f"    synthesize: using numeric result directly: {num}")
+            return r_clean
         except (ValueError, TypeError):
             if self.debug:
                 print(f"    synthesize: not numeric: could not convert string to float: '{r_clean}'")
@@ -2657,62 +2631,6 @@ class Agent:
 
         if self.debug:
             print(f"    synthesize: making LLM call to summarize {len(results)} results...")
-
-        # Try to auto-complete simple multi-step calculations before falling back to LLM
-        # This handles cases like "8 * 7, then subtract 5" where only 8*7 was computed
-        if is_multi_step_question and len(results) == 1:
-            try:
-                # Get the numeric result we have
-                last_num = float(_strip_tool_prefix(results[-1]))
-                # Try to extract the remaining operation from the question
-                # Pattern: "then subtract X" or "then add X" etc.
-                # Look for "then subtract/add/minus/plus <number>"
-                remaining_match = re.search(
-                    r'then\s+(?:subtract|minus)\s+(\d+(?:\.\d+)?)',
-                    q_lower
-                )
-                if remaining_match:
-                    sub_val = float(remaining_match.group(1))
-                    final_val = last_num - sub_val
-                    if self.debug:
-                        print(f"    synthesize: auto-completing: {last_num} - {sub_val} = {final_val}")
-                    return str(int(final_val) if final_val == int(final_val) else final_val)
-
-                remaining_match = re.search(
-                    r'then\s+(?:add|plus)\s+(\d+(?:\.\d+)?)',
-                    q_lower
-                )
-                if remaining_match:
-                    add_val = float(remaining_match.group(1))
-                    final_val = last_num + add_val
-                    if self.debug:
-                        print(f"    synthesize: auto-completing: {last_num} + {add_val} = {final_val}")
-                    return str(int(final_val) if final_val == int(final_val) else final_val)
-
-                remaining_match = re.search(
-                    r'then\s+(?:multiply|times)\s+(?:by\s+)?(\d+(?:\.\d+)?)',
-                    q_lower
-                )
-                if remaining_match:
-                    mul_val = float(remaining_match.group(1))
-                    final_val = last_num * mul_val
-                    if self.debug:
-                        print(f"    synthesize: auto-completing: {last_num} * {mul_val} = {final_val}")
-                    return str(int(final_val) if final_val == int(final_val) else final_val)
-
-                remaining_match = re.search(
-                    r'then\s+(?:divide|divided\s+by)\s+(\d+(?:\.\d+)?)',
-                    q_lower
-                )
-                if remaining_match:
-                    div_val = float(remaining_match.group(1))
-                    if div_val != 0:
-                        final_val = last_num / div_val
-                        if self.debug:
-                            print(f"    synthesize: auto-completing: {last_num} / {div_val} = {final_val}")
-                        return str(int(final_val) if final_val == int(final_val) else final_val)
-            except (ValueError, TypeError):
-                pass
 
         # For synthesis, don't include the model's potentially wrong pre-tool responses
         # Just use the system prompt and the synthesis request
