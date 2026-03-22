@@ -1,4 +1,4 @@
-# ⚛️ AgentNova R02.3
+# ⚛️ AgentNova R02.4
 
 A minimal, hackable agentic framework engineered to run **entirely locally** with [Ollama](https://ollama.com) or [BitNet](https://github.com/microsoft/BitNet).
 
@@ -8,7 +8,9 @@ Inspired by the architecture of OpenClaw, rebuilt from scratch for local-first o
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/VTSTech/AgentNova/blob/main/AgentNova.ipynb)
 [![GitHub commits](https://badgen.net/github/commits/VTSTech/AgentNova)](https://GitHub.com/VTSTech/AgentNova/commit/) [![GitHub latest commit](https://badgen.net/github/last-commit/VTSTech/AgentNova)](https://GitHub.com/VTSTech/AgentNova/commit/)
-[![pip - agentnova](https://img.shields.io/badge/pip-agentnova-2ea44f?logo=PyPi)](https://pypi.org/project/agentnova/)
+
+[![pip - agentnova](https://img.shields.io/badge/pip-agentnova-2ea44f?logo=PyPi)](https://pypi.org/project/agentnova/)[![PyPI download month](https://img.shields.io/pypi/dm/ansicolortags.svg)](https://pypi.python.org/pypi/ansicolortags/)[![PyPI download day](https://img.shields.io/pypi/dd/ansicolortags.svg)](https://pypi.python.org/pypi/ansicolortags/)
+
 [![License](https://img.shields.io/badge/License-MIT-blue)](#license) [![Go to Python website](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2FVTSTech%2FAgentNova%2Frefs%2Fheads%2Fmain%2Fpyproject.toml&query=project.requires-python&label=python&logo=python&logoColor=white)](https://python.org)
 
 ---
