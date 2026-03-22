@@ -4,104 +4,64 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [R02.5] - 2026-03-23 (Refactoring)
+## [R02.4] - 2026-03-22 (Refactoring)
 
 ### 🔧 Major Code Refactoring
 
-Complete restructuring of `agent.py` with significant code reduction and improved maintainability. The monolithic agent implementation has been split into cleaner, mode-specific handlers.
-
-### Added
-- **`agentnova/core/agent_modes.py`** (606 lines) - New module with extracted mode handlers:
-  - `run_pure_reasoning()` - Handler for models with `tool_support=none`
-  - `run_native_tools()` - Handler for models with Ollama native tool calling
-  - `run_react_mode()` - Handler for text-based ReAct prompting
-  - `StepResult` dataclass - Represents a single step in agent execution
-  - `AgentRun` dataclass - Complete result of an agent run with steps and metrics
-
-- **Dataclasses in agent.py**:
-  - `StepResult` - Tracks step type, content, tool info, and timing
-  - `AgentRun` - Contains final answer, steps list, total time, and status
+Complete restructuring with code properly consolidated into `agent_modes.py` as a shared module. The Agent class now imports helpers instead of duplicating them.
 
 ### Changed
-- **`agent.py` massively refactored** (2769 lines → 558 lines, **~80% reduction**):
-  - Extracted mode handlers to `_run_pure_reasoning()`, `_run_native_tools()`, `_run_react_mode()`
-  - Removed `TOOL_ARG_ALIASES` dictionary (150+ lines of argument mappings)
-  - Removed `FEW_SHOT_SUFFIX`, `FEW_SHOT_COMPACT`, `NATIVE_TOOL_HINTS` prompts
-  - Removed `_extract_calc_expression()`, `_extract_echo_text()` helper functions
-  - Removed `_normalize_args()` with complex alias handling
-  - Removed `_fix_calculator_args()` function
-  - Removed `_fuzzy_match_tool_name()` function
-  - Removed BitNet client imports and backend selection code
-  - Removed platform detection code for cross-platform commands
+- **`agent.py` reduced from 1067 → 510 lines** (**52% reduction**)
+  - Now imports all helpers from `agent_modes.py`
+  - Contains only the `Agent` class with its `_run_*` methods
+  - Clean separation: Agent class logic vs. helper functions
 
-- **`run()` method simplified** - Now dispatches to appropriate handler:
-  ```python
-  if self._no_tools:
-      return self._run_pure_reasoning(user_input)
-  elif self._native_tools:
-      return self._run_native_tools(user_input)
-  else:
-      return self._run_react_mode(user_input)
-  ```
-
-- **New methods in Agent class**:
-  - `_build_system_prompt()` - Constructs mode-appropriate system prompts
-  - `_get_chat_options()` - Returns options with family-specific stop tokens
-
-- **Architecture.md updated**:
-  - Reflects R02.4 as current version
-  - Added model family config integration details
-  - Updated numeric result handling section
-  - Added synthesis trigger documentation
-
-### Removed
-- **Complex argument normalization** - Simplified with family-specific configs
-
-### Restored
-- **BitNet backend support** - Re-added after initially being removed in refactor
-  - Controlled via `AGENTNOVA_BACKEND=bitnet` environment variable
-  - Uses `BitnetClient` from `bitnet_client.py`
-  - Falls back to `BITNET_BASE_URL` from config.py
-  - Model family detection gracefully handles BitNet client (defaults to "unknown")
-- **Platform detection for cross-platform shell commands** - Re-added
-  - `_IS_WINDOWS` - Detects Windows vs Unix
-  - `_PLATFORM_DIR_CMD` - "cd" on Windows, "pwd" on Unix
-  - `_PLATFORM_LIST_CMD` - "dir" on Windows, "ls" on Unix
-- **Few-shot examples in ReAct prompts** - Critical for ReAct model tool calling
-  - Added to `get_react_system_suffix()` in `model_family_config.py`
-  - Shows exact tool names (`calculator`, `shell`, `python_repl`)
-  - Shows correct argument names (`expression`, `command`, `code`)
-  - Platform-aware examples for directory commands
-
-### Fixed (Post-Refactor Bug Fixes)
-- **ReAct mode tool execution priority** - Critical bug where `final_answer` was checked BEFORE tool execution
-  - Models hallucinating `Observation:` and `Final Answer:` would skip actual tool calls
-  - Now prioritizes tool execution (`if t_name and t_args`) over final_answer
-  - Test impact: "Square root" test now correctly executes calculator instead of accepting hallucinated result
-- **Fuzzy tool name matching** - Small models often call tools by wrong names
-  - Added `_fuzzy_match_tool_name()` function with word mappings
-  - `Action: ls` → `shell` with synthesized `{"command": "ls"}`
-  - `Action: echo` → `shell` with synthesized `{"command": "echo ..."}`
-  - `Action: sqrt` → `calculator`
-  - `Action: pwd` → `shell`
-- **Shell command synthesis** - When model calls a command as a tool name
-  - Automatically synthesizes correct `shell` tool arguments
-  - Handles: `ls`, `dir`, `pwd`, `echo`, `cat`, `grep`
+- **`agent_modes.py` consolidated** (659 lines)
+  - All shared code in one place
+  - `StepResult` and `AgentRun` dataclasses
+  - `TOOL_ARG_ALIASES` constant (argument name mappings)
+  - All compiled regex patterns (`_THOUGHT_RE`, `_ACTION_RE`, etc.)
+  - All helper functions:
+    - `_parse_react()`, `_parse_json_tool_call()`, `_extract_python_code()`
+    - `_detect_and_fix_repetition()`, `_sanitize_model_json()`
+    - `_strip_tool_prefix()`, `_get_numeric_result()`, `_synthesize_result()`
+    - `_normalize_args()`, `_synthesize_missing_args()`
+    - `_fuzzy_match_tool_name()`, `_is_simple_query()`
 
 ### Architecture Impact
 
-| Component | Before | After | Change |
-|-----------|--------|-------|--------|
-| `agent.py` | 2769 lines | 558 lines | **-80%** |
-| `agent_modes.py` | N/A | 606 lines | New |
-| Total core code | 2769 lines | 1164 lines | **-58%** |
+| File | Before | After | Change |
+|------|--------|-------|--------|
+| `core/agent.py` | 1067 lines | **510 lines** | **-52%** |
+| `core/agent_modes.py` | 719 lines (unused) | **659 lines** | Consolidated |
+| `agent_mode.py` | 831 lines | 831 lines | Unchanged (different feature) |
+| **Total** | 2617 lines | **2000 lines** | **-617 lines** |
 
-### Technical Details
-- Cleaner separation of concerns: each tool support level has its own handler
-- Mode handlers are self-contained and testable in isolation
-- Reduced cognitive load for understanding agent behavior
-- Family-specific configuration handles most argument/prompt variations
-- Removed redundant code that was superseded by `ModelFamilyConfig` integration
+### Key Features Preserved
+- **Small model support** - All robustness features from pre-refactor:
+  - JSON tool call fallback for models that don't use ReAct format
+  - Python code extraction for code-focused models
+  - Argument normalization with `TOOL_ARG_ALIASES`
+  - Missing argument synthesis from context
+  - Fuzzy tool name matching (`ls` → `shell`, `sqrt` → `calculator`)
+  - Repetition loop detection and fixing
+  - Tool execution priority (tools BEFORE final_answer)
+
+### Files Structure
+```
+agentnova/
+├── core/
+│   ├── agent.py          # Agent class only (510 lines)
+│   ├── agent_modes.py    # Shared helpers (659 lines)
+│   └── ...
+├── agent_mode.py         # Autonomous task execution (831 lines) - different feature
+└── ...
+```
+
+### Note: Two "agent_mode" Files
+- `agentnova/core/agent_modes.py` - Shared helper functions for Agent class
+- `agentnova/agent_mode.py` - Autonomous task execution (AgentMode class)
+- These are **different features** with similar names
 
 ### Migration Notes
 - The `Agent` class API remains unchanged - fully backward compatible
