@@ -8,7 +8,7 @@ Inspired by the architecture of OpenClaw, rebuilt from scratch for local-first o
 
 [![GitHub commits](https://badgen.net/github/commits/VTSTech/AgentNova)](https://GitHub.com/VTSTech/AgentNova/commit/) [![GitHub latest commit](https://badgen.net/github/last-commit/VTSTech/AgentNova)](https://GitHub.com/VTSTech/AgentNova/commit/)
 
-[![dependency - agentnova](https://img.shields.io/badge/dependency-agentnova-blue?logo=pypi&logoColor=white)](https://pypi.org/project/agentnova)
+[![PyPi - agentnova](https://img.shields.io/badge/dependency-agentnova-blue?logo=pypi&logoColor=white)](https://pypi.org/project/agentnova)
 [![License](https://img.shields.io/badge/License-MIT-blue)](#license) [![Go to Python website](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2FVTSTech%2FAgentNova%2Frefs%2Fheads%2Fmain%2Fpyproject.toml&query=project.requires-python&label=python&logo=python&logoColor=white)](https://python.org)
 
 ---
