@@ -143,6 +143,7 @@ FAMILY_CONFIGS: dict[str, ModelFamilyConfig] = {
     ),
     
     # QWEN3.5 - Alibaba's Qwen 3.5 models (successor to Qwen3)
+    # Note: Unlike Qwen3, Qwen3.5 does NOT have thinking mode (simple template)
     "qwen35": ModelFamilyConfig(
         family="qwen35",
         start_tokens={
@@ -157,8 +158,8 @@ FAMILY_CONFIGS: dict[str, ModelFamilyConfig] = {
         supports_native_tools=True,
         system_prompt_style="separate",
         preferred_temperature=0.6,
-        needs_think_directive=True,  # Qwen3.5 also has thinking mode
-        prefers_few_shot=True,
+        needs_think_directive=False,  # Qwen3.5 does NOT have thinking mode
+        prefers_few_shot=False,  # Native models should NOT have few-shot
         few_shot_style="react",
     ),
     

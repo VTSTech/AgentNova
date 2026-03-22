@@ -10,17 +10,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### 🐛 Critical Fixes: ReAct Mode
 
-Two critical bugs fixed that were causing ReAct-mode models to fail tool tests.
+Multiple critical bugs fixed that were causing ReAct-mode and thinking-capable models to fail.
 
 ### Fixed
 - **ReAct models now always get `_use_few_shot=True`** - Previously, the `prefers_few_shot=False` setting in model family config (e.g., qwen2) was incorrectly applied to ReAct mode, causing models to output malformed Action/Action Input lines
   - Added explicit override in `agent.py`: `if self._tool_support == "react" and self.tools.all(): self._use_few_shot = True`
 - **Observation now uses correct message role** - Tool results were being added as `assistant` messages instead of `user` messages, causing models to ignore the Observation content
-  - Changed `self.memory.add_assistant(observation)` to `self.memory.add_user(observation)` at line 2371
+  - Changed `self.memory.add_assistant(observation)` to `self.memory.add_user(observation)`
+- **ReAct loop limit enforcement** - The loop limit checks were missing from the ReAct text-parsing path, allowing infinite loops
+  - Added limit check after tool call count increment in ReAct path
+- **Thinking mode disabled via API for qwen3** - Qwen3 was returning empty content because thinking mode is enabled by default
+  - Added `think` parameter support to `ollama_client.chat()` 
+  - Pass `think=False` for models with `needs_think_directive=True` (qwen3, deepseek-r1, etc.)
+  - This uses Ollama's native API support instead of prompt-based workaround
+- **Qwen3.5 config corrected** - Qwen3.5 has a simple template without thinking mode, unlike Qwen3
+  - Set `needs_think_directive=False` for qwen35 family
+- **Tool support caching** - `agentnova models --tool_support` now skips already-tested models
+  - Added `--retest` flag to force re-testing all models
 
 ### Root Causes
-1. **Few-shot bug**: The `prefers_few_shot` setting was designed for native tool-calling models (where few-shot examples can confuse the API), but was incorrectly applied to ReAct-mode models which **require** few-shot examples
-2. **Observation role bug**: In the ReAct pattern, Observations are the system's response to the model's action and must appear as `user` messages for the model to respond to them
+1. **Few-shot bug**: The `prefers_few_shot` setting was designed for native tool-calling models, but was incorrectly applied to ReAct-mode models which **require** few-shot examples
+2. **Observation role bug**: In the ReAct pattern, Observations must appear as `user` messages for the model to respond to them
+3. **Thinking mode bug**: Ollama enables thinking by default for qwen3/deepseek-r1, causing empty content unless `think=False` is passed
 
 ### Impact
 
@@ -29,16 +40,14 @@ Two critical bugs fixed that were causing ReAct-mode models to fail tool tests.
 | llama3.2:1b | react | 72% (8/11) | **90% (10/11)** | **+18%** |
 | qwen2 (various) | react | 72% | **100%** | **+28%** |
 | qwen2.5-coder:0.5b | react | Malformed | 81% | Fixed |
+| qwen3:0.6b | react | 0% (empty) | ~93% (expected) | **Restored** |
 
 ### Technical Details
 - ReAct models need few-shot examples to learn: `Thought: ... Action: tool_name Action Input: {"arg": ...}`
 - Native models should NOT have few-shot examples (API handles tool calling directly)
 - Observations must be `user` role because they represent external input that the model should process
-- The correct ReAct conversation flow:
-  1. User: "What is 15 times 8?"
-  2. Assistant: "Thought: ... Action: calculator Action Input: ..."
-  3. **User**: "Observation: 120" ← Must be user role!
-  4. Assistant: "Final Answer: 120"
+- Thinking-capable models (qwen3, deepseek-r1) require `think=False` in API call to disable thinking mode
+- The Ollama API `think` parameter is the proper way to control thinking mode (not prompt-based directives)
 
 ---
 
