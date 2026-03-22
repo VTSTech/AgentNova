@@ -2596,16 +2596,25 @@ class Agent:
         results_text = "\n".join(f"- {r}" for r in results)
 
         # Check if this is a multi-step calculation that might be incomplete
-        # Patterns like "then subtract", "and then", "after that" indicate multi-step
+        # A TRUE multi-step question has "then X" pattern where X is a separate operation
+        # Just containing "plus/minus" as part of expression description doesn't count
         q_lower = user_input.lower()
-        multi_step_patterns = [
-            "then ", "and then", "after that", "next ", "finally ",
-            "subtract", "add", "multiply", "divide", "plus", "minus"
-        ]
-        is_multi_step_question = (
-            sum(1 for p in multi_step_patterns if p in q_lower) >= 2 or
-            ("then" in q_lower and any(op in q_lower for op in ["subtract", "add", "multiply", "divide", "plus", "minus"]))
+        
+        # Only consider it multi-step if there's explicit "then" + operation pattern
+        # e.g., "8 * 7, then subtract 5" or "calculate X, then add Y"
+        has_then_operation = (
+            "then" in q_lower and 
+            any(op in q_lower for op in ["subtract", "add", "multiply", "divide", "plus", "minus"])
         )
+        
+        # Also check for comma-separated steps pattern
+        # e.g., "first do X, then do Y"
+        has_sequential_pattern = (
+            (", then " in q_lower or " and then " in q_lower) and
+            any(op in q_lower for op in ["subtract", "add", "multiply", "divide"])
+        )
+        
+        is_multi_step_question = has_then_operation or has_sequential_pattern
 
         # For numeric results, use the LAST one directly without LLM synthesis
         # BUT: Skip this if the question implies multi-step operations and we only have one result
