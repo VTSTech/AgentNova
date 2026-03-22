@@ -498,6 +498,15 @@ def run_react_mode(
             )
             continue
         
+        # No tool call but we have final_answer - accept it (model decided not to use tools)
+        elif not t_name and final_answer:
+            run.final_answer = final_answer
+            run.steps.append(StepResult(type="final", content=final_answer, elapsed_ms=elapsed))
+            if on_step:
+                on_step(run.steps[-1])
+            memory.add_assistant(content)
+            break
+        
         # No action but we have results - try to get final answer
         elif not t_name and successful_results:
             # Check if content looks incomplete
