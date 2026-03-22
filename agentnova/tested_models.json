@@ -1,7 +1,7 @@
 {
   "_comment": "Tool support test results for AgentNova models",
   "_version": "1.0",
-  "_updated": "2026-03-21T12:30:15.119640",
+  "_updated": "2026-03-22T01:47:21.752401",
   "models": {
     "qwen2.5-coder:0.5b-instruct-q4_k_m": {
       "tool_support": "react",
@@ -46,6 +46,18 @@
     "tinyllama:1.1b": {
       "tool_support": "none",
       "tested_at": "2026-03-21T12:30:15.021034"
+    },
+    "functiongemma:270m": {
+      "tool_support": "native",
+      "tested_at": "2026-03-22T01:46:25.842761"
+    },
+    "qwen3.5:0.8b": {
+      "tool_support": "error",
+      "tested_at": "2026-03-22T01:47:21.038092"
+    },
+    "qwen:0.5b": {
+      "tool_support": "none",
+      "tested_at": "2026-03-22T01:47:21.648474"
     }
   }
 }

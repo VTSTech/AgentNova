@@ -45,6 +45,30 @@ Family-specific optimizations for Google's Gemma models with improved pure reaso
 - Both models report `family=gemma3` from Ollama API, but have different capabilities
 - The `no_tools_system_prompt` provides arithmetic-focused examples instead of tool references
 
+### 🐬 Dolphin Family Detection (2026-03-22)
+
+Dolphin fine-tunes are now detected as a unified family regardless of their base model.
+
+### Added
+- **Dolphin family detection** in `get_model_family()` - Checks model name for "dolphin" before API family
+  - `nchapman/dolphin3.0-llama3:1b` → `dolphin` (not `llama`)
+  - `nchapman/dolphin3.0-qwen2.5:0.5b` → `dolphin` (not `qwen2`)
+  - `tinydolphin:1.1b` → `dolphin` (not `llama`)
+
+### Changed
+- **Dolphin family config** updated to reflect reality:
+  - `tool_format="none"` - Dolphin fine-tunes lose tool support from base models
+  - `supports_native_tools=False` - No native tool calling
+  - Added `no_tools_system_prompt` with Dolphin-specific examples
+  - All Dolphin models share ChatML template (`<|im_start|>`, `<|im_end|>`)
+
+### Technical Details
+- Dolphin models share the same template regardless of base model (llama, qwen2, etc.)
+- The fine-tuning process removes native tool support
+- Internal family name "dolphin" unifies handling across all Dolphin variants
+
+---
+
 ## [R02.2] - 2026-03-21 8:29:46 PM
 
 ### Fixed
