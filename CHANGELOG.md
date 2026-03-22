@@ -4,7 +4,7 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [R02.4] - 2026-03-22 (Refactoring)
+## [R02.5] - 2026-03-23 (Refactoring)
 
 ### 🔧 Major Code Refactoring
 
@@ -55,10 +55,23 @@ Complete restructuring of `agent.py` with significant code reduction and improve
   - Added synthesis trigger documentation
 
 ### Removed
-- **BitNet backend support** - Removed from agent.py (may be restored in future module)
-- **Platform-specific command detection** - Simplified to use Python REPL for date/time
 - **Complex argument normalization** - Simplified with family-specific configs
-- **Verbose few-shot prompts** - Moved to family-specific prompt handling
+
+### Restored
+- **BitNet backend support** - Re-added after initially being removed in refactor
+  - Controlled via `AGENTNOVA_BACKEND=bitnet` environment variable
+  - Uses `BitnetClient` from `bitnet_client.py`
+  - Falls back to `BITNET_BASE_URL` from config.py
+  - Model family detection gracefully handles BitNet client (defaults to "unknown")
+- **Platform detection for cross-platform shell commands** - Re-added
+  - `_IS_WINDOWS` - Detects Windows vs Unix
+  - `_PLATFORM_DIR_CMD` - "cd" on Windows, "pwd" on Unix
+  - `_PLATFORM_LIST_CMD` - "dir" on Windows, "ls" on Unix
+- **Few-shot examples in ReAct prompts** - Critical for ReAct model tool calling
+  - Added to `get_react_system_suffix()` in `model_family_config.py`
+  - Shows exact tool names (`calculator`, `shell`, `python_repl`)
+  - Shows correct argument names (`expression`, `command`, `code`)
+  - Platform-aware examples for directory commands
 
 ### Architecture Impact
 

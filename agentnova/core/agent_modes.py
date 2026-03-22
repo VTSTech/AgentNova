@@ -1,5 +1,5 @@
 """
-⚛️ AgentNova R02.3 — Agent Mode Handlers
+⚛️ AgentNova R02.4 — Agent Mode Handlers
 
 Separate handlers for each tool support level:
 - _run_pure_reasoning: Models with no tool support (tool_support=none)

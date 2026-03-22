@@ -1,5 +1,5 @@
 """
-⚛️ AgentNova R02.3 — Refactored Agent
+⚛️ AgentNova R02.4 — Refactored Agent
 
 A cleaner implementation with separate handlers for each tool support level.
 

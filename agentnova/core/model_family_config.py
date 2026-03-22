@@ -1,5 +1,5 @@
 """
-⚛️ AgentNova R02.3 — Model Family Configuration
+⚛️ AgentNova R02.4 — Model Family Configuration
 
 Family-specific configurations for prompts, stop tokens, formatting, and tool handling.
 Each model family has unique characteristics that affect how we construct prompts
@@ -383,13 +383,21 @@ def needs_no_think_directive(family: str) -> bool:
 
 def get_react_system_suffix(family: str) -> str:
     """
-    Get family-specific ReAct format instructions.
+    Get family-specific ReAct format instructions with few-shot examples.
     
     Different families may need slightly different formatting hints.
+    CRITICAL: ReAct models MUST have few-shot examples to learn correct format.
     """
     config = get_family_config(family)
     
-    base_suffix = """You have access to tools. Use the following format:
+    # Platform-aware example for date/time (works on all platforms)
+    _date_example = f'''Example 4 - Get current directory:
+Thought: User wants to know the current directory
+Action: shell
+Action Input: {{"command": "{_PLATFORM_DIR_CMD}"}}'''
+    
+    # Base format with FEW-SHOT EXAMPLES - critical for ReAct models!
+    base_suffix = f"""You have access to tools. Use the following format:
 
 Thought: <your reasoning>
 Action: <tool_name>
@@ -397,7 +405,40 @@ Action Input: <JSON with arguments>
 Observation: <result>
 ... (repeat as needed)
 Thought: I have the answer.
-Final Answer: <your response>"""
+Final Answer: <your response>
+
+═══════════════════════════════════════════════════════════════
+TOOL USAGE EXAMPLES - Follow this EXACT format:
+═══════════════════════════════════════════════════════════════
+
+Example 1 - Multiplication:
+Thought: I need to multiply 15 times 8
+Action: calculator
+Action Input: {{"expression": "15 * 8"}}
+
+Example 2 - Power:
+Thought: I need to calculate 2 to the power of 20
+Action: calculator
+Action Input: {{"expression": "2 ** 20"}}
+
+Example 3 - Echo text:
+Thought: User wants to print some text
+Action: shell
+Action Input: {{"command": "echo Hello World"}}
+
+{_date_example}
+
+Example 5 - Run Python code:
+Thought: I need to compute something in Python
+Action: python_repl
+Action Input: {{"code": "print(2 ** 10)"}}
+
+CRITICAL RULES:
+1. Action line: just the tool name (no backticks, no quotes, no descriptions)
+2. Action Input: valid JSON with correct argument names
+3. Use "expression" for calculator, "command" for shell, "code" for python_repl
+4. MATH OPERATORS: * (multiply), ** (power), / (divide), + (add), - (subtract)
+═══════════════════════════════════════════════════════════════"""
     
     # Family-specific modifications
     if family == "granitemoe":

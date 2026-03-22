@@ -6,29 +6,21 @@ Technical documentation for developers contributing to or extending AgentNova.
 
 ## Quick Context for AI Sessions
 
-> **Last Updated:** 2026-03-22
+> **Last Updated:** 2026-03-23
 
 ### Current Project State
 
-**Version:** R02.4 (Full Model Family Config Integration)
+**Version:** R02.5 (Major Code Refactoring)
 
-**Benchmark Champions (Test 15 - Quick Diagnostic):**
+**Key Achievement:** Agent.py reduced by 80% (2769 → ~600 lines) with cleaner separation of concerns. BitNet backend and platform detection restored.
 
-| Model | Score | Tool Support | Notes |
-|-------|-------|--------------|-------|
-| **functiongemma:270m** | 4/5 (80%) | native | Best sub-300M |
-| **granite4:350m** | 4/5 (80%) | native | Best sub-400M |
-| **gemma3:270m** | 3/5 (60%) | none | Pure reasoning |
+### Recent Changes (R02.5)
 
-**Key Achievement:** All 16 model family config fields are now actively used. Bug fixes for calculator error filtering and synthesis triggers.
-
-### Recent Changes (R02.4)
-
-1. **Full Model Family Config Integration** - All 16 `ModelFamilyConfig` fields now used (was only 2/16)
-2. **`_build_system_prompt()` method** - Constructs mode-appropriate prompts with family-specific hints
-3. **`_get_chat_options()` method** - Merges family stop tokens into API options
-4. **Calculator error filtering fix** - Now checks both `[Tool error]` AND `[Calculator error]`
-5. **Synthesis trigger improvements** - Added keywords, removed character limit
+1. **Major Code Refactoring** - `agent.py` reduced from 2769 to ~600 lines
+2. **New `agent_modes.py` module** - Extracted mode handlers for cleaner code
+3. **BitNet backend support** - Restored via `AGENTNOVA_BACKEND=bitnet`
+4. **Platform detection** - Restored for cross-platform shell commands
+5. **Dataclasses** - `StepResult` and `AgentRun` for structured results
 
 ### Important Patterns
 
@@ -439,4 +431,4 @@ agentnova chat --temperature 0.1                # Lower = more deterministic
 
 8. **Never add few-shot to native tool models** - This caused a major regression (90%→58% GSM8K) in R01→R02. Native models use Ollama's API for tool calling; text-based few-shot examples confuse them.
 
-9. **Numeric results are returned directly** (R02.3) - The synthesis logic no longer tries to detect incomplete multi-step calculations. Numeric results pass through unchanged. This avoids double-processing errors when models compute full expressions in one calculator call.
+9. **Numeric results are returned directly** (R02.4) - The synthesis logic no longer tries to detect incomplete multi-step calculations. Numeric results pass through unchanged. This avoids double-processing errors when models compute full expressions in one calculator call.
