@@ -474,14 +474,9 @@ class Agent:
                 print(f"    t_name={t_name!r}")
                 print(f"    final_answer={final_answer!r}")
             
-            # Handle final answer
-            if final_answer:
-                run.final_answer = final_answer
-                run.steps.append(StepResult(type="final", content=final_answer, elapsed_ms=elapsed))
-                if self.on_step:
-                    self.on_step(run.steps[-1])
-                self.memory.add_assistant(content)
-                break
+            # IMPORTANT: Check for tool call FIRST, before final_answer
+            # Models may hallucinate Observation and Final Answer in the same response
+            # We must execute the actual tool call, not trust the hallucinated answer
             
             # Handle thought
             if thought:
@@ -489,7 +484,7 @@ class Agent:
                 if self.on_step:
                     self.on_step(run.steps[-1])
             
-            # Handle tool call
+            # Handle tool call - PRIORITIZE OVER FINAL ANSWER
             if t_name and raw_args:
                 # Parse args
                 if raw_args.startswith('{'):
@@ -545,6 +540,15 @@ class Agent:
                         print(f"    Unknown tool: {t_name}")
                     self.memory.add_assistant(content)
                     self.memory.add_user(f"Tool '{t_name}' not found. Try: {[t.name for t in self.tools.all()]}")
+            
+            # No tool call but we have final_answer - accept it
+            elif not t_name and final_answer:
+                run.final_answer = final_answer
+                run.steps.append(StepResult(type="final", content=final_answer, elapsed_ms=elapsed))
+                if self.on_step:
+                    self.on_step(run.steps[-1])
+                self.memory.add_assistant(content)
+                break
             
             # No action, no final - check if we have results
             elif not t_name and successful_results:
