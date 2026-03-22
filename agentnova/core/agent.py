@@ -1456,7 +1456,7 @@ class Agent:
         from .model_family_config import (
             get_family_config, should_use_few_shot, get_few_shot_style,
             get_react_system_suffix, get_native_tool_hints, has_known_issues,
-            get_stop_tokens
+            get_stop_tokens, needs_no_think_directive
         )
         self._family_config = get_family_config(self.model_family)
         self._family_issues = has_known_issues(self.model_family)
@@ -1552,6 +1552,16 @@ class Agent:
                 few_shot_suffix = FEW_SHOT_COMPACT
             
             base_sys = base_sys + few_shot_suffix
+
+        # ═══════════════════════════════════════════════════════════════════
+        # QWEN3 FIX: Add /no_think to disable thinking mode
+        # ═══════════════════════════════════════════════════════════════════
+        # Qwen3 has a "thinking mode" that outputs reasoning in special tags.
+        # Without /no_think, it outputs everything in thinking tags = empty content.
+        # This caused a 93% → 0% regression in R0.2.2!
+        # ═══════════════════════════════════════════════════════════════════
+        if needs_no_think_directive(self.model_family or ""):
+            base_sys = base_sys + "\n/no_think"
 
         # Debug: Show prompt construction
         if debug:

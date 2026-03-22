@@ -130,7 +130,7 @@ FAMILY_CONFIGS: dict[str, ModelFamilyConfig] = {
             "user": "<|im_start|>user",
             "assistant": "<|im_start|>assistant",
         },
-        stop_tokens=["<|im_start|>", "<|im_end|>"],
+        stop_tokens=["<|im_end|>"],  # Removed <|im_start|> - was causing premature stop
         tool_format="xml",
         tool_call_start="<tool_call>\n",
         tool_call_end="\n</tool_call>",
@@ -283,6 +283,22 @@ def has_known_issues(family: str) -> dict:
         "schema_dump": config.has_schema_dump_issue,
         "truncate_json": config.truncate_json_args,
     }
+
+
+def needs_no_think_directive(family: str) -> bool:
+    """
+    Check if a family needs /no_think directive to disable thinking mode.
+    
+    Some models (like qwen3) have a thinking mode that outputs reasoning
+    in special tags. Without /no_think, they may output empty content.
+    
+    Returns
+    -------
+    bool
+        True if /no_think should be added to system prompt
+    """
+    config = get_family_config(family)
+    return config.needs_think_directive
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
