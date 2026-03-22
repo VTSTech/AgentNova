@@ -477,11 +477,6 @@ def run_react_mode(
                 # Add observation to memory (as user role for model to respond)
                 memory.add_assistant(content)
                 memory.add_user(f"Observation: {result_str}\n\nNow provide your Final Answer:")
-            else:
-                if debug:
-                    print(f"    ⚠️ Unknown tool: {t_name}")
-                memory.add_assistant(content)
-                memory.add_user(f"Tool '{t_name}' not found. Available tools: {[t.name for t in tools.all()]}")
         
         # No tool call and no final answer - might need format reminder
         elif not t_name and not final_answer and not successful_results and not format_reminder_sent:
@@ -497,15 +492,6 @@ def run_react_mode(
                 f"Final Answer: <result>"
             )
             continue
-        
-        # No tool call but we have final_answer - accept it (model decided not to use tools)
-        elif not t_name and final_answer:
-            run.final_answer = final_answer
-            run.steps.append(StepResult(type="final", content=final_answer, elapsed_ms=elapsed))
-            if on_step:
-                on_step(run.steps[-1])
-            memory.add_assistant(content)
-            break
         
         # No action but we have results - try to get final answer
         elif not t_name and successful_results:
