@@ -105,15 +105,16 @@ class Agent:
         self.debug = debug
         self.on_step = on_step
         
-        # Detect model family and tool support
-        self._model_family_config = get_model_family_config(model, self.client)
+        # Get model family from Ollama API
+        self._model_family = self.client.get_model_family(model) or "unknown"
+        self._model_family_config = get_family_config(self._model_family)
         self._needs_no_think = getattr(self._model_family_config, 'needs_think_directive', False)
         
         # Determine tool support level
         if force_react:
             self._tool_support = "react"
         else:
-            from .ollama_client import get_tool_support
+            from ..cli import get_tool_support
             self._tool_support = get_tool_support(model, self.client)
         
         self._native_tools = (self._tool_support == "native")
@@ -121,7 +122,7 @@ class Agent:
         
         # Set up memory with appropriate system prompt
         if self._no_tools:
-            family_no_tools_prompt = get_no_tools_system_prompt(model, self.client)
+            family_no_tools_prompt = get_no_tools_system_prompt(self._model_family)
             system_prompt = family_no_tools_prompt or system_prompt
         
         self.memory = Memory(system_prompt=system_prompt, max_turns=memory_max_turns)
