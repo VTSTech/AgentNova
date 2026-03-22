@@ -253,7 +253,7 @@ def run_native_tools(
                 if on_step:
                     on_step(run.steps[-1])
                 
-                if not result_str.startswith("[Tool error]"):
+                if not result_str.startswith(("[Tool error]", "[Calculator error]")):
                     successful_results.append(f"{t_name} → {result_str}")
                 
                 # Add observation to memory
@@ -471,7 +471,7 @@ def run_react_mode(
                 if on_step:
                     on_step(run.steps[-1])
                 
-                if not result_str.startswith("[Tool error]"):
+                if not result_str.startswith(("[Tool error]", "[Calculator error]")):
                     successful_results.append(f"{t_name} → {result_str}")
                 
                 # Add observation to memory (as user role for model to respond)

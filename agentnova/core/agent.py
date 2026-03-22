@@ -293,7 +293,7 @@ class Agent:
                     if self.on_step:
                         self.on_step(run.steps[-1])
                     
-                    if not result.startswith("[Tool error]"):
+                    if not result.startswith(("[Tool error]", "[Calculator error]")):
                         successful_results.append(f"{t_name} → {result}")
                     
                     # Add observation to memory
