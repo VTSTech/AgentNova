@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 examples/15_quick_diagnostic.py
 --------------------------------
@@ -26,7 +27,14 @@ import time
 import re
 import unicodedata
 import argparse
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Add project root (parent of agentnova package) to path
+# __file__ = .../agentnova/examples/15_quick_diagnostic.py
+# dirname(__file__) = .../agentnova/examples
+# dirname(dirname(__file__)) = .../agentnova (package dir)
+# dirname(dirname(dirname(__file__))) = ... (project root with agentnova package)
+_project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, _project_root)
 
 from agentnova import Agent, get_default_client, get_tool_support, StepResult
 from agentnova.tools.builtins import make_builtin_registry
@@ -101,7 +109,7 @@ def test_model(client, model: str, config: SharedConfig) -> dict:
     
     results = {"model": model, "passed": 0, "total": len(TESTS), "time": 0, "tests": {}}
     
-    for test_name, prompt, tools, expected in TESTS:
+    for i, (test_name, prompt, tools, expected) in enumerate(TESTS):
         print(f"  {test_name}...", end=" ", flush=True)
         
         try:
@@ -114,15 +122,20 @@ When asked to calculate something, ALWAYS use the calculator tool.
 Pass the mathematical expression to the calculator (e.g., "15 + 27" or "8 * 7 - 5").
 After getting the result, provide the final answer as a number."""
             
-            model_opts = {"temperature": 0.0, "num_ctx": 1024, "num_predict": 128}
+            # Use loop index as seed to break KV cache
+            model_opts = {"temperature": 0.0, "num_ctx": 1024, "num_predict": 128, "seed": i}
             model_opts.update(config.model_options)
+            
+            # Create fresh client for each test to avoid state carryover
+            from agentnova import get_default_client
+            fresh_client = get_default_client()
             
             agent = Agent(
                 model=model,
                 tools=registry,
                 system_prompt=system_prompt,
                 max_steps=5,
-                client=client,
+                client=fresh_client,
                 model_options=model_opts,
                 force_react=(tool_support == "react"),
                 on_step=make_step_callback(DEBUG),

@@ -38,6 +38,8 @@ class ModelFamilyConfig:
     # Special behaviors
     has_schema_dump_issue: bool = False  # Some models dump tool schema as text
     truncate_json_args: bool = False  # Some models truncate JSON in ReAct
+    # Override system prompt for models without tool support (pure reasoning)
+    no_tools_system_prompt: str | None = None
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -58,6 +60,29 @@ FAMILY_CONFIGS: dict[str, ModelFamilyConfig] = {
         prefers_few_shot=False,
         few_shot_style="compact",
         reasoning_hints=["Think step by step", "Show your work"],
+        # Optimized prompt for pure reasoning (no tools) - simplified for small models
+        no_tools_system_prompt="""Compute math. No code. Just arithmetic.
+
+Write: expression = result
+End with: Answer: number
+
+Examples:
+User: What is 15 plus 27?
+15 + 27 = 42
+Answer: 42
+
+User: What is 8 times 7 minus 5?
+8 * 7 = 56
+56 - 5 = 51
+Answer: 51
+
+User: A store has 24 apples. They sell 8 and 6.
+24 - 8 - 6 = 10
+Answer: 10
+
+User: Store open 9 AM to 5 PM. How many hours?
+5 - 9 + 12 = 8
+Answer: 8""",
     ),
     
     # GRANITE - IBM's Granite 4.x models (native tool support with XML format)
@@ -248,6 +273,11 @@ def supports_tools(family: str) -> bool:
 def get_tool_format(family: str) -> str:
     """Get tool format for a family."""
     return get_family_config(family).tool_format
+
+
+def get_no_tools_system_prompt(family: str) -> str | None:
+    """Get the system prompt override for models without tool support."""
+    return get_family_config(family).no_tools_system_prompt
 
 
 def get_preferred_temperature(family: str) -> float:

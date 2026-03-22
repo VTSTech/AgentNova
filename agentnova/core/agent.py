@@ -1456,7 +1456,7 @@ class Agent:
         from .model_family_config import (
             get_family_config, should_use_few_shot, get_few_shot_style,
             get_react_system_suffix, get_native_tool_hints, has_known_issues,
-            get_stop_tokens, needs_no_think_directive
+            get_stop_tokens, needs_no_think_directive, get_no_tools_system_prompt
         )
         self._family_config = get_family_config(self.model_family)
         self._family_issues = has_known_issues(self.model_family)
@@ -1516,8 +1516,12 @@ class Agent:
             if native_hints:
                 base_sys = base_sys + "\n\n" + native_hints
         
-        # For "none" level: don't add any tool-related prompts
-        # Model should use its Modelfile system prompt as-is
+        # For "none" level: use family-specific override if available
+        elif self._tool_support == "none":
+            family_override = get_no_tools_system_prompt(self.model_family or "")
+            if family_override:
+                base_sys = family_override
+            # Otherwise keep the passed system_prompt as-is
         
         # ═══════════════════════════════════════════════════════════════════
         # ⚠️ FEW-SHOT WARNING - DO NOT ADD TO NATIVE TOOL MODELS!
@@ -2455,6 +2459,7 @@ class Agent:
                         model=self.model,
                         messages=self.memory.to_messages(),
                         options=self.model_options,
+                        think=False if self._needs_no_think else None,
                     )
                     content = retry.get("message", {}).get("content", "").strip() or content
                     self.memory._history.pop()   # remove the nudge from memory
@@ -2644,6 +2649,7 @@ class Agent:
                 model=self.model,
                 messages=synthesis_messages,
                 options=self.model_options,
+                think=False if self._needs_no_think else None,
             )
             content = response.get("message", {}).get("content", "").strip()
             # Clean up any JSON tool schemas from the response
@@ -2724,6 +2730,7 @@ class Agent:
             messages=self.memory.to_messages(),
             stream=True,
             options=self.model_options,
+            think=False if self._needs_no_think else None,
         )
         full = ""
         for chunk in chunks:

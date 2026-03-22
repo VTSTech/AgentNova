@@ -198,6 +198,7 @@ class OllamaClient:
             "model": model,
             "messages": messages,
             "stream": False,
+            "keep_alive": "1m",  # Keep model loaded briefly but clear KV cache between requests
         }
         if tools:
             payload["tools"] = tools
