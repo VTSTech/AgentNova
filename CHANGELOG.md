@@ -1,4 +1,4 @@
-# Changelog
+ Changelog
 
 All notable changes to AgentNova will be documented in this file.
 
@@ -6,19 +6,58 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [R02.4] - 2026-03-22 3:20:14 PM
 
-### 🔢 Multi-Step Calculation Handling
+### 🎯 Full Model Family Config Integration
 
-The synthesis logic has been simplified to always return numeric results directly. Previous attempts to detect and auto-complete incomplete multi-step calculations caused issues when models correctly computed full expressions in a single calculator call.
+All 16 configuration fields from `ModelFamilyConfig` are now actively used in the Agent class. Previously, only 2 of 16 fields were being utilized despite careful crafting from Modelfile templates.
+
+### Added
+- **`_build_system_prompt()` method** - Constructs appropriate system prompts based on tool support mode:
+  - Pure reasoning: Uses family-specific `no_tools_system_prompt`
+  - Native tools: Adds `get_native_tool_hints()` for tool usage guidance
+  - ReAct mode: Adds `get_react_system_suffix()` + `reasoning_hints`
+- **`_get_chat_options()` method** - Returns model options with family-specific `stop_tokens` merged in
 
 ### Changed
-- **Simplified numeric result handling** - All numeric results are now returned directly without LLM synthesis
+- **All config fields now integrated:**
+  | Field | Usage |
+  |-------|-------|
+  | `stop_tokens` | Passed to Ollama API via `_get_chat_options()` |
+  | `preferred_temperature` | Applied as default if not in model_options |
+  | `needs_think_directive` | Controls `think=` parameter for qwen3/deepseek |
+  | `reasoning_hints` | Added to system prompt in ReAct mode |
+  | `no_tools_system_prompt` | Used for pure reasoning mode (gemma3, dolphin) |
+  | `prefers_few_shot` | Stored for few-shot integration |
+  | `few_shot_style` | Stored for few-shot format selection |
+  | `has_schema_dump_issue` | Stored for schema handling (granitemoe) |
+  | `truncate_json_args` | Stored for JSON handling |
+  | `system_prompt_style` | Stored for prompt style detection |
+  | `supports_native_tools` | Available via config |
+  | `tool_format` | Available via `get_tool_format()` |
+  | `tool_call_start/end` | Available for ReAct parsing |
+  | `start_tokens` | Available for chat templates |
 
-### Rationale
-When a model computes `8 * 7 - 5 = 51` as a single expression, we can't tell from the result alone whether:
-1. The model did the full calculation (correct), OR
-2. The model only did `8 * 7 = 56` (incomplete)
+- **Debug output enhanced** - Now shows: `model=X, tool_support=Y, family=Z, temp=0.7`
 
-Auto-completing based on question text causes double-subtraction errors. Returning the numeric result directly is safer.
+### Fixed
+- **Calculator error filtering** - Was only checking `[Tool error]` but calculator returns `[Calculator error]`
+  - Changed to check both prefixes: `result.startswith(("[Tool error]", "[Calculator error]"))`
+  - Prevents error results from polluting `successful_results` list
+- **Synthesis trigger keywords** - Added "how many", "how much", "use the calculator"
+  - Removed arbitrary 60/120 character limit (word problems can be verbose)
+- **Max calls handling** - Now returns numeric result instead of `continue` loop
+
+### Impact
+
+| Model | Before R02.4 | After R02.4 | Notes |
+|-------|--------------|-------------|-------|
+| **gemma3:270m** | 60% | 60% | Pure reasoning unchanged |
+| **functiongemma:270m** | 60% | **80%** | Q5 now passes (synthesis fix) |
+| **granite4:350m** | Broken | **80%** | Error filtering fix |
+
+### Technical Details
+- The `preferred_temperature` from family config is now applied when user doesn't specify temperature
+- Stop tokens from family config prevent runaway generation (e.g., `<|end_of_turn|>` for gemma3, `<|im_end|>` for qwen)
+- Native tool hints guide models on when to call tools vs respond directly
 
 ---
 

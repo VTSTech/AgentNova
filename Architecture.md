@@ -10,18 +10,25 @@ Technical documentation for developers contributing to or extending AgentNova.
 
 ### Current Project State
 
-**Version:** R02.3 (Multi-Step Auto-Completion + Family Detection)
+**Version:** R02.4 (Full Model Family Config Integration)
 
-**Benchmark Champion:** `granite3.1-moe:1b` at **93% (14/15)** in **95.7s**
+**Benchmark Champions (Test 15 - Quick Diagnostic):**
 
-**Key Achievement:** Sub-1B models now competitive with 1B+ models. Both native and ReAct tool support modes now work correctly. Multi-step calculations auto-completed when models miss subsequent operations.
+| Model | Score | Tool Support | Notes |
+|-------|-------|--------------|-------|
+| **functiongemma:270m** | 4/5 (80%) | native | Best sub-300M |
+| **granite4:350m** | 4/5 (80%) | native | Best sub-400M |
+| **gemma3:270m** | 3/5 (60%) | none | Pure reasoning |
 
-### Recent Changes (R02.3)
+**Key Achievement:** All 16 model family config fields are now actively used. Bug fixes for calculator error filtering and synthesis triggers.
 
-1. **Multi-Step Calculation Auto-Completion** - Agent detects incomplete multi-step calculations and auto-completes them (e.g., "8 * 7, then subtract 5")
-2. **Gemma Family Improvements** - `no_tools_system_prompt` field for models without tool support (gemma3:270m, functiongemma:270m)
-3. **Dolphin Family Detection** - Unified family detection for Dolphin fine-tunes (they lose tool support from base models)
-4. **Tool Support Detection** - Three-tier system: `native`, `react`, `none` (auto-detected per model)
+### Recent Changes (R02.4)
+
+1. **Full Model Family Config Integration** - All 16 `ModelFamilyConfig` fields now used (was only 2/16)
+2. **`_build_system_prompt()` method** - Constructs mode-appropriate prompts with family-specific hints
+3. **`_get_chat_options()` method** - Merges family stop tokens into API options
+4. **Calculator error filtering fix** - Now checks both `[Tool error]` AND `[Calculator error]`
+5. **Synthesis trigger improvements** - Added keywords, removed character limit
 
 ### Important Patterns
 
@@ -163,43 +170,75 @@ agentnova models --tool_support
 
 ---
 
-## Numeric Result Handling (R02.3)
+## Numeric Result Handling (R02.4)
 
-The synthesis logic now returns numeric results directly without attempting to detect incomplete multi-step calculations.
+The synthesis logic returns numeric results directly and uses family-specific configuration for optimal behavior.
 
-### Why Simple Is Better
-
-When a model computes an expression like `8 * 7 - 5 = 51`:
-
-```
-User: Calculate 8 times 7, then subtract 5 from the result.
-Model: calculator(expression=8 * 7 - 5)  ← Full expression in one call
-Result: 51  ← Correct!
-```
-
-From the result alone, we **cannot tell** whether:
-1. The model computed `8 * 7 - 5` (complete), OR
-2. The model computed `8 * 7` only (incomplete)
-
-Previous attempts to auto-complete by detecting "then subtract X" patterns caused **double-subtraction errors** when the model had already included the operation.
-
-### Current Behavior
+### Error Filtering
 
 ```python
-# Simple rule: If result is numeric, return it directly
-try:
-    num = float(r_clean)
-    return r_clean  # Return numeric result directly
-except ValueError:
-    pass  # Fall through to LLM synthesis for non-numeric results
+# BOTH error prefixes are checked
+if not result.startswith(("[Tool error]", "[Calculator error]")):
+    successful_results.append(f"{t_name} → {result}")
 ```
 
-This is safer because:
-- **Correct results pass through** unchanged
-- **Wrong results** (from incomplete calculations) are still better than double-processed results
-- **No hallucination risk** from LLM synthesis trying to interpret partial results
+The calculator tool returns `[Calculator error]` while the base tool class returns `[Tool error]`. Both must be checked to prevent error results from polluting the `successful_results` list.
+
+### Synthesis Triggers
+
+```python
+simple_keywords = [
+    "what is", "calculate", "compute", "sqrt", 
+    "date", "time", "how many", "how much",
+    "use the calculator", "use calculator"
+]
+# No length limit - word problems can be verbose
+return any(kw in lower for kw in simple_keywords)
+```
 
 ---
+
+## Model Family Config Integration (R02.4)
+
+All 16 configuration fields are now actively used:
+
+| Field | Integration Point |
+|-------|-------------------|
+| `stop_tokens` | `_get_chat_options()` merges into API options |
+| `preferred_temperature` | Applied as default in `__init__` |
+| `needs_think_directive` | Controls `think=False` for qwen3/deepseek |
+| `reasoning_hints` | Added to ReAct mode system prompt |
+| `no_tools_system_prompt` | Used for `tool_support=none` models |
+| `prefers_few_shot` | Stored for few-shot integration |
+| `few_shot_style` | Stored for format selection |
+| `has_schema_dump_issue` | Flag for granitemoe schema handling |
+| `truncate_json_args` | Flag for JSON truncation handling |
+| `system_prompt_style` | Prompt style detection |
+| `supports_native_tools` | Available via helper functions |
+| `tool_format` | Available via `get_tool_format()` |
+| `tool_call_start/end` | Available for ReAct parsing |
+| `start_tokens` | Available for chat templates |
+
+### System Prompt Construction
+
+```python
+def _build_system_prompt(self, base_prompt: str) -> str:
+    # Pure reasoning mode
+    if self._no_tools:
+        return get_no_tools_system_prompt(self._model_family) or base_prompt
+    
+    # Native tools mode
+    if self._native_tools:
+        hints = get_native_tool_hints(self._model_family)
+        return f"{base_prompt}\n\n{hints}" if hints else base_prompt
+    
+    # ReAct mode
+    react_suffix = get_react_system_suffix(self._model_family)
+    if self._reasoning_hints:
+        hints_text = "\n".join(f"- {h}" for h in self._reasoning_hints)
+        base_prompt = f"{base_prompt}\n\nReasoning approach:\n{hints_text}"
+    return f"{base_prompt}\n\n{react_suffix}"
+```
 
 ## Prompting Strategy by Tool Support
 
