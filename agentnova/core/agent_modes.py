@@ -414,14 +414,9 @@ def run_react_mode(
             print(f"    t_args={t_args!r}")
             print(f"    final_answer={final_answer!r}")
         
-        # Handle final answer
-        if final_answer:
-            run.final_answer = final_answer
-            run.steps.append(StepResult(type="final", content=final_answer, elapsed_ms=elapsed))
-            if on_step:
-                on_step(run.steps[-1])
-            memory.add_assistant(content)
-            break
+        # IMPORTANT: Check for tool call FIRST, before final_answer
+        # Models may hallucinate Observation and Final Answer in the same response
+        # We must execute the actual tool call, not trust the hallucinated answer
         
         # Handle thought
         if thought:
@@ -429,7 +424,7 @@ def run_react_mode(
             if on_step:
                 on_step(run.steps[-1])
         
-        # Handle tool call
+        # Handle tool call - PRIORITIZE OVER FINAL ANSWER
         if t_name and t_args is not None:
             # Check tool limits
             tool_call_counts[t_name] = tool_call_counts.get(t_name, 0) + 1
@@ -444,7 +439,37 @@ def run_react_mode(
                     on_step(run.steps[-1])
                 break
             
-            # Check if tool exists
+            # Check if tool exists, try fuzzy matching if not
+            original_t_name = t_name
+            if not tools.get(t_name):
+                fuzzy_name = _fuzzy_match_tool_name(t_name, tools)
+                if debug:
+                    print(f"    fuzzy_match({t_name!r}) -> {fuzzy_name!r}")
+                if fuzzy_name:
+                    # Handle special cases for shell commands
+                    if fuzzy_name == "shell" and original_t_name.lower() in ("ls", "dir", "pwd", "echo", "cat", "grep"):
+                        # Model called a command as a tool name - synthesize proper command
+                        if original_t_name.lower() == "ls":
+                            t_args = {"command": "ls"}
+                        elif original_t_name.lower() == "dir":
+                            t_args = {"command": "dir"}
+                        elif original_t_name.lower() == "pwd":
+                            t_args = {"command": "pwd"}
+                        elif original_t_name.lower() == "echo":
+                            # Extract text from args
+                            text_val = t_args.get("text") or t_args.get("message") or t_args.get("input") or ""
+                            t_args = {"command": f"echo {text_val}" if text_val else "echo"}
+                        elif original_t_name.lower() == "cat":
+                            path = t_args.get("path") or t_args.get("file") or t_args.get("input") or ""
+                            t_args = {"command": f"cat {path}" if path else "cat"}
+                    t_name = fuzzy_name
+                else:
+                    if debug:
+                        print(f"    ⚠️ Unknown tool: {original_t_name}")
+                    memory.add_assistant(content)
+                    memory.add_user(f"Tool '{original_t_name}' not found. Available tools: {[t.name for t in tools.all()]}")
+                    continue
+            
             if tools.get(t_name):
                 if debug:
                     args_str = ", ".join(f"{k}={v}" for k, v in t_args.items())
@@ -492,6 +517,15 @@ def run_react_mode(
                 f"Final Answer: <result>"
             )
             continue
+        
+        # No tool call but we have final_answer - accept it (model decided not to use tools)
+        elif not t_name and final_answer:
+            run.final_answer = final_answer
+            run.steps.append(StepResult(type="final", content=final_answer, elapsed_ms=elapsed))
+            if on_step:
+                on_step(run.steps[-1])
+            memory.add_assistant(content)
+            break
         
         # No action but we have results - try to get final answer
         elif not t_name and successful_results:
@@ -581,6 +615,91 @@ def _normalize_args(args: dict, tool: Tool) -> dict:
                 break
     
     return normalized if normalized else args
+
+
+# Word mappings for fuzzy tool name matching
+# Maps keyword → list of acceptable tools (in priority order)
+_TOOL_WORD_MAPPINGS = {
+    # Calculator-related
+    "calculate": ["calculator", "python_repl"],
+    "calc": ["calculator", "python_repl"],
+    "math": ["calculator", "python_repl"],
+    "compute": ["calculator", "python_repl"],
+    "sqrt": ["calculator", "python_repl"],
+    "square": ["calculator", "python_repl"],
+    "root": ["calculator", "python_repl"],
+    "power": ["calculator", "python_repl"],
+    "multiply": ["calculator", "python_repl"],
+    "divide": ["calculator", "python_repl"],
+    "add": ["calculator", "python_repl"],
+    "subtract": ["calculator", "python_repl"],
+    "calculator": ["calculator"],
+    
+    # Shell-related
+    "shell": ["shell"],
+    "bash": ["shell"],
+    "cmd": ["shell"],
+    "command": ["shell"],
+    "ls": ["shell"],
+    "dir": ["shell"],
+    "cat": ["shell"],
+    "echo": ["shell"],
+    "pwd": ["shell"],
+    "grep": ["shell"],
+    
+    # Python
+    "python": ["python_repl", "shell"],
+    "repl": ["python_repl", "shell"],
+    "code": ["python_repl", "shell"],
+    "exec": ["python_repl", "shell"],
+    
+    # File I/O
+    "read": ["read_file"],
+    "write": ["write_file"],
+    "file": ["read_file", "write_file"],
+}
+
+
+def _fuzzy_match_tool_name(hallucinated_name: str, tools: ToolRegistry) -> str | None:
+    """
+    Try to match a hallucinated tool name to a real tool.
+    
+    Small models often call tools by wrong names:
+        "ls" → shell
+        "echo" → shell
+        "sqrt" → calculator
+    
+    Returns the matched tool name or None if no match found.
+    """
+    # First, try exact match
+    if tools.get(hallucinated_name):
+        return hallucinated_name
+    
+    real_names = [t.name for t in tools.all()]
+    lower_hall = hallucinated_name.lower().replace("_", "")
+    
+    # Strategy 1: Check if any real tool name is a substring
+    for real_name in real_names:
+        lower_real = real_name.lower().replace("_", "")
+        if lower_real in lower_hall or lower_hall in lower_real:
+            return real_name
+    
+    # Strategy 2: Word mappings
+    for keyword, tool_hints in _TOOL_WORD_MAPPINGS.items():
+        if keyword in lower_hall:
+            for tool_hint in tool_hints:
+                for real_name in real_names:
+                    if tool_hint in real_name or real_name == tool_hint:
+                        return real_name
+    
+    # Strategy 3: First 4 chars match
+    for real_name in real_names:
+        lower_real = real_name.lower()
+        if len(lower_real) >= 4 and len(lower_hall) >= 4:
+            if lower_real[:4] == lower_hall[:4]:
+                return real_name
+    
+    return None
 
 
 def _is_simple_query(memory: Memory) -> bool:
