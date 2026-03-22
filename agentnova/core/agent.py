@@ -1460,6 +1460,7 @@ class Agent:
         )
         self._family_config = get_family_config(self.model_family)
         self._family_issues = has_known_issues(self.model_family)
+        self._needs_no_think = needs_no_think_directive(self.model_family)
         
         # Add stop tokens for ReAct mode to prevent runaway generation
         # Models sometimes loop "Final Answer: X\nFinal Answer: X..."
@@ -1553,16 +1554,6 @@ class Agent:
             
             base_sys = base_sys + few_shot_suffix
 
-        # ═══════════════════════════════════════════════════════════════════
-        # QWEN3 FIX: Add /no_think to disable thinking mode
-        # ═══════════════════════════════════════════════════════════════════
-        # Qwen3 has a "thinking mode" that outputs reasoning in special tags.
-        # Without /no_think, it outputs everything in thinking tags = empty content.
-        # This caused a 93% → 0% regression in R0.2.2!
-        # ═══════════════════════════════════════════════════════════════════
-        if needs_no_think_directive(self.model_family or ""):
-            base_sys = base_sys + "\n/no_think"
-
         # Debug: Show prompt construction
         if debug:
             print(f"\n  🔍 DEBUG: System prompt construction")
@@ -1600,6 +1591,7 @@ class Agent:
                 messages=self.memory.to_messages(),
                 tools=None,  # Don't pass tools
                 options=self.model_options,
+                think=False if self._needs_no_think else None,
             )
             elapsed = (time.perf_counter() - step_t0) * 1000
             msg = response.get("message", {})
@@ -1633,6 +1625,7 @@ class Agent:
                 messages=self.memory.to_messages(),
                 tools=self.tools.schemas() if self._native_tools else None,
                 options=self.model_options,
+                think=False if self._needs_no_think else None,
             )
 
             elapsed = (time.perf_counter() - step_t0) * 1000
@@ -2088,6 +2081,7 @@ class Agent:
                             model=self.model,
                             messages=self.memory.to_messages(),
                             options=self.model_options,
+                            think=False if self._needs_no_think else None,
                         )
                         nudge_content = nudge_response.get("message", {}).get("content", "").strip()
                         # Only accept it if it doesn't look like another tool call
