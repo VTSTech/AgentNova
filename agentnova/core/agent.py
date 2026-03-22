@@ -487,4 +487,5 @@ def _is_simple_query(text: str) -> bool:
     """Check if the query is simple enough for immediate synthesis."""
     lower = text.lower()
     simple_keywords = ["what is", "calculate", "compute", "sqrt", "date", "time"]
-    return any(kw in lower for kw in simple_keywords) and len(text) < 60
+    # Increased limit from 60 to 120 to handle longer prompts
+    return any(kw in lower for kw in simple_keywords) and len(text) < 120

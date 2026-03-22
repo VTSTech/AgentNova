@@ -596,7 +596,8 @@ def _is_simple_query(memory: Memory) -> bool:
             text = msg.content.lower()
             # Simple math/date queries
             simple_keywords = ["what is", "calculate", "compute", "sqrt", "date", "time"]
-            if any(kw in text for kw in simple_keywords) and len(text) < 60:
+            # Increased limit from 60 to 120 to handle longer prompts
+            if any(kw in text for kw in simple_keywords) and len(text) < 120:
                 return True
             break
     return False
