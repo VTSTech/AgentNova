@@ -4,6 +4,29 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [R02.4] - 2026-03-22 3:20:14 PM
+
+### 🔢 Multi-Step Calculation Auto-Completion
+
+The agent now detects and auto-completes incomplete multi-step calculations. When a model computes only the first step of a multi-step question (e.g., "8 * 7, then subtract 5"), AgentNova extracts the remaining operation and completes the calculation automatically.
+
+### Added
+- **Multi-step pattern detection** - Identifies questions with multi-step indicators:
+  - Patterns: "then subtract", "then add", "then multiply", "then divide"
+  - Triggers LLM synthesis fallback when single result is detected for multi-step question
+- **Auto-completion for basic operations** - Extracts and applies remaining operations:
+  - `"then subtract X"` → `result - X`
+  - `"then add X"` → `result + X`
+  - `"then multiply by X"` → `result * X`
+  - `"then divide by X"` → `result / X`
+- **Debug output** - Shows auto-completion steps when `--debug` is enabled
+
+### Technical Details
+- Detection uses regex patterns on the user's original question
+- Works by detecting multi-step indicators before falling back to LLM synthesis
+- Handles edge cases where model computes first step but misses subsequent operations
+- Example: Question "What is 8 * 7, then subtract 5?" → Model computes `56` → Auto-complete: `56 - 5 = 51`
+
 ---
 
 ## [R02.3] - 2026-03-22 1:26:41 AM

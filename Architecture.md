@@ -6,21 +6,21 @@ Technical documentation for developers contributing to or extending AgentNova.
 
 ## Quick Context for AI Sessions
 
-> **Last Updated:** 2026-03-21
+> **Last Updated:** 2026-03-22
 
 ### Current Project State
 
-**Version:** R02 (Minimal Agentic Framework)
+**Version:** R02.3 (Multi-Step Auto-Completion + Family Detection)
 
 **Benchmark Champion:** `granite3.1-moe:1b` at **93% (14/15)** in **95.7s**
 
-**Key Achievement:** Sub-1B models now competitive with 1B+ models. Both native and ReAct tool support modes now work correctly.
+**Key Achievement:** Sub-1B models now competitive with 1B+ models. Both native and ReAct tool support modes now work correctly. Multi-step calculations auto-completed when models miss subsequent operations.
 
-### Recent Changes (R02)
+### Recent Changes (R02.3)
 
-1. **Fixed ReAct Few-Shot Logic** - ReAct models now always receive few-shot examples (critical for correct Action/Action Input format)
-2. **Native vs ReAct Prompting** - Clear separation: native models don't get few-shot (causes regression), ReAct models MUST get few-shot
-3. **Debug Output Enhancement** - System prompt construction now shows `_use_few_shot`, `_few_shot_style` for easier debugging
+1. **Multi-Step Calculation Auto-Completion** - Agent detects incomplete multi-step calculations and auto-completes them (e.g., "8 * 7, then subtract 5")
+2. **Gemma Family Improvements** - `no_tools_system_prompt` field for models without tool support (gemma3:270m, functiongemma:270m)
+3. **Dolphin Family Detection** - Unified family detection for Dolphin fine-tunes (they lose tool support from base models)
 4. **Tool Support Detection** - Three-tier system: `native`, `react`, `none` (auto-detected per model)
 
 ### Important Patterns
@@ -159,6 +159,61 @@ agentnova/
 Test tool support with:
 ```bash
 agentnova models --tool_support
+```
+
+---
+
+## Multi-Step Calculation Auto-Completion (R02.3)
+
+When small models compute only the first step of a multi-step calculation, AgentNova now detects and auto-completes the remaining operations.
+
+### Problem Solved
+
+Small models often stop after computing the first part of a multi-step question:
+
+```
+User: What is 8 * 7, then subtract 5?
+Model: 56  (stops here, forgetting "then subtract 5")
+```
+
+### Solution
+
+The `_synthesize_response()` method now:
+
+1. **Detects multi-step patterns** in the original question:
+   - "then subtract/add/multiply/divide"
+   - Multiple operation keywords in the question
+
+2. **Checks if calculation is incomplete**:
+   - Multi-step question but only one tool result?
+   - The model likely missed subsequent operations
+
+3. **Auto-completes the calculation**:
+   ```python
+   # Extract remaining operation from question
+   remaining_match = re.search(r'then\s+(?:subtract|minus)\s+(\d+)', q_lower)
+   if remaining_match:
+       final_val = last_num - sub_val
+       return str(final_val)
+   ```
+
+### Supported Patterns
+
+| Pattern | Example | Auto-Complete |
+|---------|---------|---------------|
+| `then subtract X` | "8 * 7, then subtract 5" | `56 - 5 = 51` |
+| `then add X` | "10 * 3, then add 4" | `30 + 4 = 34` |
+| `then multiply by X` | "5 + 5, then multiply by 2" | `10 * 2 = 20` |
+| `then divide by X` | "100 - 20, then divide by 4" | `80 / 4 = 20` |
+
+### Debug Output
+
+With `--debug`, you'll see:
+```
+synthesize: checking if numeric: '56'
+synthesize: is_multi_step_question=True, num_results=1
+synthesize: multi-step question with single result, using LLM synthesis
+synthesize: auto-completing: 56 - 5 = 51
 ```
 
 ---
@@ -361,3 +416,5 @@ agentnova chat --temperature 0.1                # Lower = more deterministic
 7. **ReAct models ALWAYS need few-shot examples** - This is enforced in `agent.py`. If `_tool_support=react`, then `_use_few_shot` must be `True`. Without examples, models output malformed Action/Action Input lines. See "Prompting Strategy by Tool Support" section for details.
 
 8. **Never add few-shot to native tool models** - This caused a major regression (90%→58% GSM8K) in R01→R02. Native models use Ollama's API for tool calling; text-based few-shot examples confuse them.
+
+9. **Multi-step calculation auto-completion** (R02.3) - When models compute only the first step of multi-step questions, AgentNova detects and auto-completes remaining operations. This happens in `_synthesize_response()` before falling back to LLM synthesis. See "Multi-Step Calculation Auto-Completion" section for details.
