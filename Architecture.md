@@ -10,18 +10,18 @@ Technical documentation for developers contributing to or extending AgentNova.
 
 ### Current Project State
 
-**Version:** R01 (Minimal Agentic Framework)
+**Version:** R02 (Minimal Agentic Framework)
 
 **Benchmark Champion:** `granite3.1-moe:1b` at **93% (14/15)** in **95.7s**
 
-**Key Achievement:** Sub-1B models now competitive with 1B+ models. `qwen2.5:0.5b` achieves 90% GSM8K - matches 1B models at half the parameters.
+**Key Achievement:** Sub-1B models now competitive with 1B+ models. Both native and ReAct tool support modes now work correctly.
 
-### Recent Changes (R01)
+### Recent Changes (R02)
 
-1. **Native Synthesis Fallback** - Agent automatically retries failed tool calls with direct synthesis
-2. **Tool Support Detection** - Three-tier system: `native`, `react`, `none` (auto-detected per model)
-3. **Debug Output Enhancement** - Consistent debug pattern across CLI and test files with 🔧📦 emojis
-4. **Test File Standardization** - All tests (except 06) use `agent.run()` with step callbacks
+1. **Fixed ReAct Few-Shot Logic** - ReAct models now always receive few-shot examples (critical for correct Action/Action Input format)
+2. **Native vs ReAct Prompting** - Clear separation: native models don't get few-shot (causes regression), ReAct models MUST get few-shot
+3. **Debug Output Enhancement** - System prompt construction now shows `_use_few_shot`, `_few_shot_style` for easier debugging
+4. **Tool Support Detection** - Three-tier system: `native`, `react`, `none` (auto-detected per model)
 
 ### Important Patterns
 
@@ -83,6 +83,7 @@ tool_support = get_tool_support(model, client)
 |------|---------|
 | `cli.py` | CLI entry point, contains `_build_agent()`, `cmd_agent()`, `cmd_chat()` |
 | `core/agent.py` | Main Agent class with `run()` and `chat()` methods |
+| `core/model_family_config.py` | Family-specific configs for prompting, stop tokens, tool format |
 | `agent_mode.py` | Goal-driven autonomous mode (`cmd_agent`) |
 | `tools/builtins.py` | Built-in tools: calculator, shell, python_repl, file I/O |
 | `examples/07_model_comparison.py` | Main benchmark script (15 tests, 5 categories) |
@@ -100,7 +101,8 @@ agentnova/
 │   ├── tools.py           # Decorator-based tool registry + JSON schema generation
 │   ├── memory.py          # Sliding-window conversation memory with summarization
 │   ├── agent.py           # ReAct loop — native tool-call + text-fallback modes
-│   └── orchestrator.py    # Multi-agent routing (router / pipeline / parallel)
+│   ├── orchestrator.py    # Multi-agent routing (router / pipeline / parallel)
+│   └── model_family_config.py  # Family-specific prompts, stop tokens, tool format
 ├── skills/
 │   ├── loader.py          # Agent Skills specification loader (progressive disclosure)
 │   ├── skill-creator/     # OpenClaw skill-creator for generating new skills
@@ -161,6 +163,110 @@ agentnova models --tool_support
 
 ---
 
+## Prompting Strategy by Tool Support
+
+The Agent class constructs different system prompts based on the model's tool support level. This is critical for correct behavior.
+
+### Few-Shot Examples Logic
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         FEW-SHOT DECISION FLOW                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  1. Check family config (model_family_config.py)                            │
+│     └── prefers_few_shot: True/False                                        │
+│                                                                              │
+│  2. Override for ReAct models (CRITICAL!)                                   │
+│     └── if tool_support == "react" AND tools exist:                         │
+│             use_few_shot = True  # ALWAYS!                                  │
+│                                                                              │
+│  3. For native models: respect family config                                │
+│     └── Adding few-shot to native models DEGRADES performance!              │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Why ReAct Models Need Few-Shot
+
+ReAct models use **text-based** tool calling (not the Ollama API). They output:
+
+```
+Thought: I need to multiply 15 times 8
+Action: calculator
+Action Input: {"expression": "15 * 8"}
+```
+
+**Without few-shot examples**, models output malformed formats:
+- ❌ `Action: Use the calculator to perform the multiplication.`
+- ❌ `Action Input: {"numerator": 15, "denominator": 8}`
+- ❌ `Action: calculator with {"expression": "15*8"}`
+
+**With few-shot examples**, they learn the correct format:
+- ✅ `Action: calculator`
+- ✅ `Action Input: {"expression": "15 * 8"}`
+
+### Why Native Models DON'T Need Few-Shot
+
+Native models use Ollama's built-in tool-calling API:
+1. Tools are passed via `tools` parameter in the API request
+2. The model returns structured `tool_calls` in the response
+3. Adding text-based few-shot examples CONFUSES them with conflicting instructions
+
+This caused a major regression in R01→R02: `qwen2.5:0.5b` dropped from 90%→58% on GSM8K when few-shot was incorrectly added to native mode.
+
+### System Prompt Construction
+
+| Tool Support | Base Prompt | Tool Descriptions | Format Instructions | Few-Shot |
+|--------------|-------------|-------------------|---------------------|----------|
+| `native` | User-defined | ❌ (via API) | Native hints only | ❌ Never |
+| `react` | User-defined | ✅ Text list | ReAct format | ✅ **Always** |
+| `none` | User-defined | ❌ | ❌ | ❌ Never |
+
+### Debug Output Interpretation
+
+When running with `--debug`, check these values:
+
+```python
+_tool_support=react      # Tool support level
+_use_few_shot=True       # CRITICAL: Must be True for react mode!
+_few_shot_style=native   # Style from family config
+_is_small_model=True     # Heuristic based on model name
+model_family=qwen2       # Detected family
+_family_issues={}        # Known issues (truncate_json, schema_dump)
+System prompt length: 1782 chars  # Should be >1000 for ReAct mode
+```
+
+**Red flags:**
+- `_tool_support=react` but `_use_few_shot=False` → **BUG!**
+- `System prompt length < 600` for ReAct mode → Missing few-shot examples
+
+### Family Configuration
+
+Family configs are defined in `agentnova/core/model_family_config.py`:
+
+```python
+"qwen2": ModelFamilyConfig(
+    family="qwen2",
+    supports_native_tools=True,    # Can use Ollama tool API
+    prefers_few_shot=False,        # Don't add few-shot for NATIVE mode
+    few_shot_style="native",       # Style when few-shot IS needed
+),
+
+"granitemoe": ModelFamilyConfig(
+    family="granitemoe",
+    supports_native_tools=True,
+    prefers_few_shot=True,         # MoE benefits from examples
+    few_shot_style="react",
+    has_schema_dump_issue=True,    # Known to dump tool schema as text
+    truncate_json_args=True,       # May truncate JSON in ReAct format
+),
+```
+
+The `prefers_few_shot` setting is for **native mode**. ReAct mode always overrides this to `True`.
+
+---
+
 ## Orchestrator Modes
 
 | Mode | Behaviour |
@@ -170,7 +276,7 @@ agentnova models --tool_support
 | `parallel` | All agents run concurrently; results are merged with attribution |
 
 ---
-## Benchmark Results Summary (R01)
+## Benchmark Results Summary (R02)
 
 ### Test 07 Leaderboard (15-Test Suite)
 
@@ -252,3 +358,6 @@ agentnova chat --temperature 0.1                # Lower = more deterministic
 
 6. **When modifying CLI debug output**, also update test files to match the pattern (see `examples/07_model_comparison.py` as reference).
 
+7. **ReAct models ALWAYS need few-shot examples** - This is enforced in `agent.py`. If `_tool_support=react`, then `_use_few_shot` must be `True`. Without examples, models output malformed Action/Action Input lines. See "Prompting Strategy by Tool Support" section for details.
+
+8. **Never add few-shot to native tool models** - This caused a major regression (90%→58% GSM8K) in R01→R02. Native models use Ollama's API for tool calling; text-based few-shot examples confuse them.
