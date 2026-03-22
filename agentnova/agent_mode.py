@@ -1,602 +1,831 @@
+#!/usr/bin/env python3
 """
-⚛️ AgentNova R02.3 — Agent Mode Handlers
+⚛️ AgentNova R00 — Agent Mode
 
-Separate handlers for each tool support level:
-- _run_pure_reasoning: Models with no tool support (tool_support=none)
-- _run_native_tools: Models with Ollama API tool calling (tool_support=native)
-- _run_react_mode: Models needing text-based ReAct parsing (tool_support=react)
+A goal-driven execution mode where the agent autonomously works through tasks.
+Unlike chat mode (which is user-driven), agent mode:
+- Plans and executes multi-step tasks autonomously
+- Queues messages while working, processes after completion
+- Supports rollback of current step on /stop
+- Provides progress tracking via slash commands
 
-This module provides cleaner separation of concerns compared to the monolithic
-run() method in agent.py.
+State Machine:
+  IDLE → WORKING (task given) → IDLE (task done)
+              ↓
+         STOPPING (/stop) → IDLE (with optional rollback)
+
+Written by VTSTech — https://www.vts-tech.org — https://github.com/VTSTech/AgentNova
 """
+
+from __future__ import annotations
 
 import json
-import re
+import shutil
 import time
-from typing import Callable, Any
-
-from .tools import ToolRegistry, Tool, ToolParam
-from .memory import ConversationMemory
-from .ollama_client import OllamaClient
-from .model_family_config import get_family_config, ModelFamilyConfig
-
-
-class StepResult:
-    """A single step in an agent run."""
-    type: str  # "thought", "tool_call", "tool_result", "final"
-    content: str
-    tool_name: str | None = None
-    tool_args: dict | None = None
-    elapsed_ms: float = 0.0
-
-    def __init__(self, type: str, content: str, tool_name: str = None,
-                 tool_args: dict = None, elapsed_ms: float = 0.0):
-        self.type = type
-        self.content = content
-        self.tool_name = tool_name
-        self.tool_args = tool_args
-        self.elapsed_ms = elapsed_ms
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from pathlib import Path
+from typing import Any, Callable, Optional
 
 
-class AgentRun:
-    """Result of an agent run."""
-    final_answer: str = ""
-    steps: list[StepResult]
-    total_ms: float = 0.0
-    success: bool = True
-    error: str | None = None
-
-    def __init__(self):
-        self.steps = []
+# ANSI color helpers
+def dim(text: str) -> str:
+    """Return dimmed text using ANSI escape codes."""
+    return f"\033[2m{text}\033[0m"
 
 
-# ============================================================
-# PURE REASONING MODE (tool_support=none)
-# ============================================================
+def green(text: str) -> str:
+    """Return green text using ANSI escape codes."""
+    return f"\033[32m{text}\033[0m"
 
-def run_pure_reasoning(
-    client: OllamaClient,
-    model: str,
-    memory: ConversationMemory,
-    model_options: dict,
-    needs_no_think: bool,
-    debug: bool,
-    on_step: Callable[[StepResult], None] | None = None,
-) -> AgentRun:
+
+def yellow(text: str) -> str:
+    """Return yellow text using ANSI escape codes."""
+    return f"\033[33m{text}\033[0m"
+
+
+def cyan(text: str) -> str:
+    """Return cyan text using ANSI escape codes."""
+    return f"\033[36m{text}\033[0m"
+
+
+class AgentState(Enum):
+    """Agent execution states."""
+    IDLE = "idle"           # Ready for new tasks
+    WORKING = "working"     # Executing a task plan
+    PAUSED = "paused"       # Paused mid-execution
+    STOPPING = "stopping"   # User requested stop
+
+
+@dataclass
+class Action:
     """
-    Run agent in pure reasoning mode (no tools).
-    
-    Used for models that don't support tool calling at all.
-    Simply sends the prompt to the LLM and returns the response.
-    
-    Args:
-        client: OllamaClient instance
-        model: Model name
-        memory: Conversation memory with system prompt and history
-        model_options: Model options (temperature, num_ctx, etc.)
-        needs_no_think: Whether to disable thinking mode
-        debug: Enable debug output
-        on_step: Optional callback for step events
-    
-    Returns:
-        AgentRun with the final answer
+    A single atomic action within a step.
+    Supports rollback via undo_fn.
     """
-    run = AgentRun()
-    t0 = time.perf_counter()
+    type: str                           # file_write, shell, http_post, agent_execution, etc.
+    description: str = ""               # Human-readable description
+    params: dict = field(default_factory=dict)
+    result: Any = None                  # Result after execution
+    error: Optional[str] = None         # Error if failed
+    undo_fn: Optional[Callable] = None  # Rollback function
+    undo_params: dict = field(default_factory=dict)  # Params for undo
+    timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
     
-    step_t0 = time.perf_counter()
-    response = client.chat(
-        model=model,
-        messages=memory.to_messages(),
-        tools=None,  # Don't pass tools
-        options=model_options,
-        think=False if needs_no_think else None,
+    def undo(self) -> tuple[bool, str]:
+        """Execute rollback for this action. Returns (success, message)."""
+        if self.undo_fn is None:
+            return False, "No rollback function defined"
+        try:
+            result = self.undo_fn(**self.undo_params)
+            return True, result or f"Rolled back {self.type}"
+        except Exception as e:
+            return False, f"Rollback failed: {e}"
+
+
+@dataclass
+class Step:
+    """
+    A step in the task plan, containing multiple actions.
+    Steps are the unit of rollback - stopping rolls back the current step.
+    """
+    description: str
+    actions: list[Action] = field(default_factory=list)
+    status: str = "pending"  # pending, in_progress, done, rolled_back
+    checkpoint: Optional[dict] = None  # State snapshot before step started
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+    
+    def add_action(self, action: Action):
+        """Add an action to this step."""
+        self.actions.append(action)
+    
+    def rollback(self) -> list[tuple[bool, str]]:
+        """Rollback all actions in reverse order. Returns list of (success, msg)."""
+        results = []
+        for action in reversed(self.actions):
+            if action.undo_fn:
+                success, msg = action.undo()
+                results.append((success, msg))
+        self.status = "rolled_back"
+        self.completed_at = datetime.now().isoformat()
+        return results
+
+
+@dataclass
+class TaskPlan:
+    """
+    A complete task plan with multiple steps.
+    Created by the agent when given a goal.
+    """
+    goal: str
+    steps: list[Step] = field(default_factory=list)
+    created_at: str = field(default_factory=lambda: datetime.now().isoformat())
+    current_step_index: int = 0
+    
+    @property
+    def current_step(self) -> Optional[Step]:
+        """Get the current step being executed."""
+        if 0 <= self.current_step_index < len(self.steps):
+            return self.steps[self.current_step_index]
+        return None
+    
+    @property
+    def completed_steps(self) -> int:
+        """Count of completed steps."""
+        return sum(1 for s in self.steps if s.status == "done")
+    
+    @property
+    def total_steps(self) -> int:
+        """Total number of steps."""
+        return len(self.steps)
+    
+    @property
+    def progress_percent(self) -> float:
+        """Progress as percentage."""
+        if not self.steps:
+            return 0.0
+        return (self.completed_steps / self.total_steps) * 100
+    
+    def add_step(self, description: str) -> Step:
+        """Add a new step to the plan."""
+        step = Step(description=description)
+        self.steps.append(step)
+        return step
+    
+    def advance(self) -> bool:
+        """Move to next step. Returns True if advanced, False if done."""
+        if self.current_step:
+            self.current_step.status = "done"
+            self.current_step.completed_at = datetime.now().isoformat()
+        
+        self.current_step_index += 1
+        if self.current_step_index < len(self.steps):
+            self.steps[self.current_step_index].status = "in_progress"
+            self.steps[self.current_step_index].started_at = datetime.now().isoformat()
+            return True
+        return False  # No more steps
+    
+    def get_rollback_point(self) -> Optional[Step]:
+        """Get the current step for rollback."""
+        return self.current_step
+
+
+# ------------------------------------------------------------------ #
+#  Rollback helpers for common actions                                #
+# ------------------------------------------------------------------ #
+
+def create_file_write_action(path: str, content: str, base_dir: str = ".") -> Action:
+    """
+    Create a file write action with rollback support.
+    Stores original content for restoration on undo.
+    """
+    full_path = Path(base_dir) / path if not Path(path).is_absolute() else Path(path)
+    original_content = None
+    file_existed = full_path.exists()
+    
+    if file_existed:
+        try:
+            original_content = full_path.read_text(encoding='utf-8')
+        except Exception:
+            original_content = None
+    
+    def undo_file_write(original: Optional[str], existed: bool, p: Path) -> str:
+        if existed and original is not None:
+            p.write_text(original, encoding='utf-8')
+            return f"Restored {p}"
+        elif p.exists():
+            p.unlink()
+            return f"Deleted {p}"
+        return f"No action needed for {p}"
+    
+    return Action(
+        type="file_write",
+        description=f"Write to {path}",
+        params={"path": str(full_path), "content": content},
+        undo_fn=undo_file_write,
+        undo_params={"original": original_content, "existed": file_existed, "p": full_path}
     )
-    elapsed = (time.perf_counter() - step_t0) * 1000
-    
-    msg = response.get("message", {})
-    content = msg.get("content", "")
-    
-    if debug:
-        print(f"\n  🔍 DEBUG: Pure reasoning mode")
-        print(f"    content[:100]={content[:100]!r}")
-    
-    # Store and return the response
-    memory.add_assistant(content)
-    run.final_answer = content
-    run.total_ms = elapsed
-    run.steps.append(StepResult(type="final", content=content, elapsed_ms=elapsed))
-    
-    if on_step:
-        on_step(run.steps[-1])
-    
-    run.total_ms = (time.perf_counter() - t0) * 1000
-    return run
 
 
-# ============================================================
-# NATIVE TOOLS MODE (tool_support=native)
-# ============================================================
-
-def run_native_tools(
-    client: OllamaClient,
-    model: str,
-    memory: ConversationMemory,
-    tools: ToolRegistry,
-    model_options: dict,
-    max_steps: int,
-    needs_no_think: bool,
-    debug: bool,
-    on_step: Callable[[StepResult], None] | None = None,
-) -> AgentRun:
+def create_file_delete_action(path: str, base_dir: str = ".") -> Action:
     """
-    Run agent using Ollama's native tool calling API.
-    
-    Used for models that support the tools parameter in the Ollama API.
-    The model returns structured tool_calls that we execute directly.
-    
-    Args:
-        client: OllamaClient instance
-        model: Model name
-        memory: Conversation memory
-        tools: Tool registry with available tools
-        model_options: Model options
-        max_steps: Maximum iterations
-        needs_no_think: Whether to disable thinking mode
-        debug: Enable debug output
-        on_step: Optional callback for step events
-    
-    Returns:
-        AgentRun with steps and final answer
+    Create a file delete action with rollback support.
+    Moves file to temp for potential restoration.
     """
-    run = AgentRun()
-    t0 = time.perf_counter()
+    full_path = Path(base_dir) / path if not Path(path).is_absolute() else Path(path)
     
-    # Loop guards
-    tool_call_counts: dict[str, int] = {}
-    successful_results: list[str] = []
-    max_calls_per_tool = 2
-    max_total_tool_calls = 4
-    
-    for step_num in range(max_steps):
-        step_t0 = time.perf_counter()
-        
-        response = client.chat(
-            model=model,
-            messages=memory.to_messages(),
-            tools=tools.schemas(),
-            options=model_options,
-            think=False if needs_no_think else None,
+    if not full_path.exists():
+        return Action(
+            type="file_delete",
+            description=f"Delete {path}",
+            params={"path": str(full_path)},
+            error="File does not exist"
         )
-        
-        elapsed = (time.perf_counter() - step_t0) * 1000
-        msg = response.get("message", {})
-        content = msg.get("content", "")
-        tool_calls_raw = msg.get("tool_calls", [])
-        
-        if debug:
-            print(f"\n  🔍 DEBUG: Native tools response")
-            print(f"    tool_calls_raw={tool_calls_raw!r}")
-            print(f"    content (FULL): {content!r}")
-        
-        # No tool calls - we're done
-        if not tool_calls_raw:
-            # Check if we have numeric results to return
-            if successful_results:
-                final_answer = _get_numeric_result(successful_results)
-                if final_answer:
-                    run.final_answer = final_answer
-                    run.steps.append(StepResult(type="final", content=final_answer, elapsed_ms=elapsed))
-                    if on_step:
-                        on_step(run.steps[-1])
-                    break
-            
-            # Return content as-is
-            memory.add_assistant(content)
-            run.final_answer = content
-            run.steps.append(StepResult(type="final", content=content, elapsed_ms=elapsed))
-            if on_step:
-                on_step(run.steps[-1])
-            break
-        
-        # Process tool calls
-        for tc in tool_calls_raw:
-            fn = tc.get("function", {})
-            t_name = fn.get("name", "")
-            t_args = fn.get("arguments", {})
-            
-            if isinstance(t_args, str):
-                try:
-                    t_args = json.loads(t_args)
-                except json.JSONDecodeError:
-                    t_args = {}
-            
-            # Check tool call limits
-            tool_call_counts[t_name] = tool_call_counts.get(t_name, 0) + 1
-            total_calls = sum(tool_call_counts.values())
-            
-            if tool_call_counts[t_name] > max_calls_per_tool or total_calls > max_total_tool_calls:
-                # Hit limits - synthesize from what we have
-                final_answer = _synthesize_result(successful_results, content)
-                run.final_answer = final_answer
-                run.steps.append(StepResult(type="final", content=final_answer, elapsed_ms=elapsed))
-                if on_step:
-                    on_step(run.steps[-1])
-                break
-            
-            # Execute tool
-            if tools.get(t_name):
-                # Normalize args
-                t_args = _normalize_args(t_args, tools.get(t_name))
-                
-                if debug:
-                    print(f"    🔧 {t_name}({t_args})")
-                
-                run.steps.append(StepResult(
-                    type="tool_call",
-                    content="",
-                    tool_name=t_name,
-                    tool_args=t_args,
-                    elapsed_ms=elapsed,
-                ))
-                if on_step:
-                    on_step(run.steps[-1])
-                
-                result = tools.invoke(t_name, t_args)
-                result_str = str(result)
-                
-                if debug:
-                    preview = result_str[:60] + "..." if len(result_str) > 60 else result_str
-                    print(f"    📦 → {preview}")
-                
-                run.steps.append(StepResult(type="tool_result", content=result_str, tool_name=t_name))
-                if on_step:
-                    on_step(run.steps[-1])
-                
-                if not result_str.startswith("[Tool error]"):
-                    successful_results.append(f"{t_name} → {result_str}")
-                
-                # Add observation to memory
-                memory.add_assistant(content)
-                memory.add_user(f"Observation: {result_str}")
-            else:
-                if debug:
-                    print(f"    ⚠️ Unknown tool: {t_name}")
-        
-        # Check if we should synthesize after tool calls
-        if successful_results and _is_simple_query(memory):
-            final_answer = _get_numeric_result(successful_results)
-            if final_answer:
-                run.final_answer = final_answer
-                run.steps.append(StepResult(type="final", content=final_answer, elapsed_ms=elapsed))
-                if on_step:
-                    on_step(run.steps[-1])
-                break
     
-    run.total_ms = (time.perf_counter() - t0) * 1000
-    return run
-
-
-# ============================================================
-# REACT MODE (tool_support=react)
-# ============================================================
-
-# ReAct parsing regex patterns
-_THOUGHT_RE = re.compile(r"Thought:\s*(.*?)(?=Action:|Final Answer:|$)", re.DOTALL | re.IGNORECASE)
-_ACTION_RE = re.compile(
-    r"Action:\s*[`\"']?(\w+)[`\"']?\s*\n?\s*Action Input:\s*(.*?)(?=\n\s*(?:Observation:|Thought:|Final Answer:|Action:|Example)|$)",
-    re.DOTALL | re.IGNORECASE
-)
-_ACTION_SAME_LINE_RE = re.compile(
-    r"Action:\s*[`\"']?(\w+)[`\"']?\s+Action Input:\s*(.*?)(?=\n\s*(?:Observation:|Thought:|Final Answer:|Action:|Example)|$)",
-    re.DOTALL | re.IGNORECASE
-)
-_FINAL_RE = re.compile(r"Final Answer:\s*(.*?)$", re.DOTALL | re.IGNORECASE)
-
-
-def _parse_react(text: str) -> tuple[str | None, str | None, dict | None, str | None]:
-    """
-    Parse ReAct format text.
-    
-    Returns:
-        (thought, tool_name, tool_args, final_answer)
-    """
-    thought = None
-    tool_name = None
-    tool_args = None
-    final_answer = None
-    
-    # Extract thought
-    thought_match = _THOUGHT_RE.search(text)
-    if thought_match:
-        thought = thought_match.group(1).strip()
-    
-    # Extract action (try multiline first, then same-line format)
-    action_match = _ACTION_RE.search(text)
-    if not action_match:
-        action_match = _ACTION_SAME_LINE_RE.search(text)
-    
-    if action_match:
-        tool_name = action_match.group(1).strip()
-        raw_args = action_match.group(2).strip()
-        
-        # Parse arguments
-        if raw_args.startswith('{'):
-            try:
-                tool_args = json.loads(raw_args)
-            except json.JSONDecodeError:
-                # Try to fix common issues
-                tool_args = {"input": raw_args}
-        else:
-            tool_args = {"input": raw_args}
-    
-    # Extract final answer
-    final_match = _FINAL_RE.search(text)
-    if final_match:
-        final_answer = final_match.group(1).strip()
-    
-    return thought, tool_name, tool_args, final_answer
-
-
-def run_react_mode(
-    client: OllamaClient,
-    model: str,
-    memory: ConversationMemory,
-    tools: ToolRegistry,
-    model_options: dict,
-    max_steps: int,
-    needs_no_think: bool,
-    debug: bool,
-    on_step: Callable[[StepResult], None] | None = None,
-) -> AgentRun:
-    """
-    Run agent using text-based ReAct prompting.
-    
-    Used for models that accept tools but need text-based prompting
-    instead of Ollama's native tool calling API.
-    
-    The model outputs:
-        Thought: I need to...
-        Action: calculator
-        Action Input: {"expression": "8 * 7"}
-        Observation: 56
-        Final Answer: 56
-    
-    Args:
-        client: OllamaClient instance
-        model: Model name
-        memory: Conversation memory
-        tools: Tool registry
-        model_options: Model options
-        max_steps: Maximum iterations
-        needs_no_think: Whether to disable thinking mode
-        debug: Enable debug output
-        on_step: Optional callback for step events
-    
-    Returns:
-        AgentRun with steps and final answer
-    """
-    run = AgentRun()
-    t0 = time.perf_counter()
-    
-    # Loop guards
-    tool_call_counts: dict[str, int] = {}
-    successful_results: list[str] = []
-    max_calls_per_tool = 2
-    max_total_tool_calls = 4
-    format_reminder_sent = False
-    
-    for step_num in range(max_steps):
-        step_t0 = time.perf_counter()
-        
-        response = client.chat(
-            model=model,
-            messages=memory.to_messages(),
-            tools=None,  # Don't pass tools in ReAct mode
-            options=model_options,
-            think=False if needs_no_think else None,
-        )
-        
-        elapsed = (time.perf_counter() - step_t0) * 1000
-        msg = response.get("message", {})
-        content = msg.get("content", "")
-        
-        if debug:
-            print(f"\n  🔍 DEBUG: ReAct response")
-            print(f"    content (FULL): {content!r}")
-        
-        # Parse ReAct format
-        thought, t_name, t_args, final_answer = _parse_react(content)
-        
-        if debug:
-            print(f"    thought={thought!r}")
-            print(f"    t_name={t_name!r}")
-            print(f"    t_args={t_args!r}")
-            print(f"    final_answer={final_answer!r}")
-        
-        # Handle final answer
-        if final_answer:
-            run.final_answer = final_answer
-            run.steps.append(StepResult(type="final", content=final_answer, elapsed_ms=elapsed))
-            if on_step:
-                on_step(run.steps[-1])
-            memory.add_assistant(content)
-            break
-        
-        # Handle thought
-        if thought:
-            run.steps.append(StepResult(type="thought", content=thought, elapsed_ms=elapsed))
-            if on_step:
-                on_step(run.steps[-1])
-        
-        # Handle tool call
-        if t_name and t_args is not None:
-            # Check tool limits
-            tool_call_counts[t_name] = tool_call_counts.get(t_name, 0) + 1
-            total_calls = sum(tool_call_counts.values())
-            
-            if tool_call_counts[t_name] > max_calls_per_tool or total_calls > max_total_tool_calls:
-                # Hit limits - synthesize from what we have
-                final = _get_numeric_result(successful_results) or _synthesize_result(successful_results, content)
-                run.final_answer = final
-                run.steps.append(StepResult(type="final", content=final, elapsed_ms=elapsed))
-                if on_step:
-                    on_step(run.steps[-1])
-                break
-            
-            # Check if tool exists
-            if tools.get(t_name):
-                if debug:
-                    args_str = ", ".join(f"{k}={v}" for k, v in t_args.items())
-                    print(f"    🔧 {t_name}({args_str})")
-                
-                run.steps.append(StepResult(
-                    type="tool_call",
-                    content="",
-                    tool_name=t_name,
-                    tool_args=t_args,
-                    elapsed_ms=elapsed,
-                ))
-                if on_step:
-                    on_step(run.steps[-1])
-                
-                result = tools.invoke(t_name, t_args)
-                result_str = str(result)
-                
-                if debug:
-                    preview = result_str[:60] + "..." if len(result_str) > 60 else result_str
-                    print(f"    📦 → {preview}")
-                
-                run.steps.append(StepResult(type="tool_result", content=result_str, tool_name=t_name))
-                if on_step:
-                    on_step(run.steps[-1])
-                
-                if not result_str.startswith("[Tool error]"):
-                    successful_results.append(f"{t_name} → {result_str}")
-                
-                # Add observation to memory (as user role for model to respond)
-                memory.add_assistant(content)
-                memory.add_user(f"Observation: {result_str}\n\nNow provide your Final Answer:")
-            else:
-                if debug:
-                    print(f"    ⚠️ Unknown tool: {t_name}")
-                memory.add_assistant(content)
-                memory.add_user(f"Tool '{t_name}' not found. Available tools: {[t.name for t in tools.all()]}")
-        
-        # No tool call and no final answer - might need format reminder
-        elif not t_name and not final_answer and not successful_results and not format_reminder_sent:
-            format_reminder_sent = True
-            if debug:
-                print(f"    Sending format reminder...")
-            tool_names = [t.name for t in tools.all()]
-            memory.add_assistant(content)
-            memory.add_user(
-                f"Please use the ReAct format:\n"
-                f"Action: {tool_names[0]}\n"
-                f"Action Input: {{\"expression\": \"<your calculation>\"}}\n"
-                f"Final Answer: <result>"
-            )
-            continue
-        
-        # No action but we have results - try to get final answer
-        elif not t_name and successful_results:
-            # Check if content looks incomplete
-            content_stripped = content.strip()
-            if content_stripped.startswith("Thought:") and "Final Answer:" not in content_stripped:
-                # Use numeric result directly
-                final = _get_numeric_result(successful_results)
-                if final:
-                    run.final_answer = final
-                    run.steps.append(StepResult(type="final", content=final, elapsed_ms=elapsed))
-                    if on_step:
-                        on_step(run.steps[-1])
-                    break
-            
-            # Fall back to content
-            run.final_answer = content
-            run.steps.append(StepResult(type="final", content=content, elapsed_ms=elapsed))
-            if on_step:
-                on_step(run.steps[-1])
-            memory.add_assistant(content)
-            break
-        
-        else:
-            # No action, no results - return content
-            run.final_answer = content
-            run.steps.append(StepResult(type="final", content=content, elapsed_ms=elapsed))
-            if on_step:
-                on_step(run.steps[-1])
-            memory.add_assistant(content)
-            break
-    
-    run.total_ms = (time.perf_counter() - t0) * 1000
-    return run
-
-
-# ============================================================
-# HELPER FUNCTIONS
-# ============================================================
-
-def _strip_tool_prefix(result: str) -> str:
-    """Strip 'tool_name → ' prefix from result."""
-    if " → " in result:
-        return result.split(" → ", 1)[1]
-    return result
-
-
-def _get_numeric_result(results: list[str]) -> str | None:
-    """Get numeric result from tool results if available."""
-    if not results:
-        return None
-    
-    last_result = _strip_tool_prefix(results[-1])
+    # Store content for potential restoration
     try:
-        float(last_result)  # Check if it's numeric
-        return last_result
-    except (ValueError, TypeError):
-        return None
-
-
-def _synthesize_result(results: list[str], content: str) -> str:
-    """Synthesize final answer from results."""
-    if not results:
-        return content
+        original_content = full_path.read_bytes()
+    except Exception as e:
+        return Action(
+            type="file_delete",
+            description=f"Delete {path}",
+            params={"path": str(full_path)},
+            error=f"Cannot read file: {e}"
+        )
     
-    # Try numeric first
-    numeric = _get_numeric_result(results)
-    if numeric:
-        return numeric
+    def undo_file_delete(content: bytes, p: Path) -> str:
+        p.write_bytes(content)
+        return f"Restored {p}"
     
-    # Return last result
-    return _strip_tool_prefix(results[-1])
+    return Action(
+        type="file_delete",
+        description=f"Delete {path}",
+        params={"path": str(full_path)},
+        undo_fn=undo_file_delete,
+        undo_params={"content": original_content, "p": full_path}
+    )
 
 
-def _normalize_args(args: dict, tool: Tool) -> dict:
-    """Normalize argument names to match tool's expected parameters."""
-    if not tool or not tool.params:
-        return args
+def create_mkdir_action(path: str, base_dir: str = ".") -> Action:
+    """Create a directory action with rollback support."""
+    full_path = Path(base_dir) / path if not Path(path).is_absolute() else Path(path)
     
-    normalized = {}
-    for param in tool.params:
-        # Check various aliases
-        aliases = [param.name] + (param.aliases or [])
-        for alias in aliases:
-            if alias in args:
-                normalized[param.name] = args[alias]
-                break
+    def undo_mkdir(p: Path) -> str:
+        if p.exists() and p.is_dir():
+            # Only remove if empty
+            try:
+                p.rmdir()
+                return f"Removed directory {p}"
+            except OSError:
+                return f"Cannot remove non-empty directory {p}"
+        return f"Directory {p} does not exist"
     
-    return normalized if normalized else args
+    return Action(
+        type="mkdir",
+        description=f"Create directory {path}",
+        params={"path": str(full_path)},
+        undo_fn=undo_mkdir,
+        undo_params={"p": full_path}
+    )
 
 
-def _is_simple_query(memory: ConversationMemory) -> bool:
-    """Check if the query is simple enough for immediate synthesis."""
-    # Get the first user message
-    for msg in memory._history:
-        if msg.get("role") == "user":
-            text = msg.get("content", "").lower()
-            # Simple math/date queries
-            simple_keywords = ["what is", "calculate", "compute", "sqrt", "date", "time"]
-            if any(kw in text for kw in simple_keywords) and len(text) < 60:
-                return True
-            break
-    return False
+def create_shell_action(command: str, undo_command: Optional[str] = None) -> Action:
+    """
+    Create a shell command action with optional rollback command.
+    Note: Shell rollback is best-effort and depends on the command.
+    """
+    import subprocess
+    
+    def run_shell(cmd: str) -> str:
+        try:
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=60)
+            return result.stdout or result.stderr or "(no output)"
+        except Exception as e:
+            return f"Error: {e}"
+    
+    return Action(
+        type="shell",
+        description=f"Run: {command[:50]}{'...' if len(command) > 50 else ''}",
+        params={"command": command},
+        undo_fn=run_shell if undo_command else None,
+        undo_params={"cmd": undo_command} if undo_command else {}
+    )
+
+
+# ------------------------------------------------------------------ #
+#  Agent Mode Session                                                 #
+# ------------------------------------------------------------------ #
+
+class AgentMode:
+    """
+    Agent Mode session manager.
+    
+    Handles state transitions, message queuing, and task execution.
+    """
+    
+    def __init__(self, agent, verbose: bool = False):
+        """
+        Initialize Agent Mode session.
+        
+        Parameters
+        ----------
+        agent : Agent
+            The AgentNova Agent instance to use for task execution.
+        verbose : bool
+            Whether to print verbose output.
+        """
+        self.agent = agent
+        self.verbose = verbose
+        
+        # State
+        self.state = AgentState.IDLE
+        self.plan: Optional[TaskPlan] = None
+        
+        # Message queue (for messages received while WORKING)
+        self.message_queue: list[str] = []
+        
+        # Execution history
+        self.execution_log: list[dict] = []
+        
+        # Track final response from last task
+        self.final_response: Optional[str] = None
+        
+        # Callbacks
+        self.on_state_change: Optional[Callable[[AgentState, AgentState], None]] = None
+        self.on_step_complete: Optional[Callable[[Step], None]] = None
+        self.on_task_complete: Optional[Callable[[TaskPlan], None]] = None
+    
+    def _set_state(self, new_state: AgentState):
+        """Transition to new state, calling callback if set."""
+        old_state = self.state
+        self.state = new_state
+        if self.on_state_change:
+            self.on_state_change(old_state, new_state)
+    
+    def queue_message(self, message: str) -> int:
+        """
+        Queue a message while agent is working.
+        Returns the queue length.
+        """
+        self.message_queue.append(message)
+        return len(self.message_queue)
+    
+    def process_queue(self) -> list[str]:
+        """
+        Process all queued messages.
+        Returns list of messages that were processed.
+        """
+        messages = self.message_queue.copy()
+        self.message_queue.clear()
+        return messages
+    
+    # ------------------------------------------------------------------ #
+    #  Slash Command Handlers                                            #
+    # ------------------------------------------------------------------ #
+    
+    def get_status(self) -> dict:
+        """Get current agent status."""
+        status = {
+            "state": self.state.value,
+            "queue_length": len(self.message_queue),
+            "final_response": self.final_response,
+        }
+        
+        if self.plan:
+            status.update({
+                "goal": self.plan.goal,
+                "current_step": self.plan.current_step_index + 1,
+                "total_steps": self.plan.total_steps,
+                "completed_steps": self.plan.completed_steps,
+                "progress_percent": round(self.plan.progress_percent, 1),
+                "current_step_description": self.plan.current_step.description if self.plan.current_step else None,
+            })
+        
+        return status
+    
+    def get_progress(self) -> dict:
+        """Get detailed progress breakdown."""
+        if not self.plan:
+            return {"error": "No active task"}
+        
+        steps_info = []
+        for i, step in enumerate(self.plan.steps):
+            steps_info.append({
+                "index": i + 1,
+                "description": step.description,
+                "status": step.status,
+                "actions_count": len(step.actions),
+                "started_at": step.started_at,
+                "completed_at": step.completed_at,
+            })
+        
+        return {
+            "goal": self.plan.goal,
+            "current_step": self.plan.current_step_index + 1,
+            "total_steps": self.plan.total_steps,
+            "progress_percent": round(self.plan.progress_percent, 1),
+            "steps": steps_info,
+        }
+    
+    def get_plan(self) -> Optional[dict]:
+        """Get the current task plan."""
+        if not self.plan:
+            return None
+        
+        return {
+            "goal": self.plan.goal,
+            "created_at": self.plan.created_at,
+            "total_steps": self.plan.total_steps,
+            "steps": [
+                {
+                    "description": s.description,
+                    "status": s.status,
+                }
+                for s in self.plan.steps
+            ],
+        }
+    
+    def get_logs(self, limit: int = 20) -> list[dict]:
+        """Get recent execution logs."""
+        return self.execution_log[-limit:]
+    
+    def pause(self) -> tuple[bool, str]:
+        """
+        Pause execution.
+        Returns (success, message).
+        """
+        if self.state != AgentState.WORKING:
+            return False, f"Cannot pause: agent is {self.state.value}"
+        
+        self._set_state(AgentState.PAUSED)
+        return True, "Agent paused. Use /resume to continue or /stop to abort."
+    
+    def resume(self) -> tuple[bool, str]:
+        """
+        Resume from paused state.
+        Returns (success, message).
+        """
+        if self.state != AgentState.PAUSED:
+            return False, f"Cannot resume: agent is {self.state.value}"
+        
+        self._set_state(AgentState.WORKING)
+        return True, "Agent resumed."
+    
+    def stop(self, rollback: bool = False) -> tuple[bool, str]:
+        """
+        Stop the current task.
+        
+        Parameters
+        ----------
+        rollback : bool
+            Whether to rollback the current step.
+        
+        Returns
+        -------
+        tuple[bool, str]
+            (success, message) tuple.
+        """
+        if self.state not in (AgentState.WORKING, AgentState.PAUSED):
+            return False, f"Cannot stop: agent is {self.state.value}"
+        
+        rollback_results = []
+        
+        if rollback and self.plan and self.plan.current_step:
+            step = self.plan.current_step
+            rollback_results = step.rollback()
+        
+        # Log the stop
+        self.execution_log.append({
+            "type": "stop",
+            "timestamp": datetime.now().isoformat(),
+            "rollback": rollback,
+            "rollback_results": rollback_results,
+            "step": self.plan.current_step_index + 1 if self.plan else 0,
+        })
+        
+        self._set_state(AgentState.IDLE)
+        
+        msg = f"Task stopped at step {self.plan.current_step_index + 1}/{self.plan.total_steps if self.plan else 0}."
+        if rollback:
+            msg += f" Rolled back {len(rollback_results)} action(s)."
+        
+        self.plan = None
+        return True, msg
+    
+    # ------------------------------------------------------------------ #
+    #  Task Execution                                                    #
+    # ------------------------------------------------------------------ #
+    
+    # Simple planning prompt - works better with small models
+    PLANNING_PROMPT = """Break down this task into 3-5 steps. Output ONLY a JSON array:
+Task: {goal}
+
+Example: [{{"description": "Step 1"}}, {{"description": "Step 2"}}]"""
+
+    def plan_task(self, goal: str) -> TaskPlan:
+        """
+        Generate a plan for the given goal using LLM-based planning.
+        
+        Falls back to heuristic planning if LLM planning fails.
+        """
+        plan = TaskPlan(goal=goal)
+        
+        # For simple/short tasks, skip LLM planning and use heuristics
+        # Small models often struggle with planning prompts
+        if len(goal) < 50 or not self.verbose:
+            return self._heuristic_plan(goal)
+        
+        # Try LLM-based planning for complex tasks
+        try:
+            plan = self._llm_plan(goal)
+            if plan and plan.steps:
+                return plan
+        except Exception as e:
+            if self.verbose:
+                print(f"  ⚠ LLM planning failed: {e}, using heuristics")
+        
+        return self._heuristic_plan(goal)
+    
+    def _heuristic_plan(self, goal: str) -> TaskPlan:
+        """Generate plan using keyword heuristics."""
+        plan = TaskPlan(goal=goal)
+        goal_lower = goal.lower()
+        
+        if "analyze" in goal_lower and "log" in goal_lower:
+            plan.add_step("Locate and read log files")
+            plan.add_step("Parse and categorize log entries")
+            plan.add_step("Identify patterns and anomalies")
+            plan.add_step("Generate analysis report")
+        elif "refactor" in goal_lower:
+            plan.add_step("Analyze current code structure")
+            plan.add_step("Identify refactoring targets")
+            plan.add_step("Apply refactoring changes")
+            plan.add_step("Verify changes work correctly")
+        elif "create" in goal_lower or "build" in goal_lower:
+            plan.add_step("Gather requirements and context")
+            plan.add_step("Create initial structure")
+            plan.add_step("Implement core functionality")
+            plan.add_step("Test and verify")
+        elif "fix" in goal_lower or "debug" in goal_lower:
+            plan.add_step("Identify the problem")
+            plan.add_step("Analyze root cause")
+            plan.add_step("Implement fix")
+            plan.add_step("Verify fix works")
+        else:
+            # Simple single-step for most tasks
+            plan.add_step(f"Complete: {goal[:50]}{'...' if len(goal) > 50 else ''}")
+        
+        return plan
+    
+    def _llm_plan(self, goal: str) -> Optional[TaskPlan]:
+        """Use the agent's LLM to generate a plan."""
+        import re
+        
+        plan = TaskPlan(goal=goal)
+        
+        # Use the agent's client for a simple completion
+        try:
+            if hasattr(self.agent, 'client') and hasattr(self.agent.client, 'chat'):
+                # Use a simple system prompt for planning
+                response = self.agent.client.chat(
+                    model=self.agent.model,
+                    messages=[
+                        {"role": "user", "content": self.PLANNING_PROMPT.format(goal=goal)}
+                    ],
+                    options={"temperature": 0.1, "num_predict": 300}
+                )
+                content = response.get("message", {}).get("content", "")
+            else:
+                return None
+            
+            if not content:
+                return None
+            
+            # Extract JSON array from response
+            content = re.sub(r"```(?:json)?", "", content).strip().rstrip("`").strip()
+            
+            # Find JSON array
+            start = content.find("[")
+            end = content.rfind("]")
+            if start == -1 or end == -1:
+                return None
+            
+            json_str = content[start:end + 1]
+            
+            # Parse JSON
+            import json
+            steps_data = json.loads(json_str)
+            
+            if isinstance(steps_data, list):
+                for step_data in steps_data:
+                    if isinstance(step_data, dict) and "description" in step_data:
+                        plan.add_step(step_data["description"])
+                    elif isinstance(step_data, str):
+                        plan.add_step(step_data)
+            
+            return plan if plan.steps else None
+            
+        except Exception as e:
+            if self.verbose:
+                print(f"  Planning error: {e}")
+            return None
+    
+    def execute_step(self, step: Step) -> tuple[bool, str]:
+        """
+        Execute a single step using the Agent.
+        
+        Uses a simple, direct prompt that works with the agent's
+        existing system prompt (including Modelfile prompts).
+        """
+        step.status = "in_progress"
+        step.started_at = datetime.now().isoformat()
+        
+        # Log step start
+        self.execution_log.append({
+            "type": "step_start",
+            "timestamp": step.started_at,
+            "step_description": step.description,
+        })
+        
+        try:
+            # Simple prompt - let the agent use its existing context
+            # This works better with Modelfile system prompts
+            step_prompt = step.description
+            
+            # Run the agent with the step prompt
+            if self.verbose:
+                print(f"  ⟳ Executing: {step.description}")
+            
+            run = self.agent.run(step_prompt)
+            
+            # Track the result
+            result_msg = run.final_answer
+            
+            # Debug output: show step completion info
+            if self.verbose and run:
+                tool_calls = [s for s in run.steps if s.type == "tool_call"]
+                tool_names = list(set(s.tool_name for s in tool_calls if hasattr(s, 'tool_name')))
+                print(dim(f"    ⏱️ {len(run.steps)} steps, {len(tool_calls)} tool calls, {run.total_ms:.0f}ms"))
+                if tool_names:
+                    print(dim(f"    🔧 Tools used: {', '.join(tool_names)}"))
+            
+            # Log step completion
+            step.status = "done"
+            step.completed_at = datetime.now().isoformat()
+            
+            # Add an action record for the step
+            action = Action(
+                type="agent_execution",
+                description=step.description,
+                params={"prompt": step_prompt},
+                result=result_msg
+            )
+            step.add_action(action)
+            
+            return True, result_msg
+            
+        except Exception as e:
+            step.status = "rolled_back"
+            step.completed_at = datetime.now().isoformat()
+            return False, f"Step failed: {str(e)}"
+    
+    def run_task(self, goal: str) -> tuple[bool, str]:
+        """
+        Run a task from start to finish.
+        
+        This is the main entry point for autonomous task execution.
+        The method will:
+        1. Generate a plan
+        2. Execute each step
+        3. Handle completion/failure
+        
+        Returns
+        -------
+        tuple[bool, str]
+            (success, final_message)
+        """
+        if self.state != AgentState.IDLE:
+            return False, f"Agent is busy: {self.state.value}"
+        
+        self._set_state(AgentState.WORKING)
+        
+        # Generate plan
+        self.plan = self.plan_task(goal)
+        
+        # Log task start
+        self.execution_log.append({
+            "type": "task_start",
+            "timestamp": datetime.now().isoformat(),
+            "goal": goal,
+            "steps": self.plan.total_steps,
+        })
+        
+        # Execute steps
+        final_response = None
+        for i, step in enumerate(self.plan.steps):
+            # Check for pause/stop between steps
+            while self.state == AgentState.PAUSED:
+                time.sleep(0.5)  # Wait for resume
+            
+            if self.state == AgentState.STOPPING:
+                return False, "Task was stopped"
+            
+            # Execute the step
+            success, msg = self.execute_step(step)
+            
+            # Track the final response (from last successful step)
+            if success and msg:
+                final_response = msg
+            
+            if not success:
+                # Step failed - ask agent to handle or abort
+                self.execution_log.append({
+                    "type": "step_failed",
+                    "timestamp": datetime.now().isoformat(),
+                    "step": i + 1,
+                    "error": msg,
+                })
+                
+                # For now, abort on failure
+                self._set_state(AgentState.IDLE)
+                return False, f"Task failed at step {i + 1}: {msg}"
+            
+            # Callback
+            if self.on_step_complete:
+                self.on_step_complete(step)
+            
+            # Inject awareness for long plans
+            remaining = self.plan.total_steps - (i + 1)
+            if self.plan.total_steps > 5:
+                if remaining == 3:
+                    self._inject_context("→ 3 steps remaining. Stay focused on the goal.")
+                elif remaining == 1:
+                    self._inject_context("→ Final step. Wrap up and report completion.")
+        
+        # Store final response
+        self.final_response = final_response
+        
+        # Task complete
+        self.execution_log.append({
+            "type": "task_complete",
+            "timestamp": datetime.now().isoformat(),
+            "goal": goal,
+            "total_steps": self.plan.total_steps,
+            "final_response": final_response,
+        })
+        
+        if self.on_task_complete:
+            self.on_task_complete(self.plan)
+        
+        self._set_state(AgentState.IDLE)
+        return True, final_response or f"Task completed: {goal}"
+    
+    def _inject_context(self, message: str):
+        """
+        Inject a context message into the agent's memory.
+        Used to provide awareness prompts during long executions.
+        """
+        # This would add a system message to the agent's memory
+        # Implementation depends on Agent class internals
+        pass
+
+
+# ------------------------------------------------------------------ #
+#  Agent Mode CLI Integration                                         #
+# ------------------------------------------------------------------ #
+
+def format_status(status: dict) -> str:
+    """Format status dict for display."""
+    lines = [
+        f"  State: {status['state'].upper()}",
+        f"  Queue: {status['queue_length']} message(s)",
+    ]
+    
+    if "goal" in status:
+        lines.extend([
+            "",
+            f"  Goal: {status['goal']}",
+            f"  Progress: {status['current_step']}/{status['total_steps']} ({status['progress_percent']}%)",
+        ])
+        if status.get("current_step_description"):
+            lines.append(f"  Current: {status['current_step_description']}")
+    
+    # Show final response if available
+    if status.get("final_response"):
+        lines.extend([
+            "",
+            "  Final Response:",
+        ])
+        # Show full response, wrapping long lines
+        response = status["final_response"]
+        for line in response.split("\n")[:10]:  # Limit to 10 lines
+            lines.append(f"    {line}")
+        if len(response.split("\n")) > 10:
+            more_lines = len(response.split("\n")) - 10
+            lines.append(f"    ... ({more_lines} more lines)")
+    
+    return "\n".join(lines)
+
+
+def format_progress(progress: dict) -> str:
+    """Format progress dict for display."""
+    lines = [
+        f"  Goal: {progress['goal']}",
+        f"  Progress: {progress['current_step']}/{progress['total_steps']} ({progress['progress_percent']}%)",
+        "",
+        "  Steps:",
+    ]
+    
+    for step in progress.get("steps", []):
+        icon = {
+            "pending": "○",
+            "in_progress": "◐",
+            "done": "●",
+            "rolled_back": "↺",
+        }.get(step["status"], "?")
+        
+        lines.append(f"    {icon} Step {step['index']}: {step['description']} [{step['status']}]")
+    
+    return "\n".join(lines)
