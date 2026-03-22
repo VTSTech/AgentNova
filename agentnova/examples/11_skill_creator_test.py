@@ -344,7 +344,7 @@ Call write_file now."""
 
 
 def main():
-    print("⚛️ AgentNova R02 - Skill Creator Test (Autonomous Creation)")
+    print("⚛️ AgentNova R02.3 - Skill Creator Test (Autonomous Creation)")
     print("=" * 60)
     print("Testing if models can CREATE skills autonomously.")
     print("The skill content is NOT provided - models must generate it!")

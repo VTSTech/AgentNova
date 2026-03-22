@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-⚛️ AgentNova R02 — CLI
+⚛️ AgentNova R02.3 — CLI
 Entry point: agentnova <command> [options]
 
 Commands:
@@ -924,7 +924,7 @@ def cmd_models(args):
             print(red("✗  bitnet_client.py not found. Copy it into agentnova/."))
             sys.exit(1)
             
-        print(bold("\n⚛️ AgentNova R02 BitNet Model (Remote)"))
+        print(bold("\n⚛️ AgentNova R02.3 BitNet Model (Remote)"))
         
         # We use the client logic to see what is actually running at the URL
         try:
@@ -952,7 +952,7 @@ def cmd_models(args):
         print(yellow("No models found. Pull one with: ollama pull llama3.2:3b"))
         return
 
-    print(bold("\n⚛️ AgentNova R02 Models") + dim(" · Written by VTSTech · https://www.vts-tech.org · https://github.com/VTSTech/AgentNova"))
+    print(bold("\n⚛️ AgentNova R02.3 Models") + dim(" · Written by VTSTech · https://www.vts-tech.org · https://github.com/VTSTech/AgentNova"))
     
     # Load tested models from storage
     tested_models = _load_tested_models()
@@ -1091,7 +1091,7 @@ def cmd_models(args):
 
 def cmd_tools(args):
     tools = BUILTIN_REGISTRY.all()
-    print(bold("\n⚛️ AgentNova R02 Tools") + dim(" · Written by VTSTech · https://www.vts-tech.org · https://github.com/VTSTech/AgentNova"))
+    print(bold("\n⚛️ AgentNova R02.3 Tools") + dim(" · Written by VTSTech · https://www.vts-tech.org · https://github.com/VTSTech/AgentNova"))
     print(bold(f"{'Tool':<20} Description"))
     print(dim("─" * 70))
     for t in tools:
@@ -1116,7 +1116,7 @@ def cmd_modelfile(args):
         sys.exit(1)
     
     model = args.model
-    print(bold(f"\n⚛️ AgentNova R02 Modelfile") + dim(" · Written by VTSTech · https://www.vts-tech.org · https://github.com/VTSTech/AgentNova"))
+    print(bold(f"\n⚛️ AgentNova R02.3 Modelfile") + dim(" · Written by VTSTech · https://www.vts-tech.org · https://github.com/VTSTech/AgentNova"))
     print()
     
     try:
@@ -1181,7 +1181,7 @@ def cmd_skills(args):
     loader = SkillLoader()
     skills = loader.list_skills()
     
-    print(bold("\n⚛️ AgentNova R02 Skills") + dim(" · Written by VTSTech · https://www.vts-tech.org · https://github.com/VTSTech/AgentNova"))
+    print(bold("\n⚛️ AgentNova R02.3 Skills") + dim(" · Written by VTSTech · https://www.vts-tech.org · https://github.com/VTSTech/AgentNova"))
     
     if not skills:
         print(yellow("  No skills found."))
@@ -1266,7 +1266,7 @@ def cmd_run(args):
     if acp_plugin:
         bootstrap_result = acp_plugin.bootstrap(claim_primary=False)  # AgentNova is secondary
 
-    print(bold("⚛️ AgentNova R02") + dim(" · Written by VTSTech · https://www.vts-tech.org · https://github.com/VTSTech/AgentNova"))
+    print(bold("⚛️ AgentNova R02.3") + dim(" · Written by VTSTech · https://www.vts-tech.org · https://github.com/VTSTech/AgentNova"))
     print(f"Prompt: {args.prompt}")
 
     # Log user message to ACP
@@ -1359,7 +1359,7 @@ def cmd_chat(args):
     parts.append("]")
     status = " ".join(parts)
     
-    print(bold(f"\n⚛️ AgentNova R02 chat") + dim(f"  {status} · Written by VTSTech · https://www.vts-tech.org · https://github.com/VTSTech/AgentNova"))
+    print(bold(f"\n⚛️ AgentNova R02.3 chat") + dim(f"  {status} · Written by VTSTech · https://www.vts-tech.org · https://github.com/VTSTech/AgentNova"))
     print(dim("  Type 'exit', 'quit', or Ctrl+C to quit."))
     print(dim("  Type '/help' to see all available commands."))
     print(dim("  Type '/ollama' to manage Ollama models (works with remote Ollama)."))
@@ -1909,7 +1909,7 @@ def cmd_agent(args):
     parts.append("]")
     status = " ".join(parts)
 
-    print(bold(f"\n⚛️ AgentNova R02 agent mode") + dim(f"  {status} · Written by VTSTech · https://www.vts-tech.org · https://github.com/VTSTech/AgentNova"))
+    print(bold(f"\n⚛️ AgentNova R02.3 agent mode") + dim(f"  {status} · Written by VTSTech · https://www.vts-tech.org · https://github.com/VTSTech/AgentNova"))
     print(dim("  Agent mode: Give tasks and the agent will work autonomously."))
     print(dim("  Type '/help' to see available commands."))
     print(dim("  ─────────────────────────────────────"))
@@ -2457,7 +2457,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(
         prog="agentnova",
-        description="⚛️ AgentNova R02 - local agentic AI powered by Ollama",
+        description="⚛️ AgentNova R02.3 - local agentic AI powered by Ollama",
     )
 
     sub = parser.add_subparsers(dest="command", metavar="command")

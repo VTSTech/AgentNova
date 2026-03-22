@@ -1,4 +1,4 @@
-# ⚛️ AgentNova R02.2
+# ⚛️ AgentNova R02.3
 
 A minimal, hackable agentic framework engineered to run **entirely locally** with [Ollama](https://ollama.com) or [BitNet](https://github.com/microsoft/BitNet).
 
@@ -6,6 +6,7 @@ Inspired by the architecture of OpenClaw, rebuilt from scratch for local-first o
 
 **Written by [VTSTech](https://www.vts-tech.org)** · [GitHub](https://github.com/VTSTech/AgentNova)
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/VTSTech/AgentNova/blob/main/AgentNova.ipynb)
 [![GitHub commits](https://badgen.net/github/commits/VTSTech/AgentNova)](https://GitHub.com/VTSTech/AgentNova/commit/) [![GitHub latest commit](https://badgen.net/github/last-commit/VTSTech/AgentNova)](https://GitHub.com/VTSTech/AgentNova/commit/)
 [![pip - agentnova](https://img.shields.io/badge/pip-agentnova-2ea44f?logo=PyPi)](https://pypi.org/project/agentnova/)
 [![License](https://img.shields.io/badge/License-MIT-blue)](#license) [![Go to Python website](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2FVTSTech%2FAgentNova%2Frefs%2Fheads%2Fmain%2Fpyproject.toml&query=project.requires-python&label=python&logo=python&logoColor=white)](https://python.org)
@@ -162,7 +163,7 @@ agentnova models --tool_support
 
 ### Performance by Tool Support
 
-R02.2 benchmark results (15-test suite):
+R02.3 benchmark results (15-test suite):
 
 | Model | Params | Tool Support | Score | Time |
 |-------|--------|--------------|-------|------|
@@ -182,7 +183,7 @@ R02.2 benchmark results (15-test suite):
 | `granite4:350m` | 80% | native |
 | `qwen3:0.6b` | 60% | react |
 
-**Key improvements in R02.2**:
+**Key improvements in R02.3**:
 - **+13%** for granite3.1-moe:1b (80% → 93%) from few-shot fix
 - **+20%** for llama3.2:1b (67% → 87%) from observation role fix
 - **qwen3:0.6b restored** from 0% (broken) with `think=False` API fix
@@ -237,7 +238,7 @@ Output shows:
 - **Tool Support** - `✓ native`, `ReAct`, `○ none`, or `untested`
 
 ```
-⚛️ AgentNova R02.2 Models
+⚛️ AgentNova R02.3 Models
   Model                                      Family       Context    Tool Support
   ──────────────────────────────────────────────────────────────────────────────
   gemma3:270m                                gemma3       32K        ○ none
@@ -254,7 +255,7 @@ Output shows:
 # List all available tests
 agentnova test --list
 
-# Quick diagnostic - 5 questions, ~30s/model (NEW in R02.2)
+# Quick diagnostic - 5 questions, ~30s/model (NEW in R02.3)
 agentnova test 15 --model granite3.1-moe:1b
 agentnova test 15 --model all --debug
 
