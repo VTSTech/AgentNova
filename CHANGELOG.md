@@ -6,11 +6,46 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [R02.2] - 2026-03-21 8:29:46 PM
+## [R02.3] - 2026-03-22 1:26:41 AM
 
 ### 🐛 Critical Fixes: ReAct Mode
 
 Multiple critical bugs fixed that were causing ReAct-mode and thinking-capable models to fail.
+
+### 🎯 Gemma Family Improvements (2026-03-22)
+
+Family-specific optimizations for Google's Gemma models with improved pure reasoning support.
+
+### Added
+- **`no_tools_system_prompt` field** in `ModelFamilyConfig` - Allows family-specific prompts for models without tool support
+  - Models with `tool_support=none` now get optimized pure reasoning prompts
+  - Eliminates confusing tool references that degrade small model performance
+- **`get_no_tools_system_prompt()` helper** - Returns family-specific prompt override
+- **Optimized gemma3 prompt** for 270M parameter model:
+  - Simplified format for small model comprehension
+  - Explicit examples for multi-step calculations and word problems
+  - No code blocks - just arithmetic output
+
+### Fixed
+- **functiongemma:270m tool support detection** - Was incorrectly defaulting to ReAct mode
+  - Now correctly detected as `native` tool support
+  - Improved from 0% (broken) to 80% (4/5)
+- **Test state carryover** - Created fresh `OllamaClient` per question to avoid KV cache pollution
+
+### Impact
+
+| Model | Before | After | Change |
+|-------|--------|-------|--------|
+| **gemma3:270m** | 2/5 (40%) | 3/5 (60%) | **+50%** |
+| **functiongemma:270m** | 0/5 (0%) | 4/5 (80%) | **Fixed** |
+
+### Technical Details
+- `gemma3:270m` has no tool support - pure reasoning is optimal
+- `functiongemma:270m` has native tool support via Ollama API
+- Both models report `family=gemma3` from Ollama API, but have different capabilities
+- The `no_tools_system_prompt` provides arithmetic-focused examples instead of tool references
+
+## [R02.2] - 2026-03-21 8:29:46 PM
 
 ### Fixed
 - **ReAct models now always get `_use_few_shot=True`** - Previously, the `prefers_few_shot=False` setting in model family config (e.g., qwen2) was incorrectly applied to ReAct mode, causing models to output malformed Action/Action Input lines
@@ -42,7 +77,7 @@ Multiple critical bugs fixed that were causing ReAct-mode and thinking-capable m
 
 ### Impact
 
-| Model | Mode | Before R0.2.2 | After R0.2.2 | Change |
+| Model | Mode | Before R02.2 | After R02.2 | Change |
 |-------|------|---------------|--------------|--------|
 | **granite3.1-moe:1b** | react | 80% (12/15) | **93% (14/15)** | **+13%** |
 | **llama3.2:1b** | native | 67% (10/15) | **87% (13/15)** | **+20%** |
