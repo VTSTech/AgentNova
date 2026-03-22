@@ -278,10 +278,18 @@ def main():
         print("🏆 RANKINGS")
         print(f"{'='*60}")
         sorted_results = sorted(all_results, key=lambda x: (-x["passed"], x["time"]))
+        summary_lines = []
         for i, r in enumerate(sorted_results, 1):
             medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "  "
             rate = r["passed"] / r["total"] * 100
-            print(f"{medal} {r['model']:<35} {r['passed']}/{r['total']} ({rate:.0f}%) - {r['time']:.1f}s")
+            line = f"{medal} {r['model']:<35} {r['passed']}/{r['total']} ({rate:.0f}%) - {r['time']:.1f}s"
+            print(line)
+            summary_lines.append(f"{r['model']}: {r['passed']}/{r['total']} ({rate:.0f}%)")
+        
+        # Log summary to ACP
+        if main_acp and acp_connected:
+            summary_text = "Quick Diagnostic Rankings:\n" + "\n".join(summary_lines)
+            main_acp.log_chat("system", summary_text, complete=True)
 
 
 if __name__ == "__main__":
