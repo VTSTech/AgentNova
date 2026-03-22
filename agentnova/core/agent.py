@@ -3,6 +3,12 @@
 
 A cleaner implementation with separate handlers for each tool support level.
 
+Supports:
+  • Native Ollama tool-calling (for models that expose it)
+  • Text-based ReAct fallback (for models without native tool support)
+  • BitNet backend (via AGENTNOVA_BACKEND=bitnet environment variable)
+  • Pure reasoning mode (for models without tool support)
+
 This is a work-in-progress refactor of agent.py. Once tested and verified,
 it will replace the original implementation.
 """
@@ -10,6 +16,7 @@ it will replace the original implementation.
 from __future__ import annotations
 
 import json
+import os as _os
 import re
 import time
 from dataclasses import dataclass, field
@@ -26,6 +33,21 @@ from .model_family_config import (
     should_use_few_shot,
     get_few_shot_style,
 )
+
+# ------------------------------------------------------------------ #
+#  Backend selection (Ollama vs BitNet)                               #
+# ------------------------------------------------------------------ #
+_AGENTNOVA_BACKEND = _os.environ.get("AGENTNOVA_BACKEND", "ollama").lower()
+
+# Try to import BitNet client if needed
+if _AGENTNOVA_BACKEND == "bitnet":
+    try:
+        from ..bitnet_client import BitnetClient
+        _BITNET_AVAILABLE = True
+    except ImportError:
+        _BITNET_AVAILABLE = False
+else:
+    _BITNET_AVAILABLE = False
 
 
 # ============================================================
@@ -82,7 +104,11 @@ def _get_numeric_result(results: list[str]) -> str | None:
 
 class Agent:
     """
-    A single autonomous agent backed by a local Ollama model.
+    A single autonomous agent backed by a local LLM.
+    
+    Supports multiple backends:
+    - Ollama (default): Full native tool-calling support
+    - BitNet: Via AGENTNOVA_BACKEND=bitnet environment variable
     
     Supports three tool support levels:
     - "native": Uses Ollama's built-in tool calling API
@@ -107,12 +133,24 @@ class Agent:
         self.model = model
         self.tools = tools or ToolRegistry()
         self.max_steps = max_steps
-        self.client = client or OllamaClient()
         self.debug = debug
         self.on_step = on_step
         
-        # Get model family from Ollama API
-        self._model_family = self.client.get_model_family(model) or "unknown"
+        # Backend-aware client selection
+        if client is not None:
+            self.client = client
+        elif _AGENTNOVA_BACKEND == "bitnet" and _BITNET_AVAILABLE:
+            from ..bitnet_client import BitnetClient
+            from ..config import BITNET_BASE_URL
+            self.client = BitnetClient(base_url=BITNET_BASE_URL)
+        else:
+            self.client = OllamaClient()
+        
+        # Get model family from client API (if available)
+        if hasattr(self.client, 'get_model_family'):
+            self._model_family = self.client.get_model_family(model) or "unknown"
+        else:
+            self._model_family = "unknown"
         self._model_family_config = get_family_config(self._model_family)
         
         # Extract config fields for easy access
@@ -135,8 +173,12 @@ class Agent:
         if force_react:
             self._tool_support = "react"
         else:
-            from ..cli import get_tool_support
-            self._tool_support = get_tool_support(model, self.client)
+            try:
+                from ..cli import get_tool_support
+                self._tool_support = get_tool_support(model, self.client)
+            except ImportError:
+                # Fallback for BitNet or when CLI not available
+                self._tool_support = "react"
         
         self._native_tools = (self._tool_support == "native")
         self._no_tools = (self._tool_support == "none")

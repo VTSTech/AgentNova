@@ -4,6 +4,84 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [R02.4] - 2026-03-22 (Refactoring)
+
+### 🔧 Major Code Refactoring
+
+Complete restructuring of `agent.py` with significant code reduction and improved maintainability. The monolithic agent implementation has been split into cleaner, mode-specific handlers.
+
+### Added
+- **`agentnova/core/agent_modes.py`** (606 lines) - New module with extracted mode handlers:
+  - `run_pure_reasoning()` - Handler for models with `tool_support=none`
+  - `run_native_tools()` - Handler for models with Ollama native tool calling
+  - `run_react_mode()` - Handler for text-based ReAct prompting
+  - `StepResult` dataclass - Represents a single step in agent execution
+  - `AgentRun` dataclass - Complete result of an agent run with steps and metrics
+
+- **Dataclasses in agent.py**:
+  - `StepResult` - Tracks step type, content, tool info, and timing
+  - `AgentRun` - Contains final answer, steps list, total time, and status
+
+### Changed
+- **`agent.py` massively refactored** (2769 lines → 558 lines, **~80% reduction**):
+  - Extracted mode handlers to `_run_pure_reasoning()`, `_run_native_tools()`, `_run_react_mode()`
+  - Removed `TOOL_ARG_ALIASES` dictionary (150+ lines of argument mappings)
+  - Removed `FEW_SHOT_SUFFIX`, `FEW_SHOT_COMPACT`, `NATIVE_TOOL_HINTS` prompts
+  - Removed `_extract_calc_expression()`, `_extract_echo_text()` helper functions
+  - Removed `_normalize_args()` with complex alias handling
+  - Removed `_fix_calculator_args()` function
+  - Removed `_fuzzy_match_tool_name()` function
+  - Removed BitNet client imports and backend selection code
+  - Removed platform detection code for cross-platform commands
+
+- **`run()` method simplified** - Now dispatches to appropriate handler:
+  ```python
+  if self._no_tools:
+      return self._run_pure_reasoning(user_input)
+  elif self._native_tools:
+      return self._run_native_tools(user_input)
+  else:
+      return self._run_react_mode(user_input)
+  ```
+
+- **New methods in Agent class**:
+  - `_build_system_prompt()` - Constructs mode-appropriate system prompts
+  - `_get_chat_options()` - Returns options with family-specific stop tokens
+
+- **Architecture.md updated**:
+  - Reflects R02.4 as current version
+  - Added model family config integration details
+  - Updated numeric result handling section
+  - Added synthesis trigger documentation
+
+### Removed
+- **BitNet backend support** - Removed from agent.py (may be restored in future module)
+- **Platform-specific command detection** - Simplified to use Python REPL for date/time
+- **Complex argument normalization** - Simplified with family-specific configs
+- **Verbose few-shot prompts** - Moved to family-specific prompt handling
+
+### Architecture Impact
+
+| Component | Before | After | Change |
+|-----------|--------|-------|--------|
+| `agent.py` | 2769 lines | 558 lines | **-80%** |
+| `agent_modes.py` | N/A | 606 lines | New |
+| Total core code | 2769 lines | 1164 lines | **-58%** |
+
+### Technical Details
+- Cleaner separation of concerns: each tool support level has its own handler
+- Mode handlers are self-contained and testable in isolation
+- Reduced cognitive load for understanding agent behavior
+- Family-specific configuration handles most argument/prompt variations
+- Removed redundant code that was superseded by `ModelFamilyConfig` integration
+
+### Migration Notes
+- The `Agent` class API remains unchanged - fully backward compatible
+- Internal refactoring only - no breaking changes to public interface
+- `agent_modes.py` is an internal module (not part of public API)
+
+---
+
 ## [R02.4] - 2026-03-22 3:20:14 PM
 
 ### 🎯 Full Model Family Config Integration
