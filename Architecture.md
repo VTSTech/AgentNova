@@ -163,58 +163,41 @@ agentnova models --tool_support
 
 ---
 
-## Multi-Step Calculation Auto-Completion (R02.3)
+## Numeric Result Handling (R02.3)
 
-When small models compute only the first step of a multi-step calculation, AgentNova now detects and auto-completes the remaining operations.
+The synthesis logic now returns numeric results directly without attempting to detect incomplete multi-step calculations.
 
-### Problem Solved
+### Why Simple Is Better
 
-Small models often stop after computing the first part of a multi-step question:
+When a model computes an expression like `8 * 7 - 5 = 51`:
 
 ```
-User: What is 8 * 7, then subtract 5?
-Model: 56  (stops here, forgetting "then subtract 5")
+User: Calculate 8 times 7, then subtract 5 from the result.
+Model: calculator(expression=8 * 7 - 5)  ← Full expression in one call
+Result: 51  ← Correct!
 ```
 
-### Solution
+From the result alone, we **cannot tell** whether:
+1. The model computed `8 * 7 - 5` (complete), OR
+2. The model computed `8 * 7` only (incomplete)
 
-The `_synthesize_response()` method now:
+Previous attempts to auto-complete by detecting "then subtract X" patterns caused **double-subtraction errors** when the model had already included the operation.
 
-1. **Detects multi-step patterns** in the original question:
-   - "then subtract/add/multiply/divide"
-   - Multiple operation keywords in the question
+### Current Behavior
 
-2. **Checks if calculation is incomplete**:
-   - Multi-step question but only one tool result?
-   - The model likely missed subsequent operations
-
-3. **Auto-completes the calculation**:
-   ```python
-   # Extract remaining operation from question
-   remaining_match = re.search(r'then\s+(?:subtract|minus)\s+(\d+)', q_lower)
-   if remaining_match:
-       final_val = last_num - sub_val
-       return str(final_val)
-   ```
-
-### Supported Patterns
-
-| Pattern | Example | Auto-Complete |
-|---------|---------|---------------|
-| `then subtract X` | "8 * 7, then subtract 5" | `56 - 5 = 51` |
-| `then add X` | "10 * 3, then add 4" | `30 + 4 = 34` |
-| `then multiply by X` | "5 + 5, then multiply by 2" | `10 * 2 = 20` |
-| `then divide by X` | "100 - 20, then divide by 4" | `80 / 4 = 20` |
-
-### Debug Output
-
-With `--debug`, you'll see:
+```python
+# Simple rule: If result is numeric, return it directly
+try:
+    num = float(r_clean)
+    return r_clean  # Return numeric result directly
+except ValueError:
+    pass  # Fall through to LLM synthesis for non-numeric results
 ```
-synthesize: checking if numeric: '56'
-synthesize: is_multi_step_question=True, num_results=1
-synthesize: multi-step question with single result, using LLM synthesis
-synthesize: auto-completing: 56 - 5 = 51
-```
+
+This is safer because:
+- **Correct results pass through** unchanged
+- **Wrong results** (from incomplete calculations) are still better than double-processed results
+- **No hallucination risk** from LLM synthesis trying to interpret partial results
 
 ---
 
@@ -417,4 +400,4 @@ agentnova chat --temperature 0.1                # Lower = more deterministic
 
 8. **Never add few-shot to native tool models** - This caused a major regression (90%→58% GSM8K) in R01→R02. Native models use Ollama's API for tool calling; text-based few-shot examples confuse them.
 
-9. **Multi-step calculation auto-completion** (R02.3) - When models compute only the first step of multi-step questions, AgentNova detects and auto-completes remaining operations. This happens in `_synthesize_response()` before falling back to LLM synthesis. See "Multi-Step Calculation Auto-Completion" section for details.
+9. **Numeric results are returned directly** (R02.3) - The synthesis logic no longer tries to detect incomplete multi-step calculations. Numeric results pass through unchanged. This avoids double-processing errors when models compute full expressions in one calculator call.
