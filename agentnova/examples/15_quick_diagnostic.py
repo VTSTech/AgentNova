@@ -48,6 +48,15 @@ config = parse_shared_args(args)
 
 DEBUG = config.debug
 
+# Check for optional ACP support
+USE_ACP = config.acp
+if USE_ACP:
+    try:
+        from agentnova.acp_plugin import ACPPlugin
+    except ImportError:
+        print("⚠️ ACP requested but ACPPlugin not available")
+        USE_ACP = False
+
 # Quick 5-question diagnostic test
 # Each question targets a specific failure mode
 TESTS = [
@@ -101,13 +110,17 @@ def make_step_callback(verbose: bool = True):
     return on_step
 
 
-def test_model(client, model: str, config: SharedConfig) -> dict:
+def test_model(client, model: str, config: SharedConfig, acp=None) -> dict:
     """Test a single model and return results."""
     print(f"\n{'='*60}")
     print(f"🧪 Quick Diagnostic: {model}")
     print(f"{'='*60}")
     
     results = {"model": model, "passed": 0, "total": len(TESTS), "time": 0, "tests": {}}
+    
+    # Log test start to ACP
+    if acp:
+        acp.log_chat("system", f"Quick Diagnostic started for {model}", complete=True)
     
     for i, (test_name, prompt, tools, expected) in enumerate(TESTS):
         print(f"  {test_name}...", end=" ", flush=True)
@@ -178,10 +191,20 @@ After getting the result, provide the final answer as a number."""
             else:
                 print(f"❌ ({elapsed:.1f}s)")
                 print(f"      Expected: {expected}, Got: {response[:80]}")
+            
+            # Log to ACP
+            if acp:
+                acp.log_chat(
+                    "assistant" if passed else "error",
+                    f"{test_name}: {'PASS' if passed else 'FAIL'} - Expected: {expected}, Got: {response[:50]}",
+                    complete=True
+                )
                 
         except Exception as e:
             results["tests"][test_name] = {"passed": False, "error": str(e)[:100]}
             print(f"❌ ERROR: {str(e)[:50]}")
+            if acp:
+                acp.log_chat("error", f"{test_name}: ERROR - {str(e)[:50]}", complete=True)
     
     pass_rate = results["passed"] / results["total"] * 100
     print(f"\n  📊 Result: {results['passed']}/{results['total']} ({pass_rate:.0f}%) in {results['time']:.1f}s")
@@ -199,8 +222,22 @@ def main():
     from agentnova.model_discovery import get_available_models
     available = list(dict.fromkeys(get_available_models(client)))
     
+    # Create main ACP instance if enabled
+    main_acp = None
+    acp_connected = False
+    if USE_ACP:
+        main_acp = ACPPlugin(
+            agent_name="AgentNova",
+            model_name="quick-diagnostic",
+            debug=DEBUG,
+        )
+        bootstrap = main_acp.bootstrap(claim_primary=False)
+        acp_connected = bootstrap.get("status") is not None
+    
     print(f"\n⚛️ AgentNova Quick Diagnostic (5 questions)")
     print(f"   Available models: {', '.join(available[:5])}{'...' if len(available) > 5 else ''}")
+    if USE_ACP:
+        print(f"   ACP: {'connected' if acp_connected else 'unavailable'}")
     
     # Determine which models to test
     if config.model:
@@ -222,7 +259,17 @@ def main():
     
     all_results = []
     for model in models_to_test:
-        result = test_model(client, model, config)
+        # Create model-specific ACP instance if enabled
+        model_acp = None
+        if USE_ACP and acp_connected:
+            model_acp = ACPPlugin(
+                agent_name="AgentNova",
+                model_name=model.split(':')[0][:25],
+                debug=DEBUG,
+            )
+            model_acp.bootstrap(claim_primary=False)
+        
+        result = test_model(client, model, config, acp=model_acp)
         all_results.append(result)
     
     # Summary
