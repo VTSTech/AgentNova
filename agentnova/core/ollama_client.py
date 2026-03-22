@@ -181,9 +181,18 @@ class OllamaClient:
         tools: list[dict] | None = None,
         stream: bool = False,
         options: dict | None = None,
+        think: bool | None = None,
     ) -> dict | Iterator[dict]:
         """
         Call /api/chat. Returns a dict (stream=False) or Iterator[dict] (stream=True).
+        
+        Parameters
+        ----------
+        think : bool | None
+            For thinking-capable models (qwen3, deepseek-r1, etc.):
+            - None: Use model default (thinking enabled)
+            - False: Disable thinking mode (just return content)
+            - True: Enable thinking mode (returns thinking + content)
         """
         payload: dict[str, Any] = {
             "model": model,
@@ -194,6 +203,8 @@ class OllamaClient:
             payload["tools"] = tools
         if options:
             payload["options"] = options
+        if think is not None:
+            payload["think"] = think
 
         if stream:
             return self._stream("/api/chat", payload)
