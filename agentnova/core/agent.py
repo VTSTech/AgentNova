@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import os as _os
+import platform as _platform
 import re
 import time
 from dataclasses import dataclass, field
@@ -48,6 +49,13 @@ if _AGENTNOVA_BACKEND == "bitnet":
         _BITNET_AVAILABLE = False
 else:
     _BITNET_AVAILABLE = False
+
+# ------------------------------------------------------------------ #
+#  Platform detection for cross-platform shell commands               #
+# ------------------------------------------------------------------ #
+_IS_WINDOWS = _platform.system() == "Windows"
+_PLATFORM_DIR_CMD = "cd" if _IS_WINDOWS else "pwd"
+_PLATFORM_LIST_CMD = "dir" if _IS_WINDOWS else "ls"
 
 
 # ============================================================
