@@ -18,7 +18,7 @@ from typing import Any, Callable, Iterator, Literal
 from .ollama_client import OllamaClient
 from .memory import Memory
 from .tools import ToolRegistry
-from .model_family_config import get_model_family_config, get_no_tools_system_prompt
+from .model_family_config import get_family_config, get_no_tools_system_prompt
 
 
 # ============================================================
