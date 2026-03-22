@@ -18,7 +18,14 @@ from typing import Any, Callable, Iterator, Literal
 from .ollama_client import OllamaClient
 from .memory import Memory
 from .tools import ToolRegistry
-from .model_family_config import get_family_config, get_no_tools_system_prompt
+from .model_family_config import (
+    get_family_config,
+    get_no_tools_system_prompt,
+    get_react_system_suffix,
+    get_native_tool_hints,
+    should_use_few_shot,
+    get_few_shot_style,
+)
 
 
 # ============================================================
@@ -101,14 +108,28 @@ class Agent:
         self.tools = tools or ToolRegistry()
         self.max_steps = max_steps
         self.client = client or OllamaClient()
-        self.model_options = model_options or {}
         self.debug = debug
         self.on_step = on_step
         
         # Get model family from Ollama API
         self._model_family = self.client.get_model_family(model) or "unknown"
         self._model_family_config = get_family_config(self._model_family)
-        self._needs_no_think = getattr(self._model_family_config, 'needs_think_directive', False)
+        
+        # Extract config fields for easy access
+        config = self._model_family_config
+        self._needs_no_think = config.needs_think_directive
+        self._stop_tokens = config.stop_tokens
+        self._has_schema_dump_issue = config.has_schema_dump_issue
+        self._truncate_json_args = config.truncate_json_args
+        self._system_prompt_style = config.system_prompt_style
+        self._prefers_few_shot = config.prefers_few_shot
+        self._few_shot_style = config.few_shot_style
+        self._reasoning_hints = config.reasoning_hints
+        
+        # Apply preferred_temperature if not specified
+        self.model_options = model_options or {}
+        if "temperature" not in self.model_options:
+            self.model_options["temperature"] = config.preferred_temperature
         
         # Determine tool support level
         if force_react:
@@ -120,15 +141,51 @@ class Agent:
         self._native_tools = (self._tool_support == "native")
         self._no_tools = (self._tool_support == "none")
         
-        # Set up memory with appropriate system prompt
-        if self._no_tools:
-            family_no_tools_prompt = get_no_tools_system_prompt(self._model_family)
-            system_prompt = family_no_tools_prompt or system_prompt
+        # Build system prompt based on tool support and family config
+        final_system_prompt = self._build_system_prompt(system_prompt)
         
-        self.memory = Memory(system_prompt=system_prompt, max_turns=memory_max_turns)
+        self.memory = Memory(system_prompt=final_system_prompt, max_turns=memory_max_turns)
         
         if debug:
-            print(f"Agent initialized: model={model}, tool_support={self._tool_support}")
+            print(f"Agent initialized: model={model}, tool_support={self._tool_support}, "
+                  f"family={self._model_family}, temp={self.model_options.get('temperature')}")
+    
+    def _build_system_prompt(self, base_prompt: str) -> str:
+        """Build the appropriate system prompt based on tool support and family config."""
+        config = self._model_family_config
+        
+        # Pure reasoning mode - use family-specific no-tools prompt
+        if self._no_tools:
+            family_prompt = get_no_tools_system_prompt(self._model_family)
+            return family_prompt or base_prompt
+        
+        # Native tools mode - add tool usage hints
+        if self._native_tools:
+            hints = get_native_tool_hints(self._model_family)
+            if hints:
+                return f"{base_prompt}\n\n{hints}"
+            return base_prompt
+        
+        # ReAct mode - add ReAct format instructions
+        react_suffix = get_react_system_suffix(self._model_family)
+        
+        # Add reasoning hints if configured
+        if self._reasoning_hints:
+            hints_text = "\n".join(f"- {h}" for h in self._reasoning_hints)
+            base_prompt = f"{base_prompt}\n\nReasoning approach:\n{hints_text}"
+        
+        return f"{base_prompt}\n\n{react_suffix}"
+    
+    def _get_chat_options(self) -> dict:
+        """Get model options including stop tokens from family config."""
+        options = dict(self.model_options)
+        if self._stop_tokens:
+            # Merge with any existing stop tokens
+            existing_stop = options.get("stop", [])
+            if isinstance(existing_stop, str):
+                existing_stop = [existing_stop]
+            options["stop"] = list(set(existing_stop + self._stop_tokens))
+        return options
     
     def run(self, user_input: str) -> AgentRun:
         """
@@ -427,7 +484,7 @@ class Agent:
                     if self.on_step:
                         self.on_step(run.steps[-1])
                     
-                    if not result.startswith("[Tool error]"):
+                    if not result.startswith(("[Tool error]", "[Calculator error]")):
                         successful_results.append(f"{t_name} → {result}")
                     
                     # Add observation (as user for model to respond)
