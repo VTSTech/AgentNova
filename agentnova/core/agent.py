@@ -106,6 +106,105 @@ def _get_numeric_result(results: list[str]) -> str | None:
         return None
 
 
+def _synthesize_result(results: list[str], content: str) -> str:
+    """Synthesize final answer from results."""
+    if not results:
+        return content
+    
+    # Try numeric first
+    numeric = _get_numeric_result(results)
+    if numeric:
+        return numeric
+    
+    # Return last result
+    return _strip_tool_prefix(results[-1])
+
+
+# Word mappings for fuzzy tool name matching
+# Maps keyword → list of acceptable tools (in priority order)
+_TOOL_WORD_MAPPINGS = {
+    # Calculator-related
+    "calculate": ["calculator", "python_repl"],
+    "calc": ["calculator", "python_repl"],
+    "math": ["calculator", "python_repl"],
+    "compute": ["calculator", "python_repl"],
+    "sqrt": ["calculator", "python_repl"],
+    "square": ["calculator", "python_repl"],
+    "root": ["calculator", "python_repl"],
+    "power": ["calculator", "python_repl"],
+    "multiply": ["calculator", "python_repl"],
+    "divide": ["calculator", "python_repl"],
+    "add": ["calculator", "python_repl"],
+    "subtract": ["calculator", "python_repl"],
+    "calculator": ["calculator"],
+    
+    # Shell-related
+    "shell": ["shell"],
+    "bash": ["shell"],
+    "cmd": ["shell"],
+    "command": ["shell"],
+    "ls": ["shell"],
+    "dir": ["shell"],
+    "cat": ["shell"],
+    "echo": ["shell"],
+    "pwd": ["shell"],
+    "grep": ["shell"],
+    
+    # Python
+    "python": ["python_repl", "shell"],
+    "repl": ["python_repl", "shell"],
+    "code": ["python_repl", "shell"],
+    "exec": ["python_repl", "shell"],
+    
+    # File I/O
+    "read": ["read_file"],
+    "write": ["write_file"],
+    "file": ["read_file", "write_file"],
+}
+
+
+def _fuzzy_match_tool_name(hallucinated_name: str, tools: ToolRegistry) -> str | None:
+    """
+    Try to match a hallucinated tool name to a real tool.
+    
+    Small models often call tools by wrong names:
+        "ls" → shell
+        "echo" → shell
+        "sqrt" → calculator
+    
+    Returns the matched tool name or None if no match found.
+    """
+    # First, try exact match
+    if tools.get(hallucinated_name):
+        return hallucinated_name
+    
+    real_names = [t.name for t in tools.all()]
+    lower_hall = hallucinated_name.lower().replace("_", "")
+    
+    # Strategy 1: Check if any real tool name is a substring
+    for real_name in real_names:
+        lower_real = real_name.lower().replace("_", "")
+        if lower_real in lower_hall or lower_hall in lower_real:
+            return real_name
+    
+    # Strategy 2: Word mappings
+    for keyword, tool_hints in _TOOL_WORD_MAPPINGS.items():
+        if keyword in lower_hall:
+            for tool_hint in tool_hints:
+                for real_name in real_names:
+                    if tool_hint in real_name or real_name == tool_hint:
+                        return real_name
+    
+    # Strategy 3: First 4 chars match
+    for real_name in real_names:
+        lower_real = real_name.lower()
+        if len(lower_real) >= 4 and len(lower_hall) >= 4:
+            if lower_real[:4] == lower_hall[:4]:
+                return real_name
+    
+    return None
+
+
 # ============================================================
 # REFACTORED AGENT CLASS
 # ============================================================
@@ -329,12 +428,8 @@ class Agent:
             
             # No tool calls - check if done
             if not tool_calls_raw:
-                # Try numeric result first
-                numeric = _get_numeric_result(successful_results)
-                if numeric:
-                    run.final_answer = numeric
-                else:
-                    run.final_answer = content
+                # Synthesize final answer from results
+                run.final_answer = _synthesize_result(successful_results, content)
                 
                 self.memory.add_assistant(content)
                 run.steps.append(StepResult(type="final", content=run.final_answer, elapsed_ms=elapsed))
@@ -356,23 +451,15 @@ class Agent:
                 
                 # Check limits
                 tool_call_counts[t_name] = tool_call_counts.get(t_name, 0) + 1
-                if tool_call_counts[t_name] > max_calls_per_tool:
+                total_calls = sum(tool_call_counts.values())
+                if tool_call_counts[t_name] > max_calls_per_tool or total_calls > max_total_tool_calls:
                     if self.debug:
                         print(f"    Max calls reached for {t_name}")
-                    # Return the best result we have
-                    run.final_answer = _get_numeric_result(successful_results) or content or ""
+                    run.final_answer = _synthesize_result(successful_results, content)
                     run.steps.append(StepResult(type="final", content=run.final_answer, elapsed_ms=elapsed))
                     if self.on_step:
                         self.on_step(run.steps[-1])
                     return run
-                
-                total_calls = sum(tool_call_counts.values())
-                if total_calls > max_total_tool_calls:
-                    run.final_answer = _get_numeric_result(successful_results) or content
-                    run.steps.append(StepResult(type="final", content=run.final_answer, elapsed_ms=elapsed))
-                    if self.on_step:
-                        self.on_step(run.steps[-1])
-                    break
                 
                 # Execute tool
                 if self.tools.get(t_name):
@@ -409,10 +496,10 @@ class Agent:
             
             # Check if we should synthesize after tool execution
             if successful_results and _is_simple_query(user_input):
-                numeric = _get_numeric_result(successful_results)
-                if numeric:
-                    run.final_answer = numeric
-                    run.steps.append(StepResult(type="final", content=numeric, elapsed_ms=elapsed))
+                final = _synthesize_result(successful_results, content)
+                if final:
+                    run.final_answer = final
+                    run.steps.append(StepResult(type="final", content=final, elapsed_ms=elapsed))
                     if self.on_step:
                         self.on_step(run.steps[-1])
                     break
@@ -505,11 +592,48 @@ class Agent:
                 
                 # Check limits
                 tool_call_counts[t_name] = tool_call_counts.get(t_name, 0) + 1
-                if tool_call_counts[t_name] > max_calls_per_tool:
+                total_calls = sum(tool_call_counts.values())
+                if tool_call_counts[t_name] > max_calls_per_tool or total_calls > max_total_tool_calls:
                     if self.debug:
                         print(f"    Max calls for {t_name}")
-                    run.final_answer = _get_numeric_result(successful_results) or content
-                    break
+                    run.final_answer = _synthesize_result(successful_results, content)
+                    run.steps.append(StepResult(type="final", content=run.final_answer, elapsed_ms=elapsed))
+                    if self.on_step:
+                        self.on_step(run.steps[-1])
+                    return run
+                
+                # Check if tool exists, try fuzzy matching if not
+                original_t_name = t_name
+                if not self.tools.get(t_name):
+                    fuzzy_name = _fuzzy_match_tool_name(t_name, self.tools)
+                    if self.debug:
+                        print(f"    fuzzy_match({t_name!r}) -> {fuzzy_name!r}")
+                    if fuzzy_name:
+                        # Handle special cases for shell commands
+                        if fuzzy_name == "shell" and original_t_name.lower() in ("ls", "dir", "pwd", "echo", "cat", "grep"):
+                            # Model called a command as a tool name - synthesize proper command
+                            if original_t_name.lower() == "ls":
+                                t_args = {"command": "ls"}
+                            elif original_t_name.lower() == "dir":
+                                t_args = {"command": "dir"}
+                            elif original_t_name.lower() == "pwd":
+                                t_args = {"command": "pwd"}
+                            elif original_t_name.lower() == "echo":
+                                text_val = t_args.get("text") or t_args.get("message") or t_args.get("input") or ""
+                                t_args = {"command": f"echo {text_val}" if text_val else "echo"}
+                            elif original_t_name.lower() == "cat":
+                                path = t_args.get("path") or t_args.get("file") or t_args.get("input") or ""
+                                t_args = {"command": f"cat {path}" if path else "cat"}
+                            elif original_t_name.lower() == "grep":
+                                pattern = t_args.get("pattern") or t_args.get("text") or t_args.get("input") or ""
+                                t_args = {"command": f"grep {pattern}" if pattern else "grep"}
+                        t_name = fuzzy_name
+                    else:
+                        if self.debug:
+                            print(f"    Unknown tool: {original_t_name}")
+                        self.memory.add_assistant(content)
+                        self.memory.add_user(f"Tool '{original_t_name}' not found. Available: {[t.name for t in self.tools.all()]}")
+                        continue
                 
                 # Execute tool
                 if self.tools.get(t_name):
@@ -543,11 +667,6 @@ class Agent:
                     # Add observation (as user for model to respond)
                     self.memory.add_assistant(content)
                     self.memory.add_user(f"Observation: {result}\n\nNow provide your Final Answer:")
-                else:
-                    if self.debug:
-                        print(f"    Unknown tool: {t_name}")
-                    self.memory.add_assistant(content)
-                    self.memory.add_user(f"Tool '{t_name}' not found. Try: {[t.name for t in self.tools.all()]}")
             
             # No tool call but we have final_answer - accept it
             elif not t_name and final_answer:
