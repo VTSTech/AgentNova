@@ -16,9 +16,9 @@ import time
 from typing import Callable, Any
 
 from .tools import ToolRegistry, Tool, ToolParam
-from .memory import ConversationMemory
+from .memory import Memory
 from .ollama_client import OllamaClient
-from .model_family_config import get_model_family_config, ModelFamilyConfig
+from .model_family_config import get_model_config, ModelFamilyConfig
 
 
 class StepResult:
@@ -57,7 +57,7 @@ class AgentRun:
 def run_pure_reasoning(
     client: OllamaClient,
     model: str,
-    memory: ConversationMemory,
+    memory: Memory,
     model_options: dict,
     needs_no_think: bool,
     debug: bool,
@@ -121,7 +121,7 @@ def run_pure_reasoning(
 def run_native_tools(
     client: OllamaClient,
     model: str,
-    memory: ConversationMemory,
+    memory: Memory,
     tools: ToolRegistry,
     model_options: dict,
     max_steps: int,
@@ -341,7 +341,7 @@ def _parse_react(text: str) -> tuple[str | None, str | None, dict | None, str | 
 def run_react_mode(
     client: OllamaClient,
     model: str,
-    memory: ConversationMemory,
+    memory: Memory,
     tools: ToolRegistry,
     model_options: dict,
     max_steps: int,
@@ -588,12 +588,12 @@ def _normalize_args(args: dict, tool: Tool) -> dict:
     return normalized if normalized else args
 
 
-def _is_simple_query(memory: ConversationMemory) -> bool:
+def _is_simple_query(memory: Memory) -> bool:
     """Check if the query is simple enough for immediate synthesis."""
     # Get the first user message
     for msg in memory._history:
-        if msg.get("role") == "user":
-            text = msg.get("content", "").lower()
+        if msg.role == "user":
+            text = msg.content.lower()
             # Simple math/date queries
             simple_keywords = ["what is", "calculate", "compute", "sqrt", "date", "time"]
             if any(kw in text for kw in simple_keywords) and len(text) < 60:
