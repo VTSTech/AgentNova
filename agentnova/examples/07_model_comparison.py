@@ -403,6 +403,8 @@ def main():
         return
     
     available = get_available_models(client)
+    # Deduplicate models list (Ollama may return duplicates in some cases)
+    available = list(dict.fromkeys(available))
     print(f"\n⚛️ AgentNova Model Comparison")
     print(f"   Backend: {BACKEND_NAME}")
     print(f"   Available models: {', '.join(available)}")
