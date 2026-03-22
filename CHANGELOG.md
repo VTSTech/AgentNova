@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [R02.2] - 2026-03-21 8:29:46 PM
+
+### 🐛 Critical Fix: ReAct Few-Shot Prompting
+
+Fixed a regression where ReAct-mode models were not receiving few-shot examples, causing malformed tool calls and test failures.
+
+### Fixed
+- **ReAct models now always get `_use_few_shot=True`** - Previously, the `prefers_few_shot=False` setting in model family config (e.g., qwen2) was incorrectly applied to ReAct mode, causing models to output malformed Action/Action Input lines
+- Added explicit override in `agent.py`: `if self._tool_support == "react" and self.tools.all(): self._use_few_shot = True`
+
+### Root Cause
+The `prefers_few_shot` setting in `ModelFamilyConfig` was designed for native tool-calling models (where few-shot examples can confuse the API), but was incorrectly being applied to ReAct-mode models which **require** few-shot examples to learn the text-based format.
+
+### Impact
+| Model | Mode | Before Fix | After Fix |
+|-------|------|------------|-----------|
+| qwen2 (various) | react | 72% | 100% |
+| llama3.2:1b | react | Failing | 100% |
+| qwen2.5-coder:0.5b | react | Malformed | 81% (model limited) |
+
+### Technical Details
+- ReAct models need few-shot examples to learn: `Thought: ... Action: tool_name Action Input: {"arg": ...}`
+- Native models should NOT have few-shot examples (API handles tool calling directly)
+- The fix ensures this critical distinction is enforced regardless of family config
+
+---
+
 ## [R02.1] - 2026-03-21 4:11:21 PM
 
 - Possibly last version published to PyPi for awhile
