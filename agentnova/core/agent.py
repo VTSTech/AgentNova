@@ -1847,7 +1847,9 @@ class Agent:
             # ── Immediate synthesize after successful tool result ───────────── #
             # Prevents small models re-invoking tools when the answer is in hand.
             # Triggered when: a tool succeeded AND the query is simple (date, math, etc.)
-            if _successful_results and _is_simple_answered_query(user_input, _successful_results):
+            # NOTE: Skip for ReAct mode - ReAct has its own "Final Answer" mechanism
+            # that we need to respect (model may output "Final Answer: X" after tools)
+            if _successful_results and _is_simple_answered_query(user_input, _successful_results) and self._native_tools:
                 final_answer = self._synthesize(user_input, _successful_results)
                 final_step = StepResult(type="final", content=final_answer, elapsed_ms=elapsed)
                 run.steps.append(final_step)
@@ -2557,6 +2559,21 @@ class Agent:
                 fallback_text = clean_results[0] if len(clean_results) == 1 else "\n".join(f"- {r}" for r in clean_results)
             else:
                 fallback_text = content
+            
+            # For ReAct mode: if model output looks incomplete (just "Thought: ..." without Final Answer)
+            # and we have a numeric result, use the numeric result directly
+            if not self._native_tools and _successful_results:
+                content_stripped = content.strip()
+                # Check if content is just a thought without actual answer
+                if content_stripped.startswith("Thought:") and "Final Answer:" not in content_stripped:
+                    # Try to use numeric fallback
+                    try:
+                        fallback_num = float(fallback_text)
+                        if self.debug:
+                            print(f"\n  🔍 DEBUG: ReAct thought without Final Answer, using numeric result: {fallback_num}")
+                        content = fallback_text
+                    except (ValueError, TypeError):
+                        pass  # Fall through to normal processing
             
             if self.debug:
                 print(f"\n  🔍 DEBUG: Final answer processing")
