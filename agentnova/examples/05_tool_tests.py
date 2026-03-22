@@ -15,9 +15,7 @@ Or from the examples folder: python 05_tool_tests.py
 With CLI:
   agentnova test 05
   agentnova test 05 --acp --debug
-  agentnova test 05 --model qwen2.5-coder:0.5b
-  agentnova test 05 --model all
-  agentnova test 05 --model qwen
+  agentnova test 05 --use-mf-sys --model qwen2.5-coder:0.5b
 
 Written by VTSTech — https://www.vts-tech.org — https://github.com/VTSTech/AgentNova
 """
@@ -72,9 +70,6 @@ TIMEOUT = int(os.environ.get("AGENTNOVA_TIMEOUT", "120"))  # seconds per test
 
 # ACP instance (global for step callback)
 acp = None
-
-# Store results for multi-model comparison
-ALL_RESULTS = []
 
 
 def make_step_callback(verbose: bool, acp_instance=None):
@@ -141,27 +136,24 @@ def run_test(agent, prompt: str, timeout: int = TIMEOUT):
         return None, f"{type(e).__name__}: {str(e)[:100]}"
 
 
-def test_calculator(model_override: str = None):
+def test_calculator():
     """Test calculator tool - models must figure out how to use it."""
     global MODEL, acp
     client = get_default_client()
     
     if not client.is_running():
         print(f"❌ {BACKEND_NAME} is not running.")
-        return 0, 0, 0.0
+        return 0, 0
     
-    # Use provided model or pick dynamically
-    if model_override:
-        MODEL = model_override
-    else:
-        MODEL = pick_best_model(preferred=preferred, client=client)
-        if not MODEL:
-            models = get_available_models(client)
-            MODEL = models[0] if models else None
+    # Pick best model dynamically
+    MODEL = pick_best_model(preferred=preferred, client=client)
+    if not MODEL:
+        models = get_available_models(client)
+        MODEL = models[0] if models else None
     
     if not MODEL:
         print(f"❌ No models available in {BACKEND_NAME}.")
-        return 0, 0, 0.0
+        return 0, 0
     
     # Create ACP instance for this test if enabled
     test_acp = None
@@ -172,8 +164,6 @@ def test_calculator(model_override: str = None):
             model_name=model_short,
             debug=DEBUG,
         )
-    
-    t_start = time.time()
     
     print(f"\n{'='*60}")
     print(f"🧮 Calculator Tool Tests")
@@ -253,34 +243,28 @@ def test_calculator(model_override: str = None):
     # Summary
     passed = sum(results)
     total = len(results)
-    elapsed_total = time.time() - t_start
     print(f"\n📊 Calculator: {passed}/{total} tests passed ({100*passed//total}%)")
     print(f"{'='*60}")
-    return passed, total, elapsed_total
+    return passed, total
 
 
-def test_shell(model_override: str = None):
+def test_shell():
     """Test shell tool - models must figure out how to use it."""
-    global MODEL, acp
+    global acp
     client = get_default_client()
-    
-    # Use provided model or use global MODEL
-    test_model = model_override if model_override else MODEL
-    
-    t_start = time.time()
     
     # Create ACP instance for this test if enabled
     test_acp = None
     if USE_ACP:
         test_acp = ACPPlugin(
             agent_name="AgentNova",
-            model_name=f"{test_model.split(':')[0]}_shell",
+            model_name=f"{MODEL.split(':')[0]}_shell",
             debug=DEBUG,
         )
     
     print(f"\n{'='*60}")
     print(f"🖥️  Shell Tool Tests")
-    print(f"   Model: {test_model}")
+    print(f"   Model: {MODEL}")
     if USE_ACP:
         print(f"   ACP: enabled")
     print(f"{'='*60}")
@@ -312,7 +296,7 @@ def test_shell(model_override: str = None):
             sys_prompt = "Use the shell tool to run commands. Use 'ls' to list files, 'pwd' for current directory, 'echo' for text output."
         
         agent = Agent(
-            model=test_model,
+            model=MODEL,
             client=client,
             tools=tools,
             system_prompt=sys_prompt,
@@ -365,33 +349,27 @@ def test_shell(model_override: str = None):
     
     passed = sum(results)
     total = len(results)
-    elapsed_total = time.time() - t_start
     print(f"\n📊 Shell: {passed}/{total} tests passed ({100*passed//total}%)")
-    return passed, total, elapsed_total
+    return passed, total
 
 
-def test_python_repl(model_override: str = None):
+def test_python_repl():
     """Test Python REPL tool - models must figure out how to use it."""
-    global MODEL, acp
+    global acp
     client = get_default_client()
-    
-    # Use provided model or use global MODEL
-    test_model = model_override if model_override else MODEL
-    
-    t_start = time.time()
     
     # Create ACP instance for this test if enabled
     test_acp = None
     if USE_ACP:
         test_acp = ACPPlugin(
             agent_name="AgentNova",
-            model_name=f"{test_model.split(':')[0]}_python",
+            model_name=f"{MODEL.split(':')[0]}_python",
             debug=DEBUG,
         )
     
     print(f"\n{'='*60}")
     print(f"🐍 Python REPL Tool Tests")
-    print(f"   Model: {test_model}")
+    print(f"   Model: {MODEL}")
     if USE_ACP:
         print(f"   ACP: enabled")
     print(f"{'='*60}")
@@ -412,7 +390,7 @@ def test_python_repl(model_override: str = None):
         print(f"   Prompt: {prompt}")
         
         agent = Agent(
-            model=test_model,
+            model=MODEL,
             client=client,
             tools=tools,
             system_prompt="Use Python REPL for calculations. Use print() to show results in your code.",
@@ -474,53 +452,12 @@ def test_python_repl(model_override: str = None):
     
     passed = sum(results)
     total = len(results)
-    elapsed_total = time.time() - t_start
     print(f"\n📊 Python REPL: {passed}/{total} tests passed ({100*passed//total}%)")
-    return passed, total, elapsed_total
-
-
-def run_all_tests_for_model(model: str) -> dict:
-    """Run all tests for a single model and return results."""
-    print(f"\n{'#'*60}")
-    print(f"# Testing model: {model}")
-    print(f"{'#'*60}")
-    
-    total_passed = 0
-    total_tests = 0
-    total_time = 0.0
-    
-    p, t, elapsed = test_calculator(model_override=model)
-    total_passed += p
-    total_tests += t
-    total_time += elapsed
-    
-    p, t, elapsed = test_shell(model_override=model)
-    total_passed += p
-    total_tests += t
-    total_time += elapsed
-    
-    p, t, elapsed = test_python_repl(model_override=model)
-    total_passed += p
-    total_tests += t
-    total_time += elapsed
-    
-    result = {
-        "model": model,
-        "passed": total_passed,
-        "total": total_tests,
-        "time": total_time,
-        "rate": 100 * total_passed // total_tests if total_tests > 0 else 0
-    }
-    
-    print(f"\n{'='*60}")
-    print(f"📊 {model}: {total_passed}/{total_tests} tests passed ({result['rate']}%)")
-    print(f"{'='*60}")
-    
-    return result
+    return passed, total
 
 
 def main():
-    global MODEL, ALL_RESULTS
+    global MODEL
     print(f"\n{'='*60}")
     print(f"🔧 AgentNova Tool Tests")
     print(f"   Backend: {BACKEND_NAME}")
@@ -530,64 +467,26 @@ def main():
         print(f"   ACP: enabled")
     print(f"{'='*60}")
     
-    client = get_default_client()
+    total_passed = 0
+    total_tests = 0
     
-    if not client.is_running():
-        print(f"❌ {BACKEND_NAME} is not running.")
-        return False
+    p, t = test_calculator()
+    total_passed += p
+    total_tests += t
     
-    # Get available models
-    available = list(dict.fromkeys(get_available_models(client)))
+    p, t = test_shell()
+    total_passed += p
+    total_tests += t
     
-    if not available:
-        print(f"❌ No models available in {BACKEND_NAME}.")
-        return False
+    p, t = test_python_repl()
+    total_passed += p
+    total_tests += t
     
-    # Determine which models to test (like test 15)
-    if preferred:
-        if preferred == "all":
-            models_to_test = available
-        else:
-            # Partial name matching
-            models_to_test = [m for m in available if preferred.lower() in m.lower()]
-            if not models_to_test and preferred in available:
-                models_to_test = [preferred]
-    else:
-        # Default: test first available model (or use pick_best_model)
-        best = pick_best_model(preferred=None, client=client)
-        models_to_test = [best] if best else available[:1]
+    print(f"\n{'='*60}")
+    print(f"📊 TOTAL: {total_passed}/{total_tests} tests passed ({100*total_passed//total_tests}%)")
+    print(f"{'='*60}\n")
     
-    if not models_to_test:
-        print(f"⚠️ No models match '{preferred}'")
-        return False
-    
-    print(f"   Models to test: {', '.join(models_to_test)}")
-    print(f"{'='*60}")
-    
-    # Run tests for each model
-    for model in models_to_test:
-        result = run_all_tests_for_model(model)
-        ALL_RESULTS.append(result)
-    
-    # Final summary
-    if len(ALL_RESULTS) > 1:
-        print(f"\n{'='*60}")
-        print("🏆 MODEL RANKINGS")
-        print(f"{'='*60}")
-        sorted_results = sorted(ALL_RESULTS, key=lambda x: (-x["passed"], x["time"]))
-        for i, r in enumerate(sorted_results, 1):
-            medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "  "
-            print(f"{medal} {r['model']:<35} {r['passed']}/{r['total']} ({r['rate']}%) - {r['time']:.1f}s")
-        print(f"{'='*60}\n")
-    else:
-        # Single model summary
-        r = ALL_RESULTS[0]
-        print(f"\n{'='*60}")
-        print(f"📊 TOTAL: {r['passed']}/{r['total']} tests passed ({r['rate']}%)")
-        print(f"{'='*60}\n")
-    
-    # Return True if all models passed all tests
-    return all(r["passed"] == r["total"] for r in ALL_RESULTS)
+    return total_passed == total_tests
 
 
 if __name__ == "__main__":

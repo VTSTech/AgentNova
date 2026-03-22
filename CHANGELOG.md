@@ -1,156 +1,24 @@
- Changelog
+# Changelog
 
 All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [R02.5] - 2026-03-23 (Refactoring)
-
-### 🔧 Major Code Refactoring
-
-Complete restructuring of `agent.py` with significant code reduction and improved maintainability. The monolithic agent implementation has been split into cleaner, mode-specific handlers.
-
-### Added
-- **`agentnova/core/agent_modes.py`** (719 lines) - New module with extracted helpers:
-  - `StepResult` dataclass - Represents a single step in agent execution
-  - `AgentRun` dataclass - Complete result of an agent run with steps and metrics
-  - `TOOL_ARG_ALIASES` - Maps hallucinated argument names to correct ones
-  - `_parse_react()` - Parses ReAct format text
-  - `_parse_json_tool_call()` - Fallback for models outputting JSON as text
-  - `_extract_python_code()` - Extracts Python code from markdown
-  - `_detect_and_fix_repetition()` - Fixes repetitive output from small models
-  - `_sanitize_model_json()` - Fixes common JSON mistakes
-  - `_normalize_args()` - Normalizes argument names using aliases
-  - `_synthesize_missing_args()` - Fills missing required args from context
-  - `_fuzzy_match_tool_name()` - Matches hallucinated tool names to real tools
-  - `_is_simple_query()` - Detects simple queries for immediate synthesis
-
-- **JSON tool call fallback** - For models that output tool calls as JSON text:
-  - Detects `{"name": "calculator", "arguments": {...}}` in response text
-  - Handles bare argument objects like `{"expression": "15 * 8"}`
-  - Skips schema dumps to avoid false positives
-
-- **Python code extraction** - For code-focused models (qwen2.5-coder):
-  - Extracts code from ```python``` blocks
-  - Routes to `python_repl` tool automatically
-
-### Changed
-- **`agent.py` imports from `agent_modes.py`** (738 lines):
-  - StepResult, AgentRun dataclasses imported from agent_modes
-  - Helper functions imported, not duplicated
-  - Contains only Agent class with mode handlers
-
-- **`run()` method simplified** - Dispatches to appropriate handler:
-  ```python
-  if self._no_tools:
-      return self._run_pure_reasoning(user_input)
-  elif self._native_tools:
-      return self._run_native_tools(user_input)
-  else:
-      return self._run_react_mode(user_input)
-  ```
-
-### Fixed (Post-Refactor Bug Fixes)
-- **ReAct mode tool execution priority** - Critical bug where `final_answer` was checked BEFORE tool execution
-  - Models hallucinating `Observation:` and `Final Answer:` would skip actual tool calls
-  - Now prioritizes tool execution (`if t_name and t_args`) over final_answer
-  - Test impact: "Square root" test now correctly executes calculator instead of accepting hallucinated result
-- **Fuzzy tool name matching** - Small models often call tools by wrong names
-  - `Action: ls` → `shell` with synthesized `{"command": "ls"}`
-  - `Action: echo` → `shell` with synthesized `{"command": "echo ..."}`
-  - `Action: sqrt` → `calculator`
-  - `Action: pwd` → `shell`
-- **Shell command synthesis** - When model calls a command as a tool name
-  - Automatically synthesizes correct `shell` tool arguments
-  - Handles: `ls`, `dir`, `pwd`, `echo`, `cat`, `grep`
-
-### Known Issues (from Test 15)
-- **JSON fallback StepResult bug** - Missing `content=""` parameter in JSON fallback path
-  - Error: `StepResult.__init__() missing 1 required positional argument`
-  - Affects granite3.1-moe:1b when using JSON fallback
-  - Needs fix: Add `content=""` to StepResult calls in fallback paths
-- **Native tool models not returning final answer** - functiongemma:270m and granite4:350m
-  - Models make tool calls correctly but loop on max calls
-  - Not returning final answer after tool execution
-  - May need observation synthesis improvement
-
-### Test 15 Results (Quick Diagnostic)
-
-| Model | Score | Time | Tool Support | Notes |
-|-------|-------|------|--------------|-------|
-| **gemma3:270m** | 3/5 (60%) | 13.3s | none | Pure reasoning |
-| **granite3.1-moe:1b** | 2/5 (40%) | 46.5s | react | JSON fallback bug |
-| functiongemma:270m | 0/5 (0%) | 50.6s | native | Loop on tool calls |
-| granite4:350m | 0/5 (0%) | 88.1s | native | Loop on tool calls |
-
-### Architecture Impact
-
-| Component | Before | After | Change |
-|-----------|--------|-------|--------|
-| `agent.py` | 1067 lines | 738 lines | **-31%** |
-| `agent_modes.py` | N/A | 719 lines | New |
-
-### Migration Notes
-- The `Agent` class API remains unchanged - fully backward compatible
-- Internal refactoring only - no breaking changes to public interface
-- `agent_modes.py` is an internal module (not part of public API)
-
----
-
 ## [R02.4] - 2026-03-22 3:20:14 PM
 
-### 🎯 Full Model Family Config Integration
+### 🔢 Multi-Step Calculation Handling
 
-All 16 configuration fields from `ModelFamilyConfig` are now actively used in the Agent class. Previously, only 2 of 16 fields were being utilized despite careful crafting from Modelfile templates.
-
-### Added
-- **`_build_system_prompt()` method** - Constructs appropriate system prompts based on tool support mode:
-  - Pure reasoning: Uses family-specific `no_tools_system_prompt`
-  - Native tools: Adds `get_native_tool_hints()` for tool usage guidance
-  - ReAct mode: Adds `get_react_system_suffix()` + `reasoning_hints`
-- **`_get_chat_options()` method** - Returns model options with family-specific `stop_tokens` merged in
+The synthesis logic has been simplified to always return numeric results directly. Previous attempts to detect and auto-complete incomplete multi-step calculations caused issues when models correctly computed full expressions in a single calculator call.
 
 ### Changed
-- **All config fields now integrated:**
-  | Field | Usage |
-  |-------|-------|
-  | `stop_tokens` | Passed to Ollama API via `_get_chat_options()` |
-  | `preferred_temperature` | Applied as default if not in model_options |
-  | `needs_think_directive` | Controls `think=` parameter for qwen3/deepseek |
-  | `reasoning_hints` | Added to system prompt in ReAct mode |
-  | `no_tools_system_prompt` | Used for pure reasoning mode (gemma3, dolphin) |
-  | `prefers_few_shot` | Stored for few-shot integration |
-  | `few_shot_style` | Stored for few-shot format selection |
-  | `has_schema_dump_issue` | Stored for schema handling (granitemoe) |
-  | `truncate_json_args` | Stored for JSON handling |
-  | `system_prompt_style` | Stored for prompt style detection |
-  | `supports_native_tools` | Available via config |
-  | `tool_format` | Available via `get_tool_format()` |
-  | `tool_call_start/end` | Available for ReAct parsing |
-  | `start_tokens` | Available for chat templates |
+- **Simplified numeric result handling** - All numeric results are now returned directly without LLM synthesis
 
-- **Debug output enhanced** - Now shows: `model=X, tool_support=Y, family=Z, temp=0.7`
+### Rationale
+When a model computes `8 * 7 - 5 = 51` as a single expression, we can't tell from the result alone whether:
+1. The model did the full calculation (correct), OR
+2. The model only did `8 * 7 = 56` (incomplete)
 
-### Fixed
-- **Calculator error filtering** - Was only checking `[Tool error]` but calculator returns `[Calculator error]`
-  - Changed to check both prefixes: `result.startswith(("[Tool error]", "[Calculator error]"))`
-  - Prevents error results from polluting `successful_results` list
-- **Synthesis trigger keywords** - Added "how many", "how much", "use the calculator"
-  - Removed arbitrary 60/120 character limit (word problems can be verbose)
-- **Max calls handling** - Now returns numeric result instead of `continue` loop
-
-### Impact
-
-| Model | Before R02.4 | After R02.4 | Notes |
-|-------|--------------|-------------|-------|
-| **gemma3:270m** | 60% | 60% | Pure reasoning unchanged |
-| **functiongemma:270m** | 60% | **80%** | Q5 now passes (synthesis fix) |
-| **granite4:350m** | Broken | **80%** | Error filtering fix |
-
-### Technical Details
-- The `preferred_temperature` from family config is now applied when user doesn't specify temperature
-- Stop tokens from family config prevent runaway generation (e.g., `<|end_of_turn|>` for gemma3, `<|im_end|>` for qwen)
-- Native tool hints guide models on when to call tools vs respond directly
+Auto-completing based on question text causes double-subtraction errors. Returning the numeric result directly is safer.
 
 ---
 

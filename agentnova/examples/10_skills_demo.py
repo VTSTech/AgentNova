@@ -83,7 +83,7 @@ def make_step_printer(acp=None):
 
 
 def main():
-    print("⚛️ AgentNova R02.4 - Skills Demo")
+    print("⚛️ AgentNova R02.3 - Skills Demo")
     print("=" * 60)
     
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

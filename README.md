@@ -1,4 +1,4 @@
-# ⚛️ AgentNova R02.5
+# ⚛️ AgentNova R02.3
 
 A minimal, hackable agentic framework engineered to run **entirely locally** with [Ollama](https://ollama.com) or [BitNet](https://github.com/microsoft/BitNet).
 
@@ -163,7 +163,7 @@ agentnova models --tool_support
 
 ### Performance by Tool Support
 
-R02.4 benchmark results (15-test suite):
+R02.3 benchmark results (15-test suite):
 
 | Model | Params | Tool Support | Score | Time |
 |-------|--------|--------------|-------|------|
@@ -183,7 +183,7 @@ R02.4 benchmark results (15-test suite):
 | `granite4:350m` | 80% | native |
 | `qwen3:0.6b` | 60% | react |
 
-**Key improvements in R02.4**:
+**Key improvements in R02.3**:
 - **+13%** for granite3.1-moe:1b (80% → 93%) from few-shot fix
 - **+20%** for llama3.2:1b (67% → 87%) from observation role fix
 - **qwen3:0.6b restored** from 0% (broken) with `think=False` API fix
@@ -238,7 +238,7 @@ Output shows:
 - **Tool Support** - `✓ native`, `ReAct`, `○ none`, or `untested`
 
 ```
-⚛️ AgentNova R02.4 Models
+⚛️ AgentNova R02.3 Models
   Model                                      Family       Context    Tool Support
   ──────────────────────────────────────────────────────────────────────────────
   gemma3:270m                                gemma3       32K        ○ none
@@ -255,7 +255,7 @@ Output shows:
 # List all available tests
 agentnova test --list
 
-# Quick diagnostic - 5 questions, ~30s/model (NEW in R02.4)
+# Quick diagnostic - 5 questions, ~30s/model (NEW in R02.3)
 agentnova test 15 --model granite3.1-moe:1b
 agentnova test 15 --model all --debug
 

@@ -6,21 +6,22 @@ Technical documentation for developers contributing to or extending AgentNova.
 
 ## Quick Context for AI Sessions
 
-> **Last Updated:** 2026-03-23
+> **Last Updated:** 2026-03-22
 
 ### Current Project State
 
-**Version:** R02.5 (Major Code Refactoring)
+**Version:** R02.3 (Multi-Step Auto-Completion + Family Detection)
 
-**Key Achievement:** Agent.py reduced by 80% (2769 → ~600 lines) with cleaner separation of concerns. BitNet backend and platform detection restored.
+**Benchmark Champion:** `granite3.1-moe:1b` at **93% (14/15)** in **95.7s**
 
-### Recent Changes (R02.5)
+**Key Achievement:** Sub-1B models now competitive with 1B+ models. Both native and ReAct tool support modes now work correctly. Multi-step calculations auto-completed when models miss subsequent operations.
 
-1. **Major Code Refactoring** - `agent.py` reduced from 2769 to ~600 lines
-2. **New `agent_modes.py` module** - Extracted mode handlers for cleaner code
-3. **BitNet backend support** - Restored via `AGENTNOVA_BACKEND=bitnet`
-4. **Platform detection** - Restored for cross-platform shell commands
-5. **Dataclasses** - `StepResult` and `AgentRun` for structured results
+### Recent Changes (R02.3)
+
+1. **Multi-Step Calculation Auto-Completion** - Agent detects incomplete multi-step calculations and auto-completes them (e.g., "8 * 7, then subtract 5")
+2. **Gemma Family Improvements** - `no_tools_system_prompt` field for models without tool support (gemma3:270m, functiongemma:270m)
+3. **Dolphin Family Detection** - Unified family detection for Dolphin fine-tunes (they lose tool support from base models)
+4. **Tool Support Detection** - Three-tier system: `native`, `react`, `none` (auto-detected per model)
 
 ### Important Patterns
 
@@ -162,75 +163,43 @@ agentnova models --tool_support
 
 ---
 
-## Numeric Result Handling (R02.4)
+## Numeric Result Handling (R02.3)
 
-The synthesis logic returns numeric results directly and uses family-specific configuration for optimal behavior.
+The synthesis logic now returns numeric results directly without attempting to detect incomplete multi-step calculations.
 
-### Error Filtering
+### Why Simple Is Better
 
-```python
-# BOTH error prefixes are checked
-if not result.startswith(("[Tool error]", "[Calculator error]")):
-    successful_results.append(f"{t_name} → {result}")
+When a model computes an expression like `8 * 7 - 5 = 51`:
+
+```
+User: Calculate 8 times 7, then subtract 5 from the result.
+Model: calculator(expression=8 * 7 - 5)  ← Full expression in one call
+Result: 51  ← Correct!
 ```
 
-The calculator tool returns `[Calculator error]` while the base tool class returns `[Tool error]`. Both must be checked to prevent error results from polluting the `successful_results` list.
+From the result alone, we **cannot tell** whether:
+1. The model computed `8 * 7 - 5` (complete), OR
+2. The model computed `8 * 7` only (incomplete)
 
-### Synthesis Triggers
+Previous attempts to auto-complete by detecting "then subtract X" patterns caused **double-subtraction errors** when the model had already included the operation.
+
+### Current Behavior
 
 ```python
-simple_keywords = [
-    "what is", "calculate", "compute", "sqrt", 
-    "date", "time", "how many", "how much",
-    "use the calculator", "use calculator"
-]
-# No length limit - word problems can be verbose
-return any(kw in lower for kw in simple_keywords)
+# Simple rule: If result is numeric, return it directly
+try:
+    num = float(r_clean)
+    return r_clean  # Return numeric result directly
+except ValueError:
+    pass  # Fall through to LLM synthesis for non-numeric results
 ```
+
+This is safer because:
+- **Correct results pass through** unchanged
+- **Wrong results** (from incomplete calculations) are still better than double-processed results
+- **No hallucination risk** from LLM synthesis trying to interpret partial results
 
 ---
-
-## Model Family Config Integration (R02.4)
-
-All 16 configuration fields are now actively used:
-
-| Field | Integration Point |
-|-------|-------------------|
-| `stop_tokens` | `_get_chat_options()` merges into API options |
-| `preferred_temperature` | Applied as default in `__init__` |
-| `needs_think_directive` | Controls `think=False` for qwen3/deepseek |
-| `reasoning_hints` | Added to ReAct mode system prompt |
-| `no_tools_system_prompt` | Used for `tool_support=none` models |
-| `prefers_few_shot` | Stored for few-shot integration |
-| `few_shot_style` | Stored for format selection |
-| `has_schema_dump_issue` | Flag for granitemoe schema handling |
-| `truncate_json_args` | Flag for JSON truncation handling |
-| `system_prompt_style` | Prompt style detection |
-| `supports_native_tools` | Available via helper functions |
-| `tool_format` | Available via `get_tool_format()` |
-| `tool_call_start/end` | Available for ReAct parsing |
-| `start_tokens` | Available for chat templates |
-
-### System Prompt Construction
-
-```python
-def _build_system_prompt(self, base_prompt: str) -> str:
-    # Pure reasoning mode
-    if self._no_tools:
-        return get_no_tools_system_prompt(self._model_family) or base_prompt
-    
-    # Native tools mode
-    if self._native_tools:
-        hints = get_native_tool_hints(self._model_family)
-        return f"{base_prompt}\n\n{hints}" if hints else base_prompt
-    
-    # ReAct mode
-    react_suffix = get_react_system_suffix(self._model_family)
-    if self._reasoning_hints:
-        hints_text = "\n".join(f"- {h}" for h in self._reasoning_hints)
-        base_prompt = f"{base_prompt}\n\nReasoning approach:\n{hints_text}"
-    return f"{base_prompt}\n\n{react_suffix}"
-```
 
 ## Prompting Strategy by Tool Support
 
@@ -431,4 +400,4 @@ agentnova chat --temperature 0.1                # Lower = more deterministic
 
 8. **Never add few-shot to native tool models** - This caused a major regression (90%→58% GSM8K) in R01→R02. Native models use Ollama's API for tool calling; text-based few-shot examples confuse them.
 
-9. **Numeric results are returned directly** (R02.4) - The synthesis logic no longer tries to detect incomplete multi-step calculations. Numeric results pass through unchanged. This avoids double-processing errors when models compute full expressions in one calculator call.
+9. **Numeric results are returned directly** (R02.3) - The synthesis logic no longer tries to detect incomplete multi-step calculations. Numeric results pass through unchanged. This avoids double-processing errors when models compute full expressions in one calculator call.
