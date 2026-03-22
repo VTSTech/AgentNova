@@ -451,7 +451,12 @@ def main():
             break
         
         # Find the exact model name from available
-        exact_name = next((a for a in available if model.split(':')[0] in a), model)
+        # Use exact prefix match, not 'in' to avoid qwen3 matching qwen3.5
+        model_base = model.split(':')[0]
+        exact_name = next(
+            (a for a in available if a.split(':')[0] == model_base or a == model), 
+            model
+        )
         result = test_model(client, exact_name, config=config, acp=main_acp)
         all_results.append(result)
         
