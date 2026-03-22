@@ -207,7 +207,9 @@ Answer: 8""",
         few_shot_style="react",
     ),
     
-    # DOLPHIN - Dolphin fine-tunes (ChatML format, varies by base)
+    # DOLPHIN - Dolphin fine-tunes (ChatML format, no tool support)
+    # Dolphin fine-tunes lose native tool support from their base models.
+    # They share ChatML template regardless of base (llama, qwen2, etc.).
     "dolphin": ModelFamilyConfig(
         family="dolphin",
         start_tokens={
@@ -215,14 +217,32 @@ Answer: 8""",
             "user": "<|im_start|>user", 
             "assistant": "<|im_start|>assistant",
         },
-        stop_tokens=["<|im_end|>", "<|im_start|>", "<|eot_id|>"],
-        tool_format="native",  # Depends on base model
-        supports_native_tools=True,
+        stop_tokens=["<|im_end|>", "<|im_start|>"],
+        tool_format="none",  # Dolphin fine-tunes lose tool support
+        supports_native_tools=False,
         system_prompt_style="separate",
         preferred_temperature=0.7,
-        prefers_few_shot=True,
-        few_shot_style="react",
+        prefers_few_shot=False,
+        few_shot_style="compact",
         reasoning_hints=["Be direct and helpful", "Follow instructions precisely"],
+        # Optimized prompt for pure reasoning (Dolphin has no tool support)
+        no_tools_system_prompt="""You are Dolphin, a helpful AI assistant. Solve math problems directly.
+
+Calculate step by step. Give the final number as your answer.
+
+Examples:
+User: What is 15 plus 27?
+15 + 27 = 42
+Answer: 42
+
+User: What is 8 times 7 minus 5?
+8 * 7 = 56
+56 - 5 = 51
+Answer: 51
+
+User: A store has 24 apples. They sell 8 and 6.
+24 - 8 - 6 = 10
+Answer: 10""",
     ),
 }
 

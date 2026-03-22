@@ -247,7 +247,16 @@ class OllamaClient:
         Returns None if model not found or family not available.
         
         This queries /api/show endpoint for model details.
+        
+        Note: Dolphin fine-tunes are detected by model name and return "dolphin"
+        as the internal family name, since they share the ChatML template regardless
+        of their base model family (llama, qwen2, etc.).
         """
+        # Check for Dolphin fine-tunes first (they share ChatML template)
+        model_lower = model.lower()
+        if "dolphin" in model_lower:
+            return "dolphin"
+        
         try:
             info = self.get_model_info(model)
             details = info.get("details", {})
