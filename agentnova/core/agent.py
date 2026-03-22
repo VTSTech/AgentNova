@@ -2368,7 +2368,7 @@ class Agent:
                             _successful_results.append(f"{t_name} → {result_str}")
 
                         observation = content + f"\nObservation: {result_str}\n"
-                        self.memory.add_assistant(observation)
+                        self.memory.add_user(observation)  # Observation must be user role for model to respond
                         continue
 
                 if final_answer:
