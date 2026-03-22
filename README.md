@@ -1,4 +1,4 @@
-# ⚛️ AgentNova R02
+# ⚛️ AgentNova R02.2
 
 A minimal, hackable agentic framework engineered to run **entirely locally** with [Ollama](https://ollama.com) or [BitNet](https://github.com/microsoft/BitNet).
 
@@ -159,20 +159,31 @@ agentnova models --tool_support
 
 ### Performance by Tool Support
 
-Recent test results with native tool synthesis:
+R02.2 benchmark results (15-test suite):
 
-| Model | Params | Tool Support | Calculator | Shell | Python |
-|-------|--------|--------------|------------|-------|--------|
-| `qwen2.5:0.5b` | 494M | native | **100%** | **100%** | **100%** |
-| `qwen2.5-coder:0.5b` | 494M | ReAct | **100%** | **100%** | **100%** |
-| `granite4:350m` | 350M | native | ~90% | ✅ | ✅ |
-| `gemma3:270m` | 270M | none | **64%** | N/A | N/A |
+| Model | Params | Tool Support | Score | Time |
+|-------|--------|--------------|-------|------|
+| **`granite3.1-moe:1b`** | 1B MoE | react | **93% (14/15)** | 87.8s |
+| **`llama3.2:1b`** | 1.2B | native | **87% (13/15)** | 150.2s |
+| `dolphin3.0-qwen2.5:0.5b` | 500M | none | 73% (11/15) | 27.2s |
+| `qwen3:0.6b` | 600M | react | 67% (10/15) | 189.3s |
+| `qwen2.5-coder:0.5b` | 494M | react | 60% (9/15) | 133.1s |
 
-**Key improvements in R01**:
-- Native tool synthesis extracts expressions from natural language
-- Two-tier retry: hint → synthesize (bypasses confused models)
-- Bare expression wrapping: `2**20` → `print(2**20)`
-- Hallucinated mention detection for models that talk about tools but don't call them
+**Quick Diagnostic (Test 15 - 5 questions, ~30s/model):**
+
+| Model | Score | Tool Support |
+|-------|-------|--------------|
+| **`qwen3.5:0.8b`** | **100%** | native |
+| **`qwen2.5:0.5b`** | **100%** | react |
+| `functiongemma:270m` | 80% | native |
+| `granite4:350m` | 80% | native |
+| `qwen3:0.6b` | 60% | react |
+
+**Key improvements in R02.2**:
+- **+13%** for granite3.1-moe:1b (80% → 93%) from few-shot fix
+- **+20%** for llama3.2:1b (67% → 87%) from observation role fix
+- **qwen3:0.6b restored** from 0% (broken) with `think=False` API fix
+- **qwen3.5:0.8b** new sub-1B champion with 100% on quick diagnostic
 
 ---
 
@@ -223,7 +234,7 @@ Output shows:
 - **Tool Support** - `✓ native`, `ReAct`, `○ none`, or `untested`
 
 ```
-⚛️ AgentNova R02 Models
+⚛️ AgentNova R02.2 Models
   Model                                      Family       Context    Tool Support
   ──────────────────────────────────────────────────────────────────────────────
   gemma3:270m                                gemma3       32K        ○ none
@@ -240,8 +251,9 @@ Output shows:
 # List all available tests
 agentnova test --list
 
-# Run a quick test suite
-agentnova test quick
+# Quick diagnostic - 5 questions, ~30s/model (NEW in R02.2)
+agentnova test 15 --model granite3.1-moe:1b
+agentnova test 15 --model all --debug
 
 # Run GSM8K benchmark (50 math questions)
 agentnova test 14 --acp --timeout 6400

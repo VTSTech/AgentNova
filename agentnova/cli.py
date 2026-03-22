@@ -2295,7 +2295,7 @@ def cmd_test(args):
     }
     
     # Quick test set (skips long-running benchmarks)
-    QUICK_TESTS = ["01", "02", "03", "04", "05", "10", "11"]
+    QUICK_TESTS = ["01", "02", "03", "04", "05", "10", "11", "15"]
     
     if args.list:
         print(bold("\n⚛️ AgentNova Test Examples"))

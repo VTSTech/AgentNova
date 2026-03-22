@@ -33,14 +33,36 @@ Multiple critical bugs fixed that were causing ReAct-mode and thinking-capable m
 2. **Observation role bug**: In the ReAct pattern, Observations must appear as `user` messages for the model to respond to them
 3. **Thinking mode bug**: Ollama enables thinking by default for qwen3/deepseek-r1, causing empty content unless `think=False` is passed
 
+### Added
+- **Quick Diagnostic Test (test 15)** - 5-question rapid test for debugging (~30-60s per model)
+  - `agentnova test 15 --model granite3.1-moe:1b`
+  - `agentnova test 15 --model all --debug`
+  - Designed for rapid iteration during development
+  - Questions target specific failure modes: simple math, multi-step, division, word problems, edge cases
+
 ### Impact
 
-| Model | Mode | Before Fixes | After Fixes | Change |
-|-------|------|--------------|-------------|--------|
-| llama3.2:1b | react | 72% (8/11) | **90% (10/11)** | **+18%** |
-| qwen2 (various) | react | 72% | **100%** | **+28%** |
-| qwen2.5-coder:0.5b | react | Malformed | 81% | Fixed |
-| qwen3:0.6b | react | 0% (empty) | ~93% (expected) | **Restored** |
+| Model | Mode | Before R0.2.2 | After R0.2.2 | Change |
+|-------|------|---------------|--------------|--------|
+| **granite3.1-moe:1b** | react | 80% (12/15) | **93% (14/15)** | **+13%** |
+| **llama3.2:1b** | native | 67% (10/15) | **87% (13/15)** | **+20%** |
+| **qwen2.5-coder:0.5b** | react | 53% (8/15) | **60% (9/15)** | **+7%** |
+| qwen3:0.6b | react | 0% (broken) | **67% (10/15)** | **Fixed** |
+| dolphin3.0-qwen2.5:0.5b | none | 73% (11/15) | 73% (11/15) | = |
+| qwen3.5:0.8b | native | N/A (new) | **100%** (test 15) | New model |
+| qwen2.5:0.5b | react | 73% (11/15) | **100%** (test 15) | **+27%** |
+
+### Quick Diagnostic Results (Test 15 - 5 Questions)
+
+| Model | Score | Time | Tool Support | Notes |
+|-------|-------|------|--------------|-------|
+| **qwen3.5:0.8b** | **5/5 (100%)** | 569s | native | 🏆 Perfect with native tools |
+| **qwen2.5:0.5b** | **5/5 (100%)** | 76.5s | react | 🏆 Perfect with ReAct mode |
+| **functiongemma:270m** | 4/5 (80%) | 27.4s | native | Word problem misinterpretation |
+| **granite4:350m** | 4/5 (80%) | 88.2s | native | Synthesis returned raw JSON |
+| **qwen3:0.6b** | 3/5 (60%) | 119.6s | react | Multi-step extraction issue |
+| **gemma3:270m** | 2/5 (40%) | 11.4s | none | No tool support |
+| **qwen:0.5b** | 1/5 (20%) | 32s | none | No tool support |
 
 ### Technical Details
 - ReAct models need few-shot examples to learn: `Thought: ... Action: tool_name Action Input: {"arg": ...}`
@@ -48,6 +70,7 @@ Multiple critical bugs fixed that were causing ReAct-mode and thinking-capable m
 - Observations must be `user` role because they represent external input that the model should process
 - Thinking-capable models (qwen3, deepseek-r1) require `think=False` in API call to disable thinking mode
 - The Ollama API `think` parameter is the proper way to control thinking mode (not prompt-based directives)
+- **qwen3.5:0.8b** is the new sub-1B champion with native tool calling (100% on quick diagnostic)
 
 ---
 
