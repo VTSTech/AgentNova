@@ -435,7 +435,7 @@ class Agent:
                         if self.debug:
                             print(f"     -> {result[:60]}")
                         
-                        run.steps.append(StepResult(type="tool_call", tool_name=json_name, tool_args=json_args, elapsed_ms=elapsed))
+                        run.steps.append(StepResult(type="tool_call", content="", tool_name=json_name, tool_args=json_args, elapsed_ms=elapsed))
                         run.steps.append(StepResult(type="tool_result", content=result, tool_name=json_name))
                         
                         if not result.startswith("[Tool error]"):
@@ -451,7 +451,7 @@ class Agent:
                     if self.debug:
                         print(f"    Python code detected, using python_repl")
                     result = str(self.tools.invoke("python_repl", {"code": python_code}))
-                    run.steps.append(StepResult(type="tool_call", tool_name="python_repl", tool_args={"code": python_code}, elapsed_ms=elapsed))
+                    run.steps.append(StepResult(type="tool_call", content="", tool_name="python_repl", tool_args={"code": python_code}, elapsed_ms=elapsed))
                     run.steps.append(StepResult(type="tool_result", content=result, tool_name="python_repl"))
                     
                     if not result.startswith("[Tool error]"):

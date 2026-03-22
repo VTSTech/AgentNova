@@ -4,64 +4,91 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [R02.4] - 2026-03-22 (Refactoring)
+## [R02.5] - 2026-03-23 (Refactoring)
 
 ### 🔧 Major Code Refactoring
 
-Complete restructuring with code properly consolidated into `agent_modes.py` as a shared module. The Agent class now imports helpers instead of duplicating them.
+Complete restructuring of `agent.py` with significant code reduction and improved maintainability. The monolithic agent implementation has been split into cleaner, mode-specific handlers.
+
+### Added
+- **`agentnova/core/agent_modes.py`** (719 lines) - New module with extracted helpers:
+  - `StepResult` dataclass - Represents a single step in agent execution
+  - `AgentRun` dataclass - Complete result of an agent run with steps and metrics
+  - `TOOL_ARG_ALIASES` - Maps hallucinated argument names to correct ones
+  - `_parse_react()` - Parses ReAct format text
+  - `_parse_json_tool_call()` - Fallback for models outputting JSON as text
+  - `_extract_python_code()` - Extracts Python code from markdown
+  - `_detect_and_fix_repetition()` - Fixes repetitive output from small models
+  - `_sanitize_model_json()` - Fixes common JSON mistakes
+  - `_normalize_args()` - Normalizes argument names using aliases
+  - `_synthesize_missing_args()` - Fills missing required args from context
+  - `_fuzzy_match_tool_name()` - Matches hallucinated tool names to real tools
+  - `_is_simple_query()` - Detects simple queries for immediate synthesis
+
+- **JSON tool call fallback** - For models that output tool calls as JSON text:
+  - Detects `{"name": "calculator", "arguments": {...}}` in response text
+  - Handles bare argument objects like `{"expression": "15 * 8"}`
+  - Skips schema dumps to avoid false positives
+
+- **Python code extraction** - For code-focused models (qwen2.5-coder):
+  - Extracts code from ```python``` blocks
+  - Routes to `python_repl` tool automatically
 
 ### Changed
-- **`agent.py` reduced from 1067 → 510 lines** (**52% reduction**)
-  - Now imports all helpers from `agent_modes.py`
-  - Contains only the `Agent` class with its `_run_*` methods
-  - Clean separation: Agent class logic vs. helper functions
+- **`agent.py` imports from `agent_modes.py`** (738 lines):
+  - StepResult, AgentRun dataclasses imported from agent_modes
+  - Helper functions imported, not duplicated
+  - Contains only Agent class with mode handlers
 
-- **`agent_modes.py` consolidated** (659 lines)
-  - All shared code in one place
-  - `StepResult` and `AgentRun` dataclasses
-  - `TOOL_ARG_ALIASES` constant (argument name mappings)
-  - All compiled regex patterns (`_THOUGHT_RE`, `_ACTION_RE`, etc.)
-  - All helper functions:
-    - `_parse_react()`, `_parse_json_tool_call()`, `_extract_python_code()`
-    - `_detect_and_fix_repetition()`, `_sanitize_model_json()`
-    - `_strip_tool_prefix()`, `_get_numeric_result()`, `_synthesize_result()`
-    - `_normalize_args()`, `_synthesize_missing_args()`
-    - `_fuzzy_match_tool_name()`, `_is_simple_query()`
+- **`run()` method simplified** - Dispatches to appropriate handler:
+  ```python
+  if self._no_tools:
+      return self._run_pure_reasoning(user_input)
+  elif self._native_tools:
+      return self._run_native_tools(user_input)
+  else:
+      return self._run_react_mode(user_input)
+  ```
+
+### Fixed (Post-Refactor Bug Fixes)
+- **ReAct mode tool execution priority** - Critical bug where `final_answer` was checked BEFORE tool execution
+  - Models hallucinating `Observation:` and `Final Answer:` would skip actual tool calls
+  - Now prioritizes tool execution (`if t_name and t_args`) over final_answer
+  - Test impact: "Square root" test now correctly executes calculator instead of accepting hallucinated result
+- **Fuzzy tool name matching** - Small models often call tools by wrong names
+  - `Action: ls` → `shell` with synthesized `{"command": "ls"}`
+  - `Action: echo` → `shell` with synthesized `{"command": "echo ..."}`
+  - `Action: sqrt` → `calculator`
+  - `Action: pwd` → `shell`
+- **Shell command synthesis** - When model calls a command as a tool name
+  - Automatically synthesizes correct `shell` tool arguments
+  - Handles: `ls`, `dir`, `pwd`, `echo`, `cat`, `grep`
+
+### Known Issues (from Test 15)
+- **JSON fallback StepResult bug** - Missing `content=""` parameter in JSON fallback path
+  - Error: `StepResult.__init__() missing 1 required positional argument`
+  - Affects granite3.1-moe:1b when using JSON fallback
+  - Needs fix: Add `content=""` to StepResult calls in fallback paths
+- **Native tool models not returning final answer** - functiongemma:270m and granite4:350m
+  - Models make tool calls correctly but loop on max calls
+  - Not returning final answer after tool execution
+  - May need observation synthesis improvement
+
+### Test 15 Results (Quick Diagnostic)
+
+| Model | Score | Time | Tool Support | Notes |
+|-------|-------|------|--------------|-------|
+| **gemma3:270m** | 3/5 (60%) | 13.3s | none | Pure reasoning |
+| **granite3.1-moe:1b** | 2/5 (40%) | 46.5s | react | JSON fallback bug |
+| functiongemma:270m | 0/5 (0%) | 50.6s | native | Loop on tool calls |
+| granite4:350m | 0/5 (0%) | 88.1s | native | Loop on tool calls |
 
 ### Architecture Impact
 
-| File | Before | After | Change |
-|------|--------|-------|--------|
-| `core/agent.py` | 1067 lines | **510 lines** | **-52%** |
-| `core/agent_modes.py` | 719 lines (unused) | **659 lines** | Consolidated |
-| `agent_mode.py` | 831 lines | 831 lines | Unchanged (different feature) |
-| **Total** | 2617 lines | **2000 lines** | **-617 lines** |
-
-### Key Features Preserved
-- **Small model support** - All robustness features from pre-refactor:
-  - JSON tool call fallback for models that don't use ReAct format
-  - Python code extraction for code-focused models
-  - Argument normalization with `TOOL_ARG_ALIASES`
-  - Missing argument synthesis from context
-  - Fuzzy tool name matching (`ls` → `shell`, `sqrt` → `calculator`)
-  - Repetition loop detection and fixing
-  - Tool execution priority (tools BEFORE final_answer)
-
-### Files Structure
-```
-agentnova/
-├── core/
-│   ├── agent.py          # Agent class only (510 lines)
-│   ├── agent_modes.py    # Shared helpers (659 lines)
-│   └── ...
-├── agent_mode.py         # Autonomous task execution (831 lines) - different feature
-└── ...
-```
-
-### Note: Two "agent_mode" Files
-- `agentnova/core/agent_modes.py` - Shared helper functions for Agent class
-- `agentnova/agent_mode.py` - Autonomous task execution (AgentMode class)
-- These are **different features** with similar names
+| Component | Before | After | Change |
+|-----------|--------|-------|--------|
+| `agent.py` | 1067 lines | 738 lines | **-31%** |
+| `agent_modes.py` | N/A | 719 lines | New |
 
 ### Migration Notes
 - The `Agent` class API remains unchanged - fully backward compatible
