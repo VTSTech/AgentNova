@@ -594,10 +594,13 @@ def _is_simple_query(memory: Memory) -> bool:
     for msg in memory._history:
         if msg.role == "user":
             text = msg.content.lower()
-            # Simple math/date queries
-            simple_keywords = ["what is", "calculate", "compute", "sqrt", "date", "time"]
-            # Increased limit from 60 to 120 to handle longer prompts
-            if any(kw in text for kw in simple_keywords) and len(text) < 120:
+            # Keywords that indicate a simple math/query task
+            simple_keywords = [
+                "what is", "calculate", "compute", "sqrt",
+                "date", "time", "how many", "how much",
+                "use the calculator", "use calculator"
+            ]
+            # Check for any keyword (no length limit - word problems can be verbose)
+            if any(kw in text for kw in simple_keywords):
                 return True
             break
-    return False

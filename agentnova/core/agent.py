@@ -252,7 +252,12 @@ class Agent:
                 if tool_call_counts[t_name] > max_calls_per_tool:
                     if self.debug:
                         print(f"    Max calls reached for {t_name}")
-                    continue
+                    # Return the best result we have
+                    run.final_answer = _get_numeric_result(successful_results) or content or ""
+                    run.steps.append(StepResult(type="final", content=run.final_answer, elapsed_ms=elapsed))
+                    if self.on_step:
+                        self.on_step(run.steps[-1])
+                    return run
                 
                 total_calls = sum(tool_call_counts.values())
                 if total_calls > max_total_tool_calls:
@@ -486,6 +491,11 @@ class Agent:
 def _is_simple_query(text: str) -> bool:
     """Check if the query is simple enough for immediate synthesis."""
     lower = text.lower()
-    simple_keywords = ["what is", "calculate", "compute", "sqrt", "date", "time"]
-    # Increased limit from 60 to 120 to handle longer prompts
-    return any(kw in lower for kw in simple_keywords) and len(text) < 120
+    # Keywords that indicate a simple math/query task
+    simple_keywords = [
+        "what is", "calculate", "compute", "sqrt", 
+        "date", "time", "how many", "how much",
+        "use the calculator", "use calculator"
+    ]
+    # Check for any keyword (no length limit - word problems can be verbose)
+    return any(kw in lower for kw in simple_keywords)
