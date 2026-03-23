@@ -35,11 +35,11 @@ class OllamaBackend(BaseBackend):
     ):
         # Determine base URL - priority: base_url > host/port > env > default
         if base_url:
-            self._base_url = base_url
+            self._base_url = base_url.rstrip("/")
         elif host and port:
             self._base_url = f"http://{host}:{port}"
         else:
-            self._base_url = OLLAMA_BASE_URL
+            self._base_url = OLLAMA_BASE_URL.rstrip("/")
 
         if config:
             super().__init__(config)
@@ -74,6 +74,7 @@ class OllamaBackend(BaseBackend):
             "model": model,
             "messages": messages,
             "stream": False,
+            "keep_alive": "1m",  # Keep model loaded briefly but clear KV cache between requests
             "options": {
                 "temperature": temperature,
                 "num_predict": max_tokens,
