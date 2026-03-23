@@ -48,6 +48,15 @@ config = parse_shared_args(args)
 DEBUG = config.debug
 TIMEOUT = int(os.environ.get("AGENTNOVA_TIMEOUT", "120"))
 
+# Check for optional ACP support
+USE_ACP = config.acp
+if USE_ACP:
+    try:
+        from agentnova.acp_plugin import ACPPlugin
+    except ImportError:
+        print("⚠️ ACP requested but ACPPlugin not available")
+        USE_ACP = False
+
 
 def normalize_text(text: str) -> str:
     """Normalize text for comparison."""
@@ -452,12 +461,15 @@ def test_knowledge_recall(client, model: str, config: SharedConfig, temp_dir: st
         return False, str(e)[:60], elapsed
 
 
-def test_model(client, model: str, config: SharedConfig) -> dict:
+def test_model(client, model: str, config: SharedConfig, acp=None) -> dict:
     """Test a single model on all agent mode tests."""
     print(f"\n{'='*60}")
     print(f"🤖 Agent Mode Test: {model}")
     print(f"   Tool support: {get_tool_support(model, client)}")
     print(f"{'='*60}")
+    
+    if acp:
+        acp.log_chat("system", f"Agent Mode Test started for {model}", complete=True)
     
     # Create temp directory for file tests
     temp_dir = tempfile.mkdtemp(prefix="agentnova_test_")
@@ -520,6 +532,9 @@ def test_model(client, model: str, config: SharedConfig) -> dict:
     print(f"     Skipped: {results['skipped']} (no tool support)")
     print(f"     Time: {results['time']:.1f}s")
     
+    if acp:
+        acp.log_chat("system", f"{model}: {results['passed']}/{results['total'] - results['skipped']} ({pass_rate:.0f}%) in {results['time']:.1f}s", complete=True)
+    
     return results
 
 
@@ -532,9 +547,22 @@ def main():
     
     available = list(dict.fromkeys(get_available_models(client)))
     
+    # Setup ACP if requested
+    main_acp = None
+    acp_connected = False
+    if USE_ACP:
+        main_acp = ACPPlugin(
+            agent_id="agentnova-test16",
+            name="AgentNova Test 16"
+        )
+        bootstrap = main_acp.bootstrap(claim_primary=False)
+        acp_connected = bootstrap.get("status") is not None
+    
     print(f"\n⚛️ AgentNova Agent Mode Test")
     print(f"   Testing autonomous task execution capabilities")
     print(f"   Available models: {', '.join(available[:5])}{'...' if len(available) > 5 else ''}")
+    if USE_ACP:
+        print(f"   ACP: {'connected' if acp_connected else 'unavailable'}")
     
     # Determine which models to test
     if config.model:
@@ -555,7 +583,16 @@ def main():
     
     all_results = []
     for model in models_to_test:
-        result = test_model(client, model, config)
+        # Create per-model ACP instance if enabled
+        model_acp = None
+        if USE_ACP and acp_connected:
+            model_acp = ACPPlugin(
+                agent_id=f"agentnova-test16-{model.replace(':', '-').replace('.', '-')}",
+                name=f"Test 16: {model}"
+            )
+            model_acp.bootstrap(claim_primary=False)
+        
+        result = test_model(client, model, config, acp=model_acp)
         all_results.append(result)
     
     # Rankings
@@ -576,6 +613,12 @@ def main():
             print(f"{medal} {r['model']:<35} {r['passed']}/{total_run} ({rate:.0f}%) - {r['time']:.1f}s")
             if r["skipped"] > 0:
                 print(f"   ⚠️ {r['skipped']} tests skipped (no tool support)")
+        
+        # Log final summary to ACP
+        if main_acp and acp_connected:
+            winner = sorted_results[0]
+            summary = f"🏆 Winner: {winner['model']} - {winner['passed']}/{winner['total'] - winner['skipped']} in {winner['time']:.1f}s"
+            main_acp.log_chat("system", summary, complete=True)
 
 
 if __name__ == "__main__":
