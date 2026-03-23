@@ -85,7 +85,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **ReAct loop repetition** - Models may repeat the same action multiple times after success
 - **Multi-step planning** - Models sometimes stop after first step instead of continuing
 
----
+--
 
 ## [R02.5] - 2026-03-22 10:49:35 PM
 

@@ -1,5 +1,5 @@
 ﻿"""
-⚛️ AgentNova R02.5 — Built-in Tools
+⚛️ AgentNova R02.6 — Built-in Tools
 A curated set of safe, practical tools for local agents.
 Import whichever you need and add them to a ToolRegistry.
 
@@ -555,7 +555,7 @@ def make_builtin_registry() -> ToolRegistry:
             return f"[Security] {error_msg}"
         
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": "AgentNova-R02.5/1.0"})
+            req = urllib.request.Request(url, headers={"User-Agent": "AgentNova-R02.6/1.0"})
             with urllib.request.urlopen(req, timeout=15) as resp:
                 text = resp.read().decode("utf-8", errors="replace")
             return text[:max_chars] + ("..." if len(text) > max_chars else "")

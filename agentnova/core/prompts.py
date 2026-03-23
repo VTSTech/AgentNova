@@ -1,5 +1,5 @@
 ﻿"""
-⚛️ AgentNova R02.5 — Prompts
+⚛️ AgentNova R02.6 — Prompts
 Few-shot prompts, argument aliases, and platform constants for small model support.
 
 Written by VTSTech — https://www.vts-tech.org — https://github.com/VTSTech/AgentNova

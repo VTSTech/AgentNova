@@ -1,5 +1,5 @@
 ﻿"""
-⚛️ AgentNova R02.5 — Tool Parser
+⚛️ AgentNova R02.6 — Tool Parser
 Regex patterns and functions for parsing tool calls from model output.
 
 Written by VTSTech — https://www.vts-tech.org — https://github.com/VTSTech/AgentNova

@@ -1,5 +1,5 @@
 ﻿"""
-⚛️ AgentNova R02.5 - A minimal, hackable agentic framework for Ollama and BitNet
+⚛️ AgentNova R02.6 - A minimal, hackable agentic framework for Ollama and BitNet
 
 Written by VTSTech
 https://www.vts-tech.org
@@ -185,7 +185,7 @@ __all__ = [
     "create_file_write_action", "create_file_delete_action",
     "create_mkdir_action", "create_shell_action",
     "format_status", "format_progress",
-    # R02.5: Model Family Configuration
+    # R02.6: Model Family Configuration
     "ModelFamilyConfig", "FAMILY_CONFIGS",
     "get_family_config", "get_stop_tokens", "supports_tools",
     "get_tool_format", "get_preferred_temperature", "should_use_few_shot",
@@ -205,7 +205,7 @@ __all__ = [
 if _BITNET_AVAILABLE:
     __all__.extend(["BitnetClient", "KNOWN_MODELS"])
 
-__version__ = "0.2.5"
+__version__ = "0.2.6"
 __author__ = "VTSTech"
 __author_email__ = "veritas@vts-tech.org"
 __url__ = "https://github.com/VTSTech/AgentNova"

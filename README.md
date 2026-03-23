@@ -1,4 +1,4 @@
-# ⚛️ AgentNova R02.5
+# ⚛️ AgentNova R02.6
 
 A minimal, hackable agentic framework engineered to run **entirely locally** with [Ollama](https://ollama.com) or [BitNet](https://github.com/microsoft/BitNet).
 
@@ -165,31 +165,24 @@ agentnova models --tool_support
 
 ### Performance by Tool Support
 
-R02.5 benchmark results (15-test suite):
-
-| Model | Params | Tool Support | Score | Time |
-|-------|--------|--------------|-------|------|
-| **`granite3.1-moe:1b`** | 1B MoE | react | **93% (14/15)** | 87.8s |
-| **`llama3.2:1b`** | 1.2B | native | **87% (13/15)** | 150.2s |
-| `dolphin3.0-qwen2.5:0.5b` | 500M | none | 73% (11/15) | 27.2s |
-| `qwen3:0.6b` | 600M | react | 67% (10/15) | 189.3s |
-| `qwen2.5-coder:0.5b` | 494M | react | 60% (9/15) | 133.1s |
-
-**Quick Diagnostic (Test 15 - 5 questions, ~30s/model):**
+R02.6 Quick Diagnostic results (5 questions, ~30-120s/model):
 
 | Model | Score | Time | Tool Support |
 |-------|-------|------|--------------|
-| **`dolphin3.0-llama3:1b`** | **100%** | 48.7s | native |
-| **`granite4:350m`** | **100%** | 75.2s | native |
-| **`qwen2.5-coder:0.5b`** | **100%** | 76.0s | react |
-| **`qwen3:0.6b`** | **100%** | 151.0s | react |
-| `functiongemma:270m` | 80% | 28.5s | native |
-| `dolphin3.0-qwen2.5:0.5b` | 80% | 38.4s | none |
+| **`functiongemma:270m`** | **100%** | 21.1s | native |
+| **`granite4:350m`** | **100%** | 51.9s | native |
+| **`qwen2.5:0.5b`** | **100%** | 64.2s | native |
+| **`qwen2.5-coder:0.5b`** | **100%** | 118.9s | react |
+| `dolphin3.0-qwen2.5:0.5b` | 80% | 21.1s | none |
+| `gemma3:270m` | 80% | 15.4s | none |
 
-**Key improvements in R02.5**:
-- **4 models achieve 100%** on quick diagnostic (dolphin3.0-llama3:1b fastest at 48.7s)
-- **Module refactoring** - agent.py split into 6 focused modules (~1550 lines from ~2770)
-- **All tests passing** after module separation, backward compatibility maintained
+**Key improvements in R02.6**:
+- **4 models achieve 100%** - All tool-calling models now perfect!
+- **functiongemma:270m fastest** at 21.1s (native tools + 270M params)
+- **Multi-step expression extraction** - Handles `8 times 7 minus 5`, word problems, time calculations
+- **ReAct JSON parsing fixed** - Clean extraction even with trailing text
+- **Verbose response fallback** - Uses numeric result when model gives long explanation
+- **Tool-calling outperforms pure reasoning** - Models without tool support score lower due to internal math errors
 
 ---
 
@@ -240,7 +233,7 @@ Output shows:
 - **Tool Support** - `✓ native`, `ReAct`, `○ none`, or `untested`
 
 ```
-⚛️ AgentNova R02.5 Models
+⚛️ AgentNova R02.6 Models
   Model                                      Family       Context    Tool Support
   ──────────────────────────────────────────────────────────────────────────────
   gemma3:270m                                gemma3       32K        ○ none
