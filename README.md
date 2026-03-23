@@ -165,7 +165,7 @@ agentnova models --tool_support
 
 ### Performance by Tool Support
 
-R02.3 benchmark results (15-test suite):
+R02.5 benchmark results (15-test suite):
 
 | Model | Params | Tool Support | Score | Time |
 |-------|--------|--------------|-------|------|
@@ -177,19 +177,19 @@ R02.3 benchmark results (15-test suite):
 
 **Quick Diagnostic (Test 15 - 5 questions, ~30s/model):**
 
-| Model | Score | Tool Support |
-|-------|-------|--------------|
-| **`qwen3.5:0.8b`** | **100%** | native |
-| **`qwen2.5:0.5b`** | **100%** | react |
-| `functiongemma:270m` | 80% | native |
-| `granite4:350m` | 80% | native |
-| `qwen3:0.6b` | 60% | react |
+| Model | Score | Time | Tool Support |
+|-------|-------|------|--------------|
+| **`dolphin3.0-llama3:1b`** | **100%** | 48.7s | native |
+| **`granite4:350m`** | **100%** | 75.2s | native |
+| **`qwen2.5-coder:0.5b`** | **100%** | 76.0s | react |
+| **`qwen3:0.6b`** | **100%** | 151.0s | react |
+| `functiongemma:270m` | 80% | 28.5s | native |
+| `dolphin3.0-qwen2.5:0.5b` | 80% | 38.4s | none |
 
-**Key improvements in R02.3**:
-- **+13%** for granite3.1-moe:1b (80% → 93%) from few-shot fix
-- **+20%** for llama3.2:1b (67% → 87%) from observation role fix
-- **qwen3:0.6b restored** from 0% (broken) with `think=False` API fix
-- **qwen3.5:0.8b** new sub-1B champion with 100% on quick diagnostic
+**Key improvements in R02.5**:
+- **4 models achieve 100%** on quick diagnostic (dolphin3.0-llama3:1b fastest at 48.7s)
+- **Module refactoring** - agent.py split into 6 focused modules (~1550 lines from ~2770)
+- **All tests passing** after module separation, backward compatibility maintained
 
 ---
 
@@ -240,7 +240,7 @@ Output shows:
 - **Tool Support** - `✓ native`, `ReAct`, `○ none`, or `untested`
 
 ```
-⚛️ AgentNova R02.3 Models
+⚛️ AgentNova R02.5 Models
   Model                                      Family       Context    Tool Support
   ──────────────────────────────────────────────────────────────────────────────
   gemma3:270m                                gemma3       32K        ○ none
