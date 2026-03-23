@@ -1,4 +1,4 @@
-"""
+﻿"""
 ⚛️ AgentNova — CLI
 Command-line interface for AgentNova.
 
@@ -156,27 +156,67 @@ def bright_red(text: str) -> str:
 # ============================================================================
 
 BANNER = r"""
-{}        ___           ___           ___           ___
-       /\  \         /\__\         /\  \         /\  \
-      /::\  \       /:/  /        /::\  \       /::\  \
-     /:/\:\  \     /:/__/        /:/\:\  \     /:/\:\  \
-    /::\~\:\  \   /::\  \ ___   /::\~\:\  \   /::\~\:\  \
-   /:/\:\ \:\__\ /:/\:\  /\__\ /:/\:\ \:\__\ /:/\:\ \:\__\
-   \/__\:\/:/  / \/__\:\/:/  / \/__\:\/:/  / \/__\:\/:/  /
-        \::/  /       \::/  /       \::/  /       \::/  /
-        /:/  /        /:/  /        /:/  /        /:/  /
-       /:/  /        /:/  /        /:/  /        /:/  /
-       \/__/         \/__/         \/__/         \/__/
-{}      {}AgentNova{} - Autonomous Agents with Local LLMs
-{}                     Status: {}Alpha{} | https://vts-tech.org
+{}            _
+           /   \
+          |  ○  |
+           \ _ /        {}AgentNova{}
+        ___/   \___
+       /           \
+      |  ○       ○  |     Autonomous Agents
+       \___________/      with Local LLMs
+          /     \
+         /   ○   \
+        /_________\
+{}
+                 Status: {}Alpha{} | https://vts-tech.org
+"""
+
+BANNER_SIMPLE = r"""
+{}        . - ~ ~ ~ - .
+    .-~               ~-.
+   /                     \
+  |  {}AgentNova{}  ○  ○  ○  |
+   \                     /
+    ~- .___________ . -~
+         ○       ○
+{}
+           Status: {}Alpha{} | https://vts-tech.org
+"""
+
+BANNER_ATOM = r"""
+{}             _
+           .' '.
+          :  ○  :
+           '._.'         {}AgentNova{}
+        .-`   `-.        Autonomous Agents
+       /   ○   ○  \      with Local LLMs
+      :             :
+       \    ___    /
+        `-._____.-'
+{}           Status: {}Alpha{} | https://vts-tech.org
+"""
+
+BANNER_ORBIT = r"""
+{}                 ○
+            . . . . .
+         .   .'   '.   .
+       .    :  {}○{}  :    .    {}AgentNova{}
+        .   '. _ .'   .     Autonomous Agents
+          .  '---'  .       with Local LLMs
+      ○    .     .    ○
+            . . . . .
+                ○
+{}
+                 Status: {}Alpha{} | https://vts-tech.org
 """
 
 
 def print_banner() -> None:
     """Print the AgentNova ASCII banner."""
     if _COLOR_ENABLED:
-        print(BANNER.format(
+        print(BANNER_ORBIT.format(
             Color.BRIGHT_CYAN,
+            Color.BRIGHT_YELLOW,
             Color.RESET,
             Color.BRIGHT_MAGENTA + Color.BOLD,
             Color.RESET,
@@ -185,7 +225,7 @@ def print_banner() -> None:
             Color.RESET,
         ))
     else:
-        print(BANNER.format("", "", "", "", "", "", ""))
+        print(BANNER_ORBIT.format("", "", "", "", "", "", ""))
 
 
 # ============================================================================
