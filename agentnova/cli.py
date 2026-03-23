@@ -1,4 +1,4 @@
-﻿"""
+"""
 ⚛️ AgentNova — CLI
 Command-line interface for AgentNova.
 
@@ -155,142 +155,51 @@ def bright_red(text: str) -> str:
 # ASCII Banner
 # ============================================================================
 
-BANNER_ATOM = r"""
-{}                   ___
-               .-"```   "'-.
-             .'            .' 
-           .'   .--.      /      {}AgentNova{}
-          /   .'    '.   /       Autonomous Agents
-         /   /        \ /        with Local LLMs
-        :   :  ()  () :;
-        :    \   __   /
-         \    '.__.' /
-          '.        .'
-            '._  _.'
-               '"'
-{}
-
-            Status: {}Alpha{} | https://vts-tech.org
+BANNER_ATOM_BRAILLE = """
+\x1b[96m⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣴⠿⠛⢷⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\x1b[0m  \x1b[95;1mAgentNova\x1b[0m
+\x1b[96m⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⡿⠃⠀⠀⠀⠙⣷⡀⠀⠀⢀⣀⠀⠀⠀⠀⠀\x1b[0m  \x1b[2mAutonomous Agents with Local LLMs\x1b[0m
+\x1b[96m⠀⠀⠀⣀⣀⣀⣀⣀⠀⢀⣿⠃⠀⠀⠀⠀⠀⠸⣷⠀⣰⣿⣿⣿⣆⣀⠀⠀\x1b[0m
+\x1b[96m⠀⣰⡿⠛⠉⠉⠉⠛⠻⣿⣷⣤⣀⠀⠀⠀⣀⣤⣿⡿⠿⣿⣿⣿⠏⠛⣷⡄\x1b[0m  \x1b[2mStatus:\x1b[0m \x1b[33mAlpha\x1b[0m
+\x1b[96m⠀⣿⣇⣀⠀⠀⠀⠀⢀⣿⠅⠉⢛⣿⣶⣿⡋⠉⠘⣿⠀⠀⠉⠀⠀⠀⢸⡇\x1b[0m  \x1b[2mhttps://vts-tech.org\x1b[0m
+\x1b[96m⢸⣿⣿⣿⣧⠀⠀⠀⢸⣟⣠⣾⠟⠋⠀⠙⠻⣶⣄⣿⡄⠀⠀⠀⠀⢀⣾⠃\x1b[0m
+\x1b[96m⠘⢿⣿⣿⣏⠀⠀⢀⣼⡿⠋⣠⣶⣿⣿⣿⣦⡌⠙⣿⣧⡀⠀⠀⣠⣾⠋⠀\x1b[0m
+\x1b[96m⠀⠀⠀⠈⢻⣦⣴⠟⣹⡇⢰⣿⣿⣿⣿⣿⣿⣿⡄⢸⡟⠻⣦⣴⠟⠁⠀⠀\x1b[0m
+\x1b[96m⠀⠀⠀⢀⣴⡟⢿⣦⣿⡗⠸⣿⣿⣿⣿⣿⣿⣿⠃⢸⣇⣴⡿⢿⣦⡀⠀⠀\x1b[0m
+\x1b[96m⠀⠀⢠⣾⠋⠀⠀⠙⢿⣧⣄⠙⢿⣿⣿⣿⠿⠃⣠⣿⡟⠁⠀⠀⠙⣷⡄⠀\x1b[0m
+\x1b[96m⠀⢠⣿⠁⠀⠀⠀⠀⢸⣯⠛⢷⣦⣀⠀⣠⣴⡿⠋⣿⠃⠀⠀⠀⠀⠘⣿⡄\x1b[0m
+\x1b[96m⠀⣾⡇⠀⠀⠀⠀⠀⠈⣿⠀⢀⣩⣿⣿⣿⣅⡀⢠⣿⠀⠀⠀⠀⠀⠀⢸⡇\x1b[0m
+\x1b[96m⠀⠹⣷⣄⣀⣀⣀⣠⣤⣿⡿⠟⠋⠁⠀⠈⠙⠻⣿⣷⣤⣄⣀⣀⣀⣠⣾⠇\x1b[0m
+\x1b[96m⠀⠀⠈⠉⠛⠛⠛⠉⠉⠘⣿⡀⠀⠀⠀⢀⣴⣶⣿⣄⠈⠉⠙⠛⠛⠋⠁⠀\x1b[0m
+\x1b[96m⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⣷⡀⠀⠀⢸⣿⣿⣿⣿⠀⠀⠀⠀⠀⠀⠀⠀\x1b[0m
+\x1b[96m⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⠿⣦⣤⣶⠟⠛⠛⠁⠀⠀⠀⠀⠀⠀⠀⠀\x1b[0m
 """
 
-BANNER_ATOM2 = r"""
-{}                      .,
-               .      _ ;'_    _
-               ;\    /`  `"'-.;
-                \  ;/         \     {}AgentNova{}
-                 ;.;  .--.  .-;     Autonomous Agents
-                .-'   /    \  '     with Local LLMs
-              .'.'   ; ()  ;  ;
-             .;      ; () ;   ;
-            .'        \__/   .'
-           .'  .-._    _   .'
-          ;  .;'   ';  ';.'
-{}
-
-            Status: {}Alpha{} | https://vts-tech.org
-"""
-
-BANNER_ATOM3 = r"""
-{}            .        .
-         _ . '  ` . _ . '  ` . _
-       .'  . '  . '  . '  . '  `.
-      ;   /    /    /    \    \  ;   {}AgentNova{}
-     ;   ;    ;    ;     ;    ;  ;   Autonomous Agents
-     ;   \    \    \    /    /  ;    with Local LLMs
-      '.  '.  '.  '. .'  .'  .'
-        '._  '._  '._.'  _.'
-           '._   ___  _.'
-               '.'
-{}
-
-            Status: {}Alpha{} | https://vts-tech.org
-"""
-
-BANNER_ATOM_CLASSIC = r"""
-{}                   /\
-         _         /  \         _
-        / \       /    \       / \
-       /   \     /  .-. \     /   \
-      /     \   /  /   \  \   /     \
-     /       \ /  /     \  \ /       \    {}AgentNova{}
-    |    .----.  |  ()  |  .----.    |    Autonomous Agents
-    |   /      \  \     /  /      \  |    with Local LLMs
-     \ /        \  '---'  /        \ /
-      '          \       /          '
-                 /       \
-                /_________\
-{}
-
-            Status: {}Alpha{} | https://vts-tech.org
-"""
-
-BANNER_ATOM_ORBITS = r"""
-{}                         ○
-                 ___ .-'```'-.___         
-            .-'``   /         \   ``'-.    {}AgentNova{}
-          .'   .-. |   ()  ()  | .-.   '.  Autonomous Agents
-         /    (   ) \    __    /(   )    \ with Local LLMs
-        :      '-'   \       /  '-'      :
-        |              '._._.'            |
-         \    ○                           /
-          '.                            .'
-            '-._                    _.-'
-                ``'-..________..-'``
-                        ○
-{}
-
-            Status: {}Alpha{} | https://vts-tech.org
-"""
-
-BANNER_ATOM_SIMPLE = r"""
-{}              ___
-         .-'```   ```'-.     
-       .'   .-.   .-.   '.   
-      /    (   ) (   )    \     {}AgentNova{}
-     ;      '-'   '-'      ;    Autonomous Agents
-     ;    _______________  ;    with Local LLMs
-      \  /               \ /
-       '    .--.   .--.   '
-        \  ( () ) ( () )  /
-         '.             .'
-           '-.._____..-'
-{}
-
-            Status: {}Alpha{} | https://vts-tech.org
-"""
-
-BANNER_ATOM_ELLIPSE = r"""
-{}               .,,,,,,.
-          ,;;;;;,,   ,,;;;;;,
-        ,;;;;,  .;;;;;;;.  ,;;;;,    {}AgentNova{}
-       ,;;;,  .;;;  ()  ;;;.  ,;;;,   Autonomous Agents
-      ,;;;   ;;;         ;;;   ;;;,   with Local LLMs
-      ;;;   ;;;    ___    ;;;   ;;;
-      ;;;   ;;;   (   )   ;;;   ;;;
-      ';;;   ';;;       ;;;'   ;;;'
-       ';;;,  ';;;;, ,;;;;'  ,;;;'
-         ';;;;;,  ';;;'  ,;;;;;'
-            '',;;;;,,,;;;;,''
-                 '''''
-{}
-
-            Status: {}Alpha{} | https://vts-tech.org
+BANNER_ATOM_PLAIN = """
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣴⠿⠛⢷⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀  AgentNova
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⡿⠃⠀⠀⠀⠙⣷⡀⠀⠀⢀⣀⠀⠀⠀⠀⠀  Autonomous Agents with Local LLMs
+⠀⠀⠀⣀⣀⣀⣀⣀⠀⢀⣿⠃⠀⠀⠀⠀⠀⠸⣷⠀⣰⣿⣿⣿⣆⣀⠀⠀
+⠀⣰⡿⠛⠉⠉⠉⠛⠻⣿⣷⣤⣀⠀⠀⠀⣀⣤⣿⡿⠿⣿⣿⣿⠏⠛⣷⡄  Status: Alpha
+⠀⣿⣇⣀⠀⠀⠀⠀⢀⣿⠅⠉⢛⣿⣶⣿⡋⠉⠘⣿⠀⠀⠉⠀⠀⠀⢸⡇  https://vts-tech.org
+⢸⣿⣿⣿⣧⠀⠀⠀⢸⣟⣠⣾⠟⠋⠀⠙⠻⣶⣄⣿⡄⠀⠀⠀⠀⢀⣾⠃
+⠘⢿⣿⣿⣏⠀⠀⢀⣼⡿⠋⣠⣶⣿⣿⣿⣦⡌⠙⣿⣧⡀⠀⠀⣠⣾⠋⠀
+⠀⠀⠀⠈⢻⣦⣴⠟⣹⡇⢰⣿⣿⣿⣿⣿⣿⣿⡄⢸⡟⠻⣦⣴⠟⠁⠀⠀
+⠀⠀⠀⢀⣴⡟⢿⣦⣿⡗⠸⣿⣿⣿⣿⣿⣿⣿⠃⢸⣇⣴⡿⢿⣦⡀⠀⠀
+⠀⠀⢠⣾⠋⠀⠀⠙⢿⣧⣄⠙⢿⣿⣿⣿⠿⠃⣠⣿⡟⠁⠀⠀⠙⣷⡄⠀
+⠀⢠⣿⠁⠀⠀⠀⠀⢸⣯⠛⢷⣦⣀⠀⣠⣴⡿⠋⣿⠃⠀⠀⠀⠀⠘⣿⡄
+⠀⣾⡇⠀⠀⠀⠀⠀⠈⣿⠀⢀⣩⣿⣿⣿⣅⡀⢠⣿⠀⠀⠀⠀⠀⠀⢸⡇
+⠀⠹⣷⣄⣀⣀⣀⣠⣤⣿⡿⠟⠋⠁⠀⠈⠙⠻⣿⣷⣤⣄⣀⣀⣀⣠⣾⠇
+⠀⠀⠈⠉⠛⠛⠛⠉⠉⠘⣿⡀⠀⠀⠀⢀⣴⣶⣿⣄⠈⠉⠙⠛⠛⠋⠁⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⣷⡀⠀⠀⢸⣿⣿⣿⣿⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⠿⣦⣤⣶⠟⠛⠛⠁⠀⠀⠀⠀⠀⠀⠀⠀
 """
 
 
 def print_banner() -> None:
     """Print the AgentNova ASCII banner."""
     if _COLOR_ENABLED:
-        print(BANNER_ATOM_ORBITS.format(
-            Color.BRIGHT_CYAN,
-            Color.BRIGHT_MAGENTA + Color.BOLD,
-            Color.RESET,
-            Color.DIM,
-            Color.YELLOW,
-            Color.RESET,
-        ))
+        print(BANNER_ATOM_BRAILLE)
     else:
-        print(BANNER_ATOM_ORBITS.format("", "", "", "", "", ""))
+        print(BANNER_ATOM_PLAIN)
 
 
 # ============================================================================
@@ -340,6 +249,15 @@ def create_parser() -> argparse.ArgumentParser:
 
     # Tools command
     subparsers.add_parser("tools", help="List available tools")
+
+    # Test command
+    test_parser = subparsers.add_parser("test", help="Run diagnostic tests")
+    test_parser.add_argument("test_id", nargs="?", default="all", 
+                             help="Test to run: 00, 01, 02, 03, 04, or 'all' (default: all)")
+    test_parser.add_argument("-m", "--model", default=None, help="Model to test")
+    test_parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None, help="Backend to use")
+    test_parser.add_argument("--debug", action="store_true", help="Enable debug output")
+    test_parser.add_argument("--list", action="store_true", help="List available tests")
 
     # Version command
     subparsers.add_parser("version", help="Show version information")
@@ -684,6 +602,132 @@ def cmd_tools(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_test(args: argparse.Namespace) -> int:
+    """Execute the test command."""
+    # Available tests
+    TESTS = {
+        "00": {
+            "name": "Basic Agent",
+            "desc": "Simple conversation without tools",
+            "module": "agentnova.examples.00_basic_agent",
+        },
+        "01": {
+            "name": "Quick Diagnostic",
+            "desc": "5-question math reasoning test",
+            "module": "agentnova.examples.01_quick_diagnostic",
+        },
+        "02": {
+            "name": "Tool Tests",
+            "desc": "Calculator, shell, datetime tools",
+            "module": "agentnova.examples.02_tool_test",
+        },
+        "03": {
+            "name": "Reasoning Test",
+            "desc": "Multi-step reasoning challenges",
+            "module": "agentnova.examples.03_reasoning_test",
+        },
+        "04": {
+            "name": "GSM8K Benchmark",
+            "desc": "Grade school math problems",
+            "module": "agentnova.examples.04_gsm8k_benchmark",
+        },
+    }
+    
+    # List tests
+    if args.list:
+        print(f"\n{bright_cyan('⚛ AgentNova')} - Available Tests")
+        print(dim("-" * 50))
+        for tid, info in TESTS.items():
+            print(f"  {cyan(tid)}  {info['name']:<20} {dim(info['desc'])}")
+        print(dim("-" * 50))
+        print(f"\n  Usage: {cyan('agentnova test 01')} or {cyan('agentnova test all')}")
+        return 0
+    
+    # Determine which tests to run
+    test_id = args.test_id.lower()
+    if test_id == "all":
+        tests_to_run = list(TESTS.keys())
+    elif test_id in TESTS:
+        tests_to_run = [test_id]
+    else:
+        print(f"{red('Error:')} Unknown test '{test_id}'")
+        print(f"  Run {cyan('agentnova test --list')} to see available tests")
+        return 1
+    
+    # Check backend
+    config = get_config()
+    backend_name = args.backend or config.backend
+    backend = get_backend(backend_name)
+    
+    if not backend.is_running():
+        print(f"{red('Error:')} {backend_name.capitalize()} not running at {backend.base_url}")
+        if backend_name == "ollama":
+            print(f"  Start with: {cyan('ollama serve')}")
+            print(f"  Or set OLLAMA_BASE_URL to your remote server")
+        return 1
+    
+    # Set environment for tests
+    if args.debug:
+        os.environ["AGENTNOVA_DEBUG"] = "1"
+    if args.model:
+        os.environ["AGENTNOVA_MODEL"] = args.model
+    if args.backend:
+        os.environ["AGENTNOVA_BACKEND"] = args.backend
+    
+    # Run tests
+    print_banner()
+    print(f"{bright_magenta('Test Runner')} — {len(tests_to_run)} test(s)")
+    print(f"{dim('Backend:')} {backend_name} ({backend.base_url})")
+    print(f"{dim('Model:')} {args.model or config.default_model}")
+    print()
+    
+    results = {}
+    for tid in tests_to_run:
+        info = TESTS[tid]
+        print(f"\n{dim('─' * 50)}")
+        print(f"{cyan(f'[{tid}]')} {bright_magenta(info['name'])}")
+        print(f"{dim(info['desc'])}")
+        print(dim("─" * 50))
+        
+        try:
+            # Import and run the test module
+            import importlib
+            module = importlib.import_module(info["module"])
+            
+            # Run the main function
+            import io
+            import contextlib
+            
+            # Capture output for summary
+            exit_code = module.main()
+            results[tid] = {"passed": exit_code == 0, "exit_code": exit_code}
+            
+        except ImportError as e:
+            print(f"{red('Error:')} Could not import test module: {e}")
+            results[tid] = {"passed": False, "error": str(e)}
+        except Exception as e:
+            print(f"{red('Error:')} {e}")
+            results[tid] = {"passed": False, "error": str(e)}
+    
+    # Summary
+    print(f"\n{dim('=' * 50)}")
+    print(f"{bright_magenta('Test Summary')}")
+    print(dim("=" * 50))
+    
+    passed = sum(1 for r in results.values() if r.get("passed"))
+    total = len(results)
+    
+    for tid, result in results.items():
+        status = bright_green("✓ PASS") if result.get("passed") else red("✗ FAIL")
+        print(f"  [{tid}] {TESTS[tid]['name']:<20} {status}")
+    
+    print(dim("-" * 50))
+    pct = 100 * passed // total if total > 0 else 0
+    print(f"  {bright_green(str(passed))}/{total} tests passed ({pct}%)")
+    
+    return 0 if passed == total else 1
+
+
 def cmd_version(args: argparse.Namespace) -> int:
     """Show version information."""
     from . import __version__, __status__, __author__
@@ -748,6 +792,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         "agent": cmd_agent,
         "models": cmd_models,
         "tools": cmd_tools,
+        "test": cmd_test,
         "version": cmd_version,
         "config": cmd_config,
     }
