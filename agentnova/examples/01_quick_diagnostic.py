@@ -155,6 +155,10 @@ def main():
     args = parse_args()
     config = get_config()
     
+    # Enable debug output
+    if args.debug:
+        os.environ["AGENTNOVA_DEBUG"] = "1"
+    
     # Get model
     model = args.model or config.default_model
     
