@@ -345,9 +345,12 @@ class OllamaBackend(BaseBackend):
 
     # Families with native tool calling support
     NATIVE_TOOL_FAMILIES = [
-        "qwen2.5", "qwen2", "llama3.1", "llama3.2", "llama3.3",
-        "mistral", "mixtral", "command-r", "granite", "granitemoe",
-        "gemma2", "gemma3", "phi3",
+        "qwen2.5", "qwen2", "qwen3",  # Qwen family
+        "llama3.1", "llama3.2", "llama3.3",  # Llama 3.x
+        "mistral", "mixtral", "command-r",
+        "granite", "granitemoe",
+        "gemma2", "gemma3",
+        "phi3",
     ]
 
     @classmethod

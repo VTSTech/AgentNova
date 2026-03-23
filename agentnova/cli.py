@@ -25,6 +25,169 @@ from .backends import get_backend, get_default_backend, OllamaBackend
 from .config import get_config, AGENTNOVA_BACKEND, OLLAMA_BASE_URL, BITNET_BASE_URL
 
 
+# ============================================================================
+# Colors & Styling
+# ============================================================================
+
+class Color:
+    """ANSI color codes for terminal output."""
+    # Reset
+    RESET = "\033[0m"
+    
+    # Basic colors
+    BLACK = "\033[30m"
+    RED = "\033[31m"
+    GREEN = "\033[32m"
+    YELLOW = "\033[33m"
+    BLUE = "\033[34m"
+    MAGENTA = "\033[35m"
+    CYAN = "\033[36m"
+    WHITE = "\033[37m"
+    
+    # Bright colors
+    BRIGHT_BLACK = "\033[90m"
+    BRIGHT_RED = "\033[91m"
+    BRIGHT_GREEN = "\033[92m"
+    BRIGHT_YELLOW = "\033[93m"
+    BRIGHT_BLUE = "\033[94m"
+    BRIGHT_MAGENTA = "\033[95m"
+    BRIGHT_CYAN = "\033[96m"
+    BRIGHT_WHITE = "\033[97m"
+    
+    # Styles
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
+    ITALIC = "\033[3m"
+    UNDERLINE = "\033[4m"
+    
+    @classmethod
+    def supports_color(cls) -> bool:
+        """Check if terminal supports color."""
+        # Check for NO_COLOR env var
+        if os.environ.get("NO_COLOR"):
+            return False
+        # Check if stdout is a terminal
+        if not sys.stdout.isatty():
+            return False
+        # Windows check
+        if os.name == "nt":
+            return os.environ.get("ANSICON") or "WT_SESSION" in os.environ or True
+        return True
+
+
+# Global color enabled flag
+_COLOR_ENABLED = Color.supports_color()
+
+
+def c(text: str, *colors: str) -> str:
+    """Apply colors to text if color is enabled."""
+    if not _COLOR_ENABLED or not colors:
+        return text
+    return "".join(colors) + text + Color.RESET
+
+
+def dim(text: str) -> str:
+    """Dim text."""
+    return c(text, Color.DIM)
+
+
+def bold(text: str) -> str:
+    """Bold text."""
+    return c(text, Color.BOLD)
+
+
+def cyan(text: str) -> str:
+    """Cyan text."""
+    return c(text, Color.CYAN)
+
+
+def green(text: str) -> str:
+    """Green text."""
+    return c(text, Color.GREEN)
+
+
+def yellow(text: str) -> str:
+    """Yellow text."""
+    return c(text, Color.YELLOW)
+
+
+def red(text: str) -> str:
+    """Red text."""
+    return c(text, Color.RED)
+
+
+def magenta(text: str) -> str:
+    """Magenta text."""
+    return c(text, Color.MAGENTA)
+
+
+def blue(text: str) -> str:
+    """Blue text."""
+    return c(text, Color.BLUE)
+
+
+def bright_cyan(text: str) -> str:
+    """Bright cyan text."""
+    return c(text, Color.BRIGHT_CYAN)
+
+
+def bright_green(text: str) -> str:
+    """Bright green text."""
+    return c(text, Color.BRIGHT_GREEN)
+
+
+def bright_yellow(text: str) -> str:
+    """Bright yellow text."""
+    return c(text, Color.BRIGHT_YELLOW)
+
+
+def bright_magenta(text: str) -> str:
+    """Bright magenta text."""
+    return c(text, Color.BRIGHT_MAGENTA)
+
+
+# ============================================================================
+# ASCII Banner
+# ============================================================================
+
+BANNER = r"""
+{}        ___           ___           ___           ___
+       /\  \         /\__\         /\  \         /\  \
+      /::\  \       /:/  /        /::\  \       /::\  \
+     /:/\:\  \     /:/__/        /:/\:\  \     /:/\:\  \
+    /::\~\:\  \   /::\  \ ___   /::\~\:\  \   /::\~\:\  \
+   /:/\:\ \:\__\ /:/\:\  /\__\ /:/\:\ \:\__\ /:/\:\ \:\__\
+   \/__\:\/:/  / \/__\:\/:/  / \/__\:\/:/  / \/__\:\/:/  /
+        \::/  /       \::/  /       \::/  /       \::/  /
+        /:/  /        /:/  /        /:/  /        /:/  /
+       /:/  /        /:/  /        /:/  /        /:/  /
+       \/__/         \/__/         \/__/         \/__/
+{}      {}AgentNova{} - Autonomous Agents with Local LLMs
+{}                     Status: {}Alpha{} | https://vts-tech.org
+"""
+
+
+def print_banner() -> None:
+    """Print the AgentNova ASCII banner."""
+    if _COLOR_ENABLED:
+        print(BANNER.format(
+            Color.BRIGHT_CYAN,
+            Color.RESET,
+            Color.BRIGHT_MAGENTA + Color.BOLD,
+            Color.RESET,
+            Color.DIM,
+            Color.YELLOW,
+            Color.RESET,
+        ))
+    else:
+        print(BANNER.format("", "", "", "", "", "", ""))
+
+
+# ============================================================================
+# CLI Commands
+# ============================================================================
+
+
 def create_parser() -> argparse.ArgumentParser:
     """Create the argument parser."""
     parser = argparse.ArgumentParser(
