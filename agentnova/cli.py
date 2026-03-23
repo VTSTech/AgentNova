@@ -10,7 +10,11 @@ Written by VTSTech — https://www.vts-tech.org
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import sys
+import time
+from pathlib import Path
 from typing import Optional
 
 from .agent import Agent
@@ -58,7 +62,8 @@ def create_parser() -> argparse.ArgumentParser:
     # Models command
     models_parser = subparsers.add_parser("models", help="List available models")
     models_parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None, help="Backend to use")
-    models_parser.add_argument("--tool-support", action="store_true", help="Show tool calling support for each model")
+    models_parser.add_argument("--tool-support", action="store_true", help="Force re-test tool calling support")
+    models_parser.add_argument("--no-cache", action="store_true", help="Ignore cached tool support results")
 
     # Tools command
     subparsers.add_parser("tools", help="List available tools")
@@ -242,6 +247,44 @@ def cmd_agent(args: argparse.Namespace) -> int:
     return 0
 
 
+def _get_cache_dir() -> Path:
+    """Get the cache directory for AgentNova."""
+    # Use platform-appropriate cache directory
+    if os.name == "nt":
+        # Windows: %LOCALAPPDATA%\agentnova\cache
+        base = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
+        cache_dir = Path(base) / "agentnova" / "cache"
+    else:
+        # Unix: ~/.cache/agentnova
+        base = os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
+        cache_dir = Path(base) / "agentnova"
+    
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir
+
+
+def _load_tool_cache() -> dict:
+    """Load cached tool support results."""
+    cache_file = _get_cache_dir() / "tool_support.json"
+    if cache_file.exists():
+        try:
+            with open(cache_file, "r") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+    return {}
+
+
+def _save_tool_cache(cache: dict) -> None:
+    """Save tool support results to cache."""
+    cache_file = _get_cache_dir() / "tool_support.json"
+    try:
+        with open(cache_file, "w") as f:
+            json.dump(cache, f, indent=2)
+    except IOError:
+        pass
+
+
 def cmd_models(args: argparse.Namespace) -> int:
     """Execute the models command."""
     config = get_config()
@@ -267,19 +310,15 @@ def cmd_models(args: argparse.Namespace) -> int:
             print("Pull one with: ollama pull qwen2.5:0.5b")
         return 0
 
-    # Determine if we should show tool support (flag or auto for small number of models)
-    show_tool_support = args.tool_support or (len(models) <= 5)
+    # Load tool support cache
+    cache = {} if args.no_cache else _load_tool_cache()
+    cache_updated = False
     
-    if show_tool_support:
-        print(f"\n⚛️ AgentNova - Available Models ({backend.base_url})")
-        print("-" * 88)
-        print(f"  {'Name':<36} {'Size':>8}  {'Context':>8}  {'Tools':>8}  {'Family':<12}")
-        print("-" * 88)
-    else:
-        print(f"\n⚛️ AgentNova - Available Models ({backend.base_url})")
-        print("-" * 72)
-        print(f"  {'Name':<36} {'Size':>8}  {'Context':>8}  {'Family':<12}")
-        print("-" * 72)
+    # Always show tools column
+    print(f"\n⚛️ AgentNova - Available Models ({backend.base_url})")
+    print("-" * 92)
+    print(f"  {'Name':<36} {'Size':>8}  {'Context':>8}  {'Tools':>10}  {'Family':<12}")
+    print("-" * 92)
 
     for m in models:
         name = m.get("name", "unknown")
@@ -298,22 +337,46 @@ def cmd_models(args: argparse.Namespace) -> int:
         else:
             ctx_str = str(ctx_size)
         
-        # Get tool support level
-        if show_tool_support and isinstance(backend, OllamaBackend):
-            support = backend.test_tool_support(name)
-            tool_icon = "✓ native" if support.value == "native" else "○ react" if support.value == "react" else "○ none"
-            print(f"  {name:<36} {size_gb:>6.2f} GB  {ctx_str:>8}  {tool_icon:>8}  ({family})")
+        # Get tool support level (from cache or test)
+        if isinstance(backend, OllamaBackend):
+            cached = cache.get(name)
+            
+            if args.tool_support or cached is None:
+                # Test and cache
+                support = backend.test_tool_support(name)
+                cache[name] = {
+                    "support": support.value,
+                    "tested_at": time.time(),
+                    "family": family,
+                }
+                cache_updated = True
+                status = support.value
+            else:
+                status = cached.get("support", "untested")
+            
+            # Format tool status with icon
+            if status == "native":
+                tool_icon = "✓ native"
+            elif status == "react":
+                tool_icon = "○ react"
+            elif status == "none":
+                tool_icon = "○ none"
+            else:
+                tool_icon = "? untested"
+            
+            print(f"  {name:<36} {size_gb:>6.2f} GB  {ctx_str:>8}  {tool_icon:>10}  ({family})")
         else:
-            print(f"  {name:<36} {size_gb:>6.2f} GB  {ctx_str:>8}  ({family})")
+            print(f"  {name:<36} {size_gb:>6.2f} GB  {ctx_str:>8}  {'? n/a':>10}  ({family})")
 
-    if show_tool_support:
-        print("-" * 88)
-    else:
-        print("-" * 72)
+    print("-" * 92)
     print(f"Total: {len(models)} models")
     
-    if not show_tool_support:
-        print("💡 Use --tool-support to check tool calling capabilities")
+    # Save cache if updated
+    if cache_updated:
+        _save_tool_cache(cache)
+    
+    # Show legend
+    print("\nLegend: ✓ native (API tools) | ○ react (text parsing) | ? untested")
 
     return 0
 
