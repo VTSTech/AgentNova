@@ -1,4 +1,4 @@
-"""
+﻿"""
 ⚛️ AgentNova — CLI
 Command-line interface for AgentNova.
 
@@ -160,7 +160,7 @@ BANNER_ATOM_BRAILLE = """
 \x1b[96m⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⡿⠃⠀⠀⠀⠙⣷⡀⠀⠀⢀⣀⠀⠀⠀⠀⠀\x1b[0m  \x1b[2mAutonomous Agents with Local LLMs\x1b[0m
 \x1b[96m⠀⠀⠀⣀⣀⣀⣀⣀⠀⢀⣿⠃⠀⠀⠀⠀⠀⠸⣷⠀⣰⣿⣿⣿⣆⣀⠀⠀\x1b[0m
 \x1b[96m⠀⣰⡿⠛⠉⠉⠉⠛⠻⣿⣷⣤⣀⠀⠀⠀⣀⣤⣿⡿⠿⣿⣿⣿⠏⠛⣷⡄\x1b[0m  \x1b[2mStatus:\x1b[0m \x1b[33mAlpha\x1b[0m
-\x1b[96m⠀⣿⣇⣀⠀⠀⠀⠀⢀⣿⠅⠉⢛⣿⣶⣿⡋⠉⠘⣿⠀⠀⠉⠀⠀⠀⢸⡇\x1b[0m  \x1b[2mhttps://vts-tech.org\x1b[0m
+\x1b[96m⠀⣿⣇⣀⠀⠀⠀⠀⢀⣿⠅⠉⢛⣿⣶⣿⡋⠉⠘⣿⠀⠀⠉⠀⠀⠀⢸⡇\x1b[0m  \x1b[2mhttps://www.vts-tech.org\x1b[0m
 \x1b[96m⢸⣿⣿⣿⣧⠀⠀⠀⢸⣟⣠⣾⠟⠋⠀⠙⠻⣶⣄⣿⡄⠀⠀⠀⠀⢀⣾⠃\x1b[0m
 \x1b[96m⠘⢿⣿⣿⣏⠀⠀⢀⣼⡿⠋⣠⣶⣿⣿⣿⣦⡌⠙⣿⣧⡀⠀⠀⣠⣾⠋⠀\x1b[0m
 \x1b[96m⠀⠀⠀⠈⢻⣦⣴⠟⣹⡇⢰⣿⣿⣿⣿⣿⣿⣿⡄⢸⡟⠻⣦⣴⠟⠁⠀⠀\x1b[0m
@@ -179,7 +179,7 @@ BANNER_ATOM_PLAIN = """
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⡿⠃⠀⠀⠀⠙⣷⡀⠀⠀⢀⣀⠀⠀⠀⠀⠀  Autonomous Agents with Local LLMs
 ⠀⠀⠀⣀⣀⣀⣀⣀⠀⢀⣿⠃⠀⠀⠀⠀⠀⠸⣷⠀⣰⣿⣿⣿⣆⣀⠀⠀
 ⠀⣰⡿⠛⠉⠉⠉⠛⠻⣿⣷⣤⣀⠀⠀⠀⣀⣤⣿⡿⠿⣿⣿⣿⠏⠛⣷⡄  Status: Alpha
-⠀⣿⣇⣀⠀⠀⠀⠀⢀⣿⠅⠉⢛⣿⣶⣿⡋⠉⠘⣿⠀⠀⠉⠀⠀⠀⢸⡇  https://vts-tech.org
+⠀⣿⣇⣀⠀⠀⠀⠀⢀⣿⠅⠉⢛⣿⣶⣿⡋⠉⠘⣿⠀⠀⠉⠀⠀⠀⢸⡇  https://www.vts-tech.org
 ⢸⣿⣿⣿⣧⠀⠀⠀⢸⣟⣠⣾⠟⠋⠀⠙⠻⣶⣄⣿⡄⠀⠀⠀⠀⢀⣾⠃
 ⠘⢿⣿⣿⣏⠀⠀⢀⣼⡿⠋⣠⣶⣿⣿⣿⣦⡌⠙⣿⣧⡀⠀⠀⣠⣾⠋⠀
 ⠀⠀⠀⠈⢻⣦⣴⠟⣹⡇⢰⣿⣿⣿⣿⣿⣿⣿⡄⢸⡟⠻⣦⣴⠟⠁⠀⠀
@@ -537,16 +537,17 @@ def cmd_models(args: argparse.Namespace) -> int:
         else:
             ctx_str = str(ctx_size)
         
-        # Get tool support level (from cache or fast family detection)
+        # Get tool support level (from cache or test)
         if isinstance(backend, OllamaBackend):
             cached = cache.get(name)
             
             # Check if cache entry matches current family (detects model updates)
             cache_valid = cached and cached.get("family") == family
             
-            if args.tool_support or not cache_valid:
-                # Fast path: use family from list_models (no API call needed for known families)
-                support = backend.test_tool_support(name, family=family)
+            if args.tool_support:
+                # Force test: actually call the model to test tool support
+                print(f"  {dim('Testing:')} {cyan(name)}...", end="", flush=True)
+                support = backend.test_tool_support(name, family=family, force_test=True)
                 cache[name] = {
                     "support": support.value,
                     "tested_at": time.time(),
@@ -554,20 +555,25 @@ def cmd_models(args: argparse.Namespace) -> int:
                 }
                 cache_updated = True
                 status = support.value
+                # Overwrite the "Testing..." line
+                print(f"\r  {cyan(name):<46} {size_gb:>6.2f} GB  {dim(ctx_str):>8}  ", end="")
+                if status == "native":
+                    print(f"{bright_green('✓ native'):>19}  {dim('(' + family + ')')}")
+                else:
+                    print(f"{yellow('○ react'):>19}  {dim('(' + family + ')')}")
+            elif not cache_valid:
+                # No valid cache - show as untested
+                print(f"  {cyan(name):<46} {size_gb:>6.2f} GB  {dim(ctx_str):>8}  {dim('? untested'):>19}  {dim('(' + family + ')')}")
             else:
+                # Use cached value
                 status = cached.get("support", "untested")
-            
-            # Format tool status with icon and color
-            if status == "native":
-                tool_icon = bright_green("✓ native")
-            elif status == "react":
-                tool_icon = yellow("○ react")
-            elif status == "none":
-                tool_icon = dim("○ none")
-            else:
-                tool_icon = dim("? untested")
-            
-            print(f"  {cyan(name):<46} {size_gb:>6.2f} GB  {dim(ctx_str):>8}  {tool_icon:>19}  {dim('(' + family + ')')}")
+                if status == "native":
+                    tool_icon = bright_green("✓ native")
+                elif status == "react":
+                    tool_icon = yellow("○ react")
+                else:
+                    tool_icon = dim("? untested")
+                print(f"  {cyan(name):<46} {size_gb:>6.2f} GB  {dim(ctx_str):>8}  {tool_icon:>19}  {dim('(' + family + ')')}")
         else:
             print(f"  {cyan(name):<46} {size_gb:>6.2f} GB  {dim(ctx_str):>8}  {dim('? n/a'):>19}  {dim('(' + family + ')')}")
 
@@ -580,6 +586,7 @@ def cmd_models(args: argparse.Namespace) -> int:
     
     # Show legend
     print(f"\n{dim('Legend:')} {bright_green('✓ native')} (API tools) | {yellow('○ react')} (text parsing) | {dim('? untested')}")
+    print(f"{dim('Use')} {cyan('--tool-support')} {dim('to test models (cached in ~/.cache/agentnova/tool_support.json)')}")
 
     return 0
 
