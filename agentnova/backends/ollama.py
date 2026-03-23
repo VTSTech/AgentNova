@@ -243,12 +243,55 @@ class OllamaBackend(BaseBackend):
         except (urllib.error.HTTPError, urllib.error.URLError):
             return None
 
-    def get_model_context_size(self, model: str) -> int:
+    # Known defaults by model family
+    FAMILY_CONTEXT_DEFAULTS = {
+        "qwen2": 32768,
+        "qwen2.5": 32768,
+        "qwen3": 32768,
+        "llama3": 8192,
+        "llama3.1": 131072,
+        "llama3.2": 131072,
+        "llama3.3": 131072,
+        "mistral": 32768,
+        "mixtral": 32768,
+        "gemma": 8192,
+        "gemma2": 8192,
+        "gemma3": 8192,
+        "phi3": 128000,
+        "granite": 8192,
+        "granitemoe": 8192,
+        "smollm": 4096,
+    }
+
+    @classmethod
+    def get_context_by_family(cls, family: str) -> int | None:
+        """Get default context size for a model family."""
+        if not family:
+            return None
+        family_lower = family.lower()
+        for fam, ctx in cls.FAMILY_CONTEXT_DEFAULTS.items():
+            if fam in family_lower:
+                return ctx
+        return None
+
+    def get_model_context_size(self, model: str, family: str | None = None) -> int:
         """
         Get the context window size for a model.
         
-        Returns the num_ctx parameter from the model, or a default.
+        Args:
+            model: Model name
+            family: Optional family name (uses default if provided)
+        
+        Returns:
+            Context window size in tokens
         """
+        # Fast path: use family default
+        if family:
+            ctx = self.get_context_by_family(family)
+            if ctx:
+                return ctx
+        
+        # Slow path: get from API
         info = self.get_model_info(model)
         
         if not info:
@@ -272,32 +315,13 @@ class OllamaBackend(BaseBackend):
         if "context_length" in model_info:
             return model_info["context_length"]
         
-        # Check details for parameter count to estimate
+        # Check details for family
         details = info.get("details", {})
-        family = details.get("family", "").lower()
+        api_family = details.get("family", "").lower()
         
-        # Known defaults by model family
-        family_defaults = {
-            "qwen2": 32768,
-            "qwen2.5": 32768,
-            "qwen3": 32768,
-            "llama3": 8192,
-            "llama3.1": 131072,
-            "llama3.2": 131072,
-            "llama3.3": 131072,
-            "mistral": 32768,
-            "mixtral": 32768,
-            "gemma": 8192,
-            "gemma2": 8192,
-            "gemma3": 8192,
-            "phi3": 128000,
-            "granite": 8192,
-            "granitemoe": 8192,
-        }
-        
-        for fam, ctx in family_defaults.items():
-            if fam in family:
-                return ctx
+        ctx = self.get_context_by_family(api_family)
+        if ctx:
+            return ctx
         
         return 4096  # Default fallback
 
@@ -319,31 +343,69 @@ class OllamaBackend(BaseBackend):
         except (urllib.error.HTTPError, urllib.error.URLError):
             return []
 
-    def test_tool_support(self, model: str) -> ToolSupportLevel:
-        """Test model's tool support capability."""
-        # Get model info
+    # Families with native tool calling support
+    NATIVE_TOOL_FAMILIES = [
+        "qwen2.5", "qwen2", "llama3.1", "llama3.2", "llama3.3",
+        "mistral", "mixtral", "command-r", "granite", "granitemoe",
+        "gemma2", "gemma3", "phi3",
+    ]
+
+    @classmethod
+    def detect_tool_support_by_family(cls, family: str) -> ToolSupportLevel | None:
+        """
+        Fast detection of tool support by model family.
+        Returns None if family is unknown (needs full test).
+        """
+        if not family:
+            return None
+        
+        family_lower = family.lower()
+        
+        for nf in cls.NATIVE_TOOL_FAMILIES:
+            if nf in family_lower:
+                return ToolSupportLevel.NATIVE
+        
+        # Known non-native families (small models that need ReAct)
+        react_families = ["llama", "smollm", "tinyllama"]
+        for rf in react_families:
+            if rf in family_lower:
+                return ToolSupportLevel.REACT
+        
+        return None  # Unknown family, needs full test
+
+    def test_tool_support(self, model: str, family: str | None = None) -> ToolSupportLevel:
+        """
+        Test model's tool support capability.
+        
+        Args:
+            model: Model name
+            family: Optional family name (skips API call if provided)
+        
+        Returns:
+            ToolSupportLevel (NATIVE, REACT, or NONE)
+        """
+        # Fast path: use provided family
+        if family:
+            detected = self.detect_tool_support_by_family(family)
+            if detected:
+                return detected
+        
+        # Slow path: get model info from API
         model_info = self.get_model_info(model)
 
         if not model_info:
             # Model not found, assume ReAct
             return ToolSupportLevel.REACT
 
-        # Check model family
+        # Check model family from API response
         details = model_info.get("details", {})
-        family = details.get("family", "").lower()
+        api_family = details.get("family", "").lower()
+        
+        detected = self.detect_tool_support_by_family(api_family)
+        if detected:
+            return detected
 
-        # Families with native support
-        native_families = [
-            "qwen2.5", "qwen2", "llama3.1", "llama3.2", "llama3.3",
-            "mistral", "mixtral", "command-r", "granite", "granitemoe",
-            "gemma2", "gemma3", "phi3",
-        ]
-
-        for nf in native_families:
-            if nf in family:
-                return ToolSupportLevel.NATIVE
-
-        # Try to make a test call with tools
+        # Fallback: try to make a test call with tools
         try:
             test_tool = Tool(
                 name="test",

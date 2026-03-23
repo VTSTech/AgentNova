@@ -1,4 +1,4 @@
-"""
+﻿"""
 ⚛️ AgentNova — CLI
 Command-line interface for AgentNova.
 
@@ -326,8 +326,8 @@ def cmd_models(args: argparse.Namespace) -> int:
         size_gb = size / (1024**3) if size else 0
         family = m.get("details", {}).get("family", "unknown")
         
-        # Get context size
-        ctx_size = backend.get_model_context_size(name)
+        # Get context size (fast path using family)
+        ctx_size = backend.get_model_context_size(name, family=family)
         
         # Format context size nicely
         if ctx_size >= 1000000:
@@ -337,13 +337,16 @@ def cmd_models(args: argparse.Namespace) -> int:
         else:
             ctx_str = str(ctx_size)
         
-        # Get tool support level (from cache or test)
+        # Get tool support level (from cache or fast family detection)
         if isinstance(backend, OllamaBackend):
             cached = cache.get(name)
             
-            if args.tool_support or cached is None:
-                # Test and cache
-                support = backend.test_tool_support(name)
+            # Check if cache entry matches current family (detects model updates)
+            cache_valid = cached and cached.get("family") == family
+            
+            if args.tool_support or not cache_valid:
+                # Fast path: use family from list_models (no API call needed for known families)
+                support = backend.test_tool_support(name, family=family)
                 cache[name] = {
                     "support": support.value,
                     "tested_at": time.time(),
