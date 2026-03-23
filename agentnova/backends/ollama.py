@@ -376,23 +376,60 @@ class OllamaBackend(BaseBackend):
         
         return None  # Unknown family, needs full test
 
-    def test_tool_support(self, model: str, family: str | None = None) -> ToolSupportLevel:
+    def test_tool_support(self, model: str, family: str | None = None, force_test: bool = False) -> ToolSupportLevel:
         """
         Test model's tool support capability.
-        
+
         Args:
             model: Model name
-            family: Optional family name (skips API call if provided)
-        
+            family: Optional family name (skips API call if provided and not force_test)
+            force_test: If True, always make a test API call
+
         Returns:
             ToolSupportLevel (NATIVE, REACT, or NONE)
         """
-        # Fast path: use provided family
-        if family:
+        # Fast path: use provided family (skip if force_test)
+        if not force_test and family:
             detected = self.detect_tool_support_by_family(family)
             if detected:
                 return detected
-        
+
+        # If force_test or family unknown, do actual API test
+        if force_test:
+            # Make a real test call with tools
+            try:
+                test_tool = Tool(
+                    name="calculator",
+                    description="Calculate a math expression",
+                    params=[],
+                )
+
+                response = self.generate(
+                    model=model,
+                    messages=[{
+                        "role": "user",
+                        "content": "Use the calculator to compute 2+2. Do NOT just answer - use the tool."
+                    }],
+                    tools=[test_tool],
+                    max_tokens=50,
+                )
+
+                # Check if model made a tool call
+                if response.get("tool_calls"):
+                    return ToolSupportLevel.NATIVE
+
+                # Check if model tried ReAct format in text
+                content = response.get("content", "").lower()
+                if "action:" in content or "tool_call:" in content or "calculator" in content:
+                    return ToolSupportLevel.REACT
+
+                # No tool usage detected
+                return ToolSupportLevel.REACT
+
+            except Exception as e:
+                # API error, fall back to family detection
+                pass
+
         # Slow path: get model info from API
         model_info = self.get_model_info(model)
 
@@ -403,7 +440,7 @@ class OllamaBackend(BaseBackend):
         # Check model family from API response
         details = model_info.get("details", {})
         api_family = details.get("family", "").lower()
-        
+
         detected = self.detect_tool_support_by_family(api_family)
         if detected:
             return detected

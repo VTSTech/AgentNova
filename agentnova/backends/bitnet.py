@@ -182,7 +182,7 @@ class BitNetBackend(BaseBackend):
             }
         ]
 
-    def test_tool_support(self, model: str) -> ToolSupportLevel:
+    def test_tool_support(self, model: str, family: str | None = None, force_test: bool = False) -> ToolSupportLevel:
         """Test model's tool support capability."""
         # BitNet doesn't support native tools
         # Always use ReAct format

@@ -117,12 +117,14 @@ class BaseBackend(ABC):
         pass
 
     @abstractmethod
-    def test_tool_support(self, model: str) -> ToolSupportLevel:
+    def test_tool_support(self, model: str, family: str | None = None, force_test: bool = False) -> ToolSupportLevel:
         """
         Test a model's tool support capability.
 
         Args:
             model: Model name
+            family: Optional family name (for fast detection)
+            force_test: If True, always make a test API call
 
         Returns:
             Detected ToolSupportLevel
