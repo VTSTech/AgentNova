@@ -4,6 +4,45 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [R02.5] - 2026-03-22 10:49:35 PM
+
+### 📦 Module Refactoring
+
+Major code reorganization for improved maintainability. The monolithic `agent.py` (~2770 lines) has been split into focused single-responsibility modules.
+
+### Added
+- **`core/types.py`** - Type aliases (`StepResultType`)
+- **`core/models.py`** - Dataclasses (`StepResult`, `AgentRun`) extracted from agent.py
+- **`core/prompts.py`** - Few-shot prompts, tool arg aliases, platform constants
+- **`core/helpers.py`** - Pure utility functions (no external dependencies)
+- **`core/args_normal.py`** - Argument normalization for small model hallucinations
+- **`core/tool_parse.py`** - ReAct/JSON parsing, fuzzy tool name matching
+
+### Changed
+- **`core/agent.py`** reduced from ~2770 to ~1550 lines
+- **Clear dependency graph** - modules import from lower-level modules only
+- **Backward compatible** - `from agentnova import Agent, AgentRun, StepResult` still works
+
+### Module Dependency Graph
+
+```
+types.py        ← (no dependencies)
+models.py       ← types
+prompts.py      ← (no dependencies)
+helpers.py      ← (no dependencies)
+args_normal.py  ← prompts, helpers
+tool_parse.py   ← helpers
+agent.py        ← ALL above + tools, memory, ollama_client
+```
+
+### Benefits
+- Each module has a single responsibility
+- Easier to test individual components
+- Reduced cognitive load when reading/modifying
+- All modules remain **zero-dependency** (stdlib only)
+
+---
+
 ## [R02.4] - 2026-03-22 3:20:14 PM
 
 ### 🔢 Multi-Step Calculation Handling

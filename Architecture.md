@@ -10,7 +10,7 @@ Technical documentation for developers contributing to or extending AgentNova.
 
 ### Current Project State
 
-**Version:** R02.5 (Multi-Step Auto-Completion + Family Detection + Module Refactoring)
+**Version:** R02.5 (Module Refactoring)
 
 **Benchmark Champion:** `granite3.1-moe:1b` at **93% (14/15)** in **95.7s**
 

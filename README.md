@@ -1,4 +1,4 @@
-# ⚛️ AgentNova R02.4
+# ⚛️ AgentNova R02.5
 
 A minimal, hackable agentic framework engineered to run **entirely locally** with [Ollama](https://ollama.com) or [BitNet](https://github.com/microsoft/BitNet).
 
