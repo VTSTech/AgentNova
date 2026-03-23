@@ -10,7 +10,7 @@ Technical documentation for developers contributing to or extending AgentNova.
 
 ### Current Project State
 
-**Version:** R02.3 (Multi-Step Auto-Completion + Family Detection)
+**Version:** R02.5 (Multi-Step Auto-Completion + Family Detection + Module Refactoring)
 
 **Benchmark Champion:** `granite3.1-moe:1b` at **93% (14/15)** in **95.7s**
 
@@ -83,6 +83,12 @@ tool_support = get_tool_support(model, client)
 |------|---------|
 | `cli.py` | CLI entry point, contains `_build_agent()`, `cmd_agent()`, `cmd_chat()` |
 | `core/agent.py` | Main Agent class with `run()` and `chat()` methods |
+| `core/models.py` | Dataclasses: `StepResult`, `AgentRun` |
+| `core/types.py` | Type aliases: `StepResultType` |
+| `core/prompts.py` | Few-shot prompts, tool arg aliases, platform constants |
+| `core/helpers.py` | Pure utility functions (no dependencies) |
+| `core/args_normal.py` | Argument normalization for small model hallucinations |
+| `core/tool_parse.py` | ReAct/JSON parsing, fuzzy tool name matching |
 | `core/model_family_config.py` | Family-specific configs for prompting, stop tokens, tool format |
 | `agent_mode.py` | Goal-driven autonomous mode (`cmd_agent`) |
 | `tools/builtins.py` | Built-in tools: calculator, shell, python_repl, file I/O |
@@ -100,7 +106,13 @@ agentnova/
 │   ├── ollama_client.py   # Zero-dependency HTTP wrapper (stdlib urllib only)
 │   ├── tools.py           # Decorator-based tool registry + JSON schema generation
 │   ├── memory.py          # Sliding-window conversation memory with summarization
-│   ├── agent.py           # ReAct loop — native tool-call + text-fallback modes
+│   ├── types.py           # Type aliases (StepResultType)
+│   ├── models.py          # Dataclasses (StepResult, AgentRun)
+│   ├── prompts.py         # Few-shot prompts, tool arg aliases, platform constants
+│   ├── helpers.py         # Pure utility functions (no external dependencies)
+│   ├── args_normal.py     # Argument normalization for small model hallucinations
+│   ├── tool_parse.py      # ReAct/JSON parsing, fuzzy tool name matching
+│   ├── agent.py           # Agent class (imports from modules above)
 │   ├── orchestrator.py    # Multi-agent routing (router / pipeline / parallel)
 │   └── model_family_config.py  # Family-specific prompts, stop tokens, tool format
 ├── skills/
@@ -131,6 +143,40 @@ agentnova/
 
 ---
 
+## Module Architecture (R02.5)
+
+The `agent.py` module was refactored into focused submodules for maintainability:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          MODULE DEPENDENCIES                             │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  types.py        ← (no dependencies)                                    │
+│  models.py       ← types                                                │
+│  prompts.py      ← (no dependencies)                                    │
+│  helpers.py      ← (no dependencies)                                    │
+│  args_normal.py  ← prompts, helpers                                     │
+│  tool_parse.py   ← helpers                                              │
+│  agent.py        ← ALL above + tools, memory, ollama_client             │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+| Module | Lines | Responsibility |
+|--------|-------|----------------|
+| `types.py` | ~10 | Type aliases only |
+| `models.py` | ~40 | Result dataclasses |
+| `prompts.py` | ~180 | Constants, few-shot examples |
+| `helpers.py` | ~200 | Pure functions (testable in isolation) |
+| `args_normal.py` | ~240 | Argument normalization logic |
+| `tool_parse.py` | ~370 | ReAct/JSON parsing, fuzzy matching |
+| `agent.py` | ~1550 | Agent class orchestration |
+
+All modules remain **zero-dependency** (stdlib only).
+
+---
+
 ## Core Design Decisions
 
 | Concern | Approach |
@@ -145,6 +191,7 @@ agentnova/
 | **Streaming** | First-class via generator interface |
 | **Error handling** | Automatic retry with exponential backoff for transient network/server errors |
 | **Security** | Path validation, command blocklist, SSRF protection (R00) |
+| **Module Structure** | Single-responsibility modules with clear dependency graph (R02.3) |
 
 ---
 
@@ -401,3 +448,5 @@ agentnova chat --temperature 0.1                # Lower = more deterministic
 8. **Never add few-shot to native tool models** - This caused a major regression (90%→58% GSM8K) in R01→R02. Native models use Ollama's API for tool calling; text-based few-shot examples confuse them.
 
 9. **Numeric results are returned directly** (R02.3) - The synthesis logic no longer tries to detect incomplete multi-step calculations. Numeric results pass through unchanged. This avoids double-processing errors when models compute full expressions in one calculator call.
+
+10. **Module imports are stable** - `from agentnova import Agent, AgentRun, StepResult` still works. Internal modules (`types`, `models`, `prompts`, `helpers`, `args_normal`, `tool_parse`) can be imported directly for testing or extension.
