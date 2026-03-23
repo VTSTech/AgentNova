@@ -258,6 +258,8 @@ def create_parser() -> argparse.ArgumentParser:
     test_parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None, help="Backend to use")
     test_parser.add_argument("--debug", action="store_true", help="Enable debug output")
     test_parser.add_argument("--list", action="store_true", help="List available tests")
+    test_parser.add_argument("--acp", action="store_true", help="Enable ACP logging to Agent Control Panel")
+    test_parser.add_argument("--acp-url", default=None, help="ACP server URL (default: http://localhost:8766)")
 
     # Version command
     subparsers.add_parser("version", help="Show version information")
@@ -666,6 +668,31 @@ def cmd_test(args: argparse.Namespace) -> int:
             print(f"  Or set OLLAMA_BASE_URL to your remote server")
         return 1
     
+    # Initialize ACP plugin if requested
+    acp = None
+    if args.acp:
+        try:
+            from .acp_plugin import ACPPlugin
+            acp_url = args.acp_url or config.acp_base_url
+            acp = ACPPlugin(
+                base_url=acp_url,
+                agent_name="AgentNova-Test",
+                model_name=args.model or config.default_model,
+                debug=args.debug,
+            )
+            # Bootstrap ACP connection
+            bootstrap_result = acp.bootstrap()
+            if bootstrap_result.get("stop_flag"):
+                print(f"{red('Error:')} ACP STOP flag is set: {bootstrap_result.get('warnings')}")
+                return 1
+            acp_enabled = True
+        except ImportError:
+            print(f"{yellow('Warning:')} ACP plugin not available, continuing without ACP logging")
+            acp = None
+        except Exception as e:
+            print(f"{yellow('Warning:')} Failed to connect to ACP: {e}")
+            acp = None
+    
     # Set environment for tests
     if args.debug:
         os.environ["AGENTNOVA_DEBUG"] = "1"
@@ -688,6 +715,8 @@ def cmd_test(args: argparse.Namespace) -> int:
     print(f"{bright_magenta('Test Runner')} — {len(tests_to_run)} test(s)")
     print(f"{dim('Backend:')} {backend_name} ({backend.base_url})")
     print(f"{dim('Model:')} {args.model or config.default_model}")
+    if acp:
+        print(f"{dim('ACP:')} {green('✓ Connected')} ({acp.base_url})")
     print()
     
     results = {}
@@ -697,6 +726,10 @@ def cmd_test(args: argparse.Namespace) -> int:
         print(f"{cyan(f'[{tid}]')} {bright_magenta(info['name'])}")
         print(f"{dim(info['desc'])}")
         print(dim("─" * 50))
+        
+        # Log test start to ACP
+        if acp:
+            acp.log_chat("user", f"Starting test: {info['name']}")
         
         try:
             # Import and run the test module
@@ -714,12 +747,21 @@ def cmd_test(args: argparse.Namespace) -> int:
             
             results[tid] = {"passed": exit_code == 0, "exit_code": exit_code}
             
+            # Log test result to ACP
+            if acp:
+                status = "passed" if exit_code == 0 else "failed"
+                acp.log_chat("assistant", f"Test {info['name']}: {status}")
+            
         except ImportError as e:
             print(f"{red('Error:')} Could not import test module: {e}")
             results[tid] = {"passed": False, "error": str(e)}
+            if acp:
+                acp.log_chat("assistant", f"Test {info['name']}: import error - {e}")
         except Exception as e:
             print(f"{red('Error:')} {e}")
             results[tid] = {"passed": False, "error": str(e)}
+            if acp:
+                acp.log_chat("assistant", f"Test {info['name']}: error - {e}")
     
     # Summary
     print(f"\n{dim('=' * 50)}")
@@ -736,6 +778,11 @@ def cmd_test(args: argparse.Namespace) -> int:
     print(dim("-" * 50))
     pct = 100 * passed // total if total > 0 else 0
     print(f"  {bright_green(str(passed))}/{total} tests passed ({pct}%)")
+    
+    # Log final summary to ACP and shutdown
+    if acp:
+        acp.log_chat("assistant", f"All tests complete: {passed}/{total} passed ({pct}%)")
+        acp.shutdown(f"Test run complete: {passed}/{total} passed")
     
     return 0 if passed == total else 1
 
