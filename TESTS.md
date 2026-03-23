@@ -1,4 +1,4 @@
-# ⚛️ AgentNova R02.2
+# ⚛️ AgentNova R02.5
 
 ## Test 05 Tool Tests (Multi-Platform)
 
@@ -167,7 +167,7 @@ Test 07 uses the 15-test benchmark with debug output showing tool support detect
 
 ## Test 15 Quick Diagnostic (5 Questions)
 
-> **Updated:** 2026-03-22 - Rapid diagnostic for debugging (~30-60s per model)
+> **Updated:** 2026-03-22 - R02.5 module refactoring verified
 
 Test 15 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
 
@@ -177,7 +177,61 @@ agentnova test 15 --model granite3.1-moe:1b
 agentnova test 15 --model all --debug
 ```
 
-### Quick Diagnostic Results (R02.2)
+### Quick Diagnostic Results (R02.5)
+
+| Rank | Model | Score | Time | Tool Support | Notes |
+|:----:|-------|------:|-----:|:------------:|-------|
+| 🥇 | **`dolphin3.0-llama3:1b`** | **5/5 (100%)** | 48.7s | native | 🏆 Fastest perfect score! |
+| 🥇 | **`granite4:350m`** | **5/5 (100%)** | 75.2s | native | 🏆 Perfect with native tools |
+| 🥇 | **`qwen2.5-coder:0.5b`** | **5/5 (100%)** | 76.0s | react | 🏆 Perfect with ReAct |
+| 🥇 | **`qwen3:0.6b`** | **5/5 (100%)** | 151.0s | react | 🏆 Perfect with ReAct |
+| 5 | `functiongemma:270m` | 4/5 (80%) | 28.5s | native | Word problem wrong expression |
+| 5 | `dolphin3.0-qwen2.5:0.5b` | 4/5 (80%) | 38.4s | none | Pure reasoning, edge case failed |
+| 7 | `gemma3:270m` | 3/5 (60%) | 12.8s | none | No tool support, fast |
+| 7 | `granite3.1-moe:1b` | 3/5 (60%) | 114.0s | react | Multi-step and edge case failed |
+| 7 | `llama3.2:1b` | 3/5 (60%) | 257.1s | native | Hallucinated JSON schema |
+| 10 | `qwen2.5:0.5b` | 2/5 (40%) | 76.0s | native | Empty tool calls, synthesis helped |
+| 11 | `qwen:0.5b` | 1/5 (20%) | 47.9s | none | No tool support, verbose |
+| 11 | `tinyllama:1.1b` | 1/5 (20%) | 107.5s | none | No tool support, verbose |
+| 13 | `tinydolphin:1.1b` | 0/5 (0%) | 118.8s | none | No tool support, verbose |
+
+### Test Questions (5 Targeted Tests)
+
+| Q# | Test | Purpose | Expected |
+|----|------|---------|----------|
+| Q1 | Simple Math | Basic calculator tool usage | 42 |
+| Q2 | Multi-step | Observation handling (8×7 then -5) | 51 |
+| Q3 | Division | Fraction/precision handling | 4.25 |
+| Q4 | Word Problem | Natural language → expression | 10 |
+| Q5 | Edge Case | Refusal handling (store hours) | 8 |
+
+### Key Findings (R02.5)
+
+1. **4 models achieve 100%** - dolphin3.0-llama3:1b, granite4:350m, qwen2.5-coder:0.5b, qwen3:0.6b
+2. **`dolphin3.0-llama3:1b` fastest perfect** - 48.7s for 5/5, native tools work great
+3. **Module refactoring verified** - All 13 models tested successfully after splitting agent.py into 6 modules
+4. **Native tool support varies** - granite4 and functiongemma excel with native, qwen2.5:0.5b struggles
+5. **ReAct mode saves qwen models** - qwen3:0.6b and qwen2.5-coder:0.5b perfect with ReAct
+6. **No-tool models struggle** - dolphin3.0-qwen2.5:0.5b (80%) best of the no-tool-support models
+7. **Multi-step Q2 is hardest** - Catches models that don't chain observations correctly
+8. **Edge case Q5 catches reasoning errors** - Store hours problem confuses pure reasoning models
+
+### R02.5 Module Refactoring
+
+The agent.py module was split into 6 focused modules:
+
+| Module | Purpose | Lines |
+|--------|---------|-------|
+| `types.py` | Type aliases (`StepResultType`) | ~10 |
+| `models.py` | Dataclasses (`StepResult`, `AgentRun`) | ~30 |
+| `prompts.py` | System prompts, few-shot examples, constants | ~180 |
+| `helpers.py` | Utility functions (model detection, text processing) | ~200 |
+| `args_normal.py` | Argument normalization and synthesis | ~240 |
+| `tool_parse.py` | ReAct and JSON tool call parsing | ~370 |
+
+**Result:** All tests pass, backward compatibility maintained via `__init__.py` exports.
+
+### Quick Diagnostic Results (R02.2 - Historical)
 
 | Rank | Model | Score | Time | Tool Support | Notes |
 |:----:|-------|------:|-----:|:------------:|-------|
@@ -195,26 +249,6 @@ agentnova test 15 --model all --debug
 | 12 | `qwen:0.5b` | 1/5 (20%) | 32s | none | No tool support |
 | 12 | `tinydolphin:1.1b` | 1/5 (20%) | 102.4s | none | No tool support, verbose |
 | 12 | `tinyllama:1.1b` | 1/5 (20%) | 103.8s | none | No tool support, verbose |
-
-### Test Questions (5 Targeted Tests)
-
-| Q# | Test | Purpose | Expected |
-|----|------|---------|----------|
-| Q1 | Simple Math | Basic calculator tool usage | 42 |
-| Q2 | Multi-step | Observation handling (8×7 then -5) | 51 |
-| Q3 | Division | Fraction/precision handling | 4.25 |
-| Q4 | Word Problem | Natural language → expression | 10 |
-| Q5 | Edge Case | Refusal handling (store hours) | 8 |
-
-### Key Findings (Test 15)
-
-1. **`qwen3.5:0.8b` is the sub-1B champion** - 100% with native tools!
-2. **ReAct models perfect** - qwen2.5:0.5b and qwen2.5-coder:0.5b both at 100%
-3. **`llama3.2:1b` regression** - Dropped to 60% (from 87% on test 07) - malformed JSON tool calls
-4. **`granite3.1-moe:1b` multi-step issue** - Stopped after first operation on Q2 (56 instead of 51)
-5. **No-tool models struggle** - Pure reasoning can't match tool usage for math
-6. **Multi-step is hardest** - Q2 catches models that don't chain observations
-7. **Edge case Q5 catches many** - Store hours problem causes reasoning errors
 
 ---
 
