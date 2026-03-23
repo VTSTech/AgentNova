@@ -306,7 +306,13 @@ def test_python_calc(client, model: str, config: SharedConfig, temp_dir: str) ->
         
         # Expected: 1048576
         expected = "1048576"
-        passed = expected in response_norm or expected in response
+        # Strip commas for number matching (e.g., "1,048,576" -> "1048576")
+        response_no_commas = response.replace(",", "").replace(" ", "")
+        response_norm_no_commas = response_norm.replace(",", "").replace(" ", "")
+        passed = (expected in response_norm or 
+                  expected in response or 
+                  expected in response_no_commas or 
+                  expected in response_norm_no_commas)
         
         if passed:
             print(f"     ✅ PASS: Found correct result '{expected}'")
