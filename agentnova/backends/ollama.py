@@ -8,6 +8,7 @@ Written by VTSTech — https://www.vts-tech.org
 from __future__ import annotations
 
 import json
+import os
 import time
 from typing import Any, Generator, Optional
 
@@ -117,6 +118,13 @@ class OllamaBackend(BaseBackend):
         message = result.get("message", {})
         content = message.get("content", "")
         tool_calls = message.get("tool_calls", [])
+
+        # Debug output
+        if os.environ.get("AGENTNOVA_DEBUG"):
+            print(f"  [Ollama] Raw result keys: {list(result.keys())}")
+            print(f"  [Ollama] Message keys: {list(message.keys())}")
+            print(f"  [Ollama] Content: {content[:100] if content else '(empty)'}")
+            print(f"  [Ollama] Tool calls: {tool_calls}")
 
         # Parse tool calls from Ollama format
         parsed_tool_calls = []
