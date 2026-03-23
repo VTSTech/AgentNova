@@ -155,69 +155,134 @@ def bright_red(text: str) -> str:
 # ASCII Banner
 # ============================================================================
 
-BANNER = r"""
-{}            _
-           /   \
-          |  ○  |
-           \ _ /        {}AgentNova{}
-        ___/   \___
-       /           \
-      |  ○       ○  |     Autonomous Agents
-       \___________/      with Local LLMs
-          /     \
-         /   ○   \
-        /_________\
-{}
-                 Status: {}Alpha{} | https://vts-tech.org
-"""
-
-BANNER_SIMPLE = r"""
-{}        . - ~ ~ ~ - .
-    .-~               ~-.
-   /                     \
-  |  {}AgentNova{}  ○  ○  ○  |
-   \                     /
-    ~- .___________ . -~
-         ○       ○
-{}
-           Status: {}Alpha{} | https://vts-tech.org
-"""
-
 BANNER_ATOM = r"""
-{}             _
-           .' '.
-          :  ○  :
-           '._.'         {}AgentNova{}
-        .-`   `-.        Autonomous Agents
-       /   ○   ○  \      with Local LLMs
-      :             :
-       \    ___    /
-        `-._____.-'
-{}           Status: {}Alpha{} | https://vts-tech.org
+{}                   ___
+               .-"```   "'-.
+             .'            .' 
+           .'   .--.      /      {}AgentNova{}
+          /   .'    '.   /       Autonomous Agents
+         /   /        \ /        with Local LLMs
+        :   :  ()  () :;
+        :    \   __   /
+         \    '.__.' /
+          '.        .'
+            '._  _.'
+               '"'
+{}
+
+            Status: {}Alpha{} | https://vts-tech.org
 """
 
-BANNER_ORBIT = r"""
-{}                 ○
-            . . . . .
-         .   .'   '.   .
-       .    :  {}○{}  :    .    {}AgentNova{}
-        .   '. _ .'   .     Autonomous Agents
-          .  '---'  .       with Local LLMs
-      ○    .     .    ○
-            . . . . .
-                ○
+BANNER_ATOM2 = r"""
+{}                      .,
+               .      _ ;'_    _
+               ;\    /`  `"'-.;
+                \  ;/         \     {}AgentNova{}
+                 ;.;  .--.  .-;     Autonomous Agents
+                .-'   /    \  '     with Local LLMs
+              .'.'   ; ()  ;  ;
+             .;      ; () ;   ;
+            .'        \__/   .'
+           .'  .-._    _   .'
+          ;  .;'   ';  ';.'
 {}
-                 Status: {}Alpha{} | https://vts-tech.org
+
+            Status: {}Alpha{} | https://vts-tech.org
+"""
+
+BANNER_ATOM3 = r"""
+{}            .        .
+         _ . '  ` . _ . '  ` . _
+       .'  . '  . '  . '  . '  `.
+      ;   /    /    /    \    \  ;   {}AgentNova{}
+     ;   ;    ;    ;     ;    ;  ;   Autonomous Agents
+     ;   \    \    \    /    /  ;    with Local LLMs
+      '.  '.  '.  '. .'  .'  .'
+        '._  '._  '._.'  _.'
+           '._   ___  _.'
+               '.'
+{}
+
+            Status: {}Alpha{} | https://vts-tech.org
+"""
+
+BANNER_ATOM_CLASSIC = r"""
+{}                   /\
+         _         /  \         _
+        / \       /    \       / \
+       /   \     /  .-. \     /   \
+      /     \   /  /   \  \   /     \
+     /       \ /  /     \  \ /       \    {}AgentNova{}
+    |    .----.  |  ()  |  .----.    |    Autonomous Agents
+    |   /      \  \     /  /      \  |    with Local LLMs
+     \ /        \  '---'  /        \ /
+      '          \       /          '
+                 /       \
+                /_________\
+{}
+
+            Status: {}Alpha{} | https://vts-tech.org
+"""
+
+BANNER_ATOM_ORBITS = r"""
+{}                         ○
+                 ___ .-'```'-.___         
+            .-'``   /         \   ``'-.    {}AgentNova{}
+          .'   .-. |   ()  ()  | .-.   '.  Autonomous Agents
+         /    (   ) \    __    /(   )    \ with Local LLMs
+        :      '-'   \       /  '-'      :
+        |              '._._.'            |
+         \    ○                           /
+          '.                            .'
+            '-._                    _.-'
+                ``'-..________..-'``
+                        ○
+{}
+
+            Status: {}Alpha{} | https://vts-tech.org
+"""
+
+BANNER_ATOM_SIMPLE = r"""
+{}              ___
+         .-'```   ```'-.     
+       .'   .-.   .-.   '.   
+      /    (   ) (   )    \     {}AgentNova{}
+     ;      '-'   '-'      ;    Autonomous Agents
+     ;    _______________  ;    with Local LLMs
+      \  /               \ /
+       '    .--.   .--.   '
+        \  ( () ) ( () )  /
+         '.             .'
+           '-.._____..-'
+{}
+
+            Status: {}Alpha{} | https://vts-tech.org
+"""
+
+BANNER_ATOM_ELLIPSE = r"""
+{}               .,,,,,,.
+          ,;;;;;,,   ,,;;;;;,
+        ,;;;;,  .;;;;;;;.  ,;;;;,    {}AgentNova{}
+       ,;;;,  .;;;  ()  ;;;.  ,;;;,   Autonomous Agents
+      ,;;;   ;;;         ;;;   ;;;,   with Local LLMs
+      ;;;   ;;;    ___    ;;;   ;;;
+      ;;;   ;;;   (   )   ;;;   ;;;
+      ';;;   ';;;       ;;;'   ;;;'
+       ';;;,  ';;;;, ,;;;;'  ,;;;'
+         ';;;;;,  ';;;'  ,;;;;;'
+            '',;;;;,,,;;;;,''
+                 '''''
+{}
+
+            Status: {}Alpha{} | https://vts-tech.org
 """
 
 
 def print_banner() -> None:
     """Print the AgentNova ASCII banner."""
     if _COLOR_ENABLED:
-        print(BANNER_ORBIT.format(
+        print(BANNER_ATOM_ORBITS.format(
             Color.BRIGHT_CYAN,
-            Color.BRIGHT_YELLOW,
-            Color.RESET,
             Color.BRIGHT_MAGENTA + Color.BOLD,
             Color.RESET,
             Color.DIM,
@@ -225,7 +290,7 @@ def print_banner() -> None:
             Color.RESET,
         ))
     else:
-        print(BANNER_ORBIT.format("", "", "", "", "", "", ""))
+        print(BANNER_ATOM_ORBITS.format("", "", "", "", "", ""))
 
 
 # ============================================================================
