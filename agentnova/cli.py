@@ -1,4 +1,4 @@
-﻿"""
+"""
 ⚛️ AgentNova — CLI
 Command-line interface for AgentNova.
 
@@ -674,6 +674,15 @@ def cmd_test(args: argparse.Namespace) -> int:
     if args.backend:
         os.environ["AGENTNOVA_BACKEND"] = args.backend
     
+    # Build argv for test modules (they have their own argparse)
+    test_argv = []
+    if args.model:
+        test_argv.extend(["-m", args.model])
+    if args.debug:
+        test_argv.append("--debug")
+    if args.backend:
+        test_argv.extend(["--backend", args.backend])
+    
     # Run tests
     print_banner()
     print(f"{bright_magenta('Test Runner')} — {len(tests_to_run)} test(s)")
@@ -694,12 +703,15 @@ def cmd_test(args: argparse.Namespace) -> int:
             import importlib
             module = importlib.import_module(info["module"])
             
-            # Run the main function
-            import io
-            import contextlib
+            # Override sys.argv for the test module's argparse
+            old_argv = sys.argv
+            sys.argv = ["test"] + test_argv
             
-            # Capture output for summary
-            exit_code = module.main()
+            try:
+                exit_code = module.main()
+            finally:
+                sys.argv = old_argv
+            
             results[tid] = {"passed": exit_code == 0, "exit_code": exit_code}
             
         except ImportError as e:
