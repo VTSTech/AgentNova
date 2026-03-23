@@ -61,30 +61,28 @@ FAMILY_CONFIGS: dict[str, ModelFamilyConfig] = {
         few_shot_style="compact",
         reasoning_hints=["Think step by step", "Show your work"],
         # General-purpose prompt for models without tool support
-        no_tools_system_prompt="""You are a helpful assistant. Answer directly and concisely.
-
-For math: Show the calculation, then give the answer.
-For questions: Give short, direct answers.
-For code: Write clean Python functions.
+        no_tools_system_prompt="""Answer questions directly. For math, show work then give answer.
 
 Examples:
 Q: What is 7 * 8?
-7 * 8 = 56
+A: 7 * 8 = 56
 
-Q: What is the capital of Japan?
-Tokyo
+Q: What is 15 plus 27?
+A: 15 + 27 = 42
+
+Q: What is 17 divided by 4?
+A: 17 / 4 = 4.25
 
 Q: I have 10 apples. I give 3 to Bob and 2 to Alice. How many left?
-10 - 3 - 2 = 5
+A: 10 - 3 - 2 = 5
 
-Q: What comes next: 2, 4, 6, 8, ?
-10
+Q: Calculate (8 × 7) - 5.
+A: 8 * 7 = 56, then 56 - 5 = 51
 
-Q: Write a Python function is_even(n).
-def is_even(n):
-    return n % 2 == 0
+Q: What is the capital of Japan?
+A: Tokyo
 
-Keep answers brief. One word when possible.""",
+Keep answers brief. Show calculation first, then the final number.""",
     ),
     
     # GRANITE - IBM's Granite 4.x models (native tool support with XML format)
