@@ -39,6 +39,11 @@ from .backends import (
     get_default_backend, get_backend,
 )
 from .config import Config, get_config
+from .model_discovery import (
+    get_models, get_available_models, pick_best_model,
+    pick_models_for_benchmark, model_exists, get_client,
+)
+from .shared_args import SharedConfig, add_shared_args, parse_shared_args
 
 # Optional ACP plugin (graceful import)
 try:
@@ -81,6 +86,17 @@ __all__ = [
     # Config
     "Config",
     "get_config",
+    # Model Discovery
+    "get_models",
+    "get_available_models",
+    "pick_best_model",
+    "pick_models_for_benchmark",
+    "model_exists",
+    "get_client",
+    # Shared Args
+    "SharedConfig",
+    "add_shared_args",
+    "parse_shared_args",
     # ACP Plugin
     "ACPPlugin",
 ]
