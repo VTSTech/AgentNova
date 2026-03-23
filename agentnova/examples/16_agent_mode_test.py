@@ -551,13 +551,17 @@ def main():
     main_acp = None
     acp_connected = False
     if USE_ACP:
-        main_acp = ACPPlugin(
-            agent_name="AgentNova",
-            model_name="agent-mode-test",
-            debug=DEBUG,
-        )
-        bootstrap = main_acp.bootstrap(claim_primary=False)
-        acp_connected = bootstrap.get("status") is not None
+        try:
+            main_acp = ACPPlugin(
+                agent_name="AgentNova",
+                model_name="agent-mode-test",
+                debug=DEBUG,
+            )
+            bootstrap = main_acp.bootstrap(claim_primary=False)
+            acp_connected = bootstrap.get("status") is not None
+        except Exception as e:
+            print(f"   ⚠️ ACP connection failed: {e}")
+            acp_connected = False
     
     print(f"\n⚛️ AgentNova Agent Mode Test")
     print(f"   Testing autonomous task execution capabilities")
@@ -587,12 +591,16 @@ def main():
         # Create per-model ACP instance if enabled
         model_acp = None
         if USE_ACP and acp_connected:
-            model_acp = ACPPlugin(
-                agent_name="AgentNova",
-                model_name=model.split(':')[0][:25],
-                debug=DEBUG,
-            )
-            model_acp.bootstrap(claim_primary=False)
+            try:
+                model_acp = ACPPlugin(
+                    agent_name="AgentNova",
+                    model_name=model.split(':')[0][:25],
+                    debug=DEBUG,
+                )
+                model_acp.bootstrap(claim_primary=False)
+            except Exception as e:
+                print(f"      ⚠️ ACP for {model} failed: {e}")
+                model_acp = None
         
         result = test_model(client, model, config, acp=model_acp)
         all_results.append(result)
@@ -622,3 +630,6 @@ def main():
             summary = f"🏆 Winner: {winner['model']} - {winner['passed']}/{winner['total'] - winner['skipped']} in {winner['time']:.1f}s"
             main_acp.log_chat("system", summary, complete=True)
 
+
+if __name__ == "__main__":
+    main()
