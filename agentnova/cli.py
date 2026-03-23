@@ -1,4 +1,4 @@
-﻿"""
+"""
 ⚛️ AgentNova — CLI
 Command-line interface for AgentNova.
 
@@ -144,6 +144,11 @@ def bright_yellow(text: str) -> str:
 def bright_magenta(text: str) -> str:
     """Bright magenta text."""
     return c(text, Color.BRIGHT_MAGENTA)
+
+
+def bright_red(text: str) -> str:
+    """Bright red text."""
+    return c(text, Color.BRIGHT_RED)
 
 
 # ============================================================================
@@ -297,9 +302,10 @@ def cmd_chat(args: argparse.Namespace) -> int:
         debug=args.debug,
     )
 
-    print(f"\n⚛️ AgentNova Chat — {model}")
-    print(f"Backend: {backend_name} ({backend.base_url})")
-    print("Status: Alpha")
+    print_banner()
+    print(f"{bright_magenta('Chat Mode')} — {cyan(model)}")
+    print(f"{dim('Backend:')} {backend_name} ({dim(backend.base_url)})")
+    print(f"{dim('Status:')} {yellow('Alpha')}")
     print("Type '/quit' to exit, '/help' for commands\n")
 
     while True:
@@ -313,26 +319,26 @@ def cmd_chat(args: argparse.Namespace) -> int:
             continue
 
         if user_input == "/quit":
-            print("👋 Goodbye!")
+            print(bright_cyan("👋 Goodbye!"))
             break
 
         if user_input == "/help":
-            print("Commands: /quit, /help, /clear, /status")
+            print(f"Commands: {cyan('/quit')}, {cyan('/help')}, {cyan('/clear')}, {cyan('/status')}")
             continue
 
         if user_input == "/clear":
             agent.clear_memory()
-            print("Memory cleared.")
+            print(green("Memory cleared."))
             continue
 
         if user_input == "/status":
-            print(f"Model: {agent.model}")
-            print(f"Tool support: {agent._tool_support}")
-            print(f"Memory turns: {len(agent.memory)}")
+            print(f"Model: {cyan(agent.model)}")
+            print(f"Tool support: {green(agent._tool_support.value) if hasattr(agent._tool_support, 'value') else agent._tool_support}")
+            print(f"Memory turns: {yellow(str(len(agent.memory)))}")
             continue
 
         result = agent.run(user_input)
-        print(f"\nAssistant: {result.final_answer}\n")
+        print(f"\n{bright_magenta('Assistant')}: {result.final_answer}\n")
 
     return 0
 
@@ -361,11 +367,12 @@ def cmd_agent(args: argparse.Namespace) -> int:
 
     agent_mode = AgentMode(agent, verbose=True)
 
-    print(f"\n⚛️ AgentNova Agent Mode — {model}")
-    print(f"Backend: {backend_name} ({backend.base_url})")
-    print("Status: Alpha")
+    print_banner()
+    print(f"{bright_magenta('Agent Mode')} — {cyan(model)}")
+    print(f"{dim('Backend:')} {backend_name} ({dim(backend.base_url)})")
+    print(f"{dim('Status:')} {yellow('Alpha')}")
     print("Give the agent a goal to accomplish autonomously.")
-    print("Commands: /status, /pause, /resume, /stop, /quit\n")
+    print(f"Commands: {cyan('/status')}, {cyan('/pause')}, {cyan('/resume')}, {cyan('/stop')}, {cyan('/quit')}\n")
 
     while True:
         try:
@@ -381,31 +388,34 @@ def cmd_agent(args: argparse.Namespace) -> int:
             cmd = user_input.split()[0]
 
             if cmd == "/quit":
-                print("👋 Goodbye!")
+                print(bright_cyan("👋 Goodbye!"))
                 break
             elif cmd == "/status":
                 status = agent_mode.get_status()
-                print(f"State: {status['state']}")
+                print(f"State: {cyan(status['state'])}")
                 if "goal" in status and status["goal"]:
-                    print(f"Goal: {status['goal']}")
+                    print(f"Goal: {bright_yellow(status['goal'])}")
                     if "progress_percent" in status:
-                        print(f"Progress: {status['progress_percent']:.0f}%")
+                        pct = status['progress_percent']
+                        pct_str = green(f"{pct:.0f}%") if pct >= 50 else yellow(f"{pct:.0f}%")
+                        print(f"Progress: {pct_str}")
                 continue
             elif cmd == "/pause":
                 success, msg = agent_mode.pause()
-                print(msg)
+                print(yellow(msg) if success else red(msg))
                 continue
             elif cmd == "/resume":
                 success, msg = agent_mode.resume()
-                print(msg)
+                print(green(msg) if success else red(msg))
                 continue
             elif cmd == "/stop":
                 success, msg = agent_mode.stop(rollback=True)
-                print(msg)
+                print(red(msg))
                 continue
 
         success, result = agent_mode.run_task(user_input)
-        print(f"\n{'✅' if success else '❌'} {result}\n")
+        icon = bright_green("✅") if success else bright_red("❌")
+        print(f"\n{icon} {result}\n")
 
     return 0
 
@@ -478,10 +488,12 @@ def cmd_models(args: argparse.Namespace) -> int:
     cache_updated = False
     
     # Always show tools column
-    print(f"\n⚛️ AgentNova - Available Models ({backend.base_url})")
-    print("-" * 92)
+    print()
+    print(f"{bright_cyan('⚛ AgentNova')} - Available Models")
+    print(dim(f"  Backend: {backend.base_url}"))
+    print(dim("-" * 92))
     print(f"  {'Name':<36} {'Size':>8}  {'Context':>8}  {'Tools':>10}  {'Family':<12}")
-    print("-" * 92)
+    print(dim("-" * 92))
 
     for m in models:
         name = m.get("name", "unknown")
@@ -520,29 +532,29 @@ def cmd_models(args: argparse.Namespace) -> int:
             else:
                 status = cached.get("support", "untested")
             
-            # Format tool status with icon
+            # Format tool status with icon and color
             if status == "native":
-                tool_icon = "✓ native"
+                tool_icon = bright_green("✓ native")
             elif status == "react":
-                tool_icon = "○ react"
+                tool_icon = yellow("○ react")
             elif status == "none":
-                tool_icon = "○ none"
+                tool_icon = dim("○ none")
             else:
-                tool_icon = "? untested"
+                tool_icon = dim("? untested")
             
-            print(f"  {name:<36} {size_gb:>6.2f} GB  {ctx_str:>8}  {tool_icon:>10}  ({family})")
+            print(f"  {cyan(name):<46} {size_gb:>6.2f} GB  {dim(ctx_str):>8}  {tool_icon:>19}  {dim('(' + family + ')')}")
         else:
-            print(f"  {name:<36} {size_gb:>6.2f} GB  {ctx_str:>8}  {'? n/a':>10}  ({family})")
+            print(f"  {cyan(name):<46} {size_gb:>6.2f} GB  {dim(ctx_str):>8}  {dim('? n/a'):>19}  {dim('(' + family + ')')}")
 
-    print("-" * 92)
-    print(f"Total: {len(models)} models")
+    print(dim("-" * 92))
+    print(f"Total: {bright_green(str(len(models)))} models")
     
     # Save cache if updated
     if cache_updated:
         _save_tool_cache(cache)
     
     # Show legend
-    print("\nLegend: ✓ native (API tools) | ○ react (text parsing) | ? untested")
+    print(f"\n{dim('Legend:')} {bright_green('✓ native')} (API tools) | {yellow('○ react')} (text parsing) | {dim('? untested')}")
 
     return 0
 
@@ -551,17 +563,18 @@ def cmd_tools(args: argparse.Namespace) -> int:
     """Execute the tools command."""
     tools = make_builtin_registry()
 
-    print("\n⚛️ AgentNova - Available Tools")
-    print("-" * 60)
+    print()
+    print(f"{bright_cyan('⚛ AgentNova')} - Available Tools")
+    print(dim("-" * 60))
 
     for tool in tools.all():
         params = ", ".join(p.name for p in tool.params)
-        print(f"  {tool.name:<20} {tool.description[:40]}")
+        print(f"  {cyan(tool.name):<29} {tool.description[:40]}")
         if params:
-            print(f"    Parameters: {params}")
+            print(f"    {dim('Parameters:')} {yellow(params)}")
 
-    print("-" * 60)
-    print(f"Total: {len(tools.all())} tools")
+    print(dim("-" * 60))
+    print(f"Total: {bright_green(str(len(tools.all())))} tools")
 
     return 0
 
@@ -570,11 +583,11 @@ def cmd_version(args: argparse.Namespace) -> int:
     """Show version information."""
     from . import __version__, __status__, __author__
 
-    print(f"\n⚛️ AgentNova")
-    print(f"   Version: {__version__}")
-    print(f"   Status: {__status__}")
-    print(f"   Author: {__author__}")
-    print(f"   Repository: https://github.com/VTSTech/AgentNova")
+    print_banner()
+    print(f"   {dim('Version:')} {bright_green(__version__)}")
+    print(f"   {dim('Status:')}  {yellow(__status__)}")
+    print(f"   {dim('Author:')}  {cyan(__author__)}")
+    print(f"   {dim('Repo:')}    {dim('https://github.com/VTSTech/AgentNova')}")
     print()
 
     return 0
@@ -592,23 +605,24 @@ def cmd_config(args: argparse.Namespace) -> int:
         print(f"BITNET_BASE_URL={BITNET_BASE_URL}")
         print(f"ACP_BASE_URL={ACP_BASE_URL}")
     else:
-        print("\n⚛️ AgentNova - Configuration")
-        print("-" * 40)
-        print(f"  Backend: {AGENTNOVA_BACKEND}")
-        print(f"  Default Model: {DEFAULT_MODEL}")
         print()
-        print("  URLs:")
-        print(f"    Ollama: {OLLAMA_BASE_URL}")
-        print(f"    BitNet: {BITNET_BASE_URL}")
-        print(f"    ACP:    {ACP_BASE_URL}")
-        print("-" * 40)
-        print("\nEnvironment variables:")
-        print("  OLLAMA_BASE_URL    - Ollama server URL")
-        print("  BITNET_BASE_URL    - BitNet server URL")
-        print("  BITNET_TUNNEL      - BitNet tunnel URL")
-        print("  ACP_BASE_URL       - ACP server URL")
-        print("  AGENTNOVA_BACKEND  - Default backend (ollama/bitnet)")
-        print("  AGENTNOVA_MODEL    - Default model")
+        print(f"{bright_cyan('⚛ AgentNova')} - Configuration")
+        print(dim("-" * 40))
+        print(f"  {dim('Backend:')}       {green(AGENTNOVA_BACKEND)}")
+        print(f"  {dim('Default Model:')} {cyan(DEFAULT_MODEL)}")
+        print()
+        print(f"  {yellow('URLs:')}")
+        print(f"    {dim('Ollama:')} {OLLAMA_BASE_URL}")
+        print(f"    {dim('BitNet:')} {BITNET_BASE_URL}")
+        print(f"    {dim('ACP:')}    {ACP_BASE_URL}")
+        print(dim("-" * 40))
+        print(f"\n{yellow('Environment variables:')}")
+        print(f"  {dim('OLLAMA_BASE_URL')}    - Ollama server URL")
+        print(f"  {dim('BITNET_BASE_URL')}    - BitNet server URL")
+        print(f"  {dim('BITNET_TUNNEL')}      - BitNet tunnel URL")
+        print(f"  {dim('ACP_BASE_URL')}       - ACP server URL")
+        print(f"  {dim('AGENTNOVA_BACKEND')}  - Default backend (ollama/bitnet)")
+        print(f"  {dim('AGENTNOVA_MODEL')}    - Default model")
 
     return 0
 
@@ -619,6 +633,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command is None:
+        print_banner()
         parser.print_help()
         return 0
 
