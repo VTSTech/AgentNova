@@ -845,9 +845,23 @@ class Agent:
                         run.final_answer = final_answer
                         break
                     
+                    # Couldn't synthesize - try one more prompt to the model
                     if self.debug:
-                        print(f"    could not synthesize tool call, giving up")
-                    run.final_answer = ""
+                        print(f"    could not synthesize tool call, trying final prompt to model")
+                    
+                    self.memory.add_assistant("")
+                    self.memory.add_user(
+                        f"I need you to use a tool to answer: {user_input}\n\n"
+                        f"Available tools: {', '.join(available_tools)}\n\n"
+                        f"Call the appropriate tool with correct arguments."
+                    )
+                    continue
+                
+                elif retry_count >= 2:
+                    # Third empty response - truly give up but with a message
+                    if self.debug:
+                        print(f"    multiple empty responses, returning fallback message")
+                    run.final_answer = f"I was unable to process this request. Please try rephrasing your question."
                     break
 
             # ---- ReAct text parsing ---- #
