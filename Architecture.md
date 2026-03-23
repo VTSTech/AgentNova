@@ -6,22 +6,25 @@ Technical documentation for developers contributing to or extending AgentNova.
 
 ## Quick Context for AI Sessions
 
-> **Last Updated:** 2026-03-22
+> **Last Updated:** 2026-03-23
 
 ### Current Project State
 
 **Version:** R02.5 (Module Refactoring)
 
-**Benchmark Champion:** `granite3.1-moe:1b` at **93% (14/15)** in **95.7s**
+**Test 07 Champions:** `qwen:0.5b` and `dolphin3.0-qwen2.5:0.5b` at **93% (14/15)** - pure reasoning!
 
-**Key Achievement:** Sub-1B models now competitive with 1B+ models. Both native and ReAct tool support modes now work correctly. Multi-step calculations auto-completed when models miss subsequent operations.
+**Test 16 Agent Mode:** `qwen2.5-coder:0.5b` at **71% (5/7)** - multi-tool planning needs work
 
-### Recent Changes (R02.3)
+**Key Achievement:** Pure reasoning models (no tools) now match tooled models. Test 16 added for autonomous task evaluation.
 
-1. **Multi-Step Calculation Auto-Completion** - Agent detects incomplete multi-step calculations and auto-completes them (e.g., "8 * 7, then subtract 5")
-2. **Gemma Family Improvements** - `no_tools_system_prompt` field for models without tool support (gemma3:270m, functiongemma:270m)
-3. **Dolphin Family Detection** - Unified family detection for Dolphin fine-tunes (they lose tool support from base models)
-4. **Tool Support Detection** - Three-tier system: `native`, `react`, `none` (auto-detected per model)
+### Recent Changes (R02.5 - 2026-03-23)
+
+1. **Agent Mode Test (Test 16)** - New test suite for autonomous task execution
+2. **Few-shot prompts for file operations** - Added `write_file` and `read_file` examples
+3. **`/tmp` in allowed paths** - Temp directory now allowed by default
+4. **gemma3 prompt optimization** - Removed confusing code examples
+5. **Module refactoring** - Split agent.py into 6 focused modules
 
 ### Important Patterns
 
@@ -94,6 +97,7 @@ tool_support = get_tool_support(model, client)
 | `tools/builtins.py` | Built-in tools: calculator, shell, python_repl, file I/O |
 | `examples/07_model_comparison.py` | Main benchmark script (15 tests, 5 categories) |
 | `examples/14_gsm8k_benchmark.py` | GSM8K math benchmark (50 questions) |
+| `examples/16_agent_mode_test.py` | Agent Mode test (7 tests, multi-tool planning) |
 | `tested_models.json` | Cached tool support detection results |
 
 ---
@@ -191,6 +195,7 @@ All modules remain **zero-dependency** (stdlib only).
 | **Streaming** | First-class via generator interface |
 | **Error handling** | Automatic retry with exponential backoff for transient network/server errors |
 | **Security** | Path validation, command blocklist, SSRF protection (R00) |
+| **Allowed Paths** | `.` (cwd), `~` (home), `/tmp` (temp) - configurable via `AGENTNOVA_ALLOWED_PATHS` |
 | **Module Structure** | Single-responsibility modules with clear dependency graph (R02.3) |
 
 ---
@@ -385,6 +390,42 @@ The `prefers_few_shot` setting is for **native mode**. ReAct mode always overrid
 
 ---
 
+## Test 16 Agent Mode (Autonomous Tasks)
+
+Test 16 evaluates autonomous task execution with multi-tool planning.
+
+### Test Categories
+
+| Test | Description | Expected |
+|------|-------------|----------|
+| Simple Reasoning | Pure logic puzzle | 2 |
+| Knowledge Recall | Fact retrieval | Paris |
+| Calculator Chain | Multi-step math | 162 |
+| File Write | Create file | File created |
+| Shell Echo | Execute command | Message echoed |
+| Python REPL | Calculate 2^20 | 1048576 |
+| Multi-Tool | Calculate then write | File with 100 |
+
+### Known Issues
+
+| Issue | Description | Solution |
+|-------|-------------|----------|
+| ReAct loop | Repeats same action | Add repetition detector |
+| Multi-tool planning | Stops after first step | Better chain prompting |
+| Arg confusion | Wrong param names | Few-shot examples updated |
+
+### Usage
+
+```bash
+# Run Agent Mode test
+agentnova test 16 --model qwen2.5-coder:0.5b
+
+# With debug output
+agentnova test 16 --model all --debug
+```
+
+---
+
 ## Common CLI Commands
 
 ```bash
@@ -417,6 +458,8 @@ agentnova test --list          # List all examples
 agentnova test quick           # Run quick tests only
 agentnova test 07              # Run 15-test benchmark
 agentnova test 14              # Run GSM8K benchmark (50 questions)
+agentnova test 15              # Run quick diagnostic (5 questions)
+agentnova test 16              # Run Agent Mode test (7 tasks)
 
 # Run with BitNet backend
 agentnova chat --backend bitnet

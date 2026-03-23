@@ -4,6 +4,46 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [R02.6] - 2026-03-23 1:10:20 AM
+
+### Added (2026-03-23)
+- **Agent Mode Test (Test 16)** - New test suite for autonomous task execution
+  - Tests: Simple Reasoning, Knowledge Recall, Calculator Chain, File Write, Shell Echo, Python REPL, Multi-Tool
+  - Tests multi-step planning, tool orchestration, and file operations
+  - Usage: `agentnova test 16 --model qwen2.5-coder:0.5b`
+- **Few-shot prompts for file operations** - Added `write_file` and `read_file` examples
+  - Models now learn correct argument format: `{"path": "...", "content": "..."}`
+  - Added to `FEW_SHOT_SUFFIX`, `FEW_SHOT_COMPACT`, and `NATIVE_TOOL_HINTS`
+- **`/tmp` in allowed paths** - Temp directory now allowed by default for file operations
+  - Added `/tmp` and `tempfile.gettempdir()` to `_DEFAULT_ALLOWED_PATHS`
+  - Cross-platform support (works on Windows too)
+
+### Changed (2026-03-23)
+- **gemma3 `no_tools_system_prompt`** - Simplified and focused on math
+  - Removed Python code examples that confused the model
+  - Added more math examples including division and multi-step
+  - Improved from 20% to 60% on quick diagnostic
+
+### Test 16 Results (qwen2.5-coder:0.5b)
+
+| Test | Result | Notes |
+|------|--------|-------|
+| Simple Reasoning | ❌ | Got 4, expected 2 |
+| Knowledge Recall | ✅ | Paris correct |
+| Calculator Chain | ✅ | 162 correct |
+| File Write | ✅ | File created with correct content |
+| Shell Echo | ✅ | Echo message found |
+| Python REPL | ✅ | Found 1048576 |
+| Multi-Tool | ❌ | Calculated but didn't write file |
+
+**Score: 5/7 (71%)**
+
+### Known Issues
+- **ReAct loop repetition** - Models may repeat the same action multiple times after success
+- **Multi-step planning** - Models sometimes stop after first step instead of continuing
+
+--
+
 ## [R02.5] - 2026-03-22 10:49:35 PM
 
 ### 📦 Module Refactoring

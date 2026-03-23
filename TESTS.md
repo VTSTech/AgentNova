@@ -1,56 +1,109 @@
 # ⚛️ AgentNova R02.5
 
-## Test 05 Tool Tests (Multi-Platform)
+## Test 16 Agent Mode Test (Autonomous Tasks)
 
-> **Updated:** 2026-03-21 - R02.2 with multi-platform shell command support.
+> **Updated:** 2026-03-23 - New test suite for autonomous task execution
 
-Test 05 tests calculator, shell, and Python REPL tools. Shell commands are now platform-aware (Windows: `cd`/`dir`, Linux: `pwd`/`ls`).
+Test 16 evaluates autonomous task execution capabilities: multi-step planning, tool orchestration, and file operations.
+
+**Usage:**
+```bash
+agentnova test 16 --model qwen2.5-coder:0.5b
+agentnova test 16 --model all --debug
+```
+
+### Test 16 Results (R02.5)
+
+| Model | Score | Time | Tool Support | Notes |
+|-------|------:|-----:|:------------:|-------|
+| `qwen2.5-coder:0.5b` | 5/7 (71%) | 324.1s | react | Multi-tool planning issue |
+
+### Test Categories (7 Tests)
+
+| Test | Purpose | Expected | qwen2.5-coder |
+|------|---------|----------|:-------------:|
+| **Simple Reasoning** | Pure logic (5-2-1=?) | 2 | ❌ Got 4 |
+| **Knowledge Recall** | Fact retrieval | Paris | ✅ |
+| **Calculator Chain** | Multi-step math (15×8+42) | 162 | ✅ |
+| **File Write** | Create file with content | File created | ✅ |
+| **Shell Echo** | Execute shell command | Message echoed | ✅ |
+| **Python REPL** | Calculate 2^20 | 1048576 | ✅ |
+| **Multi-Tool** | Calculate then write file | File with 100 | ❌ Didn't write |
+
+### Key Findings (Test 16)
+
+1. **Single-tool tasks work well** - Calculator, file write, shell all pass
+2. **Multi-step planning fails** - Model stops after first action instead of continuing
+3. **ReAct loop repetition** - Models repeat same action after success
+4. **Pure reasoning errors** - Simple arithmetic mistakes (5-2-1=2, got 4)
+
+### Known Issues
+
+| Issue | Description | Impact |
+|-------|-------------|--------|
+| ReAct loop | Models repeat actions instead of Final Answer | Extra API calls |
+| Multi-tool planning | Model doesn't chain tools properly | Multi-Tool test fails |
+| Argument confusion | Wrong arg names (expression vs code) | Python REPL fallback |
 
 ---
 
-### Test 05 Results by Platform
+## Test 15 Quick Diagnostic (5 Questions)
 
-#### Linux (Colab)
+> **Updated:** 2026-03-22 - R02.5 module refactoring verified
 
-| Model | Tool Support | Calculator | Shell | Python REPL | Total | Notes |
-|-------|--------------|------------|-------|-------------|-------|-------|
-| **`qwen2.5:0.5b`** | native | **5/5 (100%)** | **3/3 (100%)** | 1/3 (33%) | **9/11 (82%)** | Native JSON fallback working |
-| `granite3.1-moe:1b` | react | **5/5 (100%)** | 2/3 (66%) | 1/3 (33%) | 8/11 (72%) | Wrong arg names in ReAct |
-| `gemma3:270m` | none | 2/5 (40%) | 0/3 (0%) | 0/3 (0%) | 2/11 (18%) | No tool support, guesses answers |
+Test 15 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
 
-#### Windows (Native)
+**Usage:**
+```bash
+agentnova test 15 --model granite3.1-moe:1b
+agentnova test 15 --model all --debug
+```
 
-| Model | Tool Support | Calculator | Shell | Python REPL | Total | Notes |
-|-------|--------------|------------|-------|-------------|-------|-------|
-| **`granite4:350m`** | native | **5/5 (100%)** | 2/3 (66%) | 2/3 (66%) | **9/11 (81%)** | Best small model on Windows! |
-| `qwen2.5-coder:0.5b` | react | 4/5 (80%) | 2/3 (66%) | 1/3 (33%) | 7/11 (63%) | Model math error on `(10+5)*3` |
+### Quick Diagnostic Results (R02.5)
 
----
+| Rank | Model | Score | Time | Tool Support | Notes |
+|:----:|-------|------:|-----:|:------------:|-------|
+| 🥇 | **`dolphin3.0-llama3:1b`** | **5/5 (100%)** | 48.7s | native | 🏆 Fastest perfect score! |
+| 🥇 | **`granite4:350m`** | **5/5 (100%)** | 75.2s | native | 🏆 Perfect with native tools |
+| 🥇 | **`qwen2.5-coder:0.5b`** | **5/5 (100%)** | 76.0s | react | 🏆 Perfect with ReAct |
+| 🥇 | **`qwen3:0.6b`** | **5/5 (100%)** | 151.0s | react | 🏆 Perfect with ReAct |
+| 5 | `functiongemma:270m` | 4/5 (80%) | 28.5s | native | Word problem wrong expression |
+| 5 | `dolphin3.0-qwen2.5:0.5b` | 4/5 (80%) | 38.4s | none | Pure reasoning, edge case failed |
+| 7 | `gemma3:270m` | 3/5 (60%) | 12.8s | none | No tool support, fast |
+| 7 | `granite3.1-moe:1b` | 3/5 (60%) | 114.0s | react | Multi-step and edge case failed |
+| 7 | `llama3.2:1b` | 3/5 (60%) | 257.1s | native | Hallucinated JSON schema |
+| 10 | `qwen2.5:0.5b` | 2/5 (40%) | 76.0s | native | Empty tool calls, synthesis helped |
+| 11 | `qwen:0.5b` | 1/5 (20%) | 47.9s | none | No tool support, verbose |
+| 11 | `tinyllama:1.1b` | 1/5 (20%) | 107.5s | none | No tool support, verbose |
+| 13 | `tinydolphin:1.1b` | 0/5 (0%) | 118.8s | none | No tool support, verbose |
 
-### Multi-Platform Shell Commands (R02)
+### Test Questions (5 Targeted Tests)
 
-| Platform | Directory | List Files | Date/Time |
-|----------|-----------|------------|-----------|
-| **Windows** | `cd` | `dir` | `python_repl` |
-| **Linux/Mac** | `pwd` | `ls` | `python_repl` |
+| Q# | Test | Purpose | Expected |
+|----|------|---------|----------|
+| Q1 | Simple Math | Basic calculator tool usage | 42 |
+| Q2 | Multi-step | Observation handling (8×7 then -5) | 51 |
+| Q3 | Division | Fraction/precision handling | 4.25 |
+| Q4 | Word Problem | Natural language → expression | 10 |
+| Q5 | Edge Case | Refusal handling (store hours) | 8 |
 
-**Key Change:** Date/time queries now use `python_repl` (cross-platform) instead of shell `date` command.
+### Key Findings (R02.5)
 
----
-
-### Key Findings (Test 05)
-
-1. **`granite4:350m` excellent on Windows** - 81% with native tool calling
-2. **Native tool models dominate** - granite4 and qwen2.5 both score 100% on Calculator
-3. **Multi-platform fix working** - Windows uses `cd`/`dir`, Linux uses `pwd`/`ls`
-4. **Small models struggle with Python REPL** - Need `print()` for output
-5. **Model hallucination issue** - Some models ignore tool results and generate unrelated text
+1. **4 models achieve 100%** - dolphin3.0-llama3:1b, granite4:350m, qwen2.5-coder:0.5b, qwen3:0.6b
+2. **`dolphin3.0-llama3:1b` fastest perfect** - 48.7s for 5/5, native tools work great
+3. **Module refactoring verified** - All 13 models tested successfully after splitting agent.py into 6 modules
+4. **Native tool support varies** - granite4 and functiongemma excel with native, qwen2.5:0.5b struggles
+5. **ReAct mode saves qwen models** - qwen3:0.6b and qwen2.5-coder:0.5b perfect with ReAct
+6. **No-tool models struggle** - dolphin3.0-qwen2.5:0.5b (80%) best of the no-tool-support models
+7. **Multi-step Q2 is hardest** - Catches models that don't chain observations correctly
+8. **Edge case Q5 catches reasoning errors** - Store hours problem confuses pure reasoning models
 
 ---
 
 ## Test 07 Benchmark Results (15-Test Suite with Debug)
 
-> **Updated:** 2026-03-22 - R02.5 module refactoring verified, updated prompts
+
+> **Updated:** 2026-03-23 - R02.5 module refactoring verified, updated prompts
 
 Test 07 uses the 15-test benchmark with debug output showing tool support detection, ReAct parsing, and family-specific configuration.
 
@@ -158,201 +211,54 @@ Test 07 uses the 15-test benchmark with debug output showing tool support detect
 
 **Key Insight**: Pure reasoning (no tools) can outperform tool-assisted models on simple tasks!
 
----
+--
 
-### All Models Combined (R02.2 - Historical)
+## Test 05 Tool Tests (Multi-Platform)
 
-| Rank | Model | Params | Score | Time | Tool Support |
-|:----:|-------|-------:|------:|-----:|:-----------:|
-| 🥇 | **`granite3.1-moe:1b`** | 1B MoE | **14/15 (93%)** | 87.8s | react |
-| 🥈 | **`llama3.2:1b`** | 1.2B | **13/15 (87%)** | 150.2s | native |
-| 🥉 | `nchapman/dolphin3.0-qwen2.5:0.5b` | 500M | 11/15 (73%) | 27.2s | none |
-| 4 | `qwen3:0.6b` | 600M | 10/15 (67%) | 189.3s | react |
-| 5 | `tinydolphin:1.1b` | 1.1B | 9/15 (60%) | 130.9s | none |
-| 5 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | 494M | 9/15 (60%) | 133.1s | react |
-| 7 | `tinyllama:1.1b` | 1.1B | 8/15 (53%) | 127.7s | none |
+> **Updated:** 2026-03-21 - R02.2 with multi-platform shell command support.
+
+Test 05 tests calculator, shell, and Python REPL tools. Shell commands are now platform-aware (Windows: `cd`/`dir`, Linux: `pwd`/`ls`).
 
 ---
 
-### R02.2 Key Findings
+### Test 05 Results by Platform
 
-1. **`granite3.1-moe:1b` reached 93%** - Best score with ReAct mode
-2. **`llama3.2:1b` massive improvement** - 67% → 87% (+20%) from observation role fix
-3. **`qwen3:0.6b` restored** - Was 0% (broken), now 67% with `think=False` API fix
-4. **Few-shot forcing works** - ReAct models always get examples, improving Action/Action Input format
-5. **Observation role fix** - Tool results now as `user` messages, models respond correctly
-6. **`qwen2.5-coder:0.5b` improved** - 53% → 60% with ReAct fixes
+#### Linux (Colab)
 
-### R02.2 Bug Fixes Applied
+| Model | Tool Support | Calculator | Shell | Python REPL | Total | Notes |
+|-------|--------------|------------|-------|-------------|-------|-------|
+| **`qwen2.5:0.5b`** | native | **5/5 (100%)** | **3/3 (100%)** | 1/3 (33%) | **9/11 (82%)** | Native JSON fallback working |
+| `granite3.1-moe:1b` | react | **5/5 (100%)** | 2/3 (66%) | 1/3 (33%) | 8/11 (72%) | Wrong arg names in ReAct |
+| `gemma3:270m` | none | 2/5 (40%) | 0/3 (0%) | 0/3 (0%) | 2/11 (18%) | No tool support, guesses answers |
 
-| Fix | Impact |
-|-----|-------|
-| ReAct models always get few-shot | +7-20% on ReAct models |
-| Observation role → `user` | +20% on llama3.2:1b |
-| ReAct loop limit enforcement | Prevents infinite loops |
-| `think=False` API parameter | Restores qwen3:0.6b from 0% |
-| qwen35 family config added | Correct handling for qwen3.5 |
+#### Windows (Native)
+
+| Model | Tool Support | Calculator | Shell | Python REPL | Total | Notes |
+|-------|--------------|------------|-------|-------------|-------|-------|
+| **`granite4:350m`** | native | **5/5 (100%)** | 2/3 (66%) | 2/3 (66%) | **9/11 (81%)** | Best small model on Windows! |
+| `qwen2.5-coder:0.5b` | react | 4/5 (80%) | 2/3 (66%) | 1/3 (33%) | 7/11 (63%) | Model math error on `(10+5)*3` |
 
 ---
 
-### Category Champions (R02.2)
+### Multi-Platform Shell Commands (R02)
 
-| Category | 🏆 Champion | Score | Notes |
-|----------|-------------|-------|-------|
-| **Math** | `granite3.1-moe:1b` | 3/3 | Perfect with ReAct |
-| **Reasoning** | `granite3.1-moe:1b` / `llama3.2:1b` | 2/3 | Tie at top |
-| **Knowledge** | Multiple models | 3/3 | Several perfect |
-| **Calc** | `granite3.1-moe:1b` | 3/3 | ReAct working well |
-| **Code** | All tested models | 3/3 | Universally easy |
+| Platform | Directory | List Files | Date/Time |
+|----------|-----------|------------|-----------|
+| **Windows** | `cd` | `dir` | `python_repl` |
+| **Linux/Mac** | `pwd` | `ls` | `python_repl` |
 
----
-
-### Sub-1B Models (R02.2 - Historical)
-
-| Rank | Model | Params | Score | Time | Tool Support |
-|:----:|-------|-------:|------:|-----:|:-----------:|
-| 🥇 | `nchapman/dolphin3.0-qwen2.5:0.5b` | 500M | 11/15 (73%) | **27.2s** | none |
-| 🥈 | `qwen3:0.6b` | 600M | 10/15 (67%) | 189.3s | react |
-| 🥉 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | 494M | 9/15 (60%) | 133.1s | react |
-
-#### Sub-1B Key Findings (R02.2)
-
-1. **`dolphin3.0-qwen2.5:0.5b` leads at 73%** - Fastest sub-1B at 27.2s
-2. **`qwen3:0.6b` restored** - Was 0% (broken), now 67% with `think=False` fix
-3. **`qwen2.5-coder:0.5b` improved** - 53% → 60% with ReAct fixes
+**Key Change:** Date/time queries now use `python_repl` (cross-platform) instead of shell `date` command.
 
 ---
 
-### 1B+ Models (R02.2 - Historical)
+### Key Findings (Test 05)
 
-| Rank | Model | Params | Score | Time | Tool Support |
-|:----:|-------|-------:|------:|-----:|:-----------:|
-| 🥇 | **`granite3.1-moe:1b`** | 1B MoE | **14/15 (93%)** | 87.8s | react |
-| 🥈 | **`llama3.2:1b`** | 1.2B | **13/15 (87%)** | 150.2s | native |
-| 🥉 | `tinydolphin:1.1b` | 1.1B | 9/15 (60%) | 130.9s | none |
-| 4 | `tinyllama:1.1b` | 1.1B | 8/15 (53%) | 127.7s | none |
+1. **`granite4:350m` excellent on Windows** - 81% with native tool calling
+2. **Native tool models dominate** - granite4 and qwen2.5 both score 100% on Calculator
+3. **Multi-platform fix working** - Windows uses `cd`/`dir`, Linux uses `pwd`/`ls`
+4. **Small models struggle with Python REPL** - Need `print()` for output
+5. **Model hallucination issue** - Some models ignore tool results and generate unrelated text
 
-#### 1B+ Key Findings (R02.2)
-
-1. **`granite3.1-moe:1b` dominates at 93%** - Best 1B+ model
-2. **`llama3.2:1b` solid at 87%** - Native tool support works well
-3. **MoE architecture shines** - granite3.1-moe fastest champion at 87.8s
-
----
-
-### Tool Support Impact (R02.2)
-
-| Model | Tool Support | Score | Notes |
-|-------|--------------|-------|-------|
-| `granite3.1-moe:1b` | react | **93%** | 🏆 ReAct works great with fixes |
-| `llama3.2:1b` | native | **87%** | Massive +20% from observation fix |
-| `dolphin3.0-qwen2.5:0.5b` | none | 73% | Pure reasoning, fastest |
-| `qwen3:0.6b` | react | 67% | Restored with `think=False` |
-| `qwen2.5-coder:0.5b` | react | 60% | +7% from ReAct fixes |
-
-**Key Insight**: R02.2 fixes dramatically improved ReAct models.
-
----
-
-### Model Family Detection (R02 New Feature)
-
-| Model | Family Detected | Family Issues | Tool Format |
-|-------|-----------------|---------------|-------------|
-| `qwen3:0.6b` | qwen3 | - | `<tool_call\>` |
-| `granite3.1-moe:1b` | granitemoe | schema_dump, truncate_json | `<|tool_call|>` |
-| `granite4:350m` | granite | - | `<tool_call\>` |
-| `qwen2.5:0.5b` | qwen2 | - | `<tool_call\>` |
-| `qwen2.5-coder:0.5b` | qwen2 | - | `<tool_call\>` |
-| `gemma3:270m` | gemma3 | - | No wrapper |
-| `llama3.2:1b` | llama | - | Raw JSON |
-| `dolphin3.0-*` | qwen2/llama | - | Varies |
-
----
-
-## Test 15 Quick Diagnostic (5 Questions)
-
-> **Updated:** 2026-03-22 - R02.5 module refactoring verified
-
-Test 15 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
-
-**Usage:**
-```bash
-agentnova test 15 --model granite3.1-moe:1b
-agentnova test 15 --model all --debug
-```
-
-### Quick Diagnostic Results (R02.5)
-
-| Rank | Model | Score | Time | Tool Support | Notes |
-|:----:|-------|------:|-----:|:------------:|-------|
-| 🥇 | **`dolphin3.0-llama3:1b`** | **5/5 (100%)** | 48.7s | native | 🏆 Fastest perfect score! |
-| 🥇 | **`granite4:350m`** | **5/5 (100%)** | 75.2s | native | 🏆 Perfect with native tools |
-| 🥇 | **`qwen2.5-coder:0.5b`** | **5/5 (100%)** | 76.0s | react | 🏆 Perfect with ReAct |
-| 🥇 | **`qwen3:0.6b`** | **5/5 (100%)** | 151.0s | react | 🏆 Perfect with ReAct |
-| 5 | `functiongemma:270m` | 4/5 (80%) | 28.5s | native | Word problem wrong expression |
-| 5 | `dolphin3.0-qwen2.5:0.5b` | 4/5 (80%) | 38.4s | none | Pure reasoning, edge case failed |
-| 7 | `gemma3:270m` | 3/5 (60%) | 12.8s | none | No tool support, fast |
-| 7 | `granite3.1-moe:1b` | 3/5 (60%) | 114.0s | react | Multi-step and edge case failed |
-| 7 | `llama3.2:1b` | 3/5 (60%) | 257.1s | native | Hallucinated JSON schema |
-| 10 | `qwen2.5:0.5b` | 2/5 (40%) | 76.0s | native | Empty tool calls, synthesis helped |
-| 11 | `qwen:0.5b` | 1/5 (20%) | 47.9s | none | No tool support, verbose |
-| 11 | `tinyllama:1.1b` | 1/5 (20%) | 107.5s | none | No tool support, verbose |
-| 13 | `tinydolphin:1.1b` | 0/5 (0%) | 118.8s | none | No tool support, verbose |
-
-### Test Questions (5 Targeted Tests)
-
-| Q# | Test | Purpose | Expected |
-|----|------|---------|----------|
-| Q1 | Simple Math | Basic calculator tool usage | 42 |
-| Q2 | Multi-step | Observation handling (8×7 then -5) | 51 |
-| Q3 | Division | Fraction/precision handling | 4.25 |
-| Q4 | Word Problem | Natural language → expression | 10 |
-| Q5 | Edge Case | Refusal handling (store hours) | 8 |
-
-### Key Findings (R02.5)
-
-1. **4 models achieve 100%** - dolphin3.0-llama3:1b, granite4:350m, qwen2.5-coder:0.5b, qwen3:0.6b
-2. **`dolphin3.0-llama3:1b` fastest perfect** - 48.7s for 5/5, native tools work great
-3. **Module refactoring verified** - All 13 models tested successfully after splitting agent.py into 6 modules
-4. **Native tool support varies** - granite4 and functiongemma excel with native, qwen2.5:0.5b struggles
-5. **ReAct mode saves qwen models** - qwen3:0.6b and qwen2.5-coder:0.5b perfect with ReAct
-6. **No-tool models struggle** - dolphin3.0-qwen2.5:0.5b (80%) best of the no-tool-support models
-7. **Multi-step Q2 is hardest** - Catches models that don't chain observations correctly
-8. **Edge case Q5 catches reasoning errors** - Store hours problem confuses pure reasoning models
-
-### R02.5 Module Refactoring
-
-The agent.py module was split into 6 focused modules:
-
-| Module | Purpose | Lines |
-|--------|---------|-------|
-| `types.py` | Type aliases (`StepResultType`) | ~10 |
-| `models.py` | Dataclasses (`StepResult`, `AgentRun`) | ~30 |
-| `prompts.py` | System prompts, few-shot examples, constants | ~180 |
-| `helpers.py` | Utility functions (model detection, text processing) | ~200 |
-| `args_normal.py` | Argument normalization and synthesis | ~240 |
-| `tool_parse.py` | ReAct and JSON tool call parsing | ~370 |
-
-**Result:** All tests pass, backward compatibility maintained via `__init__.py` exports.
-
-### Quick Diagnostic Results (R02.2 - Historical)
-
-| Rank | Model | Score | Time | Tool Support | Notes |
-|:----:|-------|------:|-----:|:------------:|-------|
-| 🥇 | **`qwen3.5:0.8b`** | **5/5 (100%)** | 569.3s | native | 🏆 Perfect! Native tools work great |
-| 🥇 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 76.5s | react | 🏆 Perfect! ReAct mode works great |
-| 🥇 | **`qwen2.5-coder:0.5b`** | **5/5 (100%)** | 69.7s | react | 🏆 Perfect! ReAct mode works great |
-| 4 | `functiongemma:270m` | 4/5 (80%) | 27.4s | native | Word problem misinterpretation |
-| 4 | `granite4:350m` | 4/5 (80%) | 88.2s | native | Synthesis returned raw JSON |
-| 4 | `granite3.1-moe:1b` | 4/5 (80%) | 96.5s | react | Multi-step stopped after first op |
-| 7 | `llama3.2:1b` | 3/5 (60%) | 256.9s | native | Malformed JSON tool calls |
-| 7 | `qwen3:0.6b` | 3/5 (60%) | 119.6s | react | Multi-step extraction issue |
-| 7 | `dolphin3.0-qwen2.5:0.5b` | 3/5 (60%) | 41.9s | none | Pure reasoning, division error |
-| 7 | `dolphin3.0-llama3:1b` | 3/5 (60%) | 40.5s | none | Pure reasoning, edge case failed |
-| 11 | `gemma3:270m` | 2/5 (40%) | 11.4s | none | No tool support |
-| 12 | `qwen:0.5b` | 1/5 (20%) | 32s | none | No tool support |
-| 12 | `tinydolphin:1.1b` | 1/5 (20%) | 102.4s | none | No tool support, verbose |
-| 12 | `tinyllama:1.1b` | 1/5 (20%) | 103.8s | none | No tool support, verbose |
 
 ---
 
