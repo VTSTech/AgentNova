@@ -8,7 +8,8 @@ https://github.com/VTSTech/AgentNova
 
 import os
 
-from .core.agent import Agent, AgentRun, StepResult
+from .core.agent import Agent
+from .core.models import AgentRun, StepResult
 from .core.memory import Memory
 from .core.tools import Tool, ToolRegistry, ToolParam
 from .core.ollama_client import OllamaClient
