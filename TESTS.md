@@ -333,9 +333,9 @@ AgentNova has been tested with **Microsoft BitNet-b1.58-2B-4T** — a 2B paramet
 |----------|-------------------|-----|
 | **🏆 BEST OVERALL** | **`granite3.1-moe:1b`** | **93% in 87.8s** - best 1B model ever! |
 | **Best Runner-up** | **`llama3.2:1b`** | **87%** - massive +20% improvement! |
-| **Best Sub-1B** | **`qwen3.5:0.8b`** | **100%** on quick diagnostic, native tools! |
+| **Best Sub-1B** | **`dolphin3.0-llama3:1b`** | **100%** quick diagnostic, 48.7s fastest perfect! |
 | **Best GSM8K** | **`qwen2.5:0.5b`** | **90% GSM8K** - matches 1B at half the size! |
-| **Best Speed (73%+)** | `dolphin3.0-qwen2.5:0.5b` | **27.2s**, 73% accuracy |
+| **Best Speed (80%+)** | `dolphin3.0-llama3:1b` | **48.7s**, 100% accuracy |
 | **Large context** | `llama3.2:1b` | **128k context window** |
 | **CPU-only** | `BitNet-b1.58-2B-4T` | Efficient ternary weights |
 
@@ -343,17 +343,19 @@ AgentNova has been tested with **Microsoft BitNet-b1.58-2B-4T** — a 2B paramet
 
 | Model | Recommended Mode | Reason |
 |-------|------------------|--------|
-| **`granite3.1-moe:1b`** | ReAct | 🏆 **Champion!** 93% |
+| **`granite3.1-moe:1b`** | ReAct | 🏆 **Champion!** 93% on test 07 |
 | **`llama3.2:1b`** | Native | 87%, 128k context |
-| **`qwen3.5:0.8b`** | Native | 🎯 **100% quick diagnostic** - new sub-1B king! |
-| **`qwen2.5:0.5b`** | Native | 🎯 **90% GSM8K** - Calc champion |
-| **`qwen2.5-coder:0.5b`** | ReAct | 100% quick diagnostic, Code focused |
-| `dolphin3.0-qwen2.5:0.5b` | None | 73% pure reasoning, fastest |
-| `qwen3:0.6b` | ReAct | 67%, requires `think=False` |
+| **`dolphin3.0-llama3:1b`** | Native | 🎯 **100% quick diagnostic, fastest!** |
+| **`granite4:350m`** | Native | 🎯 **100% quick diagnostic** |
+| **`qwen2.5-coder:0.5b`** | ReAct | 🎯 **100% quick diagnostic**, Code focused |
+| **`qwen3:0.6b`** | ReAct | 🎯 **100% quick diagnostic** |
+| `qwen2.5:0.5b` | Native | 🎯 **90% GSM8K** - Calc champion |
 | `functiongemma:270m` | Native | 80% quick diagnostic |
-| `granite4:350m` | Native | 80% quick diagnostic |
-| `tinyllama:1.1b` | None | 53%, verbose responses |
-| `tinydolphin:1.1b` | None | 60%, verbose responses |
+| `dolphin3.0-qwen2.5:0.5b` | None | 80% pure reasoning, fast |
+| `gemma3:270m` | None | 60%, very fast (12.8s) |
+| `qwen3:0.6b` | ReAct | 100% quick diagnostic |
+| `tinyllama:1.1b` | None | 20%, verbose responses |
+| `tinydolphin:1.1b` | None | 0%, verbose responses |
 
 ---
 
@@ -413,7 +415,7 @@ agentnova models --tool_support
 
 Example output:
 ```
-⚛️ AgentNova R02 Models
+⚛️ AgentNova R02.5 Models
   Model                                      Family       Context    Tool Support
   ──────────────────────────────────────────────────────────────────────────────
   gemma3:270m                                gemma3       32K        ○ none
