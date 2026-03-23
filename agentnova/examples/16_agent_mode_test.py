@@ -552,8 +552,9 @@ def main():
     acp_connected = False
     if USE_ACP:
         main_acp = ACPPlugin(
-            agent_id="agentnova-test16",
-            name="AgentNova Test 16"
+            agent_name="AgentNova",
+            model_name="agent-mode-test",
+            debug=DEBUG,
         )
         bootstrap = main_acp.bootstrap(claim_primary=False)
         acp_connected = bootstrap.get("status") is not None
@@ -587,8 +588,9 @@ def main():
         model_acp = None
         if USE_ACP and acp_connected:
             model_acp = ACPPlugin(
-                agent_id=f"agentnova-test16-{model.replace(':', '-').replace('.', '-')}",
-                name=f"Test 16: {model}"
+                agent_name="AgentNova",
+                model_name=model.split(':')[0][:25],
+                debug=DEBUG,
             )
             model_acp.bootstrap(claim_primary=False)
         
@@ -620,6 +622,3 @@ def main():
             summary = f"🏆 Winner: {winner['model']} - {winner['passed']}/{winner['total'] - winner['skipped']} in {winner['time']:.1f}s"
             main_acp.log_chat("system", summary, complete=True)
 
-
-if __name__ == "__main__":
-    main()
