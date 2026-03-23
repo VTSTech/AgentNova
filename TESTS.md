@@ -276,11 +276,11 @@ AgentNova has been tested with **Microsoft BitNet-b1.58-2B-4T** — a 2B paramet
 
 | Use Case | Recommended Model | Why |
 |----------|-------------------|-----|
-| **🏆 BEST OVERALL** | **`qwen:0.5b`** | **93% in 45.7s** - fastest champion, pure reasoning! |
-| **Best Runner-up** | **`dolphin3.0-qwen2.5:0.5b`** | **93% in 53.0s** - pure reasoning, no tools needed |
-| **Best with Tools** | **`granite3.1-moe:1b`** | **93%** - ReAct mode, 1B MoE architecture |
-| **Best GSM8K** | **`qwen2.5:0.5b`** | **90% GSM8K** - matches 1B at half the size! |
-| **Best Speed (93%)** | `qwen:0.5b` | **45.7s**, 93% accuracy, 500M params |
+| **🏆 BEST OVERALL** | **`functiongemma:270m`** | **100% in 19.6s** - fastest perfect, native tools! |
+| **Best Runner-up** | **`granite4:350m`** | **100% in 49.4s** - native tools, 350M params |
+| **Best with ReAct** | **`qwen2.5-coder:0.5b`** | **100% in 116.5s** - ReAct mode, code focused |
+| **Best GSM8K** | **`qwen2.5:0.5b`** | **100%** - native tools, fast math! |
+| **Best Speed (100%)** | `functiongemma:270m` | **19.6s**, 100% accuracy, 270M params |
 | **Large context** | `llama3.2:1b` | **128k context window**, 87% accuracy |
 | **CPU-only** | `BitNet-b1.58-2B-4T` | Efficient ternary weights |
 
@@ -288,19 +288,15 @@ AgentNova has been tested with **Microsoft BitNet-b1.58-2B-4T** — a 2B paramet
 
 | Model | Recommended Mode | Reason |
 |-------|------------------|--------|
-| **`qwen:0.5b`** | None | 🏆 **Test 07 Champion!** 93% at 45.7s |
-| **`dolphin3.0-qwen2.5:0.5b`** | None | 🏆 **93%** - pure reasoning works great |
-| **`granite3.1-moe:1b`** | ReAct | 🏆 **93%** - best with tools |
-| **`llama3.2:1b`** | Native | 87%, 128k context |
-| **`dolphin3.0-llama3:1b`** | Native | 🎯 **100% quick diagnostic, fastest perfect!** |
-| **`granite4:350m`** | Native | 🎯 **100% quick diagnostic** |
-| **`qwen2.5-coder:0.5b`** | ReAct | 🎯 **100% quick diagnostic**, Code focused |
-| **`qwen3:0.6b`** | ReAct | 🎯 **100% quick diagnostic** |
-| `qwen2.5:0.5b` | Native | 🎯 **90% GSM8K** - Calc champion |
-| `functiongemma:270m` | Native | ⚠️ 27% regression - needs investigation |
-| `gemma3:270m` | None | 60%, very fast (33.9s) |
-| `tinyllama:1.1b` | None | 53%, verbose responses |
-| `tinydolphin:1.1b` | None | 67%, verbose responses |
+| **`functiongemma:270m`** | Native | 🏆 **Test 15 Champion!** 100% at 19.6s |
+| **`granite4:350m`** | Native | 🏆 **100%** - native tools, 350M params |
+| **`qwen2.5:0.5b`** | Native | 🏆 **100%** - native tools work great |
+| **`qwen2.5-coder:0.5b`** | ReAct | 🏆 **100%** - code focused |
+| **`qwen3:0.6b`** | ReAct | 🏆 **100%** - newest qwen |
+| `gemma3:270m` | None | 80%, very fast (14.3s) |
+| `dolphin3.0-qwen2.5:0.5b` | None | 80%, pure reasoning |
+| `llama3.2:1b` | Native | 87%, 128k context |
+| `qwen:0.5b` | None | 20%, base model struggles |
 
 ---
 
