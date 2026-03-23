@@ -212,6 +212,95 @@ class OllamaBackend(BaseBackend):
         except urllib.error.URLError as e:
             raise RuntimeError(f"Ollama connection error: {e.reason}")
 
+    def get_model_info(self, model: str) -> dict | None:
+        """
+        Get detailed model information from Ollama.
+        
+        Uses /api/show endpoint which returns:
+        - modelfile
+        - parameters (including num_ctx)
+        - template
+        - details (family, parameter count, etc.)
+        """
+        import urllib.request
+        import urllib.error
+
+        url = f"{self.base_url}/api/show"
+
+        body = {"name": model}
+
+        try:
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(body).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+
+            with urllib.request.urlopen(req, timeout=10) as response:
+                return json.loads(response.read().decode("utf-8"))
+
+        except (urllib.error.HTTPError, urllib.error.URLError):
+            return None
+
+    def get_model_context_size(self, model: str) -> int:
+        """
+        Get the context window size for a model.
+        
+        Returns the num_ctx parameter from the model, or a default.
+        """
+        info = self.get_model_info(model)
+        
+        if not info:
+            return 4096  # Default context size
+        
+        # Check parameters string for num_ctx
+        parameters = info.get("parameters", "")
+        if parameters:
+            # Parse num_ctx from parameters string like "num_ctx 8192\nnum_gpu 1"
+            for line in parameters.split("\n"):
+                if line.strip().startswith("num_ctx"):
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        try:
+                            return int(parts[1])
+                        except ValueError:
+                            pass
+        
+        # Check model_info for context_length (some versions expose it here)
+        model_info = info.get("model_info", {})
+        if "context_length" in model_info:
+            return model_info["context_length"]
+        
+        # Check details for parameter count to estimate
+        details = info.get("details", {})
+        family = details.get("family", "").lower()
+        
+        # Known defaults by model family
+        family_defaults = {
+            "qwen2": 32768,
+            "qwen2.5": 32768,
+            "qwen3": 32768,
+            "llama3": 8192,
+            "llama3.1": 131072,
+            "llama3.2": 131072,
+            "llama3.3": 131072,
+            "mistral": 32768,
+            "mixtral": 32768,
+            "gemma": 8192,
+            "gemma2": 8192,
+            "gemma3": 8192,
+            "phi3": 128000,
+            "granite": 8192,
+            "granitemoe": 8192,
+        }
+        
+        for fam, ctx in family_defaults.items():
+            if fam in family:
+                return ctx
+        
+        return 4096  # Default fallback
+
     def list_models(self) -> list[dict]:
         """List available models from Ollama."""
         import urllib.request

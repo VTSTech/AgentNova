@@ -268,17 +268,30 @@ def cmd_models(args: argparse.Namespace) -> int:
         return 0
 
     print(f"\n⚛️ AgentNova - Available Models ({backend.base_url})")
-    print("-" * 60)
+    print("-" * 72)
+    print(f"  {'Name':<36} {'Size':>8}  {'Context':>8}  {'Family':<12}")
+    print("-" * 72)
 
     for m in models:
         name = m.get("name", "unknown")
         size = m.get("size", 0)
         size_gb = size / (1024**3) if size else 0
         family = m.get("details", {}).get("family", "unknown")
+        
+        # Get context size
+        ctx_size = backend.get_model_context_size(name)
+        
+        # Format context size nicely
+        if ctx_size >= 1000000:
+            ctx_str = f"{ctx_size // 1000}K"
+        elif ctx_size >= 1000:
+            ctx_str = f"{ctx_size // 1000}K"
+        else:
+            ctx_str = str(ctx_size)
 
-        print(f"  {name:<35} {size_gb:>6.2f} GB  ({family})")
+        print(f"  {name:<36} {size_gb:>6.2f} GB  {ctx_str:>8}  ({family})")
 
-    print("-" * 60)
+    print("-" * 72)
     print(f"Total: {len(models)} models")
 
     if args.tool_support and isinstance(backend, OllamaBackend):
