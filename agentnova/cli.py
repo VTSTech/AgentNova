@@ -779,10 +779,12 @@ def cmd_test(args: argparse.Namespace) -> int:
     pct = 100 * passed // total if total > 0 else 0
     print(f"  {bright_green(str(passed))}/{total} tests passed ({pct}%)")
     
-    # Log final summary to ACP and shutdown
+    # Log final summary to ACP and unregister (don't shutdown the server!)
     if acp:
         acp.log_chat("assistant", f"All tests complete: {passed}/{total} passed ({pct}%)")
-        acp.shutdown(f"Test run complete: {passed}/{total} passed")
+        # Only unregister from A2A, don't shutdown the ACP server
+        acp.a2a_unregister()
+        acp._log("Test complete, unregistered from A2A (ACP server remains running)")
     
     return 0 if passed == total else 1
 
