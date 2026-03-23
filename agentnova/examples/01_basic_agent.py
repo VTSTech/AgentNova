@@ -1,4 +1,4 @@
-"""
+﻿"""
 examples/01_basic_agent.py
 --------------------------
 The simplest possible AgentNova agent — no tools, just conversation.

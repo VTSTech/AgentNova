@@ -1,4 +1,4 @@
-"""
+﻿"""
 examples/02_tool_agent.py
 --------------------------
 An agent with custom + built-in tools.

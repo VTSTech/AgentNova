@@ -1,4 +1,4 @@
-"""
+﻿"""
 examples/07_model_comparison.py
 -------------------------------
 Compare all available small models (<=1B parameters) on standard tests.

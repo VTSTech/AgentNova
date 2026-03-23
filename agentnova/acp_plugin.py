@@ -1,4 +1,4 @@
-"""
+﻿"""
 ⚛️ AgentNova ACP Plugin - Bridge to Agent Control Panel
 
 This plugin connects AgentNova agents to an ACP (Agent Control Panel) server,

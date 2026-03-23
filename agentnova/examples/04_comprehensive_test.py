@@ -1,4 +1,4 @@
-"""
+﻿"""
 examples/04_comprehensive_test.py
 ---------------------------------
 Comprehensive test suite for AgentNova with detailed output.

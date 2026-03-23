@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 examples/14_gsm8k_benchmark.py
 ------------------------------

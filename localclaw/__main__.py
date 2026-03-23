@@ -1,4 +1,4 @@
-"""
+﻿"""
 localclaw CLI - Compatibility shim that forwards to agentnova CLI
 
 This redirects 'python -m localclaw' to the agentnova CLI.

@@ -1,5 +1,5 @@
-"""
-⚛️ AgentNova R00 — Central Configuration
+﻿"""
+⚛️ AgentNova R02 — Central Configuration
 
 Single source of truth for Ollama and ACP server URLs.
 Change these values once to update all tests and examples.

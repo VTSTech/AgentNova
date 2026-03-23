@@ -1,5 +1,5 @@
-"""
-⚛️ AgentNova R02.3 — Helpers
+﻿"""
+⚛️ AgentNova R02.5 — Helpers
 Standalone utility functions for the agent system.
 
 Written by VTSTech — https://www.vts-tech.org — https://github.com/VTSTech/AgentNova

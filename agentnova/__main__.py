@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
-⚛️ AgentNova R00 — Command Line Interface
+⚛️ AgentNova R02 — Command Line Interface
 
 Entry point for: python -m agentnova [command] [options]
 

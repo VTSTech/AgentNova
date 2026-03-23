@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
-⚛️ AgentNova R00 — Backend-Agnostic Example
+⚛️ AgentNova R02 — Backend-Agnostic Example
 
 This example works with EITHER Ollama OR BitNet backend.
 Set AGENTNOVA_BACKEND environment variable to switch:
@@ -82,7 +82,7 @@ def make_step_printer(acp=None):
 def main():
     print(f"""
 ╔═══════════════════════════════════════════════════════════════════╗
-║     ⚛️ AgentNova R00 — Backend-Agnostic Demo                      ║
+║     ⚛️ AgentNova R02 — Backend-Agnostic Demo                      ║
 ╠═══════════════════════════════════════════════════════════════════╣""")
     
     # Show current configuration

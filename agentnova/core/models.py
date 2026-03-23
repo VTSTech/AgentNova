@@ -1,5 +1,5 @@
-"""
-⚛️ AgentNova R02.3 — Models
+﻿"""
+⚛️ AgentNova R02.5 — Models
 Data models for agent results and step tracking.
 
 Written by VTSTech — https://www.vts-tech.org — https://github.com/VTSTech/AgentNova

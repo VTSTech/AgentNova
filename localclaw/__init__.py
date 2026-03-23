@@ -1,4 +1,4 @@
-"""
+﻿"""
 ⚛️ localclaw - Compatibility shim for AgentNova
 
 This package has been renamed to 'agentnova'.

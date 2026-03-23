@@ -1,4 +1,4 @@
-"""
+﻿"""
 Shared CLI arguments for AgentNova example scripts.
 
 All test/example scripts can use these standard arguments:

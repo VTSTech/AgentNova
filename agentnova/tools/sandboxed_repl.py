@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
-⚛️ AgentNova R00 — Sandboxed Python REPL
+⚛️ AgentNova R02 — Sandboxed Python REPL
 
 A secure Python code execution environment using subprocess isolation
 with resource limits, restricted builtins, and module whitelisting.

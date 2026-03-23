@@ -1,4 +1,4 @@
-"""
+﻿"""
 examples/05_tool_tests.py
 -------------------------
 Test suite focused on tool usage with calculator, shell, and Python REPL.

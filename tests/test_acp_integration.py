@@ -1,13 +1,13 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
-AgentNova R00 + ACP Integration Test
+AgentNova R02 + ACP Integration Test
 ====================================
 
 Tests sub-agent orchestration with ACP monitoring.
 
 Uses centralized config from agentnova/config.py
 
-Written for VTSTech AgentNova R00 + ACP v1.0.2
+Written for VTSTech AgentNova R02 + ACP v1.0.2
 """
 
 import sys
@@ -26,7 +26,7 @@ from agentnova.tools.builtins import BUILTIN_REGISTRY
 
 print(f"""
 ╔═══════════════════════════════════════════════════════════════════╗
-║     ⚛️ AgentNova R00 + ACP Integration Test                        ║
+║     ⚛️ AgentNova R02 + ACP Integration Test                        ║
 ╠═══════════════════════════════════════════════════════════════════╣
 ║  Using centralized config from agentnova/config.py                ║
 ║  Model:  {DEFAULT_MODEL:<48} ║

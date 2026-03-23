@@ -1,5 +1,5 @@
-"""
-⚛️ AgentNova R00 — Memory
+﻿"""
+⚛️ AgentNova R02 — Memory
 Manages conversation history with a configurable sliding window and
 optional LLM-based summarization to compress older turns.
 

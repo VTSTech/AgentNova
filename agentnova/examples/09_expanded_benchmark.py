@@ -1,4 +1,4 @@
-"""
+﻿"""
 examples/09_expanded_benchmark.py
 ---------------------------------
 Expanded benchmark with 25 tests across 8 categories.

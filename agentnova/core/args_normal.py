@@ -1,5 +1,5 @@
-"""
-⚛️ AgentNova R02.3 — Argument Normalizer
+﻿"""
+⚛️ AgentNova R02.5 — Argument Normalizer
 Functions for normalizing and fixing tool call arguments from small models.
 
 Written by VTSTech — https://www.vts-tech.org — https://github.com/VTSTech/AgentNova

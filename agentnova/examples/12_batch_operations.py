@@ -1,4 +1,4 @@
-"""
+﻿"""
 examples/12_batch_operations.py
 --------------------------------
 Demonstrate ACP batch operations for efficient multi-file processing.
@@ -45,7 +45,7 @@ DEBUG = config.debug
 
 
 def main():
-    print("⚛️ AgentNova R00 - Batch Operations Demo (ACP)")
+    print("⚛️ AgentNova R02 - Batch Operations Demo (ACP)")
     print("=" * 60)
     
     # ── Create and bootstrap ACP ─────────────────────────────────

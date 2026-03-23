@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 examples/15_quick_diagnostic.py
 --------------------------------

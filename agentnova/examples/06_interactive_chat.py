@@ -1,4 +1,4 @@
-"""
+﻿"""
 examples/06_interactive_chat.py
 -------------------------------
 Interactive chat with tool support. Good for manual testing.

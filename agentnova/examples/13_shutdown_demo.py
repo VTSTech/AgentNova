@@ -1,4 +1,4 @@
-"""
+﻿"""
 examples/13_shutdown_demo.py
 -----------------------------
 Demonstrate graceful ACP session shutdown.
@@ -45,7 +45,7 @@ DEBUG = config.debug
 
 
 def main():
-    print("⚛️ AgentNova R00 - Shutdown Demo (ACP)")
+    print("⚛️ AgentNova R02 - Shutdown Demo (ACP)")
     print("=" * 60)
     
     # ── Create and bootstrap ACP ─────────────────────────────────

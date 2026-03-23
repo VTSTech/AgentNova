@@ -1,5 +1,5 @@
-"""
-⚛️ AgentNova R00 - Skills Loader
+﻿"""
+⚛️ AgentNova R02 - Skills Loader
 
 Implements the Agent Skills specification for loading SKILL.md files.
 See: https://agentskills.io/

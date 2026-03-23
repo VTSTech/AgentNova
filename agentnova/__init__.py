@@ -1,5 +1,5 @@
-"""
-⚛️ AgentNova R02.3 - A minimal, hackable agentic framework for Ollama and BitNet
+﻿"""
+⚛️ AgentNova R02.5 - A minimal, hackable agentic framework for Ollama and BitNet
 
 Written by VTSTech
 https://www.vts-tech.org
@@ -35,7 +35,7 @@ from .config import (
     AGENTNOVA_BACKEND,
 )
 
-# R00: BitNet backend support
+# R02: BitNet backend support
 try:
     from .bitnet_client import BitnetClient, KNOWN_MODELS
     _BITNET_AVAILABLE = True
@@ -144,7 +144,7 @@ def get_system_prompt(model: str, client=None, default_prompt: str = None):
     
     return default_prompt
 
-# R00 Enhancements
+# R02 Enhancements
 from .core.orchestrator_enhanced import Orchestrator as EnhancedOrchestrator, AgentCard as EnhancedAgentCard
 
 # Tool support detection
@@ -153,7 +153,7 @@ from .cli import get_tool_support
 # Shared args for test scripts
 from .shared_args import add_shared_args, parse_shared_args, SharedConfig
 
-# R00: Agent Mode
+# R02: Agent Mode
 from .agent_mode import (
     AgentMode, AgentState, TaskPlan, Step, Action,
     create_file_write_action, create_file_delete_action,
@@ -168,10 +168,10 @@ __all__ = [
     "OllamaClient", "Orchestrator", "AgentCard",
     # Skills
     "SkillLoader", "Skill", "SkillRegistry",
-    # R00 Enhancements
+    # R02 Enhancements
     "EnhancedOrchestrator", "EnhancedAgentCard",
     "ACPPlugin",
-    # R00: Backend-agnostic helpers
+    # R02: Backend-agnostic helpers
     "get_default_client",
     "get_available_models",
     "get_system_prompt",
@@ -180,12 +180,12 @@ __all__ = [
     "add_shared_args",   # Shared CLI args for test scripts
     "parse_shared_args",
     "SharedConfig",
-    # R00: Agent Mode
+    # R02: Agent Mode
     "AgentMode", "AgentState", "TaskPlan", "Step", "Action",
     "create_file_write_action", "create_file_delete_action",
     "create_mkdir_action", "create_shell_action",
     "format_status", "format_progress",
-    # R02.3: Model Family Configuration
+    # R02.5: Model Family Configuration
     "ModelFamilyConfig", "FAMILY_CONFIGS",
     "get_family_config", "get_stop_tokens", "supports_tools",
     "get_tool_format", "get_preferred_temperature", "should_use_few_shot",
