@@ -21,14 +21,102 @@ def _extract_calc_expression(prompt: str) -> str | None:
     Returns a Python math expression or None if no pattern matches.
     
     Handles:
-    - "What is X times Y?" → "X * Y"
-    - "What is X divided by Y?" → "X / Y"
-    - "What is X to the power of Y?" → "X ** Y"
-    - "What is the square root of X?" → "sqrt(X)"
-    - "What is (X + Y) times Z?" → "(X + Y) * Z"
+    - Simple: "What is 15 plus 27?" → "15 + 27"
+    - Multi-step: "8 times 7, then subtract 5" → "8 * 7 - 5"
+    - Division: "17 divided by 4" → "17 / 4"
+    - Power: "X to the power of Y" → "X ** Y"
+    - Square root: "square root of X" → "sqrt(X)"
+    - Word problems: "sold 8 and 6 from 24" → "24 - 8 - 6"
     """
     q = prompt.strip()
     q_lower = q.lower()
+    
+    # Op word to symbol mapping
+    OP_MAP = {
+        'plus': '+', 'add': '+', 'and': '+',
+        'minus': '-', 'subtract': '-', 'less': '-',
+        'times': '*', 'multiplied': '*', 'multiply': '*',
+        'divided': '/', 'divide': '/',
+    }
+    
+    # ---- Multi-step patterns (try first!) ----
+    
+    # Pattern: "X times Y, then subtract/add Z" or "X times Y then minus Z"
+    multi_step = re.search(
+        r'(\d+(?:\.\d+)?)\s*(?:times|multiplied?\s*by|\*)\s*(\d+(?:\.\d+)?)[,\s]*(?:then\s+)?(?:subtract|minus|add|plus|plus\s+)?\s*(\d+(?:\.\d+)?)',
+        q_lower
+    )
+    if multi_step:
+        nums = multi_step.groups()
+        # Determine second operator from context
+        if 'subtract' in q_lower or 'minus' in q_lower.split('then')[-1] if 'then' in q_lower else False:
+            return f"{nums[0]} * {nums[1]} - {nums[2]}"
+        elif 'add' in q_lower or 'plus' in q_lower.split('then')[-1] if 'then' in q_lower else False:
+            return f"{nums[0]} * {nums[1]} + {nums[2]}"
+        else:
+            # Default: look for the word after the second number
+            after_second = q_lower[q_lower.find(nums[1])+len(nums[1]):]
+            if 'subtract' in after_second or 'minus' in after_second:
+                return f"{nums[0]} * {nums[1]} - {nums[2]}"
+    
+    # Pattern: "X minus Y plus Z" or "X minus Y, then add Z"
+    chain_pattern = re.search(
+        r'(\d+(?:\.\d+)?)\s*(?:minus|subtract)\s*(\d+(?:\.\d+)?)[,\s]*(?:then\s+)?(?:plus|add)?\s*(\d+(?:\.\d+)?)',
+        q_lower
+    )
+    if chain_pattern:
+        nums = chain_pattern.groups()
+        return f"{nums[0]} - {nums[1]} + {nums[2]}"
+    
+    # ---- Explicit math expressions in prompt ----
+    
+    # Pattern: "compute X minus Y plus Z" (explicit instruction)
+    explicit_expr = re.search(
+        r'compute\s+(\d+(?:\.\d+)?)\s*(minus|plus|times|divided)\s*(\d+(?:\.\d+)?)(?:\s*(plus|minus|times|divided)\s*(\d+(?:\.\d+)?))?',
+        q_lower
+    )
+    if explicit_expr:
+        parts = explicit_expr.groups()
+        expr = f"{parts[0]} {OP_MAP.get(parts[1], parts[1])} {parts[2]}"
+        if parts[3] and parts[4]:
+            expr += f" {OP_MAP.get(parts[3], parts[3])} {parts[4]}"
+        return expr
+    
+    # ---- Word problem patterns ----
+    
+    # Pattern: "has X, sold/lost A and B" → X - A - B or X - (A + B)
+    word_sold = re.search(
+        r'(?:has|had|with)\s*(\d+)(?:\s*\w+)?[.,\s]+(?:sold|lost|gave|used|spent)\s*(\d+)(?:\s*\w+)?\s*(?:and|,)\s*(?:sold|lost|gave|used|spent)?\s*(\d+)',
+        q_lower
+    )
+    if word_sold:
+        return f"{word_sold.group(1)} - {word_sold.group(2)} - {word_sold.group(3)}"
+    
+    # Pattern: "has X, sold A in morning and B in afternoon"
+    word_time = re.search(
+        r'(?:has|had|with)\s*(\d+)[^.]+(?:sold|lost|gave|used)\s*(\d+)[^.]+(?:and|,)\s*(\d+)',
+        q_lower
+    )
+    if word_time:
+        return f"{word_time.group(1)} - {word_time.group(2)} - {word_time.group(3)}"
+    
+    # ---- Time/duration patterns ----
+    
+    # Pattern: "opens at X and closes at Y" → (Y - X) mod 12 or Y - X + 12 if Y < X
+    time_pattern = re.search(
+        r'(?:opens?|starts?)\s*(?:at\s+)?(\d+)(?:\s*(?:am|pm))?[^.]+(?:closes?|ends?)\s*(?:at\s+)?(\d+)(?:\s*(?:am|pm))?',
+        q_lower
+    )
+    if time_pattern:
+        start = int(time_pattern.group(1))
+        end = int(time_pattern.group(2))
+        if end <= start:
+            # PM to PM or AM to PM crossing
+            return f"{end} - {start} + 12"
+        else:
+            return f"{end} - {start}"
+    
+    # ---- Single operations (fallback) ----
     
     # Pattern: "square root of X" or "sqrt of X"
     sqrt_match = re.search(r'square\s*root\s*of\s*(\d+(?:\.\d+)?)', q_lower)
