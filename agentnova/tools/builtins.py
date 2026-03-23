@@ -1,5 +1,5 @@
 ﻿"""
-⚛️ AgentNova R02 — Built-in Tools
+⚛️ AgentNova R02.5 — Built-in Tools
 A curated set of safe, practical tools for local agents.
 Import whichever you need and add them to a ToolRegistry.
 
@@ -26,6 +26,7 @@ import re
 import shlex
 import subprocess
 import sys
+import tempfile
 import textwrap
 import traceback
 from contextlib import redirect_stdout, redirect_stderr
@@ -59,6 +60,8 @@ from ..core.tools import ToolRegistry, Tool, ToolParam
 _DEFAULT_ALLOWED_PATHS = [
     ".",  # Current working directory
     "~",  # User home (can be restricted)
+    "/tmp",  # Standard temp directory (Unix/Linux/Mac)
+    tempfile.gettempdir(),  # Platform temp dir (Windows: %TEMP%, Unix: /tmp)
 ]
 
 # Sensitive paths that are ALWAYS blocked regardless of allowed_paths
@@ -170,8 +173,16 @@ def _get_allowed_paths() -> list[Path]:
             if expanded.exists():
                 paths.append(expanded)
         return paths
-    # Default: current directory and home
-    return [Path(".").resolve(), Path.home()]
+    # Default: current directory, home, and temp directories
+    paths = []
+    for p in _DEFAULT_ALLOWED_PATHS:
+        try:
+            expanded = Path(p).expanduser().resolve()
+            if expanded.exists():
+                paths.append(expanded)
+        except Exception:
+            pass
+    return paths if paths else [Path(".").resolve()]
 
 
 def _get_blocked_commands() -> set[str]:
