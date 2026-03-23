@@ -9,7 +9,7 @@ Inspired by the architecture of OpenClaw, rebuilt from scratch for local-first o
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/VTSTech/AgentNova/blob/main/AgentNova.ipynb)
 [![GitHub commits](https://badgen.net/github/commits/VTSTech/AgentNova)](https://GitHub.com/VTSTech/AgentNova/commit/) [![GitHub latest commit](https://badgen.net/github/last-commit/VTSTech/AgentNova)](https://GitHub.com/VTSTech/AgentNova/commit/)
 
-[![pip - agentnova](https://img.shields.io/badge/pip-agentnova-2ea44f?logo=PyPi)](https://pypi.org/project/agentnova/) [![PyPI version fury.io](https://badge.fury.io/py/agentnova.svg)](https://pypi.python.org/pypi/agentnova/) [![PyPI download month](https://img.shields.io/pypi/dm/agentnova.svg)](https://pypi.org/project/agentnova/) [![PyPI download day](https://img.shields.io/pypi/dd/agentnova.svg)](https://pypi.python.org/pypi/agentnova/)
+[![pip - agentnova](https://img.shields.io/badge/pip-agentnova-2ea44f?logo=PyPi)](https://pypi.org/project/agentnova/) [![PyPI version fury.io](https://badge.fury.io/py/agentnova.svg)](https://pypi.org/project/agentnova/) [![PyPI download month](https://img.shields.io/pypi/dm/agentnova.svg)](https://pypi.org/project/agentnova/) [![PyPI download day](https://img.shields.io/pypi/dd/agentnova.svg)](https://pypi.org/project/agentnova/)
 
 [![License](https://img.shields.io/badge/License-MIT-blue)](#license) [![Go to Python website](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2FVTSTech%2FAgentNova%2Frefs%2Fheads%2Fmain%2Fpyproject.toml&query=project.requires-python&label=python&logo=python&logoColor=white)](https://python.org)
 
@@ -169,20 +169,22 @@ R02.6 Quick Diagnostic results (5 questions, ~30-120s/model):
 
 | Model | Score | Time | Tool Support |
 |-------|-------|------|--------------|
-| **`functiongemma:270m`** | **100%** | 21.1s | native |
-| **`granite4:350m`** | **100%** | 51.9s | native |
-| **`qwen2.5:0.5b`** | **100%** | 64.2s | native |
-| **`qwen2.5-coder:0.5b`** | **100%** | 118.9s | react |
-| `dolphin3.0-qwen2.5:0.5b` | 80% | 21.1s | none |
-| `gemma3:270m` | 80% | 15.4s | none |
+| **`functiongemma:270m`** | **100%** | 19.6s | native |
+| **`granite4:350m`** | **100%** | 49.4s | native |
+| **`qwen2.5:0.5b`** | **100%** | 66.3s | native |
+| **`qwen2.5-coder:0.5b`** | **100%** | 116.5s | react |
+| **`qwen3:0.6b`** | **100%** | 122.8s | react |
+| `gemma3:270m` | 80% | 14.3s | none |
+| `dolphin3.0-qwen2.5:0.5b` | 80% | 26.6s | none |
+| `qwen:0.5b` | 20% | 27.0s | none |
 
 **Key improvements in R02.6**:
-- **4 models achieve 100%** - All tool-calling models now perfect!
-- **functiongemma:270m fastest** at 21.1s (native tools + 270M params)
+- **5 models achieve 100%** - All tool-calling models now perfect!
+- **functiongemma:270m fastest** at 19.6s (native tools + 270M params)
 - **Multi-step expression extraction** - Handles `8 times 7 minus 5`, word problems, time calculations
 - **ReAct JSON parsing fixed** - Clean extraction even with trailing text
 - **Verbose response fallback** - Uses numeric result when model gives long explanation
-- **Tool-calling outperforms pure reasoning** - Models without tool support score lower due to internal math errors
+- **Tool-calling outperforms pure reasoning** - ALL native/react models score 100% vs max 80% for no-tool models
 
 ---
 

@@ -1,4 +1,4 @@
-# ⚛️ AgentNova R02.5
+# ⚛️ AgentNova R02.6
 
 ## Test 16 Agent Mode Test (Autonomous Tasks)
 
@@ -49,7 +49,7 @@ agentnova test 16 --model all --debug
 
 ## Test 15 Quick Diagnostic (5 Questions)
 
-> **Updated:** 2026-03-22 - R02.5 module refactoring verified
+> **Updated:** 2026-03-23 - R02.6 multi-step extraction, ReAct JSON fix, verbose fallback
 
 Test 15 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
 
@@ -59,23 +59,18 @@ agentnova test 15 --model granite3.1-moe:1b
 agentnova test 15 --model all --debug
 ```
 
-### Quick Diagnostic Results (R02.5)
+### Quick Diagnostic Results (R02.6)
 
 | Rank | Model | Score | Time | Tool Support | Notes |
 |:----:|-------|------:|-----:|:------------:|-------|
-| 🥇 | **`dolphin3.0-llama3:1b`** | **5/5 (100%)** | 48.7s | native | 🏆 Fastest perfect score! |
-| 🥇 | **`granite4:350m`** | **5/5 (100%)** | 75.2s | native | 🏆 Perfect with native tools |
-| 🥇 | **`qwen2.5-coder:0.5b`** | **5/5 (100%)** | 76.0s | react | 🏆 Perfect with ReAct |
-| 🥇 | **`qwen3:0.6b`** | **5/5 (100%)** | 151.0s | react | 🏆 Perfect with ReAct |
-| 5 | `functiongemma:270m` | 4/5 (80%) | 28.5s | native | Word problem wrong expression |
-| 5 | `dolphin3.0-qwen2.5:0.5b` | 4/5 (80%) | 38.4s | none | Pure reasoning, edge case failed |
-| 7 | `gemma3:270m` | 3/5 (60%) | 12.8s | none | No tool support, fast |
-| 7 | `granite3.1-moe:1b` | 3/5 (60%) | 114.0s | react | Multi-step and edge case failed |
-| 7 | `llama3.2:1b` | 3/5 (60%) | 257.1s | native | Hallucinated JSON schema |
-| 10 | `qwen2.5:0.5b` | 2/5 (40%) | 76.0s | native | Empty tool calls, synthesis helped |
-| 11 | `qwen:0.5b` | 1/5 (20%) | 47.9s | none | No tool support, verbose |
-| 11 | `tinyllama:1.1b` | 1/5 (20%) | 107.5s | none | No tool support, verbose |
-| 13 | `tinydolphin:1.1b` | 0/5 (0%) | 118.8s | none | No tool support, verbose |
+| 🥇 | **`functiongemma:270m`** | **5/5 (100%)** | 19.6s | native | 🏆 Fastest perfect score! |
+| 🥈 | **`granite4:350m`** | **5/5 (100%)** | 49.4s | native | 🏆 Perfect with native tools |
+| 🥉 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 66.3s | native | 🏆 Perfect with native tools |
+| 4 | **`qwen2.5-coder:0.5b`** | **5/5 (100%)** | 116.5s | react | 🏆 Perfect with ReAct |
+| 4 | **`qwen3:0.6b`** | **5/5 (100%)** | 122.8s | react | 🏆 Perfect with ReAct |
+| 6 | `gemma3:270m` | 4/5 (80%) | 14.3s | none | Pure reasoning, fast |
+| 6 | `dolphin3.0-qwen2.5:0.5b` | 4/5 (80%) | 26.6s | none | Pure reasoning |
+| 8 | `qwen:0.5b` | 1/5 (20%) | 27.0s | none | Base model struggles |
 
 ### Test Questions (5 Targeted Tests)
 
@@ -87,16 +82,17 @@ agentnova test 15 --model all --debug
 | Q4 | Word Problem | Natural language → expression | 10 |
 | Q5 | Edge Case | Refusal handling (store hours) | 8 |
 
-### Key Findings (R02.5)
+### Key Findings (R02.6)
 
-1. **4 models achieve 100%** - dolphin3.0-llama3:1b, granite4:350m, qwen2.5-coder:0.5b, qwen3:0.6b
-2. **`dolphin3.0-llama3:1b` fastest perfect** - 48.7s for 5/5, native tools work great
-3. **Module refactoring verified** - All 13 models tested successfully after splitting agent.py into 6 modules
-4. **Native tool support varies** - granite4 and functiongemma excel with native, qwen2.5:0.5b struggles
-5. **ReAct mode saves qwen models** - qwen3:0.6b and qwen2.5-coder:0.5b perfect with ReAct
-6. **No-tool models struggle** - dolphin3.0-qwen2.5:0.5b (80%) best of the no-tool-support models
-7. **Multi-step Q2 is hardest** - Catches models that don't chain observations correctly
-8. **Edge case Q5 catches reasoning errors** - Store hours problem confuses pure reasoning models
+1. **5 models achieve 100%** - functiongemma:270m, granite4:350m, qwen2.5:0.5b, qwen2.5-coder:0.5b, qwen3:0.6b
+2. **`functiongemma:270m` fastest perfect** - 19.6s for 5/5, native tools + 270M params!
+3. **Multi-step extraction fixed** - Q2 "8 times 7 minus 5" now correctly extracts `8 * 7 - 5 = 51`
+4. **Word problem extraction added** - Q4 "has 24, sold 8 and 6" → `24 - 8 - 6 = 10`
+5. **ReAct JSON parsing fixed** - Clean extraction even with trailing text after JSON
+6. **Verbose response fallback** - Uses numeric result when model gives long explanation
+7. **Tool-calling dominates** - ALL models with native/react support score 100%
+8. **Pure reasoning limited** - No-tool models max at 80% due to internal math errors
+9. **All tool-calling models perfect** - Multi-step extraction fixes drove the improvement
 
 ---
 
@@ -364,12 +360,13 @@ agentnova models --tool_support
 
 Example output:
 ```
-⚛️ AgentNova R02.5 Models
+⚛️ AgentNova R02.6 Models
   Model                                      Family       Context    Tool Support
   ──────────────────────────────────────────────────────────────────────────────
   gemma3:270m                                gemma3       32K        ○ none
   granite4:350m                              granite      32K        ✓ native
   qwen2.5:0.5b                               qwen2        32K        ✓ native
   qwen3:0.6b                                 qwen3        32K        ReAct
+  functiongemma:270m                         gemma3       32K        ✓ native
   dolphin3.0-qwen2.5:0.5b                    qwen2        32K        ○ none
 ```
