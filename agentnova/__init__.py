@@ -40,6 +40,12 @@ from .backends import (
 )
 from .config import Config, get_config
 
+# Optional ACP plugin (graceful import)
+try:
+    from .acp_plugin import ACPPlugin
+except ImportError:
+    ACPPlugin = None  # type: ignore
+
 __all__ = [
     # Version
     "__version__",
@@ -75,4 +81,6 @@ __all__ = [
     # Config
     "Config",
     "get_config",
+    # ACP Plugin
+    "ACPPlugin",
 ]
