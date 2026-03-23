@@ -2291,11 +2291,14 @@ def cmd_test(args):
         "14": "GSM8K benchmark - 50 math questions",
         "14_acp": "GSM8K benchmark with ACP tracking",
         "15": "Quick diagnostic - 5 questions, ~30s/model",
+        "15_acp": "Quick diagnostic with ACP tracking",
+        "16": "Agent Mode test - 7 autonomous task tests",
+        "16_acp": "Agent Mode test with ACP tracking",
         "backend": "Backend demo - Ollama/BitNet switching",
     }
     
     # Quick test set (skips long-running benchmarks)
-    QUICK_TESTS = ["01", "02", "03", "04", "05", "10", "11", "15"]
+    QUICK_TESTS = ["01", "02", "03", "04", "05", "10", "11", "15", "16"]
     
     if args.list:
         print(bold("\n⚛️ AgentNova Test Examples"))
