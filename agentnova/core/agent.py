@@ -494,6 +494,24 @@ class Agent:
                 run.final_answer = final_answer
                 break
 
+            # ---- Native tool text answer after success ---- #
+            if (
+                self._native_tools 
+                and not tool_calls_raw 
+                and content 
+                and _successful_results
+                and not _looks_like_tool_schema(content)
+            ):
+                # Model gave text answer after tool success - accept it as final
+                if self.debug:
+                    print(f"    native mode: no tool calls, has content, has results → final")
+                final_step = StepResult(type="final", content=content, elapsed_ms=elapsed)
+                run.steps.append(final_step)
+                self._emit(final_step)
+                run.final_answer = content
+                self.memory.add_assistant(content)
+                break
+
             # ---- JSON fallback for native tools ---- #
             if self._native_tools and not tool_calls_raw and self.tools.all() and content:
                 if self.debug:
@@ -707,25 +725,7 @@ class Agent:
                         else:
                             self.memory._history.pop()
                     continue
-            if (
-                self._native_tools 
-                and not tool_calls_raw 
-                and content 
-                and _successful_results
-                and not _looks_like_tool_schema(content)
-            ):
-                # Model gave text answer after tool success
-                final_answer = self._synthesize(user_input, _successful_results)
-                # Or just use content directly if it's a good answer
-                if self.debug:
-                    print(f"    native mode: no tool calls, has content, has results → final")
-                final_step = StepResult(type="final", content=content, elapsed_ms=elapsed)
-                run.steps.append(final_step)
-                self._emit(final_step)
-                run.final_answer = content
-                self.memory.add_assistant(content)
-                break
-                
+
             # ---- Native tool empty response retry ---- #
             if self._native_tools and not tool_calls_raw and not content and self.tools.all():
                 retry_count = getattr(self, '_empty_retry_count', 0)
