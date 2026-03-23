@@ -114,31 +114,40 @@ Thought: I need to compute something in Python
 Action: python_repl
 Action Input: {"code": "print(2 ** 10)"}
 
-Example 5 - Get current date:
-Thought: User wants to know today's date
-Action: python_repl
-Action Input: {"code": "from datetime import datetime; print(datetime.now())"}
+Example 5 - Write to file:
+Thought: User wants to save text to a file
+Action: write_file
+Action Input: {"path": "/tmp/test.txt", "content": "Hello World"}
+
+Example 6 - Read a file:
+Thought: User wants to see file contents
+Action: read_file
+Action Input: {"path": "/tmp/test.txt"}
 
 CRITICAL RULES:
 1. Action line: just the tool name (no backticks, no quotes)
-2. Action Input: valid JSON with correct argument names
-3. Use "expression" for calculator, "command" for shell, "code" for python_repl
-4. For shell echo: {"command": "echo Your Text Here"} - put the text after echo
-5. MATH OPERATORS: * (multiply), ** (power), / (divide), + (add), - (subtract)
+2. Action Input: valid JSON with correct argument names for THAT tool
+3. ARGUMENT NAMES BY TOOL:
+   - calculator: {"expression": "15 * 8"}
+   - shell: {"command": "echo Hello"}
+   - python_repl: {"code": "print(result)"}
+   - write_file: {"path": "/path/file.txt", "content": "text to write"}
+   - read_file: {"path": "/path/file.txt"}
+4. MATH OPERATORS: * (multiply), ** (power), / (divide), + (add), - (subtract)
 ═══════════════════════════════════════════════════════════════
 """
 
 # Compact version for models that need minimal prompting
 FEW_SHOT_COMPACT = """
 TOOL EXAMPLES (ReAct format):
-Multiplication: calculator with {"expression": "15 * 8"}
-Power: calculator with {"expression": "2 ** 10"}
-Division: calculator with {"expression": "100 / 4"}
+Calculator: {"expression": "15 * 8"}
 Shell: {"command": "echo Hello World"}
 Python: {"code": "print(result)"}
+Write file: {"path": "/tmp/file.txt", "content": "Hello"}
+Read file: {"path": "/tmp/file.txt"}
 
-MATH OPERATORS: * = multiply, ** = power, / = divide
-Remember: Action = tool name, Action Input = JSON with correct arg names.
+ARGUMENT NAMES: expression (calculator), command (shell), code (python_repl), path+content (write_file), path (read_file)
+MATH: * = multiply, ** = power, / = divide
 """
 
 # Few-shot for native tool models - focuses on WHEN to call tools
@@ -156,10 +165,14 @@ TOOL USAGE RULES - YOU MUST CALL TOOLS:
 2. SHELL QUESTIONS: Always call shell tool
    - "echo" something → shell(command="echo YourText")
 
-3. DATE/TIME: Use python_repl (works on all platforms)
+3. FILE OPERATIONS: Use write_file and read_file
+   - Write to file → write_file(path="/path/file.txt", content="text to write")
+   - Read a file → read_file(path="/path/file.txt")
+
+4. DATE/TIME: Use python_repl (works on all platforms)
    - "date/today" → python_repl(code="from datetime import datetime; print(datetime.now())")
 
-4. PYTHON: Use python_repl with correct syntax
+5. PYTHON: Use python_repl with correct syntax
    - Power is ** not ^ : python_repl(code="print(2 ** 20)")
 
 NEVER respond with empty content. ALWAYS call a tool when asked to compute or execute.
