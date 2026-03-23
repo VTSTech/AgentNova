@@ -205,7 +205,7 @@ __all__ = [
 if _BITNET_AVAILABLE:
     __all__.extend(["BitnetClient", "KNOWN_MODELS"])
 
-__version__ = "0.2.4"
+__version__ = "0.2.5"
 __author__ = "VTSTech"
 __author_email__ = "veritas@vts-tech.org"
 __url__ = "https://github.com/VTSTech/AgentNova"

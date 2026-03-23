@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentnova"
-version = "0.2.4"
+version = "0.2.5"
 description = "A minimal, hackable agentic framework for Ollama and BitNet - local-first AI agent toolkit"
 readme = "README.md"
 license = {text = "MIT"}
