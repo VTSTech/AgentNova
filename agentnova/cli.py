@@ -58,7 +58,7 @@ def create_parser() -> argparse.ArgumentParser:
     # Models command
     models_parser = subparsers.add_parser("models", help="List available models")
     models_parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None, help="Backend to use")
-    models_parser.add_argument("--tool-support", action="store_true", help="Test tool support")
+    models_parser.add_argument("--tool-support", action="store_true", help="Show tool calling support for each model")
 
     # Tools command
     subparsers.add_parser("tools", help="List available tools")
@@ -267,10 +267,19 @@ def cmd_models(args: argparse.Namespace) -> int:
             print("Pull one with: ollama pull qwen2.5:0.5b")
         return 0
 
-    print(f"\n⚛️ AgentNova - Available Models ({backend.base_url})")
-    print("-" * 72)
-    print(f"  {'Name':<36} {'Size':>8}  {'Context':>8}  {'Family':<12}")
-    print("-" * 72)
+    # Determine if we should show tool support (flag or auto for small number of models)
+    show_tool_support = args.tool_support or (len(models) <= 5)
+    
+    if show_tool_support:
+        print(f"\n⚛️ AgentNova - Available Models ({backend.base_url})")
+        print("-" * 88)
+        print(f"  {'Name':<36} {'Size':>8}  {'Context':>8}  {'Tools':>8}  {'Family':<12}")
+        print("-" * 88)
+    else:
+        print(f"\n⚛️ AgentNova - Available Models ({backend.base_url})")
+        print("-" * 72)
+        print(f"  {'Name':<36} {'Size':>8}  {'Context':>8}  {'Family':<12}")
+        print("-" * 72)
 
     for m in models:
         name = m.get("name", "unknown")
@@ -288,19 +297,23 @@ def cmd_models(args: argparse.Namespace) -> int:
             ctx_str = f"{ctx_size // 1000}K"
         else:
             ctx_str = str(ctx_size)
-
-        print(f"  {name:<36} {size_gb:>6.2f} GB  {ctx_str:>8}  ({family})")
-
-    print("-" * 72)
-    print(f"Total: {len(models)} models")
-
-    if args.tool_support and isinstance(backend, OllamaBackend):
-        print("\n🔍 Testing tool support...")
-        for m in models:
-            name = m.get("name", "")
+        
+        # Get tool support level
+        if show_tool_support and isinstance(backend, OllamaBackend):
             support = backend.test_tool_support(name)
-            icon = "✓" if support.value == "native" else "○" if support.value == "none" else "~"
-            print(f"  {icon} {name}: {support.value}")
+            tool_icon = "✓ native" if support.value == "native" else "○ react" if support.value == "react" else "○ none"
+            print(f"  {name:<36} {size_gb:>6.2f} GB  {ctx_str:>8}  {tool_icon:>8}  ({family})")
+        else:
+            print(f"  {name:<36} {size_gb:>6.2f} GB  {ctx_str:>8}  ({family})")
+
+    if show_tool_support:
+        print("-" * 88)
+    else:
+        print("-" * 72)
+    print(f"Total: {len(models)} models")
+    
+    if not show_tool_support:
+        print("💡 Use --tool-support to check tool calling capabilities")
 
     return 0
 
