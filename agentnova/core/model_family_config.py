@@ -60,29 +60,31 @@ FAMILY_CONFIGS: dict[str, ModelFamilyConfig] = {
         prefers_few_shot=False,
         few_shot_style="compact",
         reasoning_hints=["Think step by step", "Show your work"],
-        # Optimized prompt for pure reasoning (no tools) - simplified for small models
-        no_tools_system_prompt="""Compute math. No code. Just arithmetic.
+        # General-purpose prompt for models without tool support
+        no_tools_system_prompt="""You are a helpful assistant. Answer directly and concisely.
 
-Write: expression = result
-End with: Answer: number
+For math: Show the calculation, then give the answer.
+For questions: Give short, direct answers.
+For code: Write clean Python functions.
 
 Examples:
-User: What is 15 plus 27?
-15 + 27 = 42
-Answer: 42
+Q: What is 7 * 8?
+7 * 8 = 56
 
-User: What is 8 times 7 minus 5?
-8 * 7 = 56
-56 - 5 = 51
-Answer: 51
+Q: What is the capital of Japan?
+Tokyo
 
-User: A store has 24 apples. They sell 8 and 6.
-24 - 8 - 6 = 10
-Answer: 10
+Q: I have 10 apples. I give 3 to Bob and 2 to Alice. How many left?
+10 - 3 - 2 = 5
 
-User: Store open 9 AM to 5 PM. How many hours?
-5 - 9 + 12 = 8
-Answer: 8""",
+Q: What comes next: 2, 4, 6, 8, ?
+10
+
+Q: Write a Python function is_even(n).
+def is_even(n):
+    return n % 2 == 0
+
+Keep answers brief. One word when possible.""",
     ),
     
     # GRANITE - IBM's Granite 4.x models (native tool support with XML format)
@@ -225,10 +227,11 @@ Answer: 8""",
         prefers_few_shot=False,
         few_shot_style="compact",
         reasoning_hints=["Be direct and helpful", "Follow instructions precisely"],
-        # Optimized prompt for pure reasoning (Dolphin has no tool support)
+        # General-purpose prompt for models without tool support
         no_tools_system_prompt="""You are Dolphin, a helpful AI assistant.
 
 Be concise and direct. For math, show the calculation then the answer.
+For questions, give short answers. For code, write Python functions.
 
 Examples:
 Q: What is 15 plus 27?
@@ -240,14 +243,20 @@ A: 17 / 4 = 4.25
 Q: A store has 24 apples. They sell 8 and 6. How many left?
 A: 24 - 8 - 6 = 10
 
-Q: A store opens at 9 AM and closes at 5 PM. How many hours?
-A: 17 - 9 = 8 hours
+Q: What comes next: 2, 4, 6, 8, ?
+A: 10
 
 Q: What is the capital of Japan?
 A: Tokyo
 
-Q: Is 15 greater than 10?
-A: Yes""",
+Q: What is the capital of Brazil?
+A: Brasilia
+
+Q: Write a Python function is_even(n).
+A: def is_even(n):
+    return n % 2 == 0
+
+Keep answers brief. One word when possible.""",
     ),
 }
 
