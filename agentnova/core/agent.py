@@ -1064,6 +1064,14 @@ class Agent:
                     
                     if mentions_calculator:
                         expr = _extract_calc_expression(user_input)
+                        # Also check model's content for expressions in code blocks
+                        if not expr:
+                            import re as _re
+                            code_block_match = _re.search(r'```(?:\w*\n)?([0-9\s\+\-\*\/\(\)\.\**]+)```', content)
+                            if code_block_match:
+                                expr = code_block_match.group(1).strip()
+                                if self.debug:
+                                    print(f"    extracted expression from code block: {expr}")
                         if expr:
                             synthesized_tool = "calculator"
                             synthesized_args = {"expression": expr}
