@@ -84,21 +84,20 @@ def _extract_calc_expression(prompt: str) -> str | None:
     
     # ---- Word problem patterns ----
     
-    # Pattern: "has X, sold/lost A and B" → X - A - B or X - (A + B)
+    # Pattern: "has X ... sell/sold A ... and B" → X - A - B
     word_sold = re.search(
-        r'(?:has|had|with)\s*(\d+)(?:\s*\w+)?[.,\s]+(?:sold|lost|gave|used|spent)\s*(\d+)(?:\s*\w+)?\s*(?:and|,)\s*(?:sold|lost|gave|used|spent)?\s*(\d+)',
+        r'(?:has|had|with)\s*(\d+).*?(?:sell|sold|lost|gave|used|spent)\s*(\d+).*?and\s*(\d+)',
         q_lower
     )
     if word_sold:
         return f"{word_sold.group(1)} - {word_sold.group(2)} - {word_sold.group(3)}"
     
-    # Pattern: "has X, sold A in morning and B in afternoon"
-    word_time = re.search(
-        r'(?:has|had|with)\s*(\d+)[^.]+(?:sold|lost|gave|used)\s*(\d+)[^.]+(?:and|,)\s*(\d+)',
-        q_lower
-    )
-    if word_time:
-        return f"{word_time.group(1)} - {word_time.group(2)} - {word_time.group(3)}"
+    # Pattern: "left" after numbers suggests subtraction
+    if 'left' in q_lower and 'how many' in q_lower:
+        numbers = re.findall(r'\d+', q)
+        if len(numbers) >= 3:
+            # First number is usually the starting amount
+            return f"{numbers[0]} - {numbers[1]} - {numbers[2]}"
     
     # ---- Time/duration patterns ----
     
