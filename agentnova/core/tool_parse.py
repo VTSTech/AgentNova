@@ -1,434 +1,316 @@
-﻿"""
-⚛️ AgentNova R02.6 — Tool Parser
-Regex patterns and functions for parsing tool calls from model output.
+"""
+⚛️ AgentNova — Tool Parsing
+Extract tool calls from model output (native and ReAct formats).
 
-Written by VTSTech — https://www.vts-tech.org — https://github.com/VTSTech/AgentNova
+Written by VTSTech — https://www.vts-tech.org
 """
 
 from __future__ import annotations
 
 import json
 import re
-
-from .helpers import _detect_and_fix_repetition
-
-
-# ------------------------------------------------------------------ #
-#  Regex patterns for ReAct parsing                                   #
-# ------------------------------------------------------------------ #
-
-_THOUGHT_RE = re.compile(r"Thought:\s*(.*?)(?=Action:|Final Answer:|$)", re.DOTALL | re.IGNORECASE)
-_ACTION_RE = re.compile(
-    r"Action:\s*[`\"']?(\w+)[`\"']?\s*\n?\s*Action Input:\s*(.*?)(?=\n\s*(?:Observation:|Thought:|Final Answer:|Action:|Example)|$)",
-    re.DOTALL | re.IGNORECASE
-)
-_ACTION_RE_SAMELINE = re.compile(
-    r"Action:\s*[`\"']?(\w+)[`\"']?\s+Action Input:\s*(.*?)(?=\n\s*(?:Observation:|Thought:|Final Answer:|Action:|Example)|$)",
-    re.DOTALL | re.IGNORECASE
-)
-_FINAL_RE = re.compile(r"Final Answer:\s*(.*?)$", re.DOTALL | re.IGNORECASE)
-_PYTHON_CODE_RE = re.compile(r"```(?:python)?\s*\n(.*?)```", re.DOTALL | re.IGNORECASE)
+from typing import Any, Optional
+from .models import ToolCall
 
 
-# ------------------------------------------------------------------ #
-#  JSON sanitization and extraction                                    #
-# ------------------------------------------------------------------ #
-
-def _sanitize_model_json(text: str) -> str:
+class ToolParser:
     """
-    Fix common JSON mistakes made by small (0.5b-3b) models before parsing.
+    Parse tool calls from model output.
 
-    1. Python bool/None literals to JSON equivalents:
-       True -> true,  False -> false,  None -> null
-
-    2. Python string concatenation in values - keep only the string literal:
-       "Today: " + datetime.now().strftime(...)  becomes  "Today: "
-
-    3. Trailing commas before } or ] (technically invalid JSON)
+    Supports multiple formats:
+    - Native function calling (JSON)
+    - ReAct format: Action: tool_name\nAction Input: {...}
+    - XML format: <tool>name</tool><args>{...}</args>
+    - Markdown code blocks with JSON
     """
-    text = re.sub(r':\s*True\b', ': true', text)
-    text = re.sub(r':\s*False\b', ': false', text)
-    text = re.sub(r':\s*None\b', ': null', text)
-    text = re.sub(r'\[\s*True\b', '[true', text)
-    text = re.sub(r'\[\s*False\b', '[false', text)
-    text = re.sub(r'\[\s*None\b', '[null', text)
-    text = re.sub(r'("(?:[^"\\]|\\.)*")\s*\+\s*[^,\'"}\]\n]+', r'\1', text)
-    text = re.sub(r',\s*([}\]])', r'\1', text)
 
-    return text
+    # ReAct patterns
+    REACT_ACTION_PATTERN = re.compile(
+        r"(?:Action|Tool):\s*(\w+)\s*(?:\n|$)",
+        re.IGNORECASE
+    )
+    REACT_INPUT_PATTERN = re.compile(
+        r"(?:Action Input|Tool Input|Parameters|Args):\s*([\s\S]*?)(?=(?:Action|Tool|Thought|Final Answer|$))",
+        re.IGNORECASE
+    )
 
+    # XML patterns
+    XML_TOOL_PATTERN = re.compile(
+        r"<tool>\s*(\w+)\s*</tool>",
+        re.IGNORECASE
+    )
+    XML_ARGS_PATTERN = re.compile(
+        r"<(?:args|arguments|params)>\s*([\s\S]*?)\s*</(?:args|arguments|params)>",
+        re.IGNORECASE
+    )
 
-def _looks_like_tool_schema(text: str) -> bool:
-    """
-    Returns True if the text looks like the model outputting a JSON
-    function-call schema rather than a real answer.
-    """
-    stripped = re.sub(r"```(?:json)?", "", text).strip().rstrip("`").strip()
-    start = stripped.find("{")
-    end = stripped.rfind("}")
-    if start == -1 or end == -1:
-        return False
-    try:
-        obj = json.loads(stripped[start:end + 1])
-        return (
-            isinstance(obj, dict)
-            and "name" in obj
-            and any(k in obj for k in ("parameters", "arguments", "args"))
-        )
-    except json.JSONDecodeError:
-        return False
+    # JSON patterns
+    JSON_TOOL_PATTERN = re.compile(
+        r'\{\s*"(?:name|tool|function)"\s*:\s*"(\w+)"',
+        re.IGNORECASE
+    )
 
+    def __init__(self, tool_names: list[str] | None = None):
+        """
+        Initialize parser with known tool names for fuzzy matching.
 
-def _looks_like_tool_schema_dump(text: str) -> bool:
-    """
-    Detect when a model dumps the entire tool schema as text instead of
-    using it properly. This happens with some models like granite3.1-moe.
-    """
-    if not text:
-        return False
-    
-    dump_indicators = [
-        '{"function <nil>',
-        '"type":"function"',
-        '"parameters":{"type":"object"',
-        '[{"type":',
-        '"required":',
-        '"properties":',
-        'Search the web using DuckDuckGo',
-        'Evaluate a mathematical expression',
-        'Execute Python code',
-        '{object <nil>',
-    ]
-    
-    text_lower = text.lower()
-    matches = sum(1 for indicator in dump_indicators if indicator.lower() in text_lower)
-    
-    return matches >= 2
+        Args:
+            tool_names: List of valid tool names
+        """
+        self.tool_names = set(tool_names or [])
 
+    def parse(self, text: str) -> list[ToolCall]:
+        """
+        Parse all tool calls from text.
 
-def _extract_tool_from_json(obj: dict, debug: bool = False) -> tuple[str | None, dict | None]:
-    """Extract tool name and args from a parsed JSON object."""
-    name = obj.get("name") or obj.get("function")
-    args = obj.get("arguments") or obj.get("parameters") or obj.get("args") or {}
+        Tries multiple formats in order:
+        1. Native JSON function calls
+        2. ReAct format
+        3. XML format
+        4. Embedded JSON in markdown
 
-    # Handle bare argument objects
-    if not name and isinstance(obj, dict):
-        arg_to_tool = {
-            "expression": "calculator",
-            "command": "shell",
-            "code": "python_repl",
-            "path": "read_file",
-            "content": "write_file",
-            "query": "web_search",
-            "url": "http_get",
-        }
-        for key in obj.keys():
-            if key in arg_to_tool:
-                name = arg_to_tool[key]
-                args = obj
-                break
+        Args:
+            text: Model output text
 
-    if not name or not isinstance(args, dict):
-        if debug:
-            print(f"    _extract_tool_from_json: no name or args")
-        return None, None
+        Returns:
+            List of parsed ToolCalls
+        """
+        calls = []
 
-    # Detect if the 'name' field contains code instead of a tool name
-    code_indicators = ["(", ")", "+", "-", "*", "/", "=", "[", "]", "print", "def ", "return"]
-    if any(indicator in name for indicator in code_indicators):
-        return name, args
+        # Try native JSON first (for models with function calling)
+        calls.extend(self._parse_native_json(text))
 
-    return name, args
+        # Try ReAct format
+        calls.extend(self._parse_react(text))
 
+        # Try XML format
+        calls.extend(self._parse_xml(text))
 
-def _parse_json_tool_call(text: str, debug: bool = False) -> tuple[str | None, dict | None]:
-    """
-    Fallback for models that output tool calls as JSON text instead of
-    using the native tool_calls API field.
-    
-    Returns (tool_name, tool_args) or (None, None) if not found.
-    """
-    if _looks_like_tool_schema_dump(text):
-        if debug:
-            print(f"    _parse_json_tool_call: skipping - looks like schema dump")
-        return None, None
+        # Try embedded JSON in markdown
+        if not calls:
+            calls.extend(self._parse_markdown_json(text))
 
-    # First, try to extract JSON from markdown code blocks
-    code_block_pattern = re.compile(r'```(?:json)?[^\n]*\n(.*?)```', re.DOTALL)
-    code_blocks = code_block_pattern.findall(text)
-    if debug and code_blocks:
-        print(f"    _parse_json_tool_call: found {len(code_blocks)} code blocks")
-    for block in code_blocks:
-        block = block.strip()
-        if debug:
-            print(f"    _parse_json_tool_call: checking block: {block[:60]}...")
-        if block.startswith('{'):
-            if debug:
-                print(f"    _parse_json_tool_call: found JSON code block")
-            json_str = _sanitize_model_json(block)
+        return calls
+
+    def _parse_native_json(self, text: str) -> list[ToolCall]:
+        """Parse native JSON function calling format."""
+        calls = []
+
+        # Look for tool_calls style JSON
+        try:
+            # Try parsing entire text as JSON array
+            if text.strip().startswith("["):
+                items = json.loads(text)
+                for item in items:
+                    call = self._extract_tool_from_json(item)
+                    if call:
+                        calls.append(call)
+
+            # Try parsing as single JSON object
+            elif text.strip().startswith("{"):
+                data = json.loads(text)
+                call = self._extract_tool_from_json(data)
+                if call:
+                    calls.append(call)
+        except json.JSONDecodeError:
+            pass
+
+        return calls
+
+    def _extract_tool_from_json(self, data: dict) -> ToolCall | None:
+        """Extract ToolCall from JSON object."""
+        # Handle various JSON formats
+        name = None
+        args = {}
+
+        # Format: {"name": "tool", "arguments": {...}}
+        if "name" in data:
+            name = data["name"]
+            args = data.get("arguments", data.get("parameters", {}))
+
+        # Format: {"function": {"name": "tool", "arguments": {...}}}
+        elif "function" in data:
+            func = data["function"]
+            name = func.get("name")
+            args = func.get("arguments", func.get("parameters", {}))
+
+        # Format: {"tool": "tool_name", "args": {...}}
+        elif "tool" in data:
+            name = data["tool"]
+            args = data.get("args", data.get("arguments", {}))
+
+        if name:
+            # Normalize name with fuzzy matching
+            name = self._fuzzy_match_tool(name)
+
+            return ToolCall(
+                name=name,
+                arguments=args if isinstance(args, dict) else {},
+                raw=str(data),
+            )
+
+        return None
+
+    def _parse_react(self, text: str) -> list[ToolCall]:
+        """Parse ReAct format tool calls."""
+        calls = []
+
+        # Find all Action/Input pairs
+        actions = list(self.REACT_ACTION_PATTERN.finditer(text))
+        inputs = list(self.REACT_INPUT_PATTERN.finditer(text))
+
+        for i, action_match in enumerate(actions):
+            name = action_match.group(1).strip()
+            name = self._fuzzy_match_tool(name)
+
+            # Try to get corresponding input
+            args = {}
+            if i < len(inputs):
+                input_text = inputs[i].group(1).strip()
+
+                # Try to parse as JSON
+                try:
+                    args = json.loads(input_text)
+                    if not isinstance(args, dict):
+                        args = {"input": args}
+                except json.JSONDecodeError:
+                    # Try key:value format
+                    args = self._parse_kv_pairs(input_text)
+
+            calls.append(ToolCall(
+                name=name,
+                arguments=args,
+                raw=action_match.group(0),
+                confidence=0.9 if name in self.tool_names else 0.7,
+            ))
+
+        return calls
+
+    def _parse_xml(self, text: str) -> list[ToolCall]:
+        """Parse XML format tool calls."""
+        calls = []
+
+        tools = list(self.XML_TOOL_PATTERN.finditer(text))
+        args_matches = list(self.XML_ARGS_PATTERN.finditer(text))
+
+        for i, tool_match in enumerate(tools):
+            name = tool_match.group(1).strip()
+            name = self._fuzzy_match_tool(name)
+
+            args = {}
+            if i < len(args_matches):
+                args_text = args_matches[i].group(1).strip()
+                try:
+                    args = json.loads(args_text)
+                except json.JSONDecodeError:
+                    args = {"input": args_text}
+
+            calls.append(ToolCall(
+                name=name,
+                arguments=args if isinstance(args, dict) else {},
+                raw=tool_match.group(0),
+            ))
+
+        return calls
+
+    def _parse_markdown_json(self, text: str) -> list[ToolCall]:
+        """Parse JSON embedded in markdown code blocks."""
+        calls = []
+
+        # Find JSON code blocks
+        code_block_pattern = re.compile(r"```(?:json)?\s*([\s\S]*?)```", re.IGNORECASE)
+
+        for match in code_block_pattern.finditer(text):
+            json_text = match.group(1).strip()
             try:
-                obj = json.loads(json_str)
-                result = _extract_tool_from_json(obj, debug)
-                if result[0]:
-                    return result
-            except json.JSONDecodeError as e:
-                if debug:
-                    print(f"    _parse_json_tool_call: code block JSON parse error: {e}")
+                data = json.loads(json_text)
+                call = self._extract_tool_from_json(data)
+                if call:
+                    calls.append(call)
+            except json.JSONDecodeError:
                 continue
 
-    # Fallback: Strip all markdown and find first JSON object
-    cleaned = re.sub(r"```(?:json|python)?", "", text).strip().rstrip("`").strip()
-    
-    start = cleaned.find("{")
-    if start == -1:
-        if debug:
-            print(f"    _parse_json_tool_call: no JSON object found")
-        return None, None
-    
-    # Find matching closing brace
-    depth = 0
-    end = -1
-    for i, ch in enumerate(cleaned[start:], start):
-        if ch == '{':
-            depth += 1
-        elif ch == '}':
-            depth -= 1
-            if depth == 0:
-                end = i
-                break
-    
-    if end == -1:
-        if debug:
-            print(f"    _parse_json_tool_call: no matching closing brace")
-        return None, None
+        return calls
 
-    json_str = cleaned[start:end + 1]
-    if debug:
-        print(f"    _parse_json_tool_call: extracted JSON: {json_str[:100]}...")
+    def _parse_kv_pairs(self, text: str) -> dict:
+        """Parse key:value or key=value pairs."""
+        result = {}
 
-    json_str = _sanitize_model_json(json_str)
+        # Try key=value format
+        kv_pattern = re.compile(r"(\w+)\s*[=:]\s*([^,\n]+)")
+        for match in kv_pattern.finditer(text):
+            key = match.group(1).strip()
+            value = match.group(2).strip().strip("\"'")
+            result[key] = value
 
-    try:
-        obj = json.loads(json_str)
-    except json.JSONDecodeError as e:
-        if debug:
-            print(f"    _parse_json_tool_call: JSON parse error: {e}")
-        return None, None
+        # If no pairs found, treat as single input
+        if not result and text.strip():
+            result["input"] = text.strip()
 
-    return _extract_tool_from_json(obj, debug)
+        return result
 
+    def _fuzzy_match_tool(self, name: str) -> str:
+        """
+        Fuzzy match tool name against known tools.
+        Helps with small models that hallucinate tool names.
+        """
+        if not self.tool_names:
+            return name
 
-def _extract_python_code(text: str) -> str | None:
-    """
-    Extract Python code from markdown code blocks.
-    """
-    match = _PYTHON_CODE_RE.search(text)
-    if match:
-        return match.group(1).strip()
-    return None
+        name_lower = name.lower().replace("_", "").replace("-", "")
 
+        # Exact match (case insensitive)
+        for tool in self.tool_names:
+            if tool.lower() == name.lower():
+                return tool
 
-def _try_extract_tool_from_malformed(text: str, available_tools: list[str]) -> tuple[str | None, dict | None]:
-    """
-    Try to extract a tool call from malformed model output.
-    """
-    text_lower = text.lower()
-    
-    for tool_name in available_tools:
-        if tool_name.lower() in text_lower:
-            args = {}
-            
-            if tool_name == "python_repl":
-                code = _extract_python_code(text)
-                if code:
-                    return tool_name, {"code": code}
-                if "datetime" in text_lower or "strftime" in text_lower:
-                    return tool_name, {}
-            
-            if tool_name == "web_search":
-                query_match = re.search(r'"query":\s*"([^"]+)"', text)
-                if query_match:
-                    return tool_name, {"query": query_match.group(1)}
-                return tool_name, {}
-            
-            if tool_name == "calculator":
-                expr_match = re.search(r'"expression":\s*"([^"]+)"', text)
-                if expr_match:
-                    return tool_name, {"expression": expr_match.group(1)}
-                return tool_name, {}
-            
-            return tool_name, args
-    
-    return None, None
+        # Fuzzy match (ignoring underscores/hyphens)
+        for tool in self.tool_names:
+            tool_normalized = tool.lower().replace("_", "").replace("-", "")
+            if tool_normalized == name_lower:
+                return tool
 
+        # Partial match
+        for tool in self.tool_names:
+            if name_lower in tool.lower() or tool.lower() in name_lower:
+                return tool
 
-def _fuzzy_match_tool_name(hallucinated_name: str, tools_registry) -> str | None:
-    """
-    Small models often hallucinate tool names. This function attempts to
-    match a hallucinated name to a real tool name using various heuristics.
-    
-    Returns the matched tool name or None if no match found.
-    """
-    if tools_registry.get(hallucinated_name):
-        return hallucinated_name
-    
-    real_names = [t.name for t in tools_registry.all()]
-    lower_hallucinated = hallucinated_name.lower().replace("_", "")
-    
-    # Strategy 1: Substring match
-    for real_name in real_names:
-        lower_real = real_name.lower().replace("_", "")
-        if lower_real in lower_hallucinated or lower_hallucinated in lower_real:
-            return real_name
-    
-    # Strategy 2: Word mappings
-    word_mappings = {
-        "calculate": ["calculator", "python_repl"],
-        "calc": ["calculator", "python_repl"],
-        "math": ["calculator", "python_repl"],
-        "compute": ["calculator", "python_repl"],
-        "eval": ["calculator", "python_repl"],
-        "expression": ["calculator", "python_repl"],
-        "power": ["calculator", "python_repl"],
-        "pow": ["calculator", "python_repl"],
-        "square": ["calculator", "python_repl"],
-        "sqrt": ["calculator", "python_repl"],
-        "root": ["calculator", "python_repl"],
-        "add": ["calculator", "python_repl"],
-        "subtract": ["calculator", "python_repl"],
-        "multiply": ["calculator", "python_repl"],
-        "divide": ["calculator", "python_repl"],
-        "calculator": ["calculator", "python_repl"],
-        "python": ["python_repl", "shell"],
-        "repl": ["python_repl", "shell"],
-        "code": ["python_repl", "shell"],
-        "print": ["python_repl", "shell"],
-        "execute": ["python_repl", "shell"],
-        "run": ["python_repl", "shell"],
-        "exec": ["python_repl", "shell"],
-        "today": ["python_repl", "shell"],
-        "date": ["python_repl", "shell"],
-        "time": ["python_repl", "shell"],
-        "datetime": ["python_repl", "shell"],
-        "now": ["python_repl", "shell"],
-        "current": ["python_repl", "shell"],
-        "get_date": ["python_repl", "shell"],
-        "get_time": ["python_repl", "shell"],
-        "shell": ["shell"],
-        "bash": ["shell"],
-        "cmd": ["shell"],
-        "command": ["shell"],
-        "ls": ["shell"],
-        "dir": ["shell"],
-        "cat": ["shell"],
-        "echo": ["shell"],
-        "grep": ["shell"],
-        "find": ["shell"],
-        "pwd": ["shell"],
-        "mkdir": ["shell"],
-        "rm": ["shell"],
-        "cp": ["shell"],
-        "mv": ["shell"],
-        "read": ["read_file"],
-        "write": ["write_file"],
-        "file": ["read_file"],
-        "load": ["read_file"],
-        "save": ["write_file"],
-        "weather": ["get_weather"],
-        "currency": ["convert_currency"],
-        "convert": ["convert_currency"],
-        "money": ["convert_currency"],
-    }
-    
-    for keyword, tool_hints in word_mappings.items():
-        if keyword in lower_hallucinated:
-            for tool_hint in tool_hints:
-                for real_name in real_names:
-                    if tool_hint in real_name or real_name == tool_hint:
-                        return real_name
-    
-    # Strategy 3: First 4+ chars match
-    for real_name in real_names:
-        lower_real = real_name.lower()
-        if len(lower_real) >= 4 and len(lower_hallucinated) >= 4:
-            if lower_real[:4] == lower_hallucinated[:4]:
-                return real_name
-    
-    return None
+        # No match found, return original
+        return name
 
+    def has_tool_call(self, text: str) -> bool:
+        """Check if text contains a tool call."""
+        return bool(self.parse(text))
 
-# ------------------------------------------------------------------ #
-#  ReAct parser                                                       #
-# ------------------------------------------------------------------ #
+    def is_final_answer(self, text: str) -> bool:
+        """Check if text indicates a final answer."""
+        patterns = [
+            r"Final Answer:",
+            r"Answer:",
+            r"Result:",
+            r"The answer is",
+            r"Therefore,?",
+            r"In conclusion,?",
+        ]
 
-def _parse_react(text: str) -> tuple[str | None, str | None, dict | None, str | None]:
-    """
-    Returns (thought, tool_name, tool_args, final_answer).
-    Any field may be None if not present.
-    
-    Handles multiple format variations from small models.
-    """
-    text = _detect_and_fix_repetition(text)
-    
-    thought = None
-    tool_name = None
-    tool_args = None
-    final_answer = None
+        text_lower = text.lower()
+        for pattern in patterns:
+            if re.search(pattern, text, re.IGNORECASE):
+                return True
 
-    # Extract thought
-    m = _THOUGHT_RE.search(text)
-    if m:
-        thought = m.group(1).strip()
+        return False
 
-    # Try to extract action - try multiple patterns
-    m = _ACTION_RE.search(text)
-    if not m:
-        m = _ACTION_RE_SAMELINE.search(text)
-    
-    if m:
-        tool_name = m.group(1).strip()
-        raw_args = m.group(2).strip()
-        
-        # Strip any trailing backticks or quotes from tool name
-        tool_name = tool_name.strip('`"\'')
-        
-        # Extract just the JSON object from raw_args (handle extra text after)
-        json_start = raw_args.find('{')
-        if json_start != -1:
-            # Find matching closing brace
-            depth = 0
-            json_end = -1
-            for i, ch in enumerate(raw_args[json_start:], json_start):
-                if ch == '{':
-                    depth += 1
-                elif ch == '}':
-                    depth -= 1
-                    if depth == 0:
-                        json_end = i
-                        break
-            if json_end != -1:
-                raw_args = raw_args[json_start:json_end + 1]
-        
-        # Try to parse JSON args
-        try:
-            tool_args = json.loads(raw_args)
-        except json.JSONDecodeError:
-            sanitized = _sanitize_model_json(raw_args)
-            try:
-                tool_args = json.loads(sanitized)
-            except json.JSONDecodeError:
-                # Last resort: check for known patterns in the raw text
-                expr_match = re.search(r'"expression":\s*"([^"]+)"', raw_args)
-                if expr_match:
-                    tool_args = {"expression": expr_match.group(1)}
-                elif raw_args.startswith('{') and '=' in raw_args and 'arguments' not in raw_args.lower():
-                    tool_args = {"input": raw_args}
-                else:
-                    tool_args = {"input": raw_args}
+    def extract_final_answer(self, text: str) -> str:
+        """Extract final answer from text."""
+        # Try to find explicit answer marker
+        patterns = [
+            r"(?:Final Answer|Answer|Result):\s*([\s\S]+)",
+        ]
 
-    # Extract final answer
-    fa_match = _FINAL_RE.search(text)
-    if fa_match:
-        final_answer = fa_match.group(1).strip()
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                return match.group(1).strip()
 
-    return thought, tool_name, tool_args, final_answer
+        # Return entire text as answer
+        return text.strip()

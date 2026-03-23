@@ -1,193 +1,235 @@
-﻿"""
-⚛️ AgentNova R02.6 — Prompts
-Few-shot prompts, argument aliases, and platform constants for small model support.
+"""
+⚛️ AgentNova — Prompt Templates
+Model-specific system prompts and tool prompts.
 
-Written by VTSTech — https://www.vts-tech.org — https://github.com/VTSTech/AgentNova
+Written by VTSTech — https://www.vts-tech.org
 """
 
-import platform as _platform
+from __future__ import annotations
 
-# ------------------------------------------------------------------ #
-#  Platform detection                                                  #
-# ------------------------------------------------------------------ #
+from typing import Optional
+from .models import Tool
 
-_IS_WINDOWS = _platform.system() == "Windows"
-PLATFORM_DIR_CMD = "cd" if _IS_WINDOWS else "pwd"
-PLATFORM_LIST_CMD = "dir" if _IS_WINDOWS else "ls"
 
-# ------------------------------------------------------------------ #
-#  Tool-specific argument aliases (for small model hallucinations)    #
-# ------------------------------------------------------------------ #
-# Small models often hallucinate argument names. This mapping helps
-# convert common hallucinations to the correct argument names.
+# Base system prompt
+BASE_SYSTEM_PROMPT = """You are AgentNova, a helpful AI assistant with access to tools.
 
-TOOL_ARG_ALIASES = {
-    "calculator": {
-        # Common hallucinations for expression
-        "a": "expression", "b": "expression", "x": "expression", "y": "expression",
-        "num": "expression", "number": "expression", "value": "expression",
-        "input": "expression", "formula": "expression", "math": "expression",
-        "expr": "expression", "calc": "expression", "result": "expression",
-        # Power operations - combine into expression
-        "base": "_combine_power", "exponent": "_combine_power", "power": "_combine_power",
-        "n": "_combine_power", "p": "_combine_power", "exp": "_combine_power",
-    },
-    "python_repl": {
-        "code": "code",  # correct
-        "script": "code", "cmd": "code", "command": "code",
-        "python": "code", "py": "code", "exec": "code", "execute": "code",
-        "expression": "code", "expr": "code", "statement": "code",
-        "program": "code", "source": "code", "input": "code",
-    },
-    "write_file": {
-        "path": "path",  # correct
-        "filepath": "path", "file_path": "path", "filename": "path",
-        "file": "path", "dest": "path", "destination": "path",
-        "output_path": "path", "outputfile": "path", "location": "path",
-        "content": "content",  # correct
-        "data": "content", "text": "content", "body": "content",
-        "output": "content", "string": "content", "value": "content",
-        "write": "content", "output_data": "content",
-    },
-    "read_file": {
-        "path": "path",  # correct
-        "filepath": "path", "file_path": "path", "filename": "path",
-        "file": "path", "input": "path", "source": "path", "location": "path",
-    },
-    "shell": {
-        "command": "command",  # correct
-        "cmd": "command", "exec": "command", "shell_cmd": "command",
-        "bash": "command", "script": "command", "instruction": "command",
-        "run": "command", "execute": "command", "op": "command",
-        "text": "command", "input": "command", "arg": "command",
-        "args": "command", "str": "command", "value": "command",
-    },
-    "web_search": {
-        "query": "query",  # correct
-        "search": "query", "q": "query", "term": "query", "search_query": "query",
-        "keywords": "query", "text": "query", "input": "query",
-    },
-    "get_weather": {
-        "city": "city",  # correct
-        "location": "city", "place": "city", "town": "city",
-        "where": "city", "area": "city", "region": "city",
-    },
-    "convert_currency": {
-        "amount": "amount",  # correct
-        "from_currency": "from_currency",  # correct
-        "to_currency": "to_currency",  # correct
-        # Common variations
-        "from": "from_currency", "to": "to_currency",
-        "source_currency": "from_currency", "target_currency": "to_currency",
-        "money": "amount", "value": "amount", "price": "amount",
-    },
+When you need to use a tool, clearly indicate this in your response using one of these formats:
+
+1. ReAct Format:
+   Thought: [your reasoning]
+   Action: [tool_name]
+   Action Input: {"arg1": "value1"}
+
+2. JSON Format:
+   {"name": "tool_name", "arguments": {"arg1": "value1"}}
+
+After receiving the tool result, continue reasoning until you can provide a final answer.
+When you have the final answer, say:
+Final Answer: [your answer]
+
+Be concise but thorough. Use tools when they would help answer the question accurately."""
+
+
+# ReAct-specific prompt
+REACT_SYSTEM_PROMPT = """You are AgentNova, an AI assistant that uses the ReAct (Reasoning and Acting) framework.
+
+Follow this pattern:
+1. Thought: Think about what you need to do
+2. Action: Choose a tool to use
+3. Action Input: Provide arguments as JSON
+4. Observation: You'll receive the tool result
+5. Repeat until you have the answer
+6. Final Answer: Provide your answer
+
+Available tools will be listed separately.
+
+Always format tool calls EXACTLY like this:
+Action: tool_name
+Action Input: {"arg": "value"}
+
+Do not deviate from this format."""
+
+
+# Model family specific prompts
+MODEL_FAMILY_PROMPTS = {
+    "qwen2": """You are AgentNova, a helpful AI assistant.
+When using tools, use this exact format:
+Action: tool_name
+Action Input: {"param": "value"}
+
+Think step by step and use tools when needed.""",
+
+    "qwen2.5": """You are AgentNova, a helpful AI assistant.
+Use the available tools when needed to help answer questions.
+Format tool calls as:
+Action: tool_name
+Action Input: {"param": "value"}""",
+
+    "llama3": """You are AgentNova, a helpful AI assistant.
+Use the provided tools when they would help answer the question.
+After using tools, provide a clear final answer.""",
+
+    "llama3.1": """You are AgentNova, a helpful AI assistant with tool capabilities.
+You have access to tools that can help answer questions.
+Use tools when appropriate and provide clear final answers.""",
+
+    "llama3.2": """You are AgentNova, a helpful AI assistant.
+Think step by step. Use tools when they would help.
+Provide clear final answers.""",
+
+    "mistral": """You are AgentNova, a helpful assistant.
+Use tools when needed. Be concise and accurate.""",
+
+    "gemma": """You are AgentNova, a helpful AI assistant.
+Use available tools to help answer questions accurately.""",
+
+    "gemma2": """You are AgentNova, a helpful AI assistant.
+Think carefully and use tools when they would help answer the question.""",
+
+    "gemma3": """You are AgentNova, a helpful AI assistant.
+Use tools when appropriate to provide accurate answers.""",
+
+    "granite": """You are AgentNova, a helpful AI assistant.
+Use the available tools when needed to complete tasks accurately.""",
+
+    "granitemoe": """You are AgentNova, a helpful AI assistant.
+Use tools efficiently to accomplish tasks.""",
+
+    "phi3": """You are AgentNova, a helpful assistant.
+Use tools when needed. Think step by step.""",
+
+    "codellama": """You are AgentNova, a helpful coding assistant.
+Use tools to execute code and retrieve information when needed.""",
+
+    "command-r": """You are AgentNova, a helpful assistant.
+Use the available tools to help answer questions and complete tasks.""",
+
+    "default": BASE_SYSTEM_PROMPT,
 }
 
-# ------------------------------------------------------------------ #
-#  Few-shot prompting suffix for small models                         #
-# ------------------------------------------------------------------ #
-# Added to system prompt when using models < 2B parameters
 
-FEW_SHOT_SUFFIX = """
+def get_system_prompt(
+    model_name: str,
+    tool_support: str = "react",
+    tools: list[Tool] | None = None,
+) -> str:
+    """
+    Get the appropriate system prompt for a model.
 
-═══════════════════════════════════════════════════════════════
-TOOL USAGE EXAMPLES - Follow this EXACT format:
-═══════════════════════════════════════════════════════════════
+    Args:
+        model_name: Name of the model
+        tool_support: Tool support level ("native", "react", "none")
+        tools: List of available tools
 
-Example 1 - Multiplication:
-Thought: I need to multiply 15 times 8
-Action: calculator
-Action Input: {"expression": "15 * 8"}
+    Returns:
+        System prompt string
+    """
+    # Detect model family
+    family = _detect_model_family(model_name)
 
-Example 2 - Power:
-Thought: I need to calculate 2 to the power of 20
-Action: calculator
-Action Input: {"expression": "2 ** 20"}
+    # Get base prompt for family
+    base_prompt = MODEL_FAMILY_PROMPTS.get(family, MODEL_FAMILY_PROMPTS["default"])
 
-Example 3 - Echo text:
-Thought: User wants to print some text
-Action: shell
-Action Input: {"command": "echo Hello World"}
+    # Add tool information if tools available
+    if tools and tool_support != "none":
+        tool_prompt = get_tool_prompt(tools, tool_support)
+        return f"{base_prompt}\n\n{tool_prompt}"
 
-Example 4 - Run Python code:
-Thought: I need to compute something in Python
-Action: python_repl
-Action Input: {"code": "print(2 ** 10)"}
+    return base_prompt
 
-Example 5 - Write to file:
-Thought: User wants to save text to a file
-Action: write_file
-Action Input: {"path": "/tmp/test.txt", "content": "Hello World"}
 
-Example 6 - Read a file:
-Thought: User wants to see file contents
-Action: read_file
-Action Input: {"path": "/tmp/test.txt"}
+def get_tool_prompt(tools: list[Tool], tool_support: str = "react") -> str:
+    """
+    Generate tool description prompt.
 
-CRITICAL RULES:
-1. Action line: just the tool name (no backticks, no quotes)
-2. Action Input: valid JSON with correct argument names for THAT tool
-3. ARGUMENT NAMES BY TOOL:
-   - calculator: {"expression": "15 * 8"}
-   - shell: {"command": "echo Hello"}
-   - python_repl: {"code": "print(result)"}
-   - write_file: {"path": "/path/file.txt", "content": "text to write"}
-   - read_file: {"path": "/path/file.txt"}
-4. MATH OPERATORS: * (multiply), ** (power), / (divide), + (add), - (subtract)
-═══════════════════════════════════════════════════════════════
+    Args:
+        tools: List of available tools
+        tool_support: Tool support level
+
+    Returns:
+        Tool description string
+    """
+    if not tools:
+        return ""
+
+    lines = ["Available tools:"]
+
+    for tool in tools:
+        params_str = ""
+        if tool.params:
+            params = []
+            for p in tool.params:
+                req = "" if p.required else " (optional)"
+                params.append(f"{p.name}{req}: {p.type}")
+            params_str = f" - Parameters: {', '.join(params)}"
+
+        lines.append(f"  - {tool.name}: {tool.description}{params_str}")
+
+    if tool_support == "react":
+        lines.append("")
+        lines.append("Use this format for tool calls:")
+        lines.append('Action: tool_name')
+        lines.append('Action Input: {"param": "value"}')
+
+    return "\n".join(lines)
+
+
+def get_react_prompt(
+    question: str,
+    tools: list[Tool] | None = None,
+    scratchpad: str = "",
+) -> str:
+    """
+    Generate a ReAct prompt for the given question.
+
+    Args:
+        question: User question
+        tools: Available tools
+        scratchpad: Previous reasoning/observations
+
+    Returns:
+        Complete ReAct prompt
+    """
+    tool_desc = get_tool_prompt(tools or [], "react")
+
+    prompt = f"""{REACT_SYSTEM_PROMPT}
+
+{tool_desc}
+
+Question: {question}
 """
 
-# Compact version for models that need minimal prompting
-FEW_SHOT_COMPACT = """
-TOOL EXAMPLES (ReAct format):
-Calculator: {"expression": "15 * 8"}
-Shell: {"command": "echo Hello World"}
-Python: {"code": "print(result)"}
-Write file: {"path": "/tmp/file.txt", "content": "Hello"}
-Read file: {"path": "/tmp/file.txt"}
+    if scratchpad:
+        prompt += f"\n{scratchpad}\n"
 
-ARGUMENT NAMES: expression (calculator), command (shell), code (python_repl), path+content (write_file), path (read_file)
-MATH: * = multiply, ** = power, / = divide
-"""
+    return prompt
 
-# Few-shot for native tool models - focuses on WHEN to call tools
-# Platform-aware: use python_repl for date/time since shell commands vary
-NATIVE_TOOL_HINTS = """
-TOOL USAGE RULES - YOU MUST CALL TOOLS:
 
-1. MATH QUESTIONS: Always call calculator tool
-   - "times/multiplied" → calculator(expression="A * B")
-   - "power of/to the power" → calculator(expression="A ** B")
-   - "square root" → calculator(expression="sqrt(N)")
-   - "divided by" → calculator(expression="A / B")
-   - Parentheses matter: "(10 + 5) times 3" → calculator(expression="(10 + 5) * 3")
+def _detect_model_family(model_name: str) -> str:
+    """Detect model family from model name."""
+    name_lower = model_name.lower()
 
-2. SHELL QUESTIONS: Always call shell tool
-   - "echo" something → shell(command="echo YourText")
+    # Check each family
+    families = [
+        "qwen2.5", "qwen2", "qwen",
+        "llama3.3", "llama3.2", "llama3.1", "llama3", "llama",
+        "mistral", "mixtral",
+        "gemma3", "gemma2", "gemma",
+        "granitemoe", "granite",
+        "phi-3", "phi3", "phi",
+        "codellama", "code-llama",
+        "command-r", "command",
+        "deepseek",
+    ]
 
-3. FILE OPERATIONS: Use write_file and read_file
-   - Write to file → write_file(path="/path/file.txt", content="text to write")
-   - Read a file → read_file(path="/path/file.txt")
+    for family in families:
+        if family in name_lower:
+            # Normalize family name
+            if family.startswith("phi"):
+                return "phi3"
+            if family.startswith("code"):
+                return "codellama"
+            return family
 
-4. DATE/TIME: Use python_repl (works on all platforms)
-   - "date/today" → python_repl(code="from datetime import datetime; print(datetime.now())")
-
-5. PYTHON: Use python_repl with correct syntax
-   - Power is ** not ^ : python_repl(code="print(2 ** 20)")
-
-NEVER respond with empty content. ALWAYS call a tool when asked to compute or execute.
-"""
-
-REACT_SYSTEM_SUFFIX = """
-You have access to tools. Use the following format EXACTLY:
-
-Thought: <your reasoning about what to do next>
-Action: <tool_name>
-Action Input: <JSON object with tool arguments>
-Observation: <the result will appear here>
-... (repeat Thought/Action/Action Input/Observation as needed)
-Thought: I now have enough information.
-Final Answer: <your final response to the user>
-
-IMPORTANT: Action Input must be valid JSON. Only use tools listed below.
-"""
+    return "default"
