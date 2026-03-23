@@ -50,29 +50,133 @@ Test 05 tests calculator, shell, and Python REPL tools. Shell commands are now p
 
 ## Test 07 Benchmark Results (15-Test Suite with Debug)
 
-> **Updated:** 2026-03-21 - R02.2 with critical ReAct fixes (few-shot forcing, observation role, think=False API)
+> **Updated:** 2026-03-22 - R02.5 module refactoring verified, updated prompts
 
 Test 07 uses the 15-test benchmark with debug output showing tool support detection, ReAct parsing, and family-specific configuration.
 
 ---
 
-### All Models Combined (R02.2 - Latest)
+### All Models Combined (R02.5 - Latest)
 
-| Rank | Model | Params | Score | Time | Tool Support | Δ vs R01 |
+| Rank | Model | Params | Score | Time | Tool Support | Δ vs R02.2 |
 |:----:|-------|-------:|------:|-----:|:-----------:|:--------:|
-| 🥇 | **`granite3.1-moe:1b`** | 1B MoE | **14/15 (93%)** | 87.8s | react | **+13%** ✅ |
-| 🥈 | **`llama3.2:1b`** | 1.2B | **13/15 (87%)** | 150.2s | native | **+20%** ✅ |
-| 🥉 | `nchapman/dolphin3.0-qwen2.5:0.5b` | 500M | 11/15 (73%) | 27.2s | none | = |
-| 4 | `qwen3:0.6b` | 600M | 10/15 (67%) | 189.3s | react | **Fixed** ✅ |
-| 5 | `tinydolphin:1.1b` | 1.1B | 9/15 (60%) | 130.9s | none | -7% |
-| 5 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | 494M | 9/15 (60%) | 133.1s | react | **+7%** ✅ |
-| 7 | `tinyllama:1.1b` | 1.1B | 8/15 (53%) | 127.7s | none | -14% |
+| 🥇 | **`qwen:0.5b`** | 500M | **14/15 (93%)** | 45.7s | none | **+20%** ✅ |
+| 🥈 | **`dolphin3.0-qwen2.5:0.5b`** | 500M | **14/15 (93%)** | 53.0s | none | **+20%** ✅ |
+| 🥉 | **`granite3.1-moe:1b`** | 1B MoE | **14/15 (93%)** | 128.6s | react | = |
+| 4 | `llama3.2:1b` | 1.2B | 13/15 (87%) | 174.5s | native | = |
+| 5 | `qwen2.5:0.5b` | 500M | 11/15 (73%) | 85.7s | native | = |
+| 6 | `dolphin3.0-llama3:1b` | 1B | 10/15 (67%) | 70.1s | none | N/A |
+| 7 | `granite4:350m` | 350M | 10/15 (67%) | 70.2s | native | -13% |
+| 7 | `tinydolphin:1.1b` | 1.1B | 10/15 (67%) | 137.2s | none | +7% |
+| 7 | `qwen3:0.6b` | 600M | 10/15 (67%) | 196.1s | react | = |
+| 10 | `gemma3:270m` | 270M | 9/15 (60%) | 33.9s | none | = |
+| 10 | `qwen2.5-coder:0.5b` | 494M | 9/15 (60%) | 132.2s | react | = |
+| 12 | `tinyllama:1.1b` | 1.1B | 8/15 (53%) | 134.9s | none | = |
+| 13 | `functiongemma:270m` | 270M | 4/15 (27%) | 52.6s | native | -53% |
+
+---
+
+### R02.5 Key Findings
+
+1. **Pure reasoning dominates!** Top 2 models have `tool_support=none` - no tools needed
+2. **`qwen:0.5b` fastest champion** - 14/15 at 45.7s, pure reasoning mode
+3. **`dolphin3.0-qwen2.5:0.5b` improved** - 73% → 93% (+20%) from updated no_tools prompt
+4. **Three-way tie at 93%** - qwen:0.5b, dolphin3.0-qwen2.5:0.5b, granite3.1-moe:1b
+5. **`functiongemma:270m` regression** - 80% → 27%, needs investigation
+6. **Module refactoring verified** - All 13 models tested successfully after code split
+
+### R02.5 Prompt Updates
+
+| Family | Change | Impact |
+|--------|--------|--------|
+| gemma3 | Math-only → general-purpose prompt | Knowledge now works |
+| dolphin | Added reasoning, code, Brazil examples | +20% on test 07 |
+
+---
+
+### Category Champions (R02.5)
+
+| Category | 🏆 Champion | Score | Notes |
+|----------|-------------|-------|-------|
+| **Math** | `qwen:0.5b` | 3/3 | Pure reasoning perfect |
+| **Reasoning** | Multiple models | 2/3 | Logic question tricky |
+| **Knowledge** | `qwen:0.5b` | 3/3 | Only model with Brazil=Brasilia! |
+| **Calc** | Multiple models | 3/3 | Several perfect |
+| **Code** | 10 models | 3/3 | Universally easy |
+
+---
+
+### Sub-1B Models (R02.5 - Current)
+
+| Rank | Model | Params | Score | Time | Tool Support | Δ vs R02.2 |
+|:----:|-------|-------:|------:|-----:|:-----------:|:--------:|
+| 🥇 | **`qwen:0.5b`** | 500M | **14/15 (93%)** | **45.7s** | none | **+20%** ✅ |
+| 🥈 | **`dolphin3.0-qwen2.5:0.5b`** | 500M | **14/15 (93%)** | 53.0s | none | **+20%** ✅ |
+| 🥉 | `qwen2.5:0.5b` | 500M | 11/15 (73%) | 85.7s | native | = |
+| 4 | `granite4:350m` | 350M | 10/15 (67%) | 70.2s | native | -13% |
+| 4 | `qwen3:0.6b` | 600M | 10/15 (67%) | 196.1s | react | = |
+| 6 | `qwen2.5-coder:0.5b` | 494M | 9/15 (60%) | 132.2s | react | = |
+| 7 | `gemma3:270m` | 270M | 9/15 (60%) | 33.9s | none | = |
+| 8 | `functiongemma:270m` | 270M | 4/15 (27%) | 52.6s | native | -53% |
+
+#### Sub-1B Key Findings (R02.5)
+
+1. **`qwen:0.5b` is the sub-1B champion** - 93% at 45.7s, pure reasoning!
+2. **No-tool models shine** - qwen:0.5b and dolphin3.0-qwen2.5:0.5b both 93%
+3. **`functiongemma:270m` needs investigation** - Dropped from 80% to 27%
+
+---
+
+### 1B+ Models (R02.5 - Current)
+
+| Rank | Model | Params | Score | Time | Tool Support | Δ vs R02.2 |
+|:----:|-------|-------:|------:|-----:|:-----------:|:--------:|
+| 🥇 | **`granite3.1-moe:1b`** | 1B MoE | **14/15 (93%)** | 128.6s | react | = |
+| 🥈 | **`llama3.2:1b`** | 1.2B | **13/15 (87%)** | 174.5s | native | = |
+| 🥉 | `dolphin3.0-llama3:1b` | 1B | 10/15 (67%) | 70.1s | none | N/A |
+| 4 | `tinydolphin:1.1b` | 1.1B | 10/15 (67%) | 137.2s | none | +7% |
+| 5 | `tinyllama:1.1b` | 1.1B | 8/15 (53%) | 134.9s | none | = |
+
+#### 1B+ Key Findings (R02.5)
+
+1. **`granite3.1-moe:1b` maintains 93%** - Still the best 1B+ model
+2. **`llama3.2:1b` solid at 87%** - Native tool support works well
+3. **MoE slower but accurate** - granite3.1-moe takes 128.6s vs 70.1s for dolphin3.0-llama3:1b
+
+---
+
+### Tool Support Impact (R02.5)
+
+| Model | Tool Support | Score | Notes |
+|-------|--------------|-------|-------|
+| `qwen:0.5b` | none | **93%** | 🏆 Pure reasoning champion! |
+| `dolphin3.0-qwen2.5:0.5b` | none | **93%** | 🏆 No tools needed |
+| `granite3.1-moe:1b` | react | **93%** | 🏆 ReAct works great |
+| `llama3.2:1b` | native | 87% | Native API tool calling |
+| `qwen2.5:0.5b` | native | 73% | Empty tool calls, synthesis helps |
+| `functiongemma:270m` | native | 27% | ❓ Regression - needs investigation |
+
+**Key Insight**: Pure reasoning (no tools) can outperform tool-assisted models on simple tasks!
+
+---
+
+### All Models Combined (R02.2 - Historical)
+
+| Rank | Model | Params | Score | Time | Tool Support |
+|:----:|-------|-------:|------:|-----:|:-----------:|
+| 🥇 | **`granite3.1-moe:1b`** | 1B MoE | **14/15 (93%)** | 87.8s | react |
+| 🥈 | **`llama3.2:1b`** | 1.2B | **13/15 (87%)** | 150.2s | native |
+| 🥉 | `nchapman/dolphin3.0-qwen2.5:0.5b` | 500M | 11/15 (73%) | 27.2s | none |
+| 4 | `qwen3:0.6b` | 600M | 10/15 (67%) | 189.3s | react |
+| 5 | `tinydolphin:1.1b` | 1.1B | 9/15 (60%) | 130.9s | none |
+| 5 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | 494M | 9/15 (60%) | 133.1s | react |
+| 7 | `tinyllama:1.1b` | 1.1B | 8/15 (53%) | 127.7s | none |
 
 ---
 
 ### R02.2 Key Findings
 
-1. **`granite3.1-moe:1b` now at 93%** - Up from 80%, matches R01 best score!
+1. **`granite3.1-moe:1b` reached 93%** - Best score with ReAct mode
 2. **`llama3.2:1b` massive improvement** - 67% → 87% (+20%) from observation role fix
 3. **`qwen3:0.6b` restored** - Was 0% (broken), now 67% with `think=False` API fix
 4. **Few-shot forcing works** - ReAct models always get examples, improving Action/Action Input format
@@ -103,13 +207,13 @@ Test 07 uses the 15-test benchmark with debug output showing tool support detect
 
 ---
 
-### Sub-1B Models (R02.2 - Current)
+### Sub-1B Models (R02.2 - Historical)
 
-| Rank | Model | Params | Score | Time | Tool Support | Δ vs R01 |
-|:----:|-------|-------:|------:|-----:|:-----------:|:--------:|
-| 🥇 | `nchapman/dolphin3.0-qwen2.5:0.5b` | 500M | 11/15 (73%) | **27.2s** | none | = |
-| 🥈 | `qwen3:0.6b` | 600M | 10/15 (67%) | 189.3s | react | **Fixed** ✅ |
-| 🥉 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | 494M | 9/15 (60%) | 133.1s | react | **+7%** ✅ |
+| Rank | Model | Params | Score | Time | Tool Support |
+|:----:|-------|-------:|------:|-----:|:-----------:|
+| 🥇 | `nchapman/dolphin3.0-qwen2.5:0.5b` | 500M | 11/15 (73%) | **27.2s** | none |
+| 🥈 | `qwen3:0.6b` | 600M | 10/15 (67%) | 189.3s | react |
+| 🥉 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | 494M | 9/15 (60%) | 133.1s | react |
 
 #### Sub-1B Key Findings (R02.2)
 
@@ -119,19 +223,19 @@ Test 07 uses the 15-test benchmark with debug output showing tool support detect
 
 ---
 
-### 1B+ Models (R02.2 - Current)
+### 1B+ Models (R02.2 - Historical)
 
-| Rank | Model | Params | Score | Time | Tool Support | Δ vs R01 |
-|:----:|-------|-------:|------:|-----:|:-----------:|:--------:|
-| 🥇 | **`granite3.1-moe:1b`** | 1B MoE | **14/15 (93%)** | 87.8s | react | **+13%** ✅ |
-| 🥈 | **`llama3.2:1b`** | 1.2B | **13/15 (87%)** | 150.2s | native | **+20%** ✅ |
-| 🥉 | `tinydolphin:1.1b` | 1.1B | 9/15 (60%) | 130.9s | none | -7% |
-| 4 | `tinyllama:1.1b` | 1.1B | 8/15 (53%) | 127.7s | none | -14% |
+| Rank | Model | Params | Score | Time | Tool Support |
+|:----:|-------|-------:|------:|-----:|:-----------:|
+| 🥇 | **`granite3.1-moe:1b`** | 1B MoE | **14/15 (93%)** | 87.8s | react |
+| 🥈 | **`llama3.2:1b`** | 1.2B | **13/15 (87%)** | 150.2s | native |
+| 🥉 | `tinydolphin:1.1b` | 1.1B | 9/15 (60%) | 130.9s | none |
+| 4 | `tinyllama:1.1b` | 1.1B | 8/15 (53%) | 127.7s | none |
 
 #### 1B+ Key Findings (R02.2)
 
-1. **`granite3.1-moe:1b` dominates at 93%** - Up from 80%, best 1B model ever!
-2. **`llama3.2:1b` massive improvement** - 67% → 87% from observation role fix
+1. **`granite3.1-moe:1b` dominates at 93%** - Best 1B+ model
+2. **`llama3.2:1b` solid at 87%** - Native tool support works well
 3. **MoE architecture shines** - granite3.1-moe fastest champion at 87.8s
 
 ---
@@ -146,7 +250,7 @@ Test 07 uses the 15-test benchmark with debug output showing tool support detect
 | `qwen3:0.6b` | react | 67% | Restored with `think=False` |
 | `qwen2.5-coder:0.5b` | react | 60% | +7% from ReAct fixes |
 
-**Key Insight**: R02.2 fixes dramatically improved ReAct models. `granite3.1-moe:1b` went from 80% to 93%!
+**Key Insight**: R02.2 fixes dramatically improved ReAct models.
 
 ---
 
@@ -249,67 +353,6 @@ The agent.py module was split into 6 focused modules:
 | 12 | `qwen:0.5b` | 1/5 (20%) | 32s | none | No tool support |
 | 12 | `tinydolphin:1.1b` | 1/5 (20%) | 102.4s | none | No tool support, verbose |
 | 12 | `tinyllama:1.1b` | 1/5 (20%) | 103.8s | none | No tool support, verbose |
-
----
-
-## R01 Results (Historical)
-
-### Test 07 Benchmark Results (15-Test Suite)
-
-> **Updated:** 2026-03-22 - Fresh single-run results with accurate timing.
-
----
-
-### All Models Combined (R01 - Historical)
-
-| Rank | Model | Params | Score | Time | Math | Reason | Know | Calc | Code |
-|:----:|-------|-------:|------:|-----:|:----:|:------:|:----:|:----:|:----:|
-| 🥇 | **`granite3.1-moe:1b`** | 1B MoE | **14/15 (93%)** | **95.7s** | 3/3 ✅ | 2/3 | **3/3** ✅ | **3/3** ✅ | **3/3** ✅ |
-| 🥈 | `llama3.2:1b` | 1.2B | 13/15 (87%) | 189.3s | 3/3 ✅ | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ |
-| 🥉 | `qwen3:0.6b` | 600M | 12/15 (80%) | 388.9s | 3/3 ✅ | 2/3 | **3/3** ✅ | 3/3 ✅ | 1/3 |
-| 4 | `nchapman/dolphin3.0-qwen2.5:0.5b` | 500M | 11/15 (73%) | **25.7s** | 1/3 | 2/3 | **3/3** ✅ | 2/3 | 3/3 ✅ |
-| 4 | `granite4:350m` | 350M | 11/15 (73%) | 49.6s | 2/3 | 1/3 | 2/3 | 3/3 ✅ | 3/3 ✅ |
-| 4 | `qwen2.5:0.5b` | 500M | 11/15 (73%) | 62.8s | 1/3 | 2/3 | 2/3 | 3/3 ✅ | 3/3 ✅ |
-| 4 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | 494M | 11/15 (73%) | 85.8s | 2/3 | 1/3 | 2/3 | 3/3 ✅ | 3/3 ✅ |
-| 8 | `tinyllama:1.1b` | 1.1B | 10/15 (67%) | 226.6s | 1/3 | 2/3 | **3/3** ✅ | 1/3 | 3/3 ✅ |
-| 8 | `tinydolphin:1.1b` | 1.1B | 10/15 (67%) | 242.6s | 1/3 | 2/3 | **3/3** ✅ | 1/3 | 3/3 ✅ |
-| 10 | `gemma3:270m` | 270M | 8/15 (53%) | 31.1s | **3/3** ✅ | 1/3 | 1/3 | 0/3 ❌ | 3/3 ✅ |
-| 11 | `nchapman/dolphin3.0-llama3:1b` | 1B | 7/15 (47%) | 47.7s | 1/3 | 1/3 | 2/3 | 0/3 ❌ | 3/3 ✅ |
-
----
-
-## GSM8K Benchmark Results
-
-The following models have been tested on a **50-question GSM8K-style benchmark** using the Agent system with tool support detection.
-
----
-
-### GSM8K Sub-1B Models (R01)
-
-| Rank | Model | Score | Accuracy | Time | Tool Support | Δ vs Pre-R01 |
-|:----:|-------|------:|--------:|-----:|--------------|:------------:|
-| 🥇 | **`qwen2.5:0.5b`** | **45/50** | **90.0%** | 2772.2s | native | ↑ +18% |
-| 🥈 | `granite4:350m` | 39/50 | 78.0% | 787.6s | native | ↑ +32% |
-| 🥉 | `gemma3:270m` | 31/50 | 62.0% | 242.6s | none | = |
-
-#### Key Findings (GSM8K R01)
-
-1. **`qwen2.5:0.5b` achieves 90%** - matches `llama3.2:1b` at half the parameters!
-2. **R01 native synthesis massive improvement** - 72% → 90% (+18%)
-3. **`granite4:350m` improved 46% → 78%** - also huge gains
-4. **Sub-500M models now competitive with 1B models** on GSM8K math
-
----
-
-### GSM8K 1B+ Models (Pre-R01 - Historical)
-
-| Rank | Model | Score | Accuracy | Avg Time | Tool Support | Notes |
-|:----:|-------|------:|--------:|--------:|--------------|-------|
-| 🥇 | **`llama3.2:1b`** | **45/50** | **90.0%** | 12.7s | ReAct | 🏆 **Best 1B model!** |
-| 🥈 | `nchapman/dolphin3.0-llama3:1b` | 35/50 | 70.0% | **5.9s** | none | ⚡ **Fastest!** |
-| 🥉 | `granite3.1-moe:1b` | 34/50 | 68.0% | 13.4s | ReAct | Solid MoE performer |
-| 4 | `tinydolphin:1.1b` | 11/50 | 22.0% | 10.8s | none | Weak math reasoning |
-| 5 | `tinyllama:1.1b` | 5/50 | 10.0% | 12.0s | none | Poor performance |
 
 ---
 
