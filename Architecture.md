@@ -10,21 +10,21 @@ Technical documentation for developers contributing to or extending AgentNova.
 
 ### Current Project State
 
-**Version:** R02.5 (Module Refactoring)
+**Version:** R02.6 (Tool-Calling Optimization)
 
-**Test 07 Champions:** `qwen:0.5b` and `dolphin3.0-qwen2.5:0.5b` at **93% (14/15)** - pure reasoning!
+**Test 15 Champions:** 5 models at **100% (5/5)** - functiongemma:270m, granite4:350m, qwen2.5:0.5b, qwen2.5-coder:0.5b, qwen3:0.6b
 
-**Test 16 Agent Mode:** `qwen2.5-coder:0.5b` at **71% (5/7)** - multi-tool planning needs work
+**Test 16 Agent Mode:** `qwen2.5:0.5b` and `granite4:350m` at **71% (5/7)** - native tools excel
 
-**Key Achievement:** Pure reasoning models (no tools) now match tooled models. Test 16 added for autonomous task evaluation.
+**Key Achievement:** ALL tool-calling models now score 100% on Quick Diagnostic. Multi-step expression extraction fixed.
 
-### Recent Changes (R02.5 - 2026-03-23)
+### Recent Changes (R02.6 - 2026-03-23)
 
-1. **Agent Mode Test (Test 16)** - New test suite for autonomous task execution
-2. **Few-shot prompts for file operations** - Added `write_file` and `read_file` examples
-3. **`/tmp` in allowed paths** - Temp directory now allowed by default
-4. **gemma3 prompt optimization** - Removed confusing code examples
-5. **Module refactoring** - Split agent.py into 6 focused modules
+1. **Multi-step expression extraction** - Handles `8 times 7 minus 5`, word problems, time calculations
+2. **ReAct JSON parsing fix** - Clean extraction with brace matching, handles trailing text
+3. **Verbose response fallback** - Uses numeric result when model gives long explanation
+4. **Test 16 ACP integration** - Now respects `--acp` flag
+5. **Python REPL verification** - Strips commas for number matching ("1,048,576" → "1048576")
 
 ### Important Patterns
 
@@ -366,62 +366,85 @@ The `prefers_few_shot` setting is for **native mode**. ReAct mode always overrid
 | `parallel` | All agents run concurrently; results are merged with attribution |
 
 ---
-## Benchmark Results Summary (R02)
+## Benchmark Results Summary (R02.6)
 
-### Test 07 Leaderboard (15-Test Suite)
+### Test 15 Quick Diagnostic (5 Questions)
 
-| Rank | Model | Score | Time | Notes |
-|:----:|-------|------:|-----:|-------|
-| 🥇 | `granite3.1-moe:1b` | **93% (14/15)** | **95.7s** | Champion! MoE architecture |
-| 🥈 | `llama3.2:1b` | 87% (13/15) | 189.3s | Native tools, 128k context |
-| 🥉 | `qwen3:0.6b` | 80% (12/15) | 388.9s | Best sub-1B |
-| 4 | `qwen2.5:0.5b` | 73% (11/15) | 62.8s | **90% GSM8K** |
-| 4 | `granite4:350m` | 73% (11/15) | 49.6s | **78% GSM8K** |
-| 4 | `nchapman/dolphin3.0-qwen2.5:0.5b` | 73% (11/15) | 25.7s | Fastest 73% |
+| Rank | Model | Score | Time | Tool Support |
+|:----:|-------|------:|-----:|:------------:|
+| 🥇 | **`functiongemma:270m`** | **100% (5/5)** | **19.6s** | native |
+| 🥈 | **`granite4:350m`** | **100% (5/5)** | 49.4s | native |
+| 🥉 | **`qwen2.5:0.5b`** | **100% (5/5)** | 66.3s | native |
+| 4 | **`qwen2.5-coder:0.5b`** | **100% (5/5)** | 116.5s | react |
+| 4 | **`qwen3:0.6b`** | **100% (5/5)** | 122.8s | react |
+| 6 | `gemma3:270m` | 80% (4/5) | 14.3s | none |
+| 6 | `dolphin3.0-qwen2.5:0.5b` | 80% (4/5) | 26.6s | none |
+| 8 | `smollm:135m` | 40% (2/5) | 16.1s | none |
+| 8 | `qwen:0.5b` | 20% (1/5) | 27.0s | none |
+
+### Test 16 Agent Mode (7 Tasks)
+
+| Rank | Model | Score | Time | Tool Support |
+|:----:|-------|------:|-----:|:------------:|
+| 🥇 | **`qwen2.5:0.5b`** | **71% (5/7)** | **141.6s** | native |
+| 🥈 | **`granite4:350m`** | **71% (5/7)** | 146.6s | native |
+| 🥉 | `qwen2.5-coder:0.5b` | 71% (5/7) | 309.8s | react |
+| 4 | `functiongemma:270m` | 43% (3/7) | 46.5s | native |
+| 5 | `gemma3:270m` | 0% (0/2) | 6.0s | none |
 
 ### Model Recommendations
 
 | Use Case | Best Model | Why |
 |----------|------------|-----|
-| **Best Overall** | `granite3.1-moe:1b` | 93% in 95.7s |
-| **Best GSM8K Math** | `qwen2.5:0.5b` | 90% - matches 1B at half size |
-| **Best Speed** | `nchapman/dolphin3.0-qwen2.5:0.5b` | 25.7s, 73% accuracy |
+| **Best Overall** | `functiongemma:270m` | 100% in 19.6s - fastest perfect! |
+| **Best Native Tools** | `qwen2.5:0.5b` | 100% Test 15, 71% Test 16 |
+| **Best ReAct Mode** | `qwen2.5-coder:0.5b` | 100% Test 15, code-focused |
+| **Best Speed** | `functiongemma:270m` | 19.6s, 270M params |
 | **Large Context** | `llama3.2:1b` | 128k context window |
 
 ---
 
 ## Test 16 Agent Mode (Autonomous Tasks)
 
-Test 16 evaluates autonomous task execution with multi-tool planning.
+Test 16 evaluates autonomous task execution with multi-tool planning. Native tool models outperform ReAct models.
 
 ### Test Categories
 
-| Test | Description | Expected |
-|------|-------------|----------|
-| Simple Reasoning | Pure logic puzzle | 2 |
-| Knowledge Recall | Fact retrieval | Paris |
-| Calculator Chain | Multi-step math | 162 |
-| File Write | Create file | File created |
-| Shell Echo | Execute command | Message echoed |
-| Python REPL | Calculate 2^20 | 1048576 |
-| Multi-Tool | Calculate then write | File with 100 |
+| Test | Description | Expected | Native Models | ReAct Models |
+|------|-------------|----------|---------------|--------------|
+| Simple Reasoning | Pure logic puzzle | 2 | ❌ Math error | ❌ Math error |
+| Knowledge Recall | Fact retrieval | Paris | ✅ | ✅ |
+| Calculator Chain | Multi-step math | 162 | ✅ | ✅ |
+| File Write | Create file | File created | ✅ | ✅ (with loops) |
+| Shell Echo | Execute command | Message echoed | ✅ | ✅ (with loops) |
+| Python REPL | Calculate 2^20 | 1048576 | ✅ | ✅ |
+| Multi-Tool | Calculate then write | File with 100 | ❌ Skips write | ❌ Hallucinates |
+
+### Key Findings (R02.6)
+
+1. **Native tools > ReAct** - No hallucinated observations, cleaner execution
+2. **Simple Reasoning fails universally** - Small models struggle with pure math (5-2-1=?)
+3. **Multi-Tool planning is hard** - Models mention the second action instead of doing it
+4. **ReAct loop repetition** - Models repeat same action instead of "Final Answer"
+5. **qwen2.5:0.5b fastest native** - 141.6s vs 146.6s for granite4:350m
 
 ### Known Issues
 
-| Issue | Description | Solution |
-|-------|-------------|----------|
-| ReAct loop | Repeats same action | Add repetition detector |
-| Multi-tool planning | Stops after first step | Better chain prompting |
-| Arg confusion | Wrong param names | Few-shot examples updated |
+| Issue | Description | Impact |
+|-------|-------------|--------|
+| ReAct loop | Repeats same action after success | Extra API calls, needs synthesis |
+| Multi-tool planning | Stops after first tool | Multi-Tool test fails |
+| Hallucinated observations | ReAct models imagine tool results | False confidence |
+| Empty tool responses | Native models sometimes return empty | Needs retry/synthesis |
 
 ### Usage
 
 ```bash
 # Run Agent Mode test
-agentnova test 16 --model qwen2.5-coder:0.5b
+agentnova test 16 --model qwen2.5:0.5b
 
-# With debug output
-agentnova test 16 --model all --debug
+# With ACP and debug
+agentnova test 16 --model all --debug --acp
 ```
 
 ---
