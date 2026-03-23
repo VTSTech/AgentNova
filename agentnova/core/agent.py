@@ -741,14 +741,20 @@ class Agent:
                     
                     if "calculator" in available_tools and any(kw in q_lower for kw in 
                         ["times", "multiply", "plus", "minus", "divided", "power", "sqrt", 
-                         "square root", "what is", "calculate", "compute", " * ", " + ", " - ", " / "]):
+                         "square root", "what is", "calculate", "compute", " * ", " + ", " - ", " / ",
+                         "how many", "hours", "apples", "left", "open", "close"]):
                         extracted_expr = _extract_calc_expression(user_input)
                         if extracted_expr:
                             tool_hint = f"You must call the calculator tool NOW. Use it with {{\"expression\": \"{extracted_expr}\"}}."
                             if self.debug:
                                 print(f"    extracted expression: {extracted_expr}")
                         else:
-                            tool_hint = "You must call the calculator tool. Use it with an expression like {\"expression\": \"15 * 8\"}."
+                            # Couldn't extract - ask model to figure it out
+                            tool_hint = (
+                                f"You must call the calculator tool to answer this question.\n"
+                                f"Read the question carefully and construct the correct mathematical expression.\n"
+                                f"Use the calculator with {{\"expression\": \"your_expression_here\"}}."
+                            )
                     elif "shell" in available_tools and any(kw in q_lower for kw in 
                         ["echo", "print", "directory", "pwd", "folder", "date", "time", "today"]):
                         if "echo" in q_lower or "print" in q_lower:
@@ -1154,6 +1160,18 @@ class Agent:
                         if self.debug:
                             print(f"\n  🔍 DEBUG: ReAct thought without Final Answer, using numeric result: {fallback_num}")
                         content = fallback_text
+                    except (ValueError, TypeError):
+                        pass
+                
+                # Also handle verbose responses when we have a simple numeric result
+                elif len(content_stripped) > 100:  # Verbose response
+                    try:
+                        fallback_num = float(fallback_text)
+                        # Check if the content contains the answer
+                        if str(fallback_num) not in content_stripped and f"{fallback_num:.1f}" not in content_stripped:
+                            if self.debug:
+                                print(f"\n  🔍 DEBUG: Verbose response without numeric answer, using result: {fallback_num}")
+                            content = fallback_text
                     except (ValueError, TypeError):
                         pass
             

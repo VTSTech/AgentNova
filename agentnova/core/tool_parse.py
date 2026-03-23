@@ -392,6 +392,23 @@ def _parse_react(text: str) -> tuple[str | None, str | None, dict | None, str | 
         # Strip any trailing backticks or quotes from tool name
         tool_name = tool_name.strip('`"\'')
         
+        # Extract just the JSON object from raw_args (handle extra text after)
+        json_start = raw_args.find('{')
+        if json_start != -1:
+            # Find matching closing brace
+            depth = 0
+            json_end = -1
+            for i, ch in enumerate(raw_args[json_start:], json_start):
+                if ch == '{':
+                    depth += 1
+                elif ch == '}':
+                    depth -= 1
+                    if depth == 0:
+                        json_end = i
+                        break
+            if json_end != -1:
+                raw_args = raw_args[json_start:json_end + 1]
+        
         # Try to parse JSON args
         try:
             tool_args = json.loads(raw_args)
@@ -400,7 +417,11 @@ def _parse_react(text: str) -> tuple[str | None, str | None, dict | None, str | 
             try:
                 tool_args = json.loads(sanitized)
             except json.JSONDecodeError:
-                if raw_args.startswith('{') and '=' in raw_args and 'arguments' not in raw_args.lower():
+                # Last resort: check for known patterns in the raw text
+                expr_match = re.search(r'"expression":\s*"([^"]+)"', raw_args)
+                if expr_match:
+                    tool_args = {"expression": expr_match.group(1)}
+                elif raw_args.startswith('{') and '=' in raw_args and 'arguments' not in raw_args.lower():
                     tool_args = {"input": raw_args}
                 else:
                     tool_args = {"input": raw_args}
