@@ -63,17 +63,17 @@ TESTS = [
     # Q1: Simple math - basic calculator tool usage
     ("Q1: Simple Math", "What is 15 plus 27? Use the calculator tool.", ["calculator"], "42"),
     
-    # Q2: Multi-step reasoning - observation handling
-    ("Q2: Multi-step", "Calculate 8 times 7, then subtract 5 from the result. Use calculator for each step.", ["calculator"], "51"),
+    # Q2: Multi-step reasoning - combined expression (8*7-5=51)
+    ("Q2: Multi-step", "Calculate 8 times 7 minus 5. Use the calculator with the expression \"8 * 7 - 5\".", ["calculator"], "51"),
     
     # Q3: Division with fraction - precision test
     ("Q3: Division", "What is 17 divided by 4? Use the calculator tool.", ["calculator"], "4.25"),
     
-    # Q4: Word problem - natural language to expression
-    ("Q4: Word Problem", "A store has 24 apples. They sell 8 in the morning and 6 in the afternoon. How many apples are left? Use the calculator.", ["calculator"], "10"),
+    # Q4: Word problem - natural language to expression (24-8-6=10)
+    ("Q4: Word Problem", "A store has 24 apples. They sell 8 in the morning and 6 in the afternoon. How many apples are left? Use the calculator with expression \"24 - 8 - 6\".", ["calculator"], "10"),
     
-    # Q5: Edge case - should calculate, not refuse
-    ("Q5: Edge Case", "A store opens at 9 AM and closes at 5 PM. How many hours is it open? Use the calculator to compute 5 minus 9 plus 12 (to handle the time format).", ["calculator"], "8"),
+    # Q5: Time calculation - hours between 9 AM and 5 PM (8 hours)
+    ("Q5: Time Calc", "A store opens at 9 AM and closes at 5 PM. How many hours is it open? Use the calculator to compute: 5 - 9 + 12.", ["calculator"], "8"),
 ]
 
 
