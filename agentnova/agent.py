@@ -168,6 +168,41 @@ class Agent:
             print(f"[AgentNova] Tools: {self.tools.names()}")
             print(f"[AgentNova] Prompt: {prompt}\n")
 
+        # ---- Greeting short-circuit ----
+        # For simple greetings, skip tool calling and respond directly
+        from .core.helpers import is_greeting_or_simple
+        if self._tool_support == ToolSupportLevel.NATIVE and is_greeting_or_simple(prompt):
+            # Just get a simple response without tools
+            try:
+                response = self.backend.generate(
+                    model=self.model,
+                    messages=self.memory.get_messages(),
+                    tools=None,  # No tools for greetings
+                    temperature=self.model_config.default_temperature,
+                    max_tokens=100,
+                )
+                content = response.get("content", "")
+                if content and not self._looks_like_tool_schema(content):
+                    if self.debug:
+                        print(f"  Greeting detected, responding directly")
+                    steps.append(StepResult(
+                        type=StepResultType.FINAL_ANSWER,
+                        content=content,
+                        tokens_used=response.get("usage", {}).get("total_tokens", 0),
+                    ))
+                    self.memory.add("assistant", content)
+                    total_ms = (time.time() - start_time) * 1000
+                    return AgentRun(
+                        final_answer=content,
+                        steps=steps,
+                        total_tokens=total_tokens,
+                        total_ms=total_ms,
+                        tool_calls=0,
+                        success=True,
+                    )
+            except Exception:
+                pass  # Fall through to normal processing
+
         # ReAct loop
         for step_num in range(self.max_steps):
             if self.debug:
@@ -562,3 +597,42 @@ class Agent:
 
     def __repr__(self) -> str:
         return f"Agent(model={self.model}, tools={len(self.tools)}, support={self._tool_support.value})"
+    
+    def _looks_like_tool_schema(self, text: str) -> bool:
+        """Check if text looks like a tool schema dump instead of actual content."""
+        if not text:
+            return False
+        
+        text_lower = text.lower()
+        schema_indicators = [
+            '"type":', '"properties":', '"required":',
+            '"function"', '"parameters"', '"description"',
+            '"json_schema"', '```json', '```python',
+        ]
+        
+        # If multiple schema indicators are present, likely a schema dump
+        count = sum(1 for ind in schema_indicators if ind in text_lower)
+        return count >= 3
+    
+    def _synthesize(self, user_input: str, successful_results: list[str]) -> str:
+        """
+        Synthesize a final answer from successful tool results.
+        Called when we have enough results but the model hasn't given a final answer.
+        """
+        if not successful_results:
+            return "I was unable to complete the task."
+        
+        # For single result, use it directly
+        if len(successful_results) == 1:
+            result = successful_results[0]
+            # Strip tool prefix if present
+            if "→" in result:
+                result = result.split("→")[-1].strip()
+            return result
+        
+        # For multiple results, summarize
+        from .core.helpers import strip_tool_prefix
+        results_str = "\n".join(f"- {strip_tool_prefix(r)}" for r in successful_results)
+        
+        # Simple synthesis
+        return f"Based on the results:\n{results_str}"
