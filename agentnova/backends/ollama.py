@@ -143,7 +143,7 @@ class OllamaBackend(BaseBackend):
         if os.environ.get("AGENTNOVA_DEBUG"):
             print(f"  [Ollama] Raw result keys: {list(result.keys())}")
             print(f"  [Ollama] Message keys: {list(message.keys())}")
-            print(f"  [Ollama] Content: {content[:100] if content else '(empty)'}")
+            print(f"  [Ollama] Content: {content[:1024] if content else '(empty)'}")
             print(f"  [Ollama] Tool calls: {tool_calls}")
 
         # Parse tool calls from Ollama format
