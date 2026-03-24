@@ -147,10 +147,12 @@ class OllamaBackend(BaseBackend):
             print(f"  [Ollama] Tool calls: {tool_calls}")
 
         # Parse tool calls from Ollama format
+        # IMPORTANT: Preserve the 'id' field - it's required for tool result messages
         parsed_tool_calls = []
         for tc in tool_calls:
             func = tc.get("function", {})
             parsed_tool_calls.append({
+                "id": tc.get("id", ""),  # Preserve for tool result correlation
                 "name": func.get("name", ""),
                 "arguments": func.get("arguments", {}),
             })

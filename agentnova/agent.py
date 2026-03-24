@@ -306,9 +306,14 @@ class Agent:
             # ---- Native tool calling ----
             if self._tool_support == ToolSupportLevel.NATIVE and native_tool_calls:
                 native_retry_count = 0  # Reset retry counter on success
+                
+                # Add assistant message with all tool calls (do this ONCE, not per tool)
+                self.memory.add_tool_call("assistant", content, native_tool_calls)
+                
                 for tc in native_tool_calls:
                     tool_name = tc.get("name", "")
                     tool_args = tc.get("arguments", {})
+                    tool_call_id = tc.get("id", "")  # Get the actual ID from Ollama
 
                     # Fuzzy match tool name
                     tool_name = self._parser._fuzzy_match_tool(tool_name)
@@ -316,10 +321,9 @@ class Agent:
                     result = self._execute_tool(tool_name, tool_args, prompt)
                     tool_calls += 1
 
-                    # Add to memory
-                    self.memory.add_tool_call("assistant", content, native_tool_calls)
+                    # Add tool result with correct ID
                     self.memory.add_tool_result(
-                        tool_call_id=f"call_{tool_calls}",
+                        tool_call_id=tool_call_id,
                         name=tool_name,
                         content=str(result),
                     )

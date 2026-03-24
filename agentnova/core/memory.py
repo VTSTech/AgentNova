@@ -34,7 +34,25 @@ class Message:
         """Convert to dictionary for API calls."""
         result = {"role": self.role, "content": self.content}
         if self.tool_calls:
-            result["tool_calls"] = self.tool_calls
+            # Convert internal format to Ollama API format
+            # Internal: {"id": "x", "name": "tool", "arguments": {...}}
+            # Ollama: {"id": "x", "function": {"name": "tool", "arguments": {...}}}
+            ollama_tool_calls = []
+            for tc in self.tool_calls:
+                if "function" in tc:
+                    # Already in Ollama format
+                    ollama_tool_calls.append(tc)
+                else:
+                    # Convert from internal format
+                    ollama_tc = {
+                        "id": tc.get("id", ""),
+                        "function": {
+                            "name": tc.get("name", ""),
+                            "arguments": tc.get("arguments", {}),
+                        }
+                    }
+                    ollama_tool_calls.append(ollama_tc)
+            result["tool_calls"] = ollama_tool_calls
         if self.tool_call_id:
             result["tool_call_id"] = self.tool_call_id
         if self.name:
