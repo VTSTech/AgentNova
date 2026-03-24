@@ -229,7 +229,7 @@ def generate_helpful_error_message(tool_name: str, tool, provided_args: dict, er
         "read_file": 'read_file(path="/tmp/file.txt")',
         "python_repl": 'python_repl(code="print(2**10)")',
         "shell": 'shell(command="echo Hello")',
-        "web_search": 'web_search(query="capital of France")',
+        "web-search": 'web-search(query="capital of France")',
         "get_weather": 'get_weather(city="Tokyo")',
         "convert_currency": 'convert_currency(amount=100, from_currency="USD", to_currency="EUR")',
     }

@@ -128,7 +128,7 @@ def _extract_tool_from_json(obj: dict, debug: bool = False) -> tuple[str | None,
             "code": "python_repl",
             "path": "read_file",
             "content": "write_file",
-            "query": "web_search",
+            "query": "web-search",
             "url": "http_get",
         }
         for key in obj.keys():
@@ -254,7 +254,7 @@ def _try_extract_tool_from_malformed(text: str, available_tools: list[str]) -> t
                 if "datetime" in text_lower or "strftime" in text_lower:
                     return tool_name, {}
             
-            if tool_name == "web_search":
+            if tool_name == "web-search":
                 query_match = re.search(r'"query":\s*"([^"]+)"', text)
                 if query_match:
                     return tool_name, {"query": query_match.group(1)}

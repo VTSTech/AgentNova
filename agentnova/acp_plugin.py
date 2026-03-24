@@ -262,7 +262,7 @@ class ACPPlugin:
             "write_file": "WRITE",
             "edit_file": "EDIT",
             "shell": "BASH",
-            "web_search": "SEARCH",
+            "web-search": "SEARCH",
             "http_get": "API",
             "http_post": "API",
             "calculator": "SKILL",
@@ -524,8 +524,8 @@ class ACPPlugin:
                 "inputModes": ["text/plain", "application/json"],
                 "outputModes": ["text/plain"],
             },
-            "web_search": {
-                "id": "web_search",
+            "web-search": {
+                "id": "web-search",
                 "name": "Web Search",
                 "description": "Search the web for information",
                 "tags": ["web", "search", "internet", "query"],
@@ -1012,7 +1012,7 @@ class ACPPlugin:
             return args.get("command", "")[:100]
         elif tool_name == "calculator":
             return args.get("expression", "")[:100]
-        elif tool_name == "web_search":
+        elif tool_name == "web-search":
             return args.get("query", "")[:100]
         elif tool_name == "http_get":
             return args.get("url", "")[:100]

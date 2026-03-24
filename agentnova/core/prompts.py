@@ -62,7 +62,7 @@ TOOL_ARG_ALIASES = {
         "text": "command", "input": "command", "arg": "command",
         "args": "command", "str": "command", "value": "command",
     },
-    "web_search": {
+    "web-search": {
         "query": "query",  # correct
         "search": "query", "q": "query", "term": "query", "search_query": "query",
         "keywords": "query", "text": "query", "input": "query",
