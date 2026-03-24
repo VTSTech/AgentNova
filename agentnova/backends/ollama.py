@@ -61,9 +61,20 @@ class OllamaBackend(BaseBackend):
         tools: list[Tool] | None = None,
         temperature: float = 0.7,
         max_tokens: int = 2048,
+        think: bool | None = None,
         **kwargs,
     ) -> dict:
-        """Generate a response from Ollama."""
+        """Generate a response from Ollama.
+        
+        Args:
+            model: Model name
+            messages: Chat messages
+            tools: List of Tool objects for native tool calling
+            temperature: Sampling temperature
+            max_tokens: Maximum tokens to generate
+            think: For thinking models (qwen3, deepseek-r1): None=auto, False=disable thinking
+            **kwargs: Additional options passed to Ollama
+        """
         import urllib.request
         import urllib.error
 
@@ -85,12 +96,20 @@ class OllamaBackend(BaseBackend):
         if tools:
             body["tools"] = [t.to_json_schema() for t in tools]
 
+        # Add think parameter for thinking models (qwen3, deepseek-r1, etc.)
+        if think is not None:
+            body["think"] = think
+
         # Add any extra options
         for key, value in kwargs.items():
             if key == "stop":
                 body["options"]["stop"] = value if isinstance(value, list) else [value]
-            elif key not in ("model", "messages", "tools", "stream"):
+            elif key not in ("model", "messages", "tools", "stream", "think"):
                 body["options"][key] = value
+
+        # Debug output for request
+        if os.environ.get("AGENTNOVA_DEBUG"):
+            print(f"  [Ollama] Request: tools={len(tools) if tools else 0}, think={think}")
 
         # Make request
         start_time = time.time()

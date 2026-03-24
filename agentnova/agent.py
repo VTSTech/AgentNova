@@ -99,6 +99,10 @@ class Agent:
         # Get model configuration
         self.model_config = get_model_config(model)
 
+        # Detect model family
+        from .core.model_family_config import detect_family
+        self.model_family = detect_family(model)
+
         # Determine tool support level
         if force_react:
             self._tool_support = ToolSupportLevel.REACT
@@ -591,12 +595,20 @@ class Agent:
             print(f"  [DEBUG] Sending {len(messages)} messages")
             print(f"  [DEBUG] Tools: {[t.name for t in self.tools.all()] if self.tools else None}")
 
+        # Check if model needs thinking disabled (qwen3, deepseek-r1, etc.)
+        think = None
+        if self.model_family:
+            from .core.model_family_config import needs_no_think_directive
+            if needs_no_think_directive(self.model_family):
+                think = False
+
         response = self.backend.generate(
             model=self.model,
             messages=messages,
             tools=self.tools.all() if self._tool_support == ToolSupportLevel.NATIVE else None,
             temperature=self.model_config.default_temperature,
             max_tokens=self.model_config.default_max_tokens,
+            think=think,
         )
 
         if self.debug:
