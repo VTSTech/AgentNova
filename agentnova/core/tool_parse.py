@@ -117,12 +117,18 @@ def _looks_like_tool_schema_dump(text: str) -> bool:
 
 def _extract_tool_from_json(obj: dict, debug: bool = False) -> tuple[str | None, dict | None]:
     """Extract tool name and args from a parsed JSON object."""
+    # Guard against non-dict objects (e.g., JSON parsed as int, str, list)
+    if not isinstance(obj, dict):
+        if debug:
+            print(f"    _extract_tool_from_json: obj is not a dict, got {type(obj).__name__}")
+        return None, None
+    
     # Try standard keys first
     name = obj.get("name") or obj.get("function") or obj.get("tool") or obj.get("action")
     args = obj.get("arguments") or obj.get("parameters") or obj.get("args") or obj.get("actionInput") or {}
 
     # Handle bare argument objects
-    if not name and isinstance(obj, dict):
+    if not name:
         arg_to_tool = {
             "expression": "calculator",
             "command": "shell",
@@ -662,13 +668,22 @@ class ToolParser:
         # Use the existing _parse_json_tool_call function
         name, args = _parse_json_tool_call(text)
         
-        if name:
+        # Validate the result before creating a ToolCall
+        if name and isinstance(name, str) and len(name) > 0:
+            # Ensure args is a dict
+            if not isinstance(args, dict):
+                args = {}
+            
+            # Skip if name looks like code or an expression
+            if any(c in name for c in '()[]=<>{}'):
+                return []
+            
             # Fuzzy match the tool name
             matched_name = self._fuzzy_match_tool(name)
             
             calls.append(ToolCall(
                 name=matched_name,
-                arguments=args if isinstance(args, dict) else {},
+                arguments=args,
                 raw=text,
                 confidence=0.8,
             ))
