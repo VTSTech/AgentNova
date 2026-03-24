@@ -120,12 +120,12 @@ agentnova/agentnova/
 | **Tool Support Testing** | ✅ | ✅ | Improved with `force_test` |
 | **Model Discovery** | ✅ | ✅ | Ported |
 | **Shared Args** | ✅ | ✅ | Ported |
-| **Skills System** | Full | Basic | Simplified loader |
-| **Sandboxed REPL** | ✅ | ❌ | Not yet ported |
-| **Math Prompts** | ✅ | ❌ | Not yet ported |
-| **Orchestrator Enhanced** | ✅ | ❌ | Simplified |
-| **Modelfile Command** | ✅ | ❌ | Not yet implemented |
-| **Skills Command** | ✅ | ❌ | Not yet implemented |
+| **Skills System** | ✅ | ✅ | Full system ported |
+| **Sandboxed REPL** | ✅ | ✅ | Ported |
+| **Math Prompts** | ✅ | ✅ | Ported |
+| **Orchestrator Enhanced** | ✅ | ✅ | Ported |
+| **Modelfile Command** | ✅ | ✅ | Ported |
+| **Skills Command** | ✅ | ✅ | Ported |
 | **Config Command** | ❌ | ✅ | **New in refactor-1** |
 | **Version Command** | ❌ | ✅ | **New in refactor-1** |
 | **Test Subcommand** | Tests in cli | Separate | Cleaner separation |
@@ -298,18 +298,16 @@ agent = Agent(model="...", tools=registry)
 
 ## Recommendations
 
-### Use Main Branch When:
-- You need the full skills system (skill-creator, web_search, datetime)
-- You need sandboxed Python REPL tool
-- You need the modelfile or skills CLI commands
-- You need math-specific prompt templates
+### Use Refactor-1 Branch (Recommended)
+- Cleaner, more maintainable code (~60% smaller)
+- ACP integration for monitoring
+- Pluggable backend system
+- Full type safety
+- **All features from main branch now ported**
+- Better architecture for building on top
 
-### Use Refactor-1 Branch When:
-- You want cleaner, more maintainable code
-- You need ACP integration for monitoring
-- You want to add custom backends
-- You prefer full type safety
-- You're building on top of AgentNova as a library
+### Use Main Branch When:
+- You have existing code that depends on the old import paths
 
 ---
 
@@ -324,23 +322,25 @@ agent = Agent(model="...", tools=registry)
 - [x] Shared CLI arguments
 - [x] Agent mode
 - [x] Orchestrator (basic)
+- [x] Enhanced orchestrator (parallel execution)
 - [x] Type system
+- [x] Sandboxed REPL tool
+- [x] Math prompts module
+- [x] Skills system (full - acp, datetime, skill-creator, web_search)
+- [x] Modelfile CLI command
+- [x] Skills CLI command
 
-### 🔄 In Progress / Planned
-- [ ] Sandboxed REPL tool
-- [ ] Math prompts module
-- [ ] Skills system (full)
-- [ ] Modelfile command
-- [ ] Skills command
-- [ ] Enhanced orchestrator
+### ✅ Refactor-1 Now Feature Complete
+
+All features from main branch have been successfully ported to refactor-1.
 
 ---
 
 ## Conclusion
 
-Refactor-1 represents a significant improvement in code quality and maintainability while preserving all core functionality. The new pluggable backend system and ACP integration make it more extensible. Some features (skills, sandboxed REPL) remain to be ported but the core is solid and tested.
+Refactor-1 is now **feature complete** with all functionality from main branch ported. The codebase is ~60% smaller while maintaining full feature parity and adding new capabilities like ACP integration and pluggable backends.
 
-**Status:** Ready for production use with minor feature gaps.
+**Status:** ✅ **Production Ready** - All features ported, tested, and operational.
 
 ---
 

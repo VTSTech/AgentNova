@@ -1,13 +1,24 @@
+﻿"""
+⚛️ AgentNova R02 - Skills Module
+
+Agent Skills support for AgentNova.
+Loads skills from SKILL.md files following the Agent Skills specification.
+
+Specification: https://agentskills.io/
+
+Usage:
+    from agentnova.skills import SkillLoader, SkillRegistry
+    
+    loader = SkillLoader()
+    skill = loader.load("calculator")
+    
+    registry = SkillRegistry()
+    registry.add(skill)
+    system_prompt += registry.to_system_prompt_addition()
+
+Written by VTSTech — https://www.vts-tech.org — https://github.com/VTSTech/AgentNova
 """
-⚛️ AgentNova — Skills Module
-Skill loader for extending agent capabilities.
 
-Written by VTSTech — https://www.vts-tech.org
-"""
+from .loader import SkillLoader, Skill, SkillRegistry
 
-from .loader import SkillLoader, load_skill
-
-__all__ = [
-    "SkillLoader",
-    "load_skill",
-]
+__all__ = ["SkillLoader", "Skill", "SkillRegistry"]

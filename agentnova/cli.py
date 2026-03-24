@@ -268,6 +268,14 @@ def create_parser() -> argparse.ArgumentParser:
     config_parser = subparsers.add_parser("config", help="Show current configuration")
     config_parser.add_argument("--urls", action="store_true", help="Show only URLs")
 
+    # Modelfile command
+    modelfile_parser = subparsers.add_parser("modelfile", help="Show model's Modelfile info")
+    modelfile_parser.add_argument("-m", "--model", default=None, help="Model to inspect")
+    modelfile_parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None, help="Backend to use")
+
+    # Skills command
+    subparsers.add_parser("skills", help="List available skills")
+
     return parser
 
 
@@ -844,6 +852,131 @@ def cmd_config(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_modelfile(args: argparse.Namespace) -> int:
+    """Show model's Modelfile system prompt and other info."""
+    from .backends import OllamaBackend
+
+    config = get_config()
+    backend_name = args.backend or config.backend
+    backend = get_backend(backend_name)
+
+    if not isinstance(backend, OllamaBackend):
+        print(f"{red('Error:')} Modelfile command requires Ollama backend")
+        return 1
+
+    if not backend.is_running():
+        print(f"{red('✗')}  Ollama is not running. Start it with: {cyan('ollama serve')}")
+        return 1
+
+    model = args.model or config.default_model
+    print(bold(f"\n⚛️ AgentNova Modelfile") + dim(" · Written by VTSTech · https://www.vts-tech.org"))
+    print()
+
+    try:
+        info = backend.get_model_info(model)
+    except Exception as e:
+        print(f"{red('✗')}  Could not get info for model '{model}': {e}")
+        return 1
+
+    # Display model information
+    print(bold(f"Model: {model}"))
+    print(dim("─" * 70))
+    print()
+
+    # System prompt from Modelfile
+    system_prompt = info.get("system")
+    if system_prompt:
+        print(cyan("SYSTEM PROMPT (from Modelfile):"))
+        print()
+        print(system_prompt)
+        print()
+    else:
+        print(dim("(No SYSTEM prompt defined in Modelfile)"))
+        print()
+
+    # Template
+    template = info.get("template")
+    if template:
+        print(cyan("TEMPLATE:"))
+        print()
+        print(template)
+        print()
+
+    # Parameters
+    params = info.get("parameters", "")
+    if params:
+        print(cyan("PARAMETERS:"))
+        print()
+        for line in params.strip().split("\n"):
+            if line.strip():
+                print(dim(f"  {line.strip()}"))
+        print()
+
+    # License
+    license_info = info.get("license", "")
+    if license_info:
+        print(cyan("LICENSE:"))
+        print(f"  {license_info}")
+        print()
+
+    # Details
+    details = info.get("details", {})
+    if details:
+        print(cyan("DETAILS:"))
+        print()
+        for key, value in details.items():
+            print(dim(f"  {key}: {value}"))
+        print()
+
+    return 0
+
+
+def cmd_skills(args: argparse.Namespace) -> int:
+    """List available skills."""
+    from .skills import SkillLoader
+
+    loader = SkillLoader()
+    skills = loader.list_skills()
+
+    print(bold(f"\n⚛️ AgentNova Skills") + dim(" · Written by VTSTech · https://www.vts-tech.org"))
+
+    if not skills:
+        print(yellow("  No skills found."))
+        print(dim("  Skills are loaded from agentnova/skills/*/SKILL.md"))
+        return 0
+
+    print(bold(f"{'Skill':<20} Description"))
+    print(dim("─" * 70))
+
+    for name in skills:
+        try:
+            skill = loader.load(name)
+            desc = skill.description[:60] + "..." if len(skill.description) > 60 else skill.description
+            print(f"  {magenta(name):<26} {desc}")
+
+            # Show resources
+            resources = []
+            if skill.scripts_dir:
+                scripts = list(skill.scripts_dir.glob("*.py"))
+                if scripts:
+                    resources.append(f"{len(scripts)} scripts")
+            if skill.references_dir:
+                refs = list(skill.references_dir.glob("*.md"))
+                if refs:
+                    resources.append(f"{len(refs)} refs")
+            if resources:
+                print(f"  {'':<26} {dim('Has: ' + ', '.join(resources))}")
+        except Exception as e:
+            print(f"  {magenta(name):<26} {red(f'Error: {e}')}")
+
+    print()
+    print(dim(f"  Use with: --skills {','.join(skills[:2])}"))
+    print(dim("  Skills provide knowledge/instructions to the agent."))
+    print()
+
+    return 0
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     """Main entry point."""
     parser = create_parser()
@@ -863,6 +996,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         "test": cmd_test,
         "version": cmd_version,
         "config": cmd_config,
+        "modelfile": cmd_modelfile,
+        "skills": cmd_skills,
     }
 
     handler = commands.get(args.command)
