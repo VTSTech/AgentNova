@@ -574,6 +574,52 @@ class Agent:
                     self.memory.add("user", reminder)
                     continue
 
+            # ---- ReAct fallback: synthesize tool call after reminder failed ----
+            # If reminder was sent but model still didn't output tool call, try to synthesize one
+            if self._tool_support == ToolSupportLevel.REACT and not successful_results and hasattr(self, '_format_reminder_sent'):
+                if self.debug:
+                    print(f"  ReAct fallback: attempting to synthesize tool call")
+                
+                from .core.helpers import extract_calc_expression
+                expr = extract_calc_expression(prompt)
+                
+                if expr and "calculator" in self.tools.names():
+                    if self.debug:
+                        print(f"  Auto-synthesizing calculator call: {expr}")
+                    
+                    result = self._execute_tool("calculator", {"expression": expr}, prompt)
+                    tool_calls += 1
+                    
+                    self.memory.add("assistant", content)
+                    self.memory.add("user", f"Observation: {result}")
+                    
+                    if not str(result).startswith("Error"):
+                        successful_results.append(f"calculator: {result}")
+                    
+                    steps.append(StepResult(
+                        type=StepResultType.TOOL_CALL,
+                        content=f"[Auto-synthesized] calculator({expr})",
+                        tool_result=result,
+                        tokens_used=tokens,
+                    ))
+                    
+                    # For simple numeric results, accept as final answer
+                    result_str = str(result).strip()
+                    if result_str and not result_str.startswith("Error"):
+                        try:
+                            float(result_str)
+                            if self.debug:
+                                print(f"  Accepting synthesized result as final answer: {result_str}")
+                            steps.append(StepResult(
+                                type=StepResultType.FINAL_ANSWER,
+                                content=result_str,
+                                tokens_used=tokens,
+                            ))
+                            break
+                        except (ValueError, TypeError):
+                            pass
+                    continue
+
             # No tool call or final answer - treat as response
             if self.debug:
                 print(f"  No tool calls detected, treating as final answer")
