@@ -39,6 +39,15 @@ from .backends import (
     get_default_backend, get_backend,
 )
 from .config import Config, get_config
+from .config import (
+    OLLAMA_BASE_URL,
+    BITNET_BASE_URL,
+    ACP_BASE_URL,
+    ACP_USER,
+    ACP_PASS,
+    DEFAULT_MODEL,
+    AGENTNOVA_BACKEND,
+)
 from .model_discovery import (
     get_models, get_available_models, pick_best_model,
     pick_models_for_benchmark, model_exists, get_client,
@@ -86,6 +95,13 @@ __all__ = [
     # Config
     "Config",
     "get_config",
+    "OLLAMA_BASE_URL",
+    "BITNET_BASE_URL",
+    "ACP_BASE_URL",
+    "ACP_USER",
+    "ACP_PASS",
+    "DEFAULT_MODEL",
+    "AGENTNOVA_BACKEND",
     # Model Discovery
     "get_models",
     "get_available_models",
