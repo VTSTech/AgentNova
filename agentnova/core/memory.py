@@ -1,191 +1,164 @@
-﻿"""
-⚛️ AgentNova R02 — Memory
-Manages conversation history with a configurable sliding window and
-optional LLM-based summarization to compress older turns.
+"""
+⚛️ AgentNova — Memory Management
+Sliding window memory with optional summarization.
 
-Written by VTSTech — https://www.vts-tech.org — https://github.com/VTSTech/AgentNova
+Written by VTSTech — https://www.vts-tech.org
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Optional
 
 
-Role = Literal["system", "user", "assistant", "tool"]
+@dataclass
+class MemoryConfig:
+    """Configuration for agent memory."""
+    max_messages: int = 50
+    max_tokens: int = 4096
+    summarization_threshold: float = 0.8
+    keep_system: bool = True
+    keep_recent: int = 5
 
 
 @dataclass
 class Message:
-    role: Role
+    """A single message in the conversation."""
+    role: str
     content: str
-    tool_calls: list[dict] | None = None   # assistant tool invocations
-    tool_call_id: str | None = None        # for tool-result messages
-    name: str | None = None               # tool name for result messages
+    tool_calls: list[dict] | None = None
+    tool_call_id: str | None = None
+    name: str | None = None  # For tool messages
 
     def to_dict(self) -> dict:
-        d: dict = {"role": self.role, "content": self.content}
+        """Convert to dictionary for API calls."""
+        result = {"role": self.role, "content": self.content}
         if self.tool_calls:
-            d["tool_calls"] = self.tool_calls
+            # Convert internal format to Ollama API format
+            # Internal: {"id": "x", "name": "tool", "arguments": {...}}
+            # Ollama: {"id": "x", "function": {"name": "tool", "arguments": {...}}}
+            ollama_tool_calls = []
+            for tc in self.tool_calls:
+                if "function" in tc:
+                    # Already in Ollama format
+                    ollama_tool_calls.append(tc)
+                else:
+                    # Convert from internal format
+                    ollama_tc = {
+                        "id": tc.get("id", ""),
+                        "function": {
+                            "name": tc.get("name", ""),
+                            "arguments": tc.get("arguments", {}),
+                        }
+                    }
+                    ollama_tool_calls.append(ollama_tc)
+            result["tool_calls"] = ollama_tool_calls
         if self.tool_call_id:
-            d["tool_call_id"] = self.tool_call_id
+            result["tool_call_id"] = self.tool_call_id
         if self.name:
-            d["name"] = self.name
-        return d
-
-    @staticmethod
-    def from_dict(d: dict) -> "Message":
-        return Message(
-            role=d["role"],
-            content=d.get("content", ""),
-            tool_calls=d.get("tool_calls"),
-            tool_call_id=d.get("tool_call_id"),
-            name=d.get("name"),
-        )
+            result["name"] = self.name
+        return result
 
 
 class Memory:
     """
-    Stores conversation turns and exposes a windowed view for the LLM.
+    Conversation memory with sliding window management.
 
-    Parameters
-    ----------
-    system_prompt : str
-        Injected as the first message every time `to_messages()` is called.
-    max_turns : int
-        Maximum number of user/assistant turns to keep in the active window.
-        Older turns are archived (and optionally summarized).
-    summary_model_fn : callable, optional
-        If provided, called with (archived_text: str) -> summary: str
-        when turns are archived. The summary is prepended as context.
+    Features:
+    - Configurable message limit
+    - Token-based pruning
+    - System message preservation
+    - Recent message retention
     """
 
-    def __init__(
-        self,
-        system_prompt: str = "",
-        max_turns: int = 20,
-        summary_model_fn=None,
-    ):
-        self.system_prompt = system_prompt
-        self.max_turns = max_turns
-        self._summary_model_fn = summary_model_fn
+    def __init__(self, config: MemoryConfig | None = None):
+        self.config = config or MemoryConfig()
+        self._messages: list[Message] = []
+        self._system_prompt: str | None = None
 
-        self._history: list[Message] = []
-        self._archived_summary: str = ""
-
-    # ------------------------------------------------------------------ #
-    #  Writing                                                             #
-    # ------------------------------------------------------------------ #
-
-    def add(self, role: Role, content: str, **kwargs) -> Message:
+    def add(self, role: str, content: str, **kwargs) -> None:
+        """Add a message to memory."""
         msg = Message(role=role, content=content, **kwargs)
-        self._history.append(msg)
-        self._maybe_compress()
-        return msg
 
-    def add_user(self, content: str) -> Message:
-        return self.add("user", content)
+        # Track system prompt separately
+        if role == "system":
+            self._system_prompt = content
+            # Remove any existing system messages
+            self._messages = [m for m in self._messages if m.role != "system"]
 
-    def add_assistant(self, content: str, tool_calls: list[dict] | None = None) -> Message:
-        return self.add("assistant", content, tool_calls=tool_calls)
+        self._messages.append(msg)
+        self._prune_if_needed()
 
-    def add_tool_result(self, name: str, content: str, tool_call_id: str = "") -> Message:
-        return self.add("tool", content, name=name, tool_call_id=tool_call_id)
+    def add_tool_call(self, role: str, content: str, tool_calls: list[dict]) -> None:
+        """Add a message with tool calls."""
+        self.add(role, content, tool_calls=tool_calls)
 
-    # ------------------------------------------------------------------ #
-    #  Reading                                                             #
-    # ------------------------------------------------------------------ #
+    def add_tool_result(self, tool_call_id: str, name: str, content: str) -> None:
+        """Add a tool result message."""
+        self.add("tool", content, tool_call_id=tool_call_id, name=name)
 
-    def to_messages(self) -> list[dict]:
-        """Return the message list ready to pass to Ollama."""
-        messages = []
+    def get_messages(self) -> list[dict]:
+        """Get all messages as dictionaries."""
+        result = []
 
-        # System prompt (always first)
-        sys_content = self.system_prompt
-        if self._archived_summary:
-            sys_content = (
-                f"{sys_content}\n\n"
-                f"=== Earlier conversation summary ===\n{self._archived_summary}"
-            )
-        if sys_content:
-            messages.append({"role": "system", "content": sys_content})
+        # Add system prompt first if present
+        if self._system_prompt:
+            result.append({"role": "system", "content": self._system_prompt})
 
-        # Active history window
-        for msg in self._history:
-            messages.append(msg.to_dict())
+        # Add other messages (excluding any system messages in the list)
+        for msg in self._messages:
+            if msg.role != "system":
+                result.append(msg.to_dict())
 
-        return messages
+        return result
 
-    def last_assistant_message(self) -> Message | None:
-        for msg in reversed(self._history):
-            if msg.role == "assistant":
-                return msg
-        return None
+    def get_recent(self, n: int = 5) -> list[dict]:
+        """Get the n most recent messages."""
+        messages = self.get_messages()
+        return messages[-n:] if len(messages) > n else messages
 
-    def clear(self):
-        self._history.clear()
-        self._archived_summary = ""
+    def clear(self) -> None:
+        """Clear all messages (except system prompt if configured)."""
+        if self.config.keep_system and self._system_prompt:
+            self._messages = []
+        else:
+            self._messages = []
+            self._system_prompt = None
 
-    def __len__(self):
-        return len(self._history)
-
-    # ------------------------------------------------------------------ #
-    #  Compression                                                         #
-    # ------------------------------------------------------------------ #
-
-    def _count_turns(self) -> int:
-        """Count user/assistant turn pairs."""
-        return sum(1 for m in self._history if m.role == "user")
-
-    def _maybe_compress(self):
-        if self._count_turns() <= self.max_turns:
+    def _prune_if_needed(self) -> None:
+        """Prune messages if limits exceeded."""
+        if len(self._messages) <= self.config.max_messages:
             return
 
-        # Archive the oldest half of turns
-        archive_target = self.max_turns // 2
-        archived: list[Message] = []
-        remaining: list[Message] = list(self._history)
-        turns_removed = 0
+        # Calculate how many to remove
+        threshold = int(self.config.max_messages * self.config.summarization_threshold)
+        excess = len(self._messages) - threshold
 
-        new_remaining = []
-        for msg in remaining:
-            if turns_removed < archive_target:
-                archived.append(msg)
-                if msg.role == "user":
-                    turns_removed += 1
-            else:
-                new_remaining.append(msg)
+        if excess <= 0:
+            return
 
-        self._history = new_remaining
-        archived_text = "\n".join(
-            f"{m.role.upper()}: {m.content}" for m in archived
-        )
+        # Keep system messages and recent messages
+        recent_to_keep = self.config.keep_recent
+        messages_to_remove = len(self._messages) - recent_to_keep - 1  # -1 for system
 
-        if self._summary_model_fn:
-            summary = self._summary_model_fn(archived_text)
-        else:
-            # Naive truncation fallback
-            summary = archived_text[:800] + ("..." if len(archived_text) > 800 else "")
+        if messages_to_remove > 0:
+            # Remove oldest non-system messages
+            new_messages = []
+            skipped = 0
+            for msg in self._messages:
+                if msg.role == "system":
+                    new_messages.append(msg)
+                elif skipped >= messages_to_remove:
+                    new_messages.append(msg)
+                else:
+                    skipped += 1
+            self._messages = new_messages
 
-        if self._archived_summary:
-            self._archived_summary += f"\n\n{summary}"
-        else:
-            self._archived_summary = summary
+    def __len__(self) -> int:
+        return len(self._messages)
 
-    # ------------------------------------------------------------------ #
-    #  Serialisation                                                       #
-    # ------------------------------------------------------------------ #
+    def __iter__(self):
+        return iter(self._messages)
 
-    def snapshot(self) -> dict:
-        return {
-            "system_prompt": self.system_prompt,
-            "archived_summary": self._archived_summary,
-            "history": [m.to_dict() for m in self._history],
-        }
-
-    @classmethod
-    def from_snapshot(cls, data: dict, **kwargs) -> "Memory":
-        mem = cls(system_prompt=data.get("system_prompt", ""), **kwargs)
-        mem._archived_summary = data.get("archived_summary", "")
-        mem._history = [Message.from_dict(d) for d in data.get("history", [])]
-        return mem
+    def __repr__(self) -> str:
+        return f"Memory(messages={len(self._messages)}, max={self.config.max_messages})"

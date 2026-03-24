@@ -1,19 +1,21 @@
-﻿"""
-⚛️ AgentNova R02.6 — Argument Normalizer
+"""
+⚛️ AgentNova — Argument Normalizer
 Functions for normalizing and fixing tool call arguments from small models.
 
-Written by VTSTech — https://www.vts-tech.org — https://github.com/VTSTech/AgentNova
+Written by VTSTech — https://www.vts-tech.org
 """
 
 from __future__ import annotations
 
 import re
 
-from .prompts import TOOL_ARG_ALIASES
-from .helpers import _strip_tool_prefix
+
+def strip_tool_prefix(result: str) -> str:
+    """Strip the 'tool_name → ' prefix added to successful results entries."""
+    return result.split("→")[-1].strip() if "→" in result else result.strip()
 
 
-def _normalize_args(args: dict, tool, tool_name: str = None) -> dict:
+def normalize_args(args: dict, tool, tool_name: str = None) -> dict:
     """
     Small models often hallucinate argument keys. This function normalizes
     them using multiple strategies:
@@ -26,6 +28,8 @@ def _normalize_args(args: dict, tool, tool_name: str = None) -> dict:
     Also handles special cases like power operations where multiple args
     (base, exponent) need to be combined into a single expression.
     """
+    from .prompts import TOOL_ARG_ALIASES
+    
     # Guard: ensure args is a dict
     if not isinstance(args, dict):
         if args is None:
@@ -117,7 +121,7 @@ def _normalize_args(args: dict, tool, tool_name: str = None) -> dict:
     return normalized
 
 
-def _fix_calculator_args(t_name: str, t_args: dict, user_input: str, prior_results: list[str]) -> dict:
+def fix_calculator_args(t_name: str, t_args: dict, user_input: str, prior_results: list[str]) -> dict:
     """
     Detect when a model passes a plain number as a calculator expression
     (e.g. expression='83521') when the question implies a further operation
@@ -155,7 +159,7 @@ def _fix_calculator_args(t_name: str, t_args: dict, user_input: str, prior_resul
 
     # Check for redundant call
     for result in prior_results:
-        result_clean = _strip_tool_prefix(result)
+        result_clean = strip_tool_prefix(result)
         try:
             result_num = float(result_clean)
             if abs(num_val - result_num) < 0.001:
@@ -172,7 +176,7 @@ def _fix_calculator_args(t_name: str, t_args: dict, user_input: str, prior_resul
     return t_args
 
 
-def _convert_to_pystrftime(format_str: str) -> str:
+def convert_to_pystrftime(format_str: str) -> str:
     """
     Convert common date format patterns to Python strftime format.
     
@@ -206,7 +210,7 @@ def _convert_to_pystrftime(format_str: str) -> str:
     return result
 
 
-def _generate_helpful_error_message(tool_name: str, tool, provided_args: dict, error_msg: str) -> str:
+def generate_helpful_error_message(tool_name: str, tool, provided_args: dict, error_msg: str) -> str:
     """
     Generate a helpful error message that shows the correct usage format
     when a tool call fails due to incorrect arguments.
@@ -225,7 +229,7 @@ def _generate_helpful_error_message(tool_name: str, tool, provided_args: dict, e
         "read_file": 'read_file(path="/tmp/file.txt")',
         "python_repl": 'python_repl(code="print(2**10)")',
         "shell": 'shell(command="echo Hello")',
-        "web_search": 'web_search(query="capital of France")',
+        "web-search": 'web-search(query="capital of France")',
         "get_weather": 'get_weather(city="Tokyo")',
         "convert_currency": 'convert_currency(amount=100, from_currency="USD", to_currency="EUR")',
     }
@@ -244,11 +248,13 @@ def _generate_helpful_error_message(tool_name: str, tool, provided_args: dict, e
     )
 
 
-def _synthesize_missing_args(tool_name: str, args: dict, user_input: str, prior_results: list[str], tools_registry) -> dict:
+def synthesize_missing_args(tool_name: str, args: dict, user_input: str, prior_results: list[str], tools_registry) -> dict:
     """
     Try to fill in missing required arguments from context.
     This helps small models that call tools with incomplete arguments.
     """
+    from .prompts import PLATFORM_DIR_CMD, PLATFORM_LIST_CMD
+    
     tool = tools_registry.get(tool_name) if tools_registry else None
     if tool is None:
         return args
@@ -301,7 +307,7 @@ def _synthesize_missing_args(tool_name: str, args: dict, user_input: str, prior_
         elif "date" in q_lower:
             provided_format = args.get("format", args.get("date_format", ""))
             if provided_format:
-                py_format = _convert_to_pystrftime(provided_format)
+                py_format = convert_to_pystrftime(provided_format)
                 args["code"] = f"from datetime import datetime\nprint(datetime.now().strftime('{py_format}'))"
             else:
                 args["code"] = "from datetime import datetime\nprint(datetime.now().strftime('Today is %A, %B %d, %Y.'))"
@@ -311,7 +317,6 @@ def _synthesize_missing_args(tool_name: str, args: dict, user_input: str, prior_
             args["code"] = "from datetime import datetime\nprint(datetime.now())"
     
     elif tool_name == "shell" and "command" in missing:
-        from .prompts import PLATFORM_DIR_CMD, PLATFORM_LIST_CMD
         if "directory" in q_lower or "folder" in q_lower:
             args["command"] = PLATFORM_DIR_CMD
         elif "files" in q_lower and "list" in q_lower:
@@ -319,6 +324,6 @@ def _synthesize_missing_args(tool_name: str, args: dict, user_input: str, prior_
     
     elif tool_name == "write_file" and prior_results:
         if "content" in missing and "path" in args:
-            args["content"] = _strip_tool_prefix(prior_results[-1])
+            args["content"] = strip_tool_prefix(prior_results[-1])
     
     return args

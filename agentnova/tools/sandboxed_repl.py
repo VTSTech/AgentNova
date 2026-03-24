@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 ⚛️ AgentNova R02 — Sandboxed Python REPL
 
@@ -34,20 +34,20 @@ from typing import Optional
 @dataclass
 class SandboxConfig:
     """Configuration for the sandboxed Python REPL."""
-    
+
     # Resource limits
     memory_mb: int = 100           # Max memory in MB
     cpu_seconds: int = 10          # Max CPU time in seconds
     timeout_seconds: int = 30      # Max wall-clock time in seconds
-    
+
     # Security settings
     allow_network: bool = False    # Allow network-related modules
     allow_filesystem: bool = False # Allow filesystem-related modules
     allow_subprocess: bool = False # Allow subprocess creation
-    
+
     # Additional allowed modules (beyond defaults)
     extra_modules: set = None
-    
+
     def __post_init__(self):
         if self.extra_modules is None:
             self.extra_modules = set()
@@ -62,31 +62,31 @@ SAFE_BUILTINS = {
     # Basic types
     'bool', 'int', 'float', 'str', 'list', 'dict', 'tuple', 'set', 'frozenset',
     'bytes', 'bytearray', 'complex',
-    
+
     # Type checking
     'type', 'isinstance', 'issubclass', 'hasattr', 'callable',
-    
+
     # Basic functions
     'print', 'len', 'range', 'enumerate', 'zip', 'map', 'filter',
     'sorted', 'reversed', 'slice', 'any', 'all', 'min', 'max', 'sum',
     'abs', 'round', 'pow', 'divmod', 'hash', 'id', 'repr', 'ascii',
     'bin', 'hex', 'oct', 'chr', 'ord', 'format',
-    
+
     # Constants
     'True', 'False', 'None', 'Ellipsis',
-    
+
     # Exceptions (for try/except)
     'Exception', 'BaseException', 'ValueError', 'TypeError', 'KeyError',
     'IndexError', 'AttributeError', 'RuntimeError', 'StopIteration',
     'NotImplementedError', 'ImportError', 'NameError', 'ZeroDivisionError',
     'OverflowError', 'FloatingPointError', 'ArithmeticError',
-    
+
     # Iteration
     'iter', 'next', 'staticmethod', 'classmethod', 'property',
-    
+
     # Object
     'object', 'super', 'vars', 'dir', 'getattr', 'setattr', 'delattr',
-    
+
     # Import (we'll override this with a safe version)
     '__import__',
 }
@@ -95,29 +95,29 @@ SAFE_BUILTINS = {
 SAFE_MODULES = {
     # Math and numbers
     'math', 'cmath', 'decimal', 'fractions', 'random', 'statistics',
-    
+
     # Data structures
     'collections', 'collections.abc', 'heapq', 'bisect', 'array',
     'itertools', 'functools', 'operator',
-    
+
     # Text processing
     're', 'string', 'textwrap', 'difflib', 'unicodedata',
-    
+
     # Data formats
     'json', 'csv', 'configparser', 'html', 'xml.etree.ElementTree',
-    
+
     # Date and time
     'datetime', 'time', 'calendar', 'zoneinfo',
-    
+
     # Copy and pickle (limited)
     'copy', 'pprint',
-    
+
     # Type hints
     'typing', 'typing_extensions', 'types', 'dataclasses', 'enum',
-    
+
     # Pathlib (read-only safe operations)
     'pathlib', 'os.path',
-    
+
     # Other safe modules
     'contextlib', 'io', 'stringio', 'struct', 'codecs',
     'inspect', 'dis', 'ast', 'tokenize', 'keyword', 'token',
@@ -151,26 +151,26 @@ SUBPROCESS_MODULES = {
 def _generate_runner_script(code: str, config: SandboxConfig) -> str:
     """
     Generate the sandboxed Python runner script.
-    
+
     This script is executed in a subprocess with the provided configuration.
     """
-    
+
     # Build allowed modules list
     allowed_modules = set(SAFE_MODULES)
-    
+
     if config.allow_network:
         allowed_modules.update(NETWORK_MODULES)
     if config.allow_filesystem:
         allowed_modules.update(FILESYSTEM_MODULES)
     if config.allow_subprocess:
         allowed_modules.update(SUBPROCESS_MODULES)
-    
+
     if config.extra_modules:
         allowed_modules.update(config.extra_modules)
-    
+
     allowed_modules_str = ', '.join(repr(m) for m in sorted(allowed_modules))
     safe_builtins_str = ', '.join(repr(k) for k in sorted(SAFE_BUILTINS))
-    
+
     return f'''
 import sys
 import resource
@@ -243,13 +243,13 @@ def _safe_import(name, globals=None, locals=None, fromlist=(), level=0):
     """Restricted import that only allows whitelisted modules."""
     # Get top-level module name
     top_level = name.split('.')[0]
-    
+
     if top_level not in _allowed_modules:
         raise ImportError(
             f"Module '{{name}}' is not allowed in sandbox. "
             f"Allowed: math, json, re, datetime, collections, itertools, etc."
         )
-    
+
     return _original_import(name, globals, locals, fromlist, level)
 
 _safe_builtins['__import__'] = _safe_import
@@ -279,24 +279,24 @@ for _mod_name in _common_modules:
 
 try:
     exec({repr(code)}, _safe_globals)
-    
+
 except TimeoutError:
     print("[Sandbox] Execution timed out ({{config.timeout_seconds}}s limit)")
-    
+
 except MemoryError:
     print("[Sandbox] Memory limit exceeded ({{config.memory_mb}}MB limit)")
-    
+
 except ImportError as e:
     print(f"[Sandbox] Import blocked: {{e}}")
-    
+
 except KeyboardInterrupt:
     print("[Sandbox] Execution interrupted")
-    
+
 except SystemExit as e:
     # Allow sys.exit() with small codes
     if e.code is not None and e.code != 0:
         print(f"[Sandbox] Script exited with code {{e.code}}")
-        
+
 except Exception as e:
     import traceback
     print(f"[Error] {{type(e).__name__}}: {{e}}")
@@ -305,7 +305,7 @@ except Exception as e:
     for line in tb_lines:
         if line.strip():
             print(line)
-            
+
 finally:
     signal.alarm(0)  # Cancel timeout
 '''
@@ -322,7 +322,7 @@ def sandboxed_exec(
 ) -> str:
     """
     Execute Python code in a sandboxed subprocess.
-    
+
     Parameters
     ----------
     code : str
@@ -331,22 +331,22 @@ def sandboxed_exec(
         Sandbox configuration. Uses defaults if not provided.
     python_path : str
         Path to Python interpreter. Default: "python3"
-    
+
     Returns
     -------
     str
         Output from the execution (stdout + stderr).
-    
+
     Examples
     --------
     >>> result = sandboxed_exec("print(2 ** 10)")
     >>> print(result)
     1024
-    
+
     >>> result = sandboxed_exec("import os; os.system('ls')")
     >>> print(result)
     [Sandbox] Import blocked: Module 'os' is not allowed...
-    
+
     Notes
     -----
     Security guarantees:
@@ -356,7 +356,7 @@ def sandboxed_exec(
     - Wall clock timeout at config.timeout_seconds (default: 30s)
     - Only whitelisted modules can be imported
     - File system access blocked via RLIMIT_NOFILE
-    
+
     Known limitations:
     - Resource limits may not work on all platforms (e.g., macOS)
     - Very determined attackers may find bypasses
@@ -364,10 +364,10 @@ def sandboxed_exec(
     """
     if config is None:
         config = DEFAULT_CONFIG
-    
+
     # Generate the sandboxed runner script
     runner_script = _generate_runner_script(code, config)
-    
+
     try:
         # Execute in subprocess
         result = subprocess.run(
@@ -383,10 +383,10 @@ def sandboxed_exec(
             # Don't allow stdin (prevent interactive prompts)
             stdin=subprocess.DEVNULL,
         )
-        
+
         # Combine stdout and stderr
         output = result.stdout
-        
+
         if result.stderr:
             # Filter out common warnings
             stderr_lines = []
@@ -396,21 +396,21 @@ def sandboxed_exec(
                 if 'unclosed file' in line.lower():
                     continue
                 stderr_lines.append(line)
-            
+
             if stderr_lines:
                 output += '\n' + '\n'.join(stderr_lines)
-        
+
         return output.strip() or "[No output]"
-    
+
     except subprocess.TimeoutExpired:
         return f"[Sandbox] Process timeout - terminated after {config.timeout_seconds + 10}s"
-    
+
     except subprocess.CalledProcessError as e:
         return f"[Sandbox Error] Process failed with code {e.returncode}"
-    
+
     except FileNotFoundError:
         return f"[Sandbox Error] Python interpreter not found: {python_path}"
-    
+
     except Exception as e:
         return f"[Sandbox Error] {type(e).__name__}: {e}"
 
@@ -422,24 +422,25 @@ def sandboxed_exec(
 def create_sandbox_tool(registry, config: Optional[SandboxConfig] = None):
     """
     Register sandboxed Python REPL as a tool.
-    
+
     Parameters
     ----------
     registry : ToolRegistry
         Tool registry to add the tool to.
     config : SandboxConfig, optional
         Sandbox configuration.
-    
+
     Example
     -------
-    >>> from agentnova.core.tools import ToolRegistry
+    >>> from agentnova.tools import ToolRegistry
     >>> from agentnova.tools.sandboxed_repl import create_sandbox_tool
     >>> registry = ToolRegistry()
     >>> create_sandbox_tool(registry)
     >>> result = registry.invoke('python_repl_safe', {'code': 'print(1+1)'})
     """
-    
-    @registry.tool(
+
+    @registry.register(
+        name="python_repl_safe",
         description=(
             "Execute Python code in a SECURE SANDBOXED environment. "
             "Use this for running Python code safely with memory limits, "
@@ -447,14 +448,13 @@ def create_sandbox_tool(registry, config: Optional[SandboxConfig] = None):
             "like math, json, re, datetime, collections are available. "
             "File system, network, and subprocess operations are BLOCKED."
         ),
-        param_descriptions={
-            "code": "Valid Python code to execute (only safe builtins and modules allowed)",
-        },
+        dangerous=False,
+        category="code",
     )
     def python_repl_safe(code: str) -> str:
         """Execute Python code in a sandboxed subprocess with resource limits."""
         return sandboxed_exec(code, config)
-    
+
     return python_repl_safe
 
 
@@ -464,41 +464,41 @@ def create_sandbox_tool(registry, config: Optional[SandboxConfig] = None):
 
 def test_sandbox():
     """Run basic sandbox tests."""
-    
+
     print("Testing sandboxed Python REPL...")
     print("=" * 60)
-    
+
     # Test 1: Basic execution
     print("\n1. Basic calculation:")
     result = sandboxed_exec("print(2 ** 10)")
     print(f"   Result: {result}")
     assert "1024" in result
-    
+
     # Test 2: Safe imports
     print("\n2. Safe import (math):")
     result = sandboxed_exec("import math; print(math.sqrt(144))")
     print(f"   Result: {result}")
     assert "12" in result
-    
+
     # Test 3: Blocked import (os)
     print("\n3. Blocked import (os):")
     result = sandboxed_exec("import os; print(os.listdir('.'))")
     print(f"   Result: {result}")
     assert "blocked" in result.lower() or "not allowed" in result.lower()
-    
+
     # Test 4: Blocked import (subprocess)
     print("\n4. Blocked import (subprocess):")
     result = sandboxed_exec("import subprocess; subprocess.run(['ls'])")
     print(f"   Result: {result}")
     assert "blocked" in result.lower() or "not allowed" in result.lower()
-    
+
     # Test 5: Timeout test (infinite loop)
     print("\n5. Timeout test (should timeout in ~10s):")
     result = sandboxed_exec("while True: pass")
     print(f"   Result: {result}")
     # Could be timeout, killed, or no output (process killed by CPU limit)
     assert any(word in result.lower() for word in ["timeout", "time", "no output", "killed", "exceeded"]), f"Expected timeout but got: {result}"
-    
+
     # Test 6: Safe modules
     print("\n6. Multiple safe imports:")
     result = sandboxed_exec("""
@@ -514,7 +514,7 @@ print(re.findall(r'\\d+', "abc123def456"))
 print(Counter([1, 1, 2, 2, 2, 3]))
 """)
     print(f"   Result: {result}")
-    
+
     print("\n" + "=" * 60)
     print("All tests completed!")
 

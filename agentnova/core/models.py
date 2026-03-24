@@ -1,47 +1,114 @@
-﻿"""
-⚛️ AgentNova R02.6 — Models
-Data models for agent results and step tracking.
+"""
+⚛️ AgentNova — Core Models
+Data models for agent execution.
 
-Written by VTSTech — https://www.vts-tech.org — https://github.com/VTSTech/AgentNova
+Written by VTSTech — https://www.vts-tech.org
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
-
+from typing import Any, Optional
 from .types import StepResultType
 
 
 @dataclass
-class StepResult:
-    """Result of a single agent step (thought, tool call, tool result, or final answer)."""
-    type: StepResultType
-    content: str
-    tool_name: str | None = None
-    tool_args: dict | None = None
-    elapsed_ms: float = 0.0
+class ToolParam:
+    """Parameter definition for a tool."""
+    name: str
+    type: str = "string"
+    description: str = ""
+    required: bool = True
+    default: Any = None
+    enum: list[str] | None = None
 
-    def __str__(self):
-        if self.type == "tool_call":
-            return f"[CALL] {self.tool_name}({self.tool_args})"
-        if self.type == "tool_result":
-            return f"[RESULT] {self.tool_name} → {self.content}"
-        if self.type == "thought":
-            return f"[THOUGHT] {self.content}"
-        return f"[FINAL] {self.content}"
+    def to_json_schema(self) -> dict:
+        """Convert to JSON Schema format."""
+        schema = {
+            "type": self.type,
+            "description": self.description,
+        }
+        if self.enum:
+            schema["enum"] = self.enum
+        if self.default is not None:
+            schema["default"] = self.default
+        return schema
+
+
+@dataclass
+class Tool:
+    """Tool definition for agent use."""
+    name: str
+    description: str
+    params: list[ToolParam] = field(default_factory=list)
+    handler: callable | None = None
+    dangerous: bool = False
+    category: str = "general"
+
+    def to_json_schema(self) -> dict:
+        """Convert to JSON Schema format for function calling."""
+        properties = {}
+        required = []
+
+        for param in self.params:
+            properties[param.name] = param.to_json_schema()
+            if param.required:
+                required.append(param.name)
+
+        return {
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": self.description,
+                "parameters": {
+                    "type": "object",
+                    "properties": properties,
+                    "required": required,
+                },
+            },
+        }
+
+    def execute(self, **kwargs) -> Any:
+        """Execute the tool with given arguments."""
+        if self.handler is None:
+            raise RuntimeError(f"Tool '{self.name}' has no handler")
+        return self.handler(**kwargs)
+
+
+@dataclass
+class ToolCall:
+    """Represents a parsed tool call from model output."""
+    name: str
+    arguments: dict[str, Any]
+    raw: str = ""  # Original text that was parsed
+    confidence: float = 1.0  # Confidence of parsing (for fuzzy matches)
+
+
+@dataclass
+class StepResult:
+    """Result of a single agent step."""
+    type: StepResultType
+    content: str = ""
+    tool_call: ToolCall | None = None
+    tool_result: Any = None
+    error: str | None = None
+    raw_response: str = ""
+    tokens_used: int = 0
+    latency_ms: float = 0.0
 
 
 @dataclass
 class AgentRun:
-    """Complete result of an agent run, including all steps and final answer."""
+    """Complete result of an agent execution."""
+    final_answer: str
     steps: list[StepResult] = field(default_factory=list)
-    final_answer: str = ""
+    total_tokens: int = 0
     total_ms: float = 0.0
+    tool_calls: int = 0
     success: bool = True
-    error: str = ""
+    error: str | None = None
 
-    def print_trace(self):
-        for step in self.steps:
-            print(step)
-        print(f"\n✓ Done in {self.total_ms:.0f}ms")
+    @property
+    def iterations(self) -> int:
+        """Number of iterations taken."""
+        return len(self.steps)

@@ -1,62 +1,471 @@
-﻿"""
-⚛️ AgentNova R02.6 — Helpers
-Standalone utility functions for the agent system.
+"""
+⚛️ AgentNova — Helper Functions
+Utility functions for fuzzy matching, argument normalization, and security.
 
-Written by VTSTech — https://www.vts-tech.org — https://github.com/VTSTech/AgentNova
+Written by VTSTech — https://www.vts-tech.org
 """
 
 from __future__ import annotations
 
+import os
 import re
+from difflib import SequenceMatcher
+from typing import Any
+from urllib.parse import urlparse
 
 
-def _strip_tool_prefix(result: str) -> str:
-    """Strip the 'tool_name → ' prefix added to _successful_results entries."""
-    return result.split("→")[-1].strip() if "→" in result else result.strip()
+# ============================================================================
+# Fuzzy Matching
+# ============================================================================
 
-
-def _extract_calc_expression(prompt: str) -> str | None:
+def fuzzy_match(query: str, candidates: list[str], threshold: float = 0.4) -> str | None:
     """
-    Extract a calculator expression from a natural language prompt.
-    Returns a Python math expression or None if no pattern matches.
+    Find the best fuzzy match for a query among candidates.
+
+    Args:
+        query: String to match
+        candidates: List of candidate strings
+        threshold: Minimum similarity ratio (0-1)
+
+    Returns:
+        Best matching candidate or None if below threshold
+    """
+    if not candidates:
+        return None
+
+    # Normalize query
+    query_normalized = query.lower().replace("_", "").replace("-", "").replace(" ", "")
+
+    best_match = None
+    best_score = 0
+
+    for candidate in candidates:
+        # Normalize candidate
+        candidate_normalized = candidate.lower().replace("_", "").replace("-", "").replace(" ", "")
+
+        # Exact match
+        if candidate_normalized == query_normalized:
+            return candidate
+
+        # Check if query is prefix of candidate (strong match)
+        if candidate_normalized.startswith(query_normalized):
+            return candidate
+
+        # Check if candidate contains query
+        if query_normalized in candidate_normalized:
+            return candidate
+
+        # Calculate similarity
+        score = SequenceMatcher(None, query_normalized, candidate_normalized).ratio()
+
+        if score > best_score:
+            best_score = score
+            best_match = candidate
+
+    if best_score >= threshold:
+        return best_match
+
+    return None
+
+
+# ============================================================================
+# Argument Normalization
+# ============================================================================
+
+# Common argument name aliases (generic)
+ARG_ALIASES = {
+    # Calculator
+    "expression": ["expr", "exp", "formula", "calculation", "math"],
+    "equation": ["expr", "expression", "formula"],
+
+    # File operations
+    "file_path": ["path", "filepath", "file", "filename", "location"],
+    "content": ["text", "data", "body", "value"],
+    "output_path": ["output", "destination", "save_path", "save_to"],
+
+    # Shell
+    "command": ["cmd", "shell", "script", "exec"],
+    "timeout": ["time_limit", "max_time", "seconds"],
+
+    # Web
+    "url": ["uri", "link", "endpoint", "address"],
+    "query": ["search", "term", "keywords", "q"],
+    "headers": ["header", "http_headers"],
+
+    # General
+    "input": ["value", "arg", "parameter"],
+    "output": ["result", "return_value"],
+}
+
+
+def normalize_args(args: dict[str, Any], expected_params: list[str], tool_name: str = "") -> dict[str, Any]:
+    """
+    Normalize argument names to match expected parameters.
+
+    Small models often use alternative argument names. This function
+    maps common aliases to the canonical parameter names.
+
+    Uses tool-specific aliases from TOOL_ARG_ALIASES if available.
+
+    Args:
+        args: Dictionary of provided arguments
+        expected_params: List of expected parameter names
+        tool_name: Name of the tool (for tool-specific alias lookup)
+
+    Returns:
+        Dictionary with normalized argument names
+    """
+    if not args:
+        return {}
     
-    Handles:
-    - Simple: "What is 15 plus 27?" → "15 + 27"
-    - Multi-step: "8 times 7, then subtract 5" → "8 * 7 - 5"
-    - Division: "17 divided by 4" → "17 / 4"
-    - Power: "X to the power of Y" → "X ** Y"
-    - Square root: "square root of X" → "sqrt(X)"
-    - Word problems: "sold 8 and 6 from 24" → "24 - 8 - 6"
+    # Guard: ensure args is a dict
+    if not isinstance(args, dict):
+        if args is None:
+            return {}
+        if isinstance(args, str):
+            return {"input": args}
+        return {}
+
+    normalized = {}
+    expected_set = set(expected_params)
+    power_parts = {}
+    
+    # Import tool-specific aliases
+    from .prompts import TOOL_ARG_ALIASES
+    
+    # Get tool-specific aliases
+    tool_aliases = TOOL_ARG_ALIASES.get(tool_name, {}) if tool_name else {}
+
+    for key, value in args.items():
+        key_lower = key.lower().replace("-", "_")
+        target_param = None
+        target_pname = None
+
+        # Strategy 1: Tool-specific alias lookup
+        if key_lower in tool_aliases:
+            alias_target = tool_aliases[key_lower]
+            if alias_target == "_combine_power":
+                power_parts[key_lower] = value
+                continue
+            elif alias_target in expected_set:
+                target_param = alias_target
+                target_pname = alias_target
+        
+        # Strategy 2: Direct match
+        if target_param is None and key in expected_set:
+            target_param = key
+            target_pname = key
+        
+        # Strategy 3: Case-insensitive match
+        if target_param is None:
+            for param in expected_params:
+                if param.lower() == key_lower:
+                    target_param = param
+                    target_pname = param
+                    break
+
+        # Strategy 4: Generic aliases
+        if target_param is None:
+            for canonical, aliases in ARG_ALIASES.items():
+                if key_lower in aliases or key_lower == canonical.lower():
+                    if canonical in expected_set:
+                        target_param = canonical
+                        target_pname = canonical
+                        break
+
+        # Strategy 5: Prefix/substring matching
+        if target_param is None:
+            for param in expected_params:
+                if param in key_lower or key_lower.startswith(param):
+                    target_param = param
+                    target_pname = param
+                    break
+
+        if target_pname is None:
+            target_pname = key
+
+        # Coerce string numbers to the declared type (if we have tool info)
+        # Keep the value as-is for now since we don't have type info
+        if target_pname not in normalized:
+            normalized[target_pname] = value
+        elif target_pname in normalized and isinstance(normalized[target_pname], str):
+            pass
+    
+    # Handle power operation combination for calculator
+    if power_parts and "expression" in expected_set:
+        base = power_parts.get("base") or power_parts.get("value") or power_parts.get("x")
+        exp = power_parts.get("exponent") or power_parts.get("power") or power_parts.get("n") or power_parts.get("p") or power_parts.get("exp")
+        
+        if base is not None and exp is not None:
+            normalized["expression"] = f"{base} ** {exp}"
+        elif base is not None:
+            normalized["expression"] = str(base)
+
+    return normalized
+
+
+# ============================================================================
+# Security Utilities
+# ============================================================================
+
+# Blocked shell commands for security
+BLOCKED_COMMANDS = {
+    # System modification
+    "rm", "rmdir", "del", "format", "fdisk", "mkfs",
+    "dd", "shred", "wipe", "srm",
+
+    # Privilege escalation
+    "sudo", "su", "doas", "pkexec", "gksudo", "kdesu",
+
+    # Network attacks
+    "nmap", "nc", "netcat", "telnet", "wget", "curl",
+    "ssh", "scp", "sftp", "rsync",
+
+    # Package management (could install malware)
+    "apt", "apt-get", "yum", "dnf", "pacman", "pip", "npm", "yarn", "cargo",
+
+    # Process control
+    "kill", "killall", "pkill", "xkill", "systemctl", "service",
+
+    # User management
+    "useradd", "userdel", "usermod", "passwd", "adduser", "deluser",
+
+    # Dangerous shell features
+    "exec", "eval", "source", ".", "alias",
+
+    # Filesystem
+    "mount", "umount", "chown", "chmod", "chattr", "lsattr",
+
+    # Shell escapes
+    "vi", "vim", "nano", "emacs", "less", "more", "man",
+}
+
+# Dangerous URL patterns
+BLOCKED_URL_PATTERNS = {
+    # Local network
+    "localhost", "127.0.0.1", "0.0.0.0", "::1",
+    "10.", "192.168.", "172.16.", "172.17.", "172.18.",
+    "172.19.", "172.20.", "172.21.", "172.22.", "172.23.",
+    "172.24.", "172.25.", "172.26.", "172.27.", "172.28.",
+    "172.29.", "172.30.", "172.31.",
+
+    # Cloud metadata endpoints
+    "169.254.169.254",  # AWS/GCP/Azure metadata
+
+    # Internal services
+    "internal.", "local.", "private.", "intranet.",
+}
+
+# Allowed file paths (whitelist approach)
+ALLOWED_PATH_PATTERNS = {
+    "/tmp", "/temp",
+    "./output", "./data", "./files",
+    "~/tmp", "~/temp",
+}
+
+
+def validate_path(path: str, allowed_dirs: list[str] | None = None) -> tuple[bool, str]:
     """
-    q = prompt.strip()
+    Validate a file path for security.
+
+    Args:
+        path: Path to validate
+        allowed_dirs: List of allowed directories (if None, uses defaults)
+
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    if not path:
+        return False, "Path cannot be empty"
+
+    # Normalize path
+    try:
+        normalized = os.path.normpath(path)
+    except Exception as e:
+        return False, f"Invalid path format: {e}"
+
+    # Check for path traversal (going up directories)
+    if "../" in path or "..\\" in path:
+        return False, "Path traversal detected: parent directory access not allowed"
+
+    # Check for UNC paths (Windows network paths)
+    if path.startswith("\\\\"):
+        return False, "UNC paths not allowed"
+
+    # Relative paths are generally allowed if they don't traverse
+    if not os.path.isabs(path):
+        return True, ""
+
+    # For absolute paths, check against sensitive system directories
+    # These are the truly dangerous ones
+    critical_system_dirs = ["/etc", "/root", "/var", "/usr", "/bin", "/sbin", "/boot", "/dev", "/proc", "/sys"]
+    for critical in critical_system_dirs:
+        if normalized.startswith(critical):
+            return False, f"Access to system directory denied: {critical}"
+
+    # Allow /tmp and /home for file operations
+    if normalized.startswith("/tmp") or normalized.startswith("/var/tmp"):
+        return True, ""
+
+    # Check against allowed directories
+    allowed = allowed_dirs or list(ALLOWED_PATH_PATTERNS)
+    for allowed_dir in allowed:
+        if normalized.startswith(os.path.abspath(allowed_dir)):
+            return True, ""
+
+    return False, f"Path not in allowed directories: {path}"
+
+
+def is_safe_url(url: str, block_ssrf: bool = True) -> tuple[bool, str]:
+    """
+    Validate a URL for SSRF protection.
+
+    Args:
+        url: URL to validate
+        block_ssrf: Whether to block SSRF targets (local networks)
+
+    Returns:
+        Tuple of (is_safe, error_message)
+    """
+    if not url:
+        return False, "URL cannot be empty"
+
+    try:
+        parsed = urlparse(url)
+    except Exception as e:
+        return False, f"Invalid URL format: {e}"
+
+    # Check scheme
+    allowed_schemes = {"http", "https"}
+    if parsed.scheme.lower() not in allowed_schemes:
+        return False, f"URL scheme not allowed: {parsed.scheme}"
+
+    if not parsed.netloc:
+        return False, "URL must have a network location"
+
+    hostname = parsed.netloc.split(":")[0].lower()
+
+    # Check for blocked patterns
+    if block_ssrf:
+        for pattern in BLOCKED_URL_PATTERNS:
+            if pattern in hostname:
+                return False, f"SSRF protection: blocked hostname pattern '{pattern}'"
+
+    return True, ""
+
+
+def sanitize_command(command: str) -> tuple[bool, str, str]:
+    """
+    Sanitize and validate a shell command.
+
+    Args:
+        command: Command to validate
+
+    Returns:
+        Tuple of (is_safe, error_message, sanitized_command)
+    """
+    if not command:
+        return False, "Command cannot be empty", ""
+
+    # Parse the command to get the base command
+    parts = command.strip().split()
+    if not parts:
+        return False, "Command cannot be empty", ""
+
+    base_cmd = parts[0].lower()
+
+    # Remove common path prefixes
+    if "/" in base_cmd:
+        base_cmd = base_cmd.split("/")[-1]
+    if "\\" in base_cmd:
+        base_cmd = base_cmd.split("\\")[-1]
+
+    # Check against blocked commands
+    for blocked in BLOCKED_COMMANDS:
+        if base_cmd == blocked:
+            return False, f"Blocked command: {blocked}", ""
+
+    # Check for shell injection attempts
+    injection_patterns = [
+        r";\s*\w+",  # Command chaining
+        r"\|\s*\w+",  # Piping to another command
+        r"&&\s*\w+",  # AND chaining
+        r"\|\|\s*\w+",  # OR chaining
+        r"`[^`]+`",  # Command substitution (backticks)
+        r"\$\([^)]+\)",  # Command substitution ($())
+        r"\$\{[^}]+\}",  # Variable expansion
+        r">\s*\S+",  # Output redirection
+        r"<\s*\S+",  # Input redirection
+    ]
+
+    for pattern in injection_patterns:
+        if re.search(pattern, command):
+            return False, f"Potential injection pattern detected: {pattern}", ""
+
+    return True, "", command
+
+
+# ============================================================================
+# String Utilities
+# ============================================================================
+
+def truncate(text: str, max_length: int = 500, suffix: str = "...") -> str:
+    """Truncate text to max length with suffix."""
+    if len(text) <= max_length:
+        return text
+    return text[:max_length - len(suffix)] + suffix
+
+
+def strip_code_blocks(text: str) -> str:
+    """Remove markdown code block markers from text."""
+    # Remove code block markers
+    text = re.sub(r"```\w*\n?", "", text)
+    text = re.sub(r"```\s*$", "", text)
+    return text.strip()
+
+
+# ============================================================================
+# Argument Synthesis for Small Models
+# ============================================================================
+
+# Op word to symbol mapping for expression extraction
+_OP_MAP = {
+    'plus': '+', 'add': '+', 'and': '+',
+    'minus': '-', 'subtract': '-', 'less': '-',
+    'times': '*', 'multiplied': '*', 'multiply': '*',
+    'divided': '/', 'divide': '/',
+}
+
+
+def extract_calc_expression(user_input: str) -> str | None:
+    """
+    Extract a mathematical expression from user input.
+    Helps small models that can't properly extract expressions.
+    """
+    q = user_input.strip()
     q_lower = q.lower()
-    
-    # Op word to symbol mapping
-    OP_MAP = {
-        'plus': '+', 'add': '+', 'and': '+',
-        'minus': '-', 'subtract': '-', 'less': '-',
-        'times': '*', 'multiplied': '*', 'multiply': '*',
-        'divided': '/', 'divide': '/',
-    }
     
     # ---- Multi-step patterns (try first!) ----
     
     # Pattern: "X times Y, then subtract/add Z" or "X times Y then minus Z"
     multi_step = re.search(
-        r'(\d+(?:\.\d+)?)\s*(?:times|multiplied?\s*by|\*)\s*(\d+(?:\.\d+)?)[,\s]*(?:then\s+)?(?:subtract|minus|add|plus|plus\s+)?\s*(\d+(?:\.\d+)?)',
+        r'(\d+(?:\.\d+)?)\s*(?:times|multiplied?\s*by|\*)\s*(\d+(?:\.\d+)?)[,\s]*(?:then\s+)?(?:subtract|minus|add|plus)?\s*(\d+(?:\.\d+)?)',
         q_lower
     )
     if multi_step:
         nums = multi_step.groups()
         # Determine second operator from context
-        if 'subtract' in q_lower or 'minus' in q_lower.split('then')[-1] if 'then' in q_lower else False:
+        after_second = q_lower[q_lower.find(nums[1])+len(nums[1]):] if nums[1] in q_lower else ""
+        if 'subtract' in after_second or 'minus' in after_second:
             return f"{nums[0]} * {nums[1]} - {nums[2]}"
-        elif 'add' in q_lower or 'plus' in q_lower.split('then')[-1] if 'then' in q_lower else False:
+        elif 'add' in after_second or 'plus' in after_second:
             return f"{nums[0]} * {nums[1]} + {nums[2]}"
         else:
             # Default: look for the word after the second number
-            after_second = q_lower[q_lower.find(nums[1])+len(nums[1]):]
-            if 'subtract' in after_second or 'minus' in after_second:
+            if 'subtract' in q_lower or 'minus' in q_lower:
+                return f"{nums[0]} * {nums[1]} - {nums[2]}"
+            # Check for "times X minus Y" pattern
+            if 'times' in q_lower and ('minus' in q_lower or 'subtract' in q_lower):
                 return f"{nums[0]} * {nums[1]} - {nums[2]}"
     
     # Pattern: "X minus Y plus Z" or "X minus Y, then add Z"
@@ -72,14 +481,14 @@ def _extract_calc_expression(prompt: str) -> str | None:
     
     # Pattern: "compute X minus Y plus Z" (explicit instruction)
     explicit_expr = re.search(
-        r'compute\s+(\d+(?:\.\d+)?)\s*(minus|plus|times|divided)\s*(\d+(?:\.\d+)?)(?:\s*(plus|minus|times|divided)\s*(\d+(?:\.\d+)?))?',
+        r'(?:compute|calculate)\s+(\d+(?:\.\d+)?)\s*(minus|plus|times|divided)\s*(\d+(?:\.\d+)?)(?:\s*(plus|minus|times|divided)\s*(\d+(?:\.\d+)?))?',
         q_lower
     )
     if explicit_expr:
         parts = explicit_expr.groups()
-        expr = f"{parts[0]} {OP_MAP.get(parts[1], parts[1])} {parts[2]}"
+        expr = f"{parts[0]} {_OP_MAP.get(parts[1], parts[1])} {parts[2]}"
         if parts[3] and parts[4]:
-            expr += f" {OP_MAP.get(parts[3], parts[3])} {parts[4]}"
+            expr += f" {_OP_MAP.get(parts[3], parts[3])} {parts[4]}"
         return expr
     
     # ---- Word problem patterns ----
@@ -98,6 +507,8 @@ def _extract_calc_expression(prompt: str) -> str | None:
         if len(numbers) >= 3:
             # First number is usually the starting amount
             return f"{numbers[0]} - {numbers[1]} - {numbers[2]}"
+        elif len(numbers) >= 2:
+            return f"{numbers[0]} - {numbers[1]}"
     
     # ---- Time/duration patterns ----
     
@@ -111,9 +522,9 @@ def _extract_calc_expression(prompt: str) -> str | None:
         end = int(time_pattern.group(2))
         if end <= start:
             # PM to PM or AM to PM crossing
-            return f"{end} - {start} + 12"
+            return f"{end + 12 - start}"
         else:
-            return f"{end} - {start}"
+            return f"{end - start}"
     
     # ---- Single operations (fallback) ----
     
@@ -155,42 +566,103 @@ def _extract_calc_expression(prompt: str) -> str | None:
     if minus_match:
         return f"{minus_match.group(1)} - {minus_match.group(2)}"
     
-    return None
-
-
-def _extract_echo_text(prompt: str) -> str | None:
-    """
-    Extract text to echo from a prompt like "Echo the text 'Hello'" or "Print Hello World".
-    Returns the text to echo or None.
-    """
-    q = prompt.strip()
+    # Fallback: Find numbers and operators
+    numbers = re.findall(r'\d+\.?\d*', q)
+    operators = re.findall(r'[+\-*/^]', q)
     
-    # Pattern: echo 'text' or echo "text" or echo text
-    quoted_match = re.search(r"echo\s*['\"]([^'\"]+)['\"]", q, re.IGNORECASE)
-    if quoted_match:
-        return quoted_match.group(1)
+    if numbers and operators:
+        expr_parts = []
+        for i, num in enumerate(numbers):
+            expr_parts.append(num)
+            if i < len(operators):
+                expr_parts.append(operators[i])
+        return " ".join(expr_parts)
     
-    # Pattern: "echo the text 'X'" or "echo text 'X'"
-    text_match = re.search(r"echo\s*(?:the\s*)?text\s*['\"]([^'\"]+)['\"]", q, re.IGNORECASE)
-    if text_match:
-        return text_match.group(1)
-    
-    # Pattern: "print 'X'" or "print X"
-    print_match = re.search(r"print\s*['\"]?([^'\"]+)['\"]?", q, re.IGNORECASE)
-    if print_match:
-        return print_match.group(1).strip()
-    
-    # Pattern: "echo X" at end of prompt
-    echo_match = re.search(r"echo\s+['\"]?([^'\"]+)['\"]?$", q, re.IGNORECASE)
-    if echo_match:
-        text = echo_match.group(1).strip()
-        if not text.startswith('-'):
-            return text
+    if numbers:
+        return numbers[0]
     
     return None
 
 
-def _is_simple_answered_query(user_input: str, successful_results: list[str]) -> bool:
+def synthesize_tool_args(tool_name: str, args: dict, user_input: str) -> dict:
+    """
+    Synthesize missing or incorrect tool arguments from context.
+    Helps small models that provide incomplete arguments.
+    """
+    args = dict(args)
+    
+    if tool_name == "calculator":
+        expr = args.get("expression", "")
+        
+        # If expression is a dict or other non-string, extract it
+        if isinstance(expr, dict):
+            # Model gave a schema instead of a value
+            expr = ""
+        elif not isinstance(expr, str):
+            expr = str(expr) if expr else ""
+        
+        # Extract what the expression should be from the user input
+        extracted = extract_calc_expression(user_input)
+        
+        # Check if the model's expression is incomplete or wrong
+        if extracted:
+            # Compare: if extracted has more operators, use it
+            model_ops = len(re.findall(r'[+\-*/^]', expr))
+            extracted_ops = len(re.findall(r'[+\-*/^]', extracted))
+            
+            # If extracted has more operations, use it
+            if extracted_ops > model_ops:
+                if isinstance(args.get("expression"), dict):
+                    args = {"expression": extracted}
+                else:
+                    args["expression"] = extracted
+                return args
+            
+            # Special case: compare actual results
+            if model_ops > 0 and extracted_ops == 0:
+                try:
+                    # Evaluate model's expression
+                    model_result = float(eval(expr, {"__builtins__": {}}, {}))
+                    extracted_num = float(extracted)
+                    
+                    # If model result is negative but extracted is positive
+                    # (common for time calculations with AM/PM)
+                    if model_result < 0 and extracted_num > 0:
+                        args["expression"] = extracted
+                        return args
+                    
+                    # If results differ significantly, use extracted
+                    if abs(model_result - extracted_num) > 0.5:
+                        args["expression"] = extracted
+                        return args
+                except:
+                    pass
+        
+        # Check if expression is just an operator or very short
+        if len(expr) <= 2 or expr in ["+", "-", "*", "/", "^", "**"]:
+            if extracted:
+                args["expression"] = extracted
+                args = {"expression": extracted}
+        
+        # Check if expression is just a number but question implies operation
+        elif expr and re.match(r'^\d+\.?\d*$', str(expr).strip()):
+            q_lower = user_input.lower()
+            if "sqrt" in q_lower or "square root" in q_lower:
+                args["expression"] = f"sqrt({expr})"
+    
+    return args
+
+
+# ============================================================================
+# Additional Helper Functions for Small Models
+# ============================================================================
+
+def strip_tool_prefix(result: str) -> str:
+    """Strip the 'tool_name → ' prefix added to successful results entries."""
+    return result.split("→")[-1].strip() if "→" in result else result.strip()
+
+
+def is_simple_answered_query(user_input: str, successful_results: list[str]) -> bool:
     """
     Return True when a single successful tool result is sufficient to answer
     the user's question and the agent should synthesize immediately.
@@ -234,7 +706,7 @@ def _is_simple_answered_query(user_input: str, successful_results: list[str]) ->
     return False
 
 
-def _is_greeting_or_simple(text: str) -> bool:
+def is_greeting_or_simple(text: str) -> bool:
     """
     Check if the user input is a simple greeting or short message
     that shouldn't require tool usage.
@@ -262,7 +734,7 @@ def _is_greeting_or_simple(text: str) -> bool:
     return False
 
 
-def _is_small_model(model: str) -> bool:
+def is_small_model(model: str) -> bool:
     """
     Heuristic to detect if a model is small (< 2B parameters).
     Small models benefit from few-shot prompting.
@@ -301,7 +773,7 @@ def _is_small_model(model: str) -> bool:
 _REPETITION_RE = re.compile(r'(Final Answer:\s*[^\n]+)(\s*\1){2,}', re.IGNORECASE)
 
 
-def _detect_and_fix_repetition(text: str) -> str:
+def detect_and_fix_repetition(text: str) -> str:
     """
     Detect and fix repetitive output from small models.
     
