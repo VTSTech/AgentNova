@@ -1,29 +1,33 @@
-﻿"""
-⚛️ AgentNova R02 — Central Configuration
+"""
+⚛️ AgentNova — Central Configuration
 
-Single source of truth for Ollama and ACP server URLs.
+Single source of truth for Ollama, BitNet, and ACP server URLs.
 Change these values once to update all tests and examples.
+
+Status: Alpha
 
 Written by VTSTech — https://www.vts-tech.org
 """
 
+from __future__ import annotations
+
 import os
+from dataclasses import dataclass, field
+from typing import Optional
+from urllib.parse import urlparse
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # OLLAMA CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════════
-# Uncomment ONE of the following to switch between local and remote Ollama:
-
-# LOCAL OLLAMA:
+# Default for local Ollama
 OLLAMA_BASE_URL = "http://localhost:11434"
-
-# REMOTE OLLAMA (cloudflare tunnel):
-# OLLAMA_BASE_URL = "https://ooo.trycloudflare.com/"
 
 # Override via environment variable (takes precedence if set)
 _ollama_env = os.environ.get("OLLAMA_BASE_URL")
 if _ollama_env:
     OLLAMA_BASE_URL = _ollama_env
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # BITNET CONFIGURATION
@@ -31,28 +35,24 @@ if _ollama_env:
 # Default for local bitnet.cpp llama-server
 BITNET_BASE_URL = "http://localhost:8765"
 
-# Override via environment variable (useful for Colab/ngrok)
+# Override via environment variable
 _bitnet_env = os.environ.get("BITNET_BASE_URL")
 if _bitnet_env:
     BITNET_BASE_URL = _bitnet_env
 
-# Remote BitNet tunnel (cloudflare)
+# Remote BitNet tunnel
 _remote_bitnet = os.environ.get("BITNET_TUNNEL")
 if _remote_bitnet:
     BITNET_BASE_URL = _remote_bitnet
-    
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # ACP CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════════
-# Uncomment ONE of the following to switch between local and remote ACP:
-
-# LOCAL ACP:
+# Default for local ACP
 ACP_BASE_URL = "http://localhost:8766"
 
-# REMOTE ACP (cloudflare tunnel):
-# ACP_BASE_URL = "https://aaa.trycloudflare.com/"
-
-# Override via environment variable (takes precedence if set)
+# Override via environment variable
 _acp_env = os.environ.get("ACP_BASE_URL")
 if _acp_env:
     ACP_BASE_URL = _acp_env
@@ -79,7 +79,6 @@ if AGENTNOVA_BACKEND not in ("ollama", "bitnet"):
 # DEFAULT MODEL
 # ═══════════════════════════════════════════════════════════════════════════════
 # Default model for tests and examples
-# Can be overridden via environment variable
 # BitNet default: bitnet-b1.58-2b-4t
 # Ollama default: qwen2.5-coder:0.5b-instruct-q4_k_m
 if AGENTNOVA_BACKEND == "bitnet":
@@ -89,11 +88,95 @@ else:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# TUNNEL URL REFERENCE (for documentation/comments)
+# AGENT SETTINGS
 # ═══════════════════════════════════════════════════════════════════════════════
-# Current tunnels:
-#   Ollama Colab: https://ooo.trycloudflare.com
-#   ACP Tunnel:    https://aaa.trycloudflare.com
-#
-# To update: Just change OLLAMA_BASE_URL and ACP_BASE_URL above
-# ═══════════════════════════════════════════════════════════════════════════════
+MAX_STEPS = int(os.environ.get("AGENTNOVA_MAX_STEPS", "10"))
+DEBUG = os.environ.get("AGENTNOVA_DEBUG", "").lower() in ("1", "true", "yes")
+VERBOSE = os.environ.get("AGENTNOVA_VERBOSE", "").lower() in ("1", "true", "yes")
+
+
+@dataclass
+class Config:
+    """AgentNova configuration."""
+    # Backend URLs
+    ollama_base_url: str = field(default_factory=lambda: OLLAMA_BASE_URL)
+    bitnet_base_url: str = field(default_factory=lambda: BITNET_BASE_URL)
+    acp_base_url: str = field(default_factory=lambda: ACP_BASE_URL)
+
+    # ACP Credentials
+    acp_user: str = field(default_factory=lambda: ACP_USER)
+    acp_pass: str = field(default_factory=lambda: ACP_PASS)
+
+    # Backend selection
+    backend: str = field(default_factory=lambda: AGENTNOVA_BACKEND)
+
+    # Default model
+    default_model: str = field(default_factory=lambda: DEFAULT_MODEL)
+
+    # Agent settings
+    max_steps: int = field(default_factory=lambda: MAX_STEPS)
+    temperature: float = 0.7
+    max_tokens: int = 2048
+
+    # Memory settings
+    memory_max_messages: int = 50
+    memory_max_tokens: int = 4096
+
+    # Security settings
+    allow_shell: bool = True
+    allow_network: bool = True
+    allowed_paths: list[str] = field(default_factory=lambda: ["./output", "./data", "/tmp"])
+
+    # Debug
+    debug: bool = field(default_factory=lambda: DEBUG)
+    verbose: bool = field(default_factory=lambda: VERBOSE)
+
+    @property
+    def ollama_host(self) -> str:
+        """Extract host from Ollama URL."""
+        parsed = urlparse(self.ollama_base_url)
+        return parsed.hostname or "localhost"
+
+    @property
+    def ollama_port(self) -> int:
+        """Extract port from Ollama URL."""
+        parsed = urlparse(self.ollama_base_url)
+        return parsed.port or 11434
+
+    @classmethod
+    def from_env(cls) -> "Config":
+        """Load configuration from environment variables."""
+        return cls()
+
+    @classmethod
+    def from_file(cls, path: str) -> "Config":
+        """Load configuration from a JSON file."""
+        import json
+
+        try:
+            with open(path, "r") as f:
+                data = json.load(f)
+            return cls(**data)
+        except FileNotFoundError:
+            return cls()
+        except Exception as e:
+            print(f"Warning: Error loading config file: {e}")
+            return cls()
+
+
+# Global config instance
+_config: Config | None = None
+
+
+def get_config() -> Config:
+    """Get the global configuration."""
+    global _config
+    if _config is None:
+        _config = Config.from_env()
+    return _config
+
+
+def set_config(config: Config) -> None:
+    """Set the global configuration."""
+    global _config
+    _config = config

@@ -1,6 +1,6 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
-⚛️ AgentNova R02 — Agent Mode
+⚛️ AgentNova — Agent Mode
 
 A goal-driven execution mode where the agent autonomously works through tasks.
 Unlike chat mode (which is user-driven), agent mode:
@@ -645,8 +645,8 @@ Example: [{{"description": "Step 1"}}, {{"description": "Step 2"}}]"""
             
             # Debug output: show step completion info
             if self.verbose and run:
-                tool_calls = [s for s in run.steps if s.type == "tool_call"]
-                tool_names = list(set(s.tool_name for s in tool_calls if hasattr(s, 'tool_name')))
+                tool_calls = [s for s in run.steps if hasattr(s, 'type') and s.type == "tool_call"]
+                tool_names = list(set(getattr(s, 'tool_name', '') for s in tool_calls if hasattr(s, 'tool_name')))
                 print(dim(f"    ⏱️ {len(run.steps)} steps, {len(tool_calls)} tool calls, {run.total_ms:.0f}ms"))
                 if tool_names:
                     print(dim(f"    🔧 Tools used: {', '.join(tool_names)}"))
@@ -829,3 +829,18 @@ def format_progress(progress: dict) -> str:
         lines.append(f"    {icon} Step {step['index']}: {step['description']} [{step['status']}]")
     
     return "\n".join(lines)
+
+
+__all__ = [
+    "AgentState",
+    "Action",
+    "Step",
+    "TaskPlan",
+    "AgentMode",
+    "create_file_write_action",
+    "create_file_delete_action",
+    "create_mkdir_action",
+    "create_shell_action",
+    "format_status",
+    "format_progress",
+]

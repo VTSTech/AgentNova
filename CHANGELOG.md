@@ -1,8 +1,231 @@
 # Changelog
 
-All notable changes to AgentNova will be documented in this file.
+All notable changes to AgentNova refactor-1 will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+
+## [R03-alpha] (refactor-1) - 2026-03-24
+
+### Major Architecture Refactoring
+
+Complete reorganization of the codebase for improved modularity, type safety, and maintainability.
+
+### Test Results (Quick Diagnostic - Updated)
+
+| Model | Score | Time | Tool Support |
+|-------|-------|------|-------------|
+| qwen2.5:0.5b | 5/5 (100%) | 38.3s | native |
+| qwen2.5-coder:0.5b | 5/5 (100%) | 93.2s | react |
+| qwen3:0.6b | 5/5 (100%) | 70.4s | react |
+| granite4:350m | 5/5 (100%) | ~50s | native |
+| functiongemma:270m | 5/5 (100%) | ~20s | native |
+
+### Added
+
+#### New Module Structure
+- **`backends/`** - Pluggable inference backend system
+  - `base.py` - Abstract `BaseBackend` class with common interface
+  - `ollama.py` - Ollama backend implementation
+  - `bitnet.py` - BitNet backend implementation
+  - Backend registry with `get_backend()` and `register_backend()`
+- **`tools/`** - Tool registry system
+  - `registry.py` - `ToolRegistry` class with decorator-based tool registration
+  - `builtins.py` - Built-in tools (calculator, shell, file operations)
+  - `subset()` method for creating filtered tool sets
+- **`agent.py`** - Clean Agent class (~700 lines vs main's ~2700 lines)
+  - Focused on single responsibility: orchestrate LLM + tools
+  - Tool support detection: native, react, or none
+  - Auto-synthesis for struggling models
+- **`agent_mode.py`** - Autonomous agent mode
+  - State machine: IDLE → WORKING → PAUSED → STOPPING
+  - Task planning with LLM or heuristic fallback
+  - Rollback support for undo operations
+- **`orchestrator.py`** - Multi-agent orchestration
+  - `AgentCard` for agent discovery
+  - Task delegation between agents
+- **`model_discovery.py`** - Dynamic model discovery utilities
+  - `get_models()` - List available models
+  - `pick_best_model()` - Auto-select best available
+  - `pick_models_for_benchmark()` - Select benchmark suite
+  - `model_exists()` - Check model availability
+- **`shared_args.py`** - Shared CLI argument parsing
+  - `SharedConfig` dataclass with environment variable fallback
+  - `--fast`, `--num-ctx`, `--num-predict`, `--acp`, `--acp-url` flags
+
+#### ACP Plugin Integration
+- **`acp_plugin.py`** - Agent Control Panel integration
+  - Bootstrap with identity establishment
+  - Activity logging via `/api/action`
+  - Shell command logging via `/api/shell/add`
+  - STOP flag handling with hints processing
+  - A2A (Agent-to-Agent) JSON-RPC 2.0 support
+  - Agent Card discovery
+  - Token budget tracking and cost estimation
+  - Clean disconnect (unregister without server shutdown)
+
+#### CLI Improvements
+- **ASCII banner** - Braille art banner with color support
+- **Tool support testing** - `--tool-support` flag for `models` command
+  - Actually tests models by making API calls
+  - Results cached in `~/.cache/agentnova/tool_support.json`
+  - `--no-cache` to ignore cached results
+- **Test subcommand** - `agentnova test <id>` for running diagnostic tests
+  - Tests 00-04 available
+  - `--list` to show available tests
+  - `--acp` for ACP integration during tests
+- **Config command** - `agentnova config` to show current configuration
+- **Version command** - `agentnova version` with banner
+
+### Changed
+
+#### Type System
+- Full type hints throughout codebase
+- `BackendType` enum (OLLAMA, BITNET)
+- `ToolSupportLevel` enum (NATIVE, REACT, NONE)
+- `StepResultType` enum
+- Dataclasses: `Tool`, `ToolParam`, `StepResult`, `AgentRun`, `BackendConfig`
+
+#### Backend Interface
+- Unified `generate()` and `generate_stream()` methods
+- Consistent response format across backends
+- `list_models()`, `test_tool_support()`, `is_running()` methods
+- `get_model_context_size()` with family-based defaults
+
+#### Tool Registration
+- Decorator-based: `@registry.tool(description="...")`
+- Automatic JSON schema generation
+- Fuzzy name matching for small model hallucinations
+- `ToolRegistry.subset(["calculator", "shell"])` for filtered sets
+
+### Removed (from main)
+- Monolithic `agent.py` (2700+ lines)
+- Inline tool definitions
+- Hardcoded model configurations
+- Duplicate code paths
+
+### File Structure Comparison
+
+```
+main/                           refactor-1/
+├── agent.py (2700 lines)       ├── agent.py (700 lines)
+├── agent_mode.py               ├── agent_mode.py (cleaned)
+├── cli.py (2600 lines)         ├── cli.py (900 lines)
+├── core/                       ├── core/
+│   ├── agent.py                │   ├── models.py (dataclasses)
+│   ├── orchestrator.py         │   ├── types.py (enums)
+│   ├── tools.py                │   └── ...
+│   └── ...                     ├── backends/
+├── bitnet_client.py            │   ├── base.py
+├── ollama_client.py            │   ├── ollama.py
+└── tested_models.json          │   └── bitnet.py
+                                ├── tools/
+                                │   ├── registry.py
+                                │   └── builtins.py
+                                ├── model_discovery.py
+                                └── shared_args.py
+```
+
+## [refactor-1.3] - 2026-03-25
+
+### Fixed
+
+#### Tool Support Detection - Response Structure Mismatch
+- **Fixed `test_tool_support()` in `backends/ollama.py`**
+  - Issue: Code was looking for nested Ollama format `tc.get("function", {}).get("name", "")`
+  - But `generate()` already parses tool_calls into flat format: `tc.get("name", "")`
+  - This caused all models with native tool_calls to be incorrectly classified as "react"
+- **Result**: Models now correctly detected:
+  - `functiongemma:270m` → native ✓
+  - `granite4:350m` → native ✓
+  - `qwen2.5:0.5b` → native ✓
+  - `qwen2.5-coder:0.5b` → react ✓
+  - `qwen3:0.6b` → react ✓
+
+#### Agent Initialization - Cache-Only Tool Support Detection
+- **Fixed `_detect_tool_support()` in `agent.py`**
+  - Previous: Would run live test during Agent init, causing false positives
+  - Now: Checks cache only, defaults to REACT for untested models
+  - Matches main branch behavior exactly
+  - Users run `agentnova models --tool-support` to test and cache results
+
+#### ReAct Model Final Answer Handling
+- **Fixed premature Final Answer acceptance** in `agent.py`
+  - Issue: ReAct models outputting "Final Answer: X" without using tools would be accepted
+  - Small models often give wrong answers without tool verification
+  - Example: `qwen3:0.6b` answered "6 hours" for store hours (wrong), should be "8 hours"
+- **Solution**: For ReAct models without successful tool calls, prioritize fallback synthesis
+  - Auto-synthesizes calculator call for math expressions
+  - Accepts synthesized tool result over model's wrong answer
+- **Result**: `qwen3:0.6b` now scores 100% on Quick Diagnostic (was 80%)
+
+## [refactor-1.2] - 2026-03-24
+
+### Fixed
+
+#### Tool Support Detection Regression
+- **Fixed test tool parameters** in `backends/ollama.py`
+  - Previous: Test tool had NO parameters, causing false "native" detection
+  - Now: Test tool has required `location` parameter like main branch
+  - Models behave differently with parameterless tools vs tools with required params
+- **Why this matters**:
+  - `qwen2.5:0.5b` was incorrectly detected as "native" because the test tool had no params
+  - When actual tools with required params were passed, model returned empty responses
+  - Now properly detects models that can't fill in tool parameters
+- **Cache cleared**: Delete `~/.cache/agentnova/tool_support.json` to re-test models
+
+
+### Test Results (Quick Diagnostic)
+
+| Model | Score | Time | Tool Support |
+|-------|-------|------|--------------|
+| qwen2.5:0.5b | 5/5 (100%) | 60.5s | native |
+| qwen2.5-coder:0.5b | 5/5 (100%) | 37.7s | JSON parsed |
+| granite4:350m | 5/5 (100%) | 43.9s | native |
+| qwen:0.5b | 0/5 (0%) | 45.0s | react |
+
+### Migration Guide
+
+```python
+# Old (main)
+from agentnova.core.agent import Agent
+from agentnova.core.ollama_client import OllamaClient
+
+client = OllamaClient()
+agent = Agent(model="qwen2.5:0.5b", ollama_client=client)
+
+# New (refactor-1)
+from agentnova import Agent, get_backend
+
+backend = get_backend("ollama")
+agent = Agent(model="qwen2.5:0.5b", backend=backend)
+
+# Or even simpler
+from agentnova import Agent
+agent = Agent(model="qwen2.5:0.5b")  # Uses default backend
+```
+
+## [refactor-1.1] - 2026-03-24
+
+### Fixed
+
+#### Web Search Skill Naming and Encoding
+- **Renamed skill folder** from `web_search` to `web-search` (hyphen format)
+  - Agent Skills spec requires `^[a-z0-9]+(-[a-z0-9]+)*$` format for skill names
+  - Previous underscore format would fail SkillLoader validation
+- **Fixed SKILL.md encoding** - Rewrote with clean UTF-8
+  - Removed escape artifacts: `\_` → `_`, `&nbsp;` removed
+  - Updated skill name in frontmatter to `web-search`
+- **Updated code references** across 4 files:
+  - `acp_plugin.py` - action map (`web-search: "SEARCH"`) and skill template
+  - `core/prompts.py` - `TOOL_ARG_ALIASES["web-search"]`
+  - `core/tool_parse.py` - `arg_to_tool` mapping and malformed extraction
+  - `core/args_normal.py` - example reference
+
+### Verified
+- Skill loads correctly: `loader.load('web-search')` ✓
+- Name validates against Agent Skills spec regex ✓
+
+---
 
 ## [R02.6] - 2026-03-23 10:50:31 AM
 
@@ -1278,38 +1501,4 @@ Early development iterations building the core framework.
 
 ---
 
-## Small Model Tool Calling Guide
-
-### Models that WORK (≤600M params)
-| Model | Size | Tool Support | Speed |
-|-------|------|--------------|-------|
-| `functiongemma:270m` | 270M | ✅ Native | ~5s |
-| `qwen2.5:0.5b` | 494M | ✅ Native | ~7s |
-| `granite4:350m` | 352M | ✅ Native | ~10s |
-
-### Optimal Settings for Small Models
-```python
-model_options={
-    "temperature": 0.0,    # Deterministic
-    "num_ctx": 1024,       # Smaller context
-    "num_predict": 512,    # Limit output
-}
-```
-
-### Models that DON'T work
-- `smollm:135m` - No tool support (HTTP 400)
-- `gemma3:270m` - No tool support (HTTP 400)
-- `qwen2.5-coder:0.5b` - Outputs tool calls as text
-- `qwen3:0.6b` - Outputs tool calls as text
-
----
-
-## Links
-
-- **Repository**: https://github.com/VTSTech/AgentNova
-- **Author**: [VTSTech](https://www.vts-tech.org)
-- **Inspiration**: OpenClaw
-
----
-
-*This changelog is maintained by VTSTech. For the full commit history, see [GitHub Commits](https://github.com/VTSTech/AgentNova/commits/main/).*
+For main branch changelog, see: https://github.com/VTSTech/AgentNova/blob/main/CHANGELOG.md

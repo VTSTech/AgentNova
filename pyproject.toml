@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentnova"
-version = "0.2.6"
-description = "A minimal, hackable agentic framework for Ollama and BitNet - local-first AI agent toolkit"
+version = "0.3.0"
+description = "⚛️ AgentNova - A minimal, hackable agentic framework for local LLM inference"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
@@ -15,17 +15,16 @@ maintainers = [
     {name = "VTSTech", email = "veritas@vts-tech.org"}
 ]
 keywords = [
-    "ai",
-    "agent",
     "llm",
+    "agent",
     "ollama",
     "bitnet",
-    "local-ai",
+    "local-inference",
+    "tool-calling",
+    "react",
+    "autonomous",
     "agentic",
-    "agent-mode",
-    "tool-use",
-    "function-calling",
-    "cli",
+    "ai-agent",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -41,10 +40,9 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Python Modules",
-    "Topic :: Terminals",
 ]
 requires-python = ">=3.9"
-# Zero dependencies - uses only Python stdlib!
+# Zero dependencies! Uses Python stdlib only.
 dependencies = []
 
 [project.optional-dependencies]
@@ -59,20 +57,20 @@ Homepage = "https://www.vts-tech.org"
 Documentation = "https://github.com/VTSTech/AgentNova#readme"
 Repository = "https://github.com/VTSTech/AgentNova"
 Issues = "https://github.com/VTSTech/AgentNova/issues"
-Changelog = "https://github.com/VTSTech/AgentNova/blob/main/CHANGELOG.md"
 
 [project.scripts]
 agentnova = "agentnova.cli:main"
-localclaw = "localclaw.__main__:main"
+localclaw = "localclaw:main"
 
 [project.entry-points."agentnova.backends"]
-ollama = "agentnova.core.ollama_client:OllamaClient"
+ollama = "agentnova.backends.ollama:OllamaBackend"
+bitnet = "agentnova.backends.bitnet:BitNetBackend"
 
 [tool.setuptools.packages.find]
 include = ["agentnova", "agentnova.*", "localclaw"]
 
 [tool.setuptools.package-data]
-agentnova = ["skills/*/SKILL.md", "skills/*/scripts/*.py", "skills/*/references/*.md"]
+agentnova = ["py.typed", "skills/*/SKILL.md"]
 
 [tool.black]
 line-length = 100
@@ -85,3 +83,5 @@ select = ["E", "F", "W", "I"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"

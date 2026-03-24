@@ -1,5 +1,5 @@
-﻿"""
-⚛️ AgentNova R02.6 — Model Family Configuration
+"""
+⚛️ AgentNova — Model Family Configuration
 
 Family-specific configurations for prompts, stop tokens, formatting, and tool handling.
 Each model family has unique characteristics that affect how we construct prompts
@@ -85,7 +85,7 @@ A: Tokyo
 Keep answers brief. Show calculation first, then the final number.""",
     ),
     
-    # GRANITE - IBM's Granite 4.x models (native tool support with XML format)
+    # GRANITE - IBM's Granite models (native tool support with XML format)
     "granite": ModelFamilyConfig(
         family="granite",
         start_tokens={
@@ -95,8 +95,8 @@ Keep answers brief. Show calculation first, then the final number.""",
         },
         stop_tokens=["<|end_of_text|>"],
         tool_format="xml",
-        tool_call_start="<tool_call>\n",
-        tool_call_end="\n</tool_call>",
+        tool_call_start="<tool_calljson\n",
+        tool_call_end="\n</tool_call",
         supports_native_tools=True,
         system_prompt_style="separate",
         preferred_temperature=0.7,
@@ -104,7 +104,7 @@ Keep answers brief. Show calculation first, then the final number.""",
         few_shot_style="native",
     ),
     
-    # GRANITEMOE - IBM's Granite MoE models (different tool format than granite4)
+    # GRANITEMOE - IBM's Granite MoE models
     "granitemoe": ModelFamilyConfig(
         family="granitemoe",
         start_tokens={
@@ -114,21 +114,18 @@ Keep answers brief. Show calculation first, then the final number.""",
         },
         stop_tokens=["<|end_of_text|>"],
         tool_format="xml",
-        tool_call_start="<|tool_call|>\n",  # granite3.1-moe uses <|tool_call|> not <tool_call>
-        tool_call_end="",  # No closing tag for granite3.1-moe
+        tool_call_start="<|tool_call|>\n",
+        tool_call_end="",
         supports_native_tools=True,
         system_prompt_style="separate",
         preferred_temperature=0.6,
         prefers_few_shot=True,  # MoE benefits from examples
-        few_shot_style="react",  # Use ReAct for better tool handling
-        has_schema_dump_issue=True,  # Known to dump schema as text
-        truncate_json_args=True,  # May truncate JSON in ReAct format
+        few_shot_style="react",
+        has_schema_dump_issue=True,
+        truncate_json_args=True,
     ),
     
     # QWEN2 - Alibaba's Qwen 2.x models (ChatML format, native tools)
-    # ⚠️ CRITICAL: Do NOT add few-shot to native tool models!
-    # This has caused regressions TWICE (R01→R02: qwen2.5:0.5b dropped 90%→58% on GSM8K)
-    # Native models know how to call tools via API - few-shot only confuses them.
     "qwen2": ModelFamilyConfig(
         family="qwen2",
         start_tokens={
@@ -138,8 +135,8 @@ Keep answers brief. Show calculation first, then the final number.""",
         },
         stop_tokens=["<|im_end|>"],
         tool_format="xml",
-        tool_call_start="<tool_call>\n",
-        tool_call_end="\n</tool_call>",
+        tool_call_start="<tool_calljson\n",
+        tool_call_end="\n</tool_call",
         supports_native_tools=True,
         system_prompt_style="separate",
         preferred_temperature=0.7,
@@ -155,20 +152,20 @@ Keep answers brief. Show calculation first, then the final number.""",
             "user": "<|im_start|>user",
             "assistant": "<|im_start|>assistant",
         },
-        stop_tokens=["<|im_end|>"],  # Removed <|im_start|> - was causing premature stop
+        stop_tokens=["<|im_end|>"],
         tool_format="xml",
-        tool_call_start="<tool_call>\n",
-        tool_call_end="\n</tool_call>",
+        tool_call_start="<tool_calljson\n",
+        tool_call_end="\n</tool_call",
         supports_native_tools=True,
         system_prompt_style="separate",
-        preferred_temperature=0.6,  # Qwen3 recommends lower temp
-        needs_think_directive=True,  # Supports /think /no_think
+        preferred_temperature=0.6,
+        needs_think_directive=True,
         prefers_few_shot=True,
         few_shot_style="react",
     ),
     
-    # QWEN3.5 - Alibaba's Qwen 3.5 models (successor to Qwen3)
-    # Note: Unlike Qwen3, Qwen3.5 does NOT have thinking mode (simple template)
+    # QWEN35 (Qwen 3.5) - Successor to Qwen3, NO thinking mode
+    # Note: Unlike Qwen3, Qwen3.5 does NOT have thinking mode (simpler template)
     "qwen35": ModelFamilyConfig(
         family="qwen35",
         start_tokens={
@@ -178,8 +175,8 @@ Keep answers brief. Show calculation first, then the final number.""",
         },
         stop_tokens=["<|im_end|>"],
         tool_format="xml",
-        tool_call_start=".special\n",
-        tool_call_end="\n",
+        tool_call_start="<tool_calljson\n",
+        tool_call_end="\n</tool_call",
         supports_native_tools=True,
         system_prompt_style="separate",
         preferred_temperature=0.6,
@@ -188,7 +185,7 @@ Keep answers brief. Show calculation first, then the final number.""",
         few_shot_style="react",
     ),
     
-    # LLAMA - Meta's Llama models (varies by fine-tune)
+    # LLAMA - Meta's Llama models
     "llama": ModelFamilyConfig(
         family="llama",
         start_tokens={
@@ -198,7 +195,7 @@ Keep answers brief. Show calculation first, then the final number.""",
         },
         stop_tokens=["<|eot_id|>", "<|end_of_text|>"],
         tool_format="native",
-        tool_call_start="",  # Llama uses raw JSON without wrapper
+        tool_call_start="",
         tool_call_end="",
         supports_native_tools=True,
         system_prompt_style="separate",
@@ -208,8 +205,6 @@ Keep answers brief. Show calculation first, then the final number.""",
     ),
     
     # DOLPHIN - Dolphin fine-tunes (ChatML format, no tool support)
-    # Dolphin fine-tunes lose native tool support from their base models.
-    # They share ChatML template regardless of base (llama, qwen2, etc.).
     "dolphin": ModelFamilyConfig(
         family="dolphin",
         start_tokens={
@@ -218,14 +213,13 @@ Keep answers brief. Show calculation first, then the final number.""",
             "assistant": "<|im_start|>assistant",
         },
         stop_tokens=["<|im_end|>", "<|im_start|>"],
-        tool_format="none",  # Dolphin fine-tunes lose tool support
+        tool_format="none",
         supports_native_tools=False,
         system_prompt_style="separate",
         preferred_temperature=0.7,
         prefers_few_shot=False,
         few_shot_style="compact",
         reasoning_hints=["Be direct and helpful", "Follow instructions precisely"],
-        # General-purpose prompt for models without tool support
         no_tools_system_prompt="""You are Dolphin, a helpful AI assistant.
 
 Be concise and direct. For math, show the calculation then the answer.
@@ -247,13 +241,6 @@ A: 10
 Q: What is the capital of Japan?
 A: Tokyo
 
-Q: What is the capital of Brazil?
-A: Brasilia
-
-Q: Write a Python function is_even(n).
-A: def is_even(n):
-    return n % 2 == 0
-
 Keep answers brief. One word when possible.""",
     ),
 }
@@ -264,26 +251,14 @@ Keep answers brief. One word when possible.""",
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def get_family_config(family: str) -> ModelFamilyConfig:
-    """
-    Get configuration for a model family.
-    
-    Parameters
-    ----------
-    family : str
-        Family name (e.g., "qwen2", "granite", "gemma3")
-    
-    Returns
-    -------
-    ModelFamilyConfig
-        Configuration for the family, or default config if not found
-    """
+    """Get configuration for a model family."""
     family_lower = family.lower() if family else ""
     
     # Direct match
     if family_lower in FAMILY_CONFIGS:
         return FAMILY_CONFIGS[family_lower]
     
-    # Partial match (e.g., "granitemoe" matches "granite")
+    # Partial match
     for key in FAMILY_CONFIGS:
         if key in family_lower or family_lower in key:
             return FAMILY_CONFIGS[key]
@@ -318,31 +293,12 @@ def get_preferred_temperature(family: str) -> float:
 
 
 def should_use_few_shot(family: str, model_size_hint: str = "") -> bool:
-    """
-    Determine if few-shot prompting should be used.
-    
-    Parameters
-    ----------
-    family : str
-        Model family
-    model_size_hint : str
-        Size indicator from model name (e.g., "0.5b", "1b")
-    
-    Returns
-    -------
-    bool
-        True if few-shot should be used
-    """
+    """Determine if few-shot prompting should be used."""
     config = get_family_config(family)
     
     # If family explicitly prefers/dislikes few-shot, respect that
     if not config.prefers_few_shot:
         return False
-    
-    # For small models, always use few-shot
-#    small_indicators = ["270m", "350m", "500m", "0.5b", "0.6b", "1b"]
-#    if model_size_hint and any(ind in model_size_hint.lower() for ind in small_indicators):
-#        return True
     
     return config.prefers_few_shot
 
@@ -353,14 +309,7 @@ def get_few_shot_style(family: str) -> str:
 
 
 def has_known_issues(family: str) -> dict:
-    """
-    Get known issues for a family.
-    
-    Returns
-    -------
-    dict
-        Dictionary of issue flags
-    """
+    """Get known issues for a family."""
     config = get_family_config(family)
     return {
         "schema_dump": config.has_schema_dump_issue,
@@ -369,31 +318,13 @@ def has_known_issues(family: str) -> dict:
 
 
 def needs_no_think_directive(family: str) -> bool:
-    """
-    Check if a family needs /no_think directive to disable thinking mode.
-    
-    Some models (like qwen3) have a thinking mode that outputs reasoning
-    in special tags. Without /no_think, they may output empty content.
-    
-    Returns
-    -------
-    bool
-        True if /no_think should be added to system prompt
-    """
+    """Check if a family needs /no_think directive to disable thinking mode."""
     config = get_family_config(family)
     return config.needs_think_directive
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# FAMILY-SPECIFIC PROMPT MODIFIERS
-# ═══════════════════════════════════════════════════════════════════════════════
-
 def get_react_system_suffix(family: str) -> str:
-    """
-    Get family-specific ReAct format instructions.
-    
-    Different families may need slightly different formatting hints.
-    """
+    """Get family-specific ReAct format instructions."""
     config = get_family_config(family)
     
     base_suffix = """You have access to tools. Use the following format:
@@ -408,40 +339,22 @@ Final Answer: <your response>"""
     
     # Family-specific modifications
     if family == "granitemoe":
-        # granite3.1-moe has issues with JSON truncation
         return base_suffix + """
 
 CRITICAL: Keep Action Input JSON SHORT. Use compact format:
 {"expression": "2**10"}  <- GOOD
 {"expression": "calculate 2 to the power of 10"}  <- BAD, too long"""
     
-    elif family == "qwen2":
-        # qwen2.5 works well with ReAct
-        return base_suffix
-    
-    elif family == "qwen3":
-        # qwen3 supports thinking mode
-        return base_suffix
-    
-    elif family in ("gemma3", "dolphin"):
-        return base_suffix
-    
     return base_suffix
 
 
 def get_native_tool_hints(family: str) -> str:
-    """
-    Get hints for models using native tool calling.
-    
-    These are added when the model uses native Ollama tool API
-    but may need guidance on WHEN to call tools.
-    """
+    """Get hints for models using native tool calling."""
     config = get_family_config(family)
     
     if not config.supports_native_tools:
         return ""
     
-    # Platform-aware hints - use python_repl for date (cross-platform)
     hints = f"""TOOL USAGE RULES - YOU MUST CALL TOOLS:
 
 1. MATH QUESTIONS: Always call calculator tool
@@ -462,19 +375,29 @@ def get_native_tool_hints(family: str) -> str:
 
 NEVER respond with empty content. ALWAYS call a tool when asked to compute."""
     
-    # Family-specific additions
-    if family == "granite":
-        return hints + "\n\nFor tool calls, use XML format: <tool_calljson</tool_call"
-    
-    elif family == "qwen2":
-        return hints  # qwen2.5 handles this well
-    
     return hints
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# EXPORTS
-# ═══════════════════════════════════════════════════════════════════════════════
+def detect_family(model_name: str) -> str | None:
+    """Detect model family from model name."""
+    name_lower = model_name.lower()
+    families = [
+        "qwen2.5", "qwen2", "qwen35", "qwen3", "qwen",
+        "llama3.3", "llama3.2", "llama3.1", "llama3", "llama",
+        "mistral", "mixtral",
+        "gemma3", "gemma2", "gemma",
+        "granitemoe", "granite",
+        "phi3", "phi",
+        "codellama",
+        "command-r", "command",
+        "deepseek",
+        "dolphin",
+    ]
+    for f in families:
+        if f in name_lower:
+            return f
+    return None
+
 
 __all__ = [
     "ModelFamilyConfig",
@@ -489,4 +412,7 @@ __all__ = [
     "has_known_issues",
     "get_react_system_suffix",
     "get_native_tool_hints",
+    "get_no_tools_system_prompt",
+    "detect_family",
+    "needs_no_think_directive",
 ]

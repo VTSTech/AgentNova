@@ -1,713 +1,412 @@
-﻿"""
-⚛️ AgentNova R02.6 — Built-in Tools
-A curated set of safe, practical tools for local agents.
-Import whichever you need and add them to a ToolRegistry.
+"""
+⚛️ AgentNova — Built-in Tools
+Pre-built tools for common operations.
 
-    from agentnova.tools.builtins import BUILTIN_REGISTRY
-    agent = Agent(model="llama3.1:8b", tools=BUILTIN_REGISTRY)
-
-For isolated state per agent (separate REPL sessions and note stores),
-use make_builtin_registry() instead:
-
-    from agentnova.tools.builtins import make_builtin_registry
-    agent = Agent(model="llama3.1:8b", tools=make_builtin_registry())
-
-Written by VTSTech — https://www.vts-tech.org — https://github.com/VTSTech/AgentNova
+Written by VTSTech — https://www.vts-tech.org
 """
 
 from __future__ import annotations
 
-import ast
-import io
 import math
-import os
-import platform
-import re
-import shlex
 import subprocess
 import sys
-import tempfile
-import textwrap
-import traceback
-from contextlib import redirect_stdout, redirect_stderr
-from datetime import datetime
-
-# Platform detection for cross-platform shell command hints
-_IS_WINDOWS = platform.system() == "Windows"
-_PLATFORM_DIR_CMD = "cd" if _IS_WINDOWS else "pwd"
-_PLATFORM_LIST_CMD = "dir" if _IS_WINDOWS else "ls"
-from pathlib import Path
 from typing import Any
 
-import urllib.request
-import urllib.error
-import urllib.parse
-import socket
-import ipaddress
-
-from ..core.tools import ToolRegistry, Tool, ToolParam
+from ..core.models import Tool, ToolParam
+from ..core.helpers import sanitize_command, validate_path, is_safe_url
+from .registry import ToolRegistry
 
 
-# ================================================================== #
-#  Security Configuration                                             #
-# ================================================================== #
-# These can be overridden via environment variables:
-#   AGENTNOVA_ALLOWED_PATHS=/home/user/projects:/tmp/workspace
-#   AGENTNOVA_BLOCKED_COMMANDS=rm,sudo,chmod,chown
-#   AGENTNOVA_SECURITY_MODE=strict|permissive|disabled
+# ============================================================================
+# Calculator Tool
+# ============================================================================
 
-# Default allowed paths (cwd + common safe directories)
-_DEFAULT_ALLOWED_PATHS = [
-    ".",  # Current working directory
-    "~",  # User home (can be restricted)
-    "/tmp",  # Standard temp directory (Unix/Linux/Mac)
-    tempfile.gettempdir(),  # Platform temp dir (Windows: %TEMP%, Unix: /tmp)
-]
+def calculator(expression: str) -> str:
+    """
+    Evaluate a mathematical expression safely.
 
-# Sensitive paths that are ALWAYS blocked regardless of allowed_paths
-BLOCKED_PATH_PATTERNS = [
-    "/etc/shadow",
-    "/etc/passwd",
-    "/etc/sudoers",
-    "/etc/ssh/",
-    "/root/.ssh/",
-    "/.ssh/",
-    "/.gnupg/",
-    "/etc/gshadow",
-    "/etc/shadow-",
-    "/etc/passwd-",
-]
+    Supports: +, -, *, /, **, %, sqrt, sin, cos, tan, log, exp, pi, e
 
-# Commands that are blocked by default (destructive or privilege escalation)
-DEFAULT_BLOCKED_COMMANDS = [
-    # File destruction
-    "rm",
-    "rmdir",
-    "shred",
-    "wipe",
-    "shred",
-    # Privilege escalation
-    "sudo",
-    "su",
-    "doas",
-    "pkexec",
-    "gksudo",
-    "kdesu",
-    # System modification
-    "chmod",
-    "chown",
-    "chgrp",
-    "mkfs",
-    "fdisk",
-    "parted",
-    "dd",
-    "format",
-    # Package management (can install malicious packages)
-    "apt",
-    "apt-get",
-    "aptitude",
-    "yum",
-    "dnf",
-    "pacman",
-    "pip",
-    "pip3",
-    "npm",
-    "yarn",
-    "gem",
-    "cargo",
-    # Network tunneling/exfiltration
-    "nc",
-    "ncat",
-    "netcat",
-    "telnet",
-    # Process manipulation
-    "kill",
-    "killall",
-    "pkill",
-    # System control
-    "systemctl",
-    "service",
-    "init",
-    "reboot",
-    "shutdown",
-    "poweroff",
-    "halt",
-    # Cron/at (persistence)
-    "crontab",
-    "at",
-    # Keylogging/snooping
-    "xinput",
-    "xev",
-    "strace",
-    "ltrace",
-]
+    Args:
+        expression: Mathematical expression to evaluate
 
-# Dangerous command patterns (regex)
-DANGEROUS_PATTERNS = [
-    r">\s*/dev/",           # Writing to devices
-    r"<\s*/dev/",           # Reading from devices
-    r"\|\s*bash",           # Piping to bash
-    r"\|\s*sh",             # Piping to sh
-    r"\$\([^)]+\)",         # Command substitution
-    r"`[^`]+`",             # Backtick command substitution
-    r"&&\s*rm",             # Chained rm
-    r"\|\s*sudo",           # Piping to sudo
-    r">\s*/etc/",           # Overwrite
-    r";\s*rm\b",                    # Command chaining with rm
-    r"\|\s*rm\b",                   # Pipe to rm
-    r"\$\([^)]+\)",                 # Command substitution
-    r"`[^`]+`",                     # Backtick command substitution
-    r">\s*/dev/",                   # Writing to device files
-    r">\s*/proc/",                  # Writing to proc
-    r">\s*/sys/",                   # Writing to sysfs
-]
+    Returns:
+        Result of the calculation
+    """
+    # Safe math functions
+    safe_dict = {
+        "abs": abs,
+        "round": round,
+        "min": min,
+        "max": max,
+        "sum": sum,
+        "sqrt": math.sqrt,
+        "sin": math.sin,
+        "cos": math.cos,
+        "tan": math.tan,
+        "log": math.log,
+        "log10": math.log10,
+        "exp": math.exp,
+        "pi": math.pi,
+        "e": math.e,
+        "pow": pow,
+    }
+
+    try:
+        # Remove dangerous characters
+        expression = expression.replace("__", "")
+
+        # Evaluate in safe context
+        result = eval(expression, {"__builtins__": {}}, safe_dict)
+        return str(result)
+
+    except Exception as e:
+        return f"Error evaluating expression: {e}"
 
 
-def _get_allowed_paths() -> list[Path]:
-    """Get list of allowed base paths from env or defaults."""
-    env_paths = os.environ.get("AGENTNOVA_ALLOWED_PATHS", "")
-    if env_paths:
-        paths = []
-        for p in env_paths.split(":"):
-            expanded = Path(p).expanduser().resolve()
-            if expanded.exists():
-                paths.append(expanded)
-        return paths
-    # Default: current directory, home, and temp directories
-    paths = []
-    for p in _DEFAULT_ALLOWED_PATHS:
+# ============================================================================
+# Shell Tool
+# ============================================================================
+
+def shell(command: str, timeout: int = 30) -> str:
+    """
+    Execute a shell command (with security restrictions).
+
+    Args:
+        command: Shell command to execute
+        timeout: Timeout in seconds (default 30)
+
+    Returns:
+        Command output or error message
+    """
+    # Validate command
+    is_safe, error_msg, safe_cmd = sanitize_command(command)
+    if not is_safe:
+        return f"Security error: {error_msg}"
+
+    try:
+        result = subprocess.run(
+            safe_cmd,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+
+        output = result.stdout.strip()
+        if result.returncode != 0:
+            output += f"\n[Exit code: {result.returncode}]"
+            if result.stderr:
+                output += f"\nError: {result.stderr}"
+
+        return output or "(no output)"
+
+    except subprocess.TimeoutExpired:
+        return f"Command timed out after {timeout} seconds"
+
+    except Exception as e:
+        return f"Error executing command: {e}"
+
+
+# ============================================================================
+# File Tools
+# ============================================================================
+
+def read_file(file_path: str) -> str:
+    """
+    Read contents of a file.
+
+    Args:
+        file_path: Path to the file to read
+
+    Returns:
+        File contents or error message
+    """
+    is_valid, error = validate_path(file_path)
+    if not is_valid:
+        return f"Security error: {error}"
+
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            return f.read()
+
+    except FileNotFoundError:
+        return f"File not found: {file_path}"
+
+    except Exception as e:
+        return f"Error reading file: {e}"
+
+
+def write_file(file_path: str, content: str) -> str:
+    """
+    Write content to a file.
+
+    Args:
+        file_path: Path to write to
+        content: Content to write
+
+    Returns:
+        Success message or error
+    """
+    is_valid, error = validate_path(file_path)
+    if not is_valid:
+        return f"Security error: {error}"
+
+    try:
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return f"Successfully wrote {len(content)} characters to {file_path}"
+
+    except Exception as e:
+        return f"Error writing file: {e}"
+
+
+# ============================================================================
+# HTTP Tool
+# ============================================================================
+
+def http_get(url: str, headers: dict | None = None) -> str:
+    """
+    Make an HTTP GET request.
+
+    Args:
+        url: URL to fetch
+        headers: Optional headers dict
+
+    Returns:
+        Response body or error message
+    """
+    import urllib.request
+    import urllib.error
+
+    # Validate URL for SSRF
+    is_safe, error = is_safe_url(url)
+    if not is_safe:
+        return f"Security error: {error}"
+
+    try:
+        req = urllib.request.Request(url, method="GET")
+
+        if headers:
+            for key, value in headers.items():
+                req.add_header(key, value)
+
+        with urllib.request.urlopen(req, timeout=30) as response:
+            return response.read().decode("utf-8")
+
+    except urllib.error.HTTPError as e:
+        return f"HTTP error {e.code}: {e.reason}"
+
+    except urllib.error.URLError as e:
+        return f"Connection error: {e.reason}"
+
+    except Exception as e:
+        return f"Error fetching URL: {e}"
+
+
+# ============================================================================
+# Time Tool
+# ============================================================================
+
+def get_time(timezone: str | None = None) -> str:
+    """
+    Get current date and time.
+
+    Args:
+        timezone: Optional timezone (e.g., 'America/New_York')
+
+    Returns:
+        Current date and time string
+    """
+    from datetime import datetime
+
+    now = datetime.now()
+
+    if timezone:
         try:
-            expanded = Path(p).expanduser().resolve()
-            if expanded.exists():
-                paths.append(expanded)
+            import zoneinfo
+            tz = zoneinfo.ZoneInfo(timezone)
+            now = datetime.now(tz)
         except Exception:
             pass
-    return paths if paths else [Path(".").resolve()]
+
+    return now.strftime("%Y-%m-%d %H:%M:%S")
 
 
-def _get_blocked_commands() -> set[str]:
-    """Get set of blocked commands from env or defaults."""
-    env_blocked = os.environ.get("AGENTNOVA_BLOCKED_COMMANDS", "")
-    if env_blocked:
-        return set(c.strip().lower() for c in env_blocked.split(",") if c.strip())
-    return set(DEFAULT_BLOCKED_COMMANDS)
-
-
-def _get_security_mode() -> str:
-    """Get security mode: strict, permissive, or disabled."""
-    return os.environ.get("AGENTNOVA_SECURITY_MODE", "strict").lower()
-
-
-def _validate_path(path: str, operation: str = "access") -> tuple[bool, str]:
+def get_date() -> str:
     """
-    Validate that a path is within allowed directories and not blocked.
-    
-    Returns (is_valid, error_message).
+    Get current date.
+
+    Returns:
+        Current date string (YYYY-MM-DD)
     """
-    mode = _get_security_mode()
-    
-    if mode == "disabled":
-        return True, ""
-    
+    from datetime import datetime
+    return datetime.now().strftime("%Y-%m-%d")
+
+
+# ============================================================================
+# JSON Tool
+# ============================================================================
+
+def parse_json(json_string: str) -> str:
+    """
+    Parse a JSON string and format it.
+
+    Args:
+        json_string: JSON string to parse
+
+    Returns:
+        Formatted JSON or error message
+    """
+    import json
+
     try:
-        target = Path(path).expanduser().resolve()
-    except Exception as e:
-        return False, f"Invalid path: {e}"
-    
-    # Check against always-blocked patterns
-    path_str = str(target)
-    for blocked in BLOCKED_PATH_PATTERNS:
-        if blocked.endswith("/") and path_str.startswith(blocked):
-            return False, f"Access denied: '{blocked}*' is a restricted path"
-        elif path_str == blocked:
-            return False, f"Access denied: '{blocked}' is a restricted file"
-    
-    # Check if path is within allowed directories
-    allowed_paths = _get_allowed_paths()
-    in_allowed = any(
-        target == allowed or target.is_relative_to(allowed)
-        for allowed in allowed_paths
-    )
-    
-    if mode == "strict" and not in_allowed:
-        allowed_str = ", ".join(str(p) for p in allowed_paths)
-        return False, f"Path '{path}' is outside allowed directories: {allowed_str}"
-    
-    if mode == "permissive":
-        # In permissive mode, just warn but allow
-        if not in_allowed:
-            pass  # Could log a warning here
-    
-    return True, ""
+        data = json.loads(json_string)
+        return json.dumps(data, indent=2)
+
+    except json.JSONDecodeError as e:
+        return f"JSON parse error: {e}"
 
 
-def _validate_command(command: str) -> tuple[bool, str]:
+# ============================================================================
+# Text Tools
+# ============================================================================
+
+def count_words(text: str) -> str:
     """
-    Validate that a shell command doesn't contain blocked commands or patterns.
-    
-    Returns (is_valid, error_message).
+    Count words in text.
+
+    Args:
+        text: Text to count words in
+
+    Returns:
+        Word count
     """
-    mode = _get_security_mode()
-    
-    if mode == "disabled":
-        return True, ""
-    
-    blocked = _get_blocked_commands()
-    command_lower = command.lower()
-    
-    # Extract base command (first word)
-    try:
-        parts = shlex.split(command)
-        if parts:
-            base_cmd = parts[0].split("/")[-1].lower()  # Handle /usr/bin/rm
-        else:
-            return False, "Empty command"
-    except ValueError:
-        base_cmd = command.split()[0].lower() if command.split() else ""
-    
-    # Check base command against blocklist
-    if base_cmd in blocked:
-        return False, f"Command '{base_cmd}' is blocked for security"
-    
-    # Check for blocked commands anywhere in the command string
-    for blocked_cmd in blocked:
-        # Match as word boundary to avoid false positives (e.g., "grep" vs "rm")
-        pattern = rf'\b{re.escape(blocked_cmd)}\b'
-        if re.search(pattern, command_lower):
-            return False, f"Command contains blocked command: {blocked_cmd}"
-    
-    # Check for dangerous patterns
-    for pattern in DANGEROUS_PATTERNS:
-        if re.search(pattern, command_lower):
-            return False, f"Command matches dangerous pattern"
-    
-    return True, ""
+    words = text.split()
+    return str(len(words))
 
 
-def _validate_url(url: str) -> tuple[bool, str]:
+def count_chars(text: str) -> str:
     """
-    Validate a URL for SSRF protection.
-    
-    Blocks:
-    - Private IP ranges (10.x, 172.16-31.x, 192.168.x, 127.x, 169.254.x)
-    - Localhost variations
-    - file:// protocol
-    - Cloud metadata endpoints
-    
-    Returns (is_valid, error_message).
+    Count characters in text.
+
+    Args:
+        text: Text to count characters in
+
+    Returns:
+        Character count
     """
-    mode = _get_security_mode()
-    
-    if mode == "disabled":
-        return True, ""
-    
-    try:
-        parsed = urllib.parse.urlparse(url)
-        
-        # Only allow http and https
-        if parsed.scheme not in ("http", "https"):
-            return False, f"Protocol '{parsed.scheme}' is not allowed (only http/https)"
-        
-        hostname = parsed.hostname
-        if not hostname:
-            return False, "Invalid URL: no hostname"
-        
-        # Block known dangerous hostnames
-        blocked_hostnames = {
-            "localhost",
-            "localhost.localdomain",
-            "ip6-localhost",
-            "ip6-loopback",
-            "metadata.google.internal",
-            "metadata",
-            "kubernetes.default",
-            "kubernetes.default.svc",
-        }
-        
-        if hostname.lower() in blocked_hostnames:
-            return False, f"Access to '{hostname}' is blocked"
-        
-        # Block hostnames that look like IP addresses in private ranges
-        # Also resolve the hostname to check for DNS rebinding attacks
-        try:
-            # Try to parse as IP address directly
-            ip = ipaddress.ip_address(hostname)
-            if _is_private_ip(ip):
-                return False, f"Access to private IP {ip} is blocked"
-        except ValueError:
-            # Not an IP address, need to resolve
-            if mode == "strict":
-                try:
-                    # Resolve hostname to IP
-                    resolved = socket.gethostbyname(hostname)
-                    ip = ipaddress.ip_address(resolved)
-                    if _is_private_ip(ip):
-                        return False, f"Hostname '{hostname}' resolves to private IP {ip}"
-                except socket.gaierror:
-                    pass  # Can't resolve, let it fail naturally
-        
-        # Block cloud metadata IP
-        if hostname == "169.254.169.254":
-            return False, "Access to cloud metadata endpoint is blocked"
-        
-        return True, ""
-        
-    except Exception as e:
-        return False, f"URL validation error: {e}"
+    return str(len(text))
 
 
-def _is_private_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
-    """Check if an IP address is in a private/reserved range."""
-    return (
-        ip.is_private or
-        ip.is_loopback or
-        ip.is_link_local or
-        ip.is_reserved or
-        ip.is_multicast or
-        ip.is_unspecified
-    )
-
-
-# ================================================================== #
-#  Factory — produces a registry with fully isolated stateful tools    #
-# ================================================================== #
+# ============================================================================
+# Build Registry
+# ============================================================================
 
 def make_builtin_registry() -> ToolRegistry:
-    """
-    Create a fresh ToolRegistry containing all built-in tools.
-    Stateful tools (python_repl, notes) get their own isolated state,
-    so multiple agents will never share REPL globals or note stores.
-    """
+    """Create a registry with all built-in tools."""
     registry = ToolRegistry()
 
-    # ================================================================== #
-    #  Calculator                                                          #
-    # ================================================================== #
+    # Calculator
+    registry.register_tool(Tool(
+        name="calculator",
+        description="Evaluate mathematical expressions. Supports +, -, *, /, **, sqrt, sin, cos, tan, log, exp, pi, e",
+        params=[ToolParam(name="expression", type="string", description="Mathematical expression to evaluate")],
+        handler=calculator,
+        category="math",
+    ))
 
-    @registry.tool(
-        description="Evaluate a mathematical expression. Supports +, -, *, /, **, sqrt(), log(), sin(), cos(), and all Python math functions.",
-        param_descriptions={"expression": "A Python math expression, e.g. '2 ** 10', 'sqrt(144)', 'math.log(100)'"},
-    )
-    def calculator(expression: str) -> str:
-        """Safe math evaluator using Python's math module."""
-        allowed_names = {k: v for k, v in math.__dict__.items() if not k.startswith("_")}
-        allowed_names.update({"abs": abs, "round": round, "min": min, "max": max, "sum": sum})
-        try:
-            tree = ast.parse(expression, mode="eval")
-            for node in ast.walk(tree):
-                if isinstance(node, (ast.Import, ast.ImportFrom, ast.Call)):
-                    if isinstance(node, ast.Call):
-                        if isinstance(node.func, ast.Name) and node.func.id not in allowed_names:
-                            return f"[Blocked] Function '{node.func.id}' is not allowed."
-            result = eval(compile(tree, "<calc>", "eval"), {"__builtins__": {}}, allowed_names)
-            return str(result)
-        except Exception as e:
-            return f"[Calculator error] {e}"
+    # Shell
+    registry.register_tool(Tool(
+        name="shell",
+        description="Execute shell commands (with security restrictions)",
+        params=[
+            ToolParam(name="command", type="string", description="Shell command to execute"),
+            ToolParam(name="timeout", type="integer", description="Timeout in seconds", required=False, default=30),
+        ],
+        handler=shell,
+        dangerous=True,
+        category="system",
+    ))
 
-    # ================================================================== #
-    #  Shell                                                               #
-    # ================================================================== #
+    # File operations
+    registry.register_tool(Tool(
+        name="read_file",
+        description="Read contents of a file",
+        params=[ToolParam(name="file_path", type="string", description="Path to the file")],
+        handler=read_file,
+        category="file",
+    ))
 
-    # Platform-aware shell command examples
-    _shell_examples = (
-        f"Execute shell commands and return their output. "
-        f"Common commands: 'echo TEXT' (print text), "
-        f"'{_PLATFORM_DIR_CMD}' (current directory), '{_PLATFORM_LIST_CMD}' (list files), "
-        f"'whoami' (current user), 'hostname' (machine name). "
-        f"Use this for system information, file operations, and command execution."
-    )
+    registry.register_tool(Tool(
+        name="write_file",
+        description="Write content to a file",
+        params=[
+            ToolParam(name="file_path", type="string", description="Path to write to"),
+            ToolParam(name="content", type="string", description="Content to write"),
+        ],
+        handler=write_file,
+        dangerous=True,
+        category="file",
+    ))
 
-    @registry.tool(
-        description=_shell_examples,
-        param_descriptions={
-            "command": f"Shell command to execute (e.g., 'echo Hello', '{_PLATFORM_DIR_CMD}', '{_PLATFORM_LIST_CMD}')",
-            "timeout": "Maximum seconds to wait (default 120)",
-        },
-    )
-    def shell(command: str, timeout: int = 120) -> str:
-        """Execute a shell command via subprocess with security checks."""
-        # Validate command against blocklist
-        is_valid, error_msg = _validate_command(command)
-        if not is_valid:
-            return f"[Security] {error_msg}"
-        
-        try:
-            result = subprocess.run(
-                command,
-                shell=True,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-            )
-            output = result.stdout + result.stderr
-            return output.strip() or f"[Exit code {result.returncode}]"
-        except subprocess.TimeoutExpired:
-            return f"[Timeout] Command exceeded {timeout}s"
-        except Exception as e:
-            return f"[Shell error] {e}"
+    # HTTP
+    registry.register_tool(Tool(
+        name="http_get",
+        description="Make an HTTP GET request to a URL",
+        params=[
+            ToolParam(name="url", type="string", description="URL to fetch"),
+            ToolParam(name="headers", type="object", description="Optional headers", required=False),
+        ],
+        handler=http_get,
+        category="network",
+    ))
 
-    # ================================================================== #
-    #  File I/O                                                            #
-    # ================================================================== #
+    # Time
+    registry.register_tool(Tool(
+        name="get_time",
+        description="Get current date and time",
+        params=[ToolParam(name="timezone", type="string", description="Optional timezone", required=False)],
+        handler=get_time,
+        category="utility",
+    ))
 
-    @registry.tool(
-        description="Read a file from the local filesystem and return its contents.",
-        param_descriptions={
-            "path": "Absolute or relative file path",
-            "max_chars": "Maximum characters to return (default 100000, 0 for unlimited)",
-        },
-    )
-    def read_file(path: str, max_chars: int = 100000) -> str:
-        """Read and return file contents as text with path validation."""
-        # Validate path
-        is_valid, error_msg = _validate_path(path, "read")
-        if not is_valid:
-            return f"[Security] {error_msg}"
-        
-        try:
-            p = Path(path).expanduser().resolve()
-            
-            # Check file size before reading
-            if p.is_file():
-                size = p.stat().st_size
-                if size > 10_000_000:  # 10MB limit
-                    return f"[File too large] {size:,} bytes (max 10MB)"
-            
-            content = p.read_text(encoding="utf-8", errors="replace")
-            
-            # Truncate if needed
-            if max_chars > 0 and len(content) > max_chars:
-                return content[:max_chars] + f"\n... [truncated, {len(content):,} total chars]"
-            
-            return content
-        except Exception as e:
-            return f"[File read error] {e}"
+    registry.register_tool(Tool(
+        name="get_date",
+        description="Get current date (YYYY-MM-DD)",
+        params=[],
+        handler=get_date,
+        category="utility",
+    ))
 
-    @registry.tool(
-        description="Write text content to a file on the local filesystem.",
-        param_descriptions={
-            "path": "Absolute or relative file path",
-            "content": "Text to write",
-            "append": "If true, append instead of overwriting (default false)",
-        },
-    )
-    def write_file(path: str, content: str, append: bool = False) -> str:
-        """Write (or append) content to a file with path validation."""
-        # Validate path
-        is_valid, error_msg = _validate_path(path, "write")
-        if not is_valid:
-            return f"[Security] {error_msg}"
-        
-        # Check content size
-        if len(content) > 10_000_000:  # 10MB limit
-            return f"[Content too large] {len(content):,} chars (max 10MB)"
-        
-        try:
-            p = Path(path).expanduser().resolve()
-            p.parent.mkdir(parents=True, exist_ok=True)
-            mode = "a" if append else "w"
-            with p.open(mode, encoding="utf-8") as fh:
-                fh.write(content)
-            action = "Appended" if append else "Written"
-            return f"{action} {len(content):,} chars to {path}"
-        except Exception as e:
-            return f"[File write error] {e}"
+    # JSON
+    registry.register_tool(Tool(
+        name="parse_json",
+        description="Parse and format a JSON string",
+        params=[ToolParam(name="json_string", type="string", description="JSON string to parse")],
+        handler=parse_json,
+        category="utility",
+    ))
 
-    @registry.tool(
-        description="List files and directories at the given path.",
-        param_descriptions={"path": "Directory path to list (default: current directory)"},
-    )
-    def list_directory(path: str = ".") -> str:
-        """List directory contents with path validation."""
-        # Validate path
-        is_valid, error_msg = _validate_path(path, "list")
-        if not is_valid:
-            return f"[Security] {error_msg}"
-        
-        try:
-            p = Path(path).expanduser().resolve()
-            entries = sorted(p.iterdir(), key=lambda e: (e.is_file(), e.name))
-            lines = []
-            for e in entries:
-                indicator = "/" if e.is_dir() else ""
-                size = f"  ({e.stat().st_size:,}B)" if e.is_file() else ""
-                lines.append(f"{e.name}{indicator}{size}")
-            return "\n".join(lines) or "[Empty directory]"
-        except Exception as e:
-            return f"[Directory error] {e}"
+    # Text
+    registry.register_tool(Tool(
+        name="count_words",
+        description="Count words in text",
+        params=[ToolParam(name="text", type="string", description="Text to count")],
+        handler=count_words,
+        category="text",
+    ))
 
-    # ================================================================== #
-    #  HTTP fetch                                                          #
-    # ================================================================== #
-
-    @registry.tool(
-        description="Fetch the text content of a URL via HTTP GET.",
-        param_descriptions={
-            "url": "The URL to fetch",
-            "max_chars": "Maximum characters to return (default 3000)",
-        },
-    )
-    def http_get(url: str, max_chars: int = 3000) -> str:
-        """Retrieve the text content of a web page or API endpoint with SSRF protection."""
-        # Validate URL for SSRF protection
-        is_valid, error_msg = _validate_url(url)
-        if not is_valid:
-            return f"[Security] {error_msg}"
-        
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": "AgentNova-R02.6/1.0"})
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                text = resp.read().decode("utf-8", errors="replace")
-            return text[:max_chars] + ("..." if len(text) > max_chars else "")
-        except Exception as e:
-            return f"[HTTP error] {e}"
-
-    # ================================================================== #
-    #  Web Search                                                          #
-    # ================================================================== #
-
-    @registry.tool(
-        description="Search the web using DuckDuckGo and return top results. Use for finding current information, news, or answers to questions.",
-        param_descriptions={
-            "query": "Search query (what to search for)",
-            "num_results": "Number of results to return (default 5, max 10)",
-        },
-    )
-    def web_search(query: str, num_results: int = 5) -> str:
-        """Search the web via DuckDuckGo HTML (no API key required)."""
-        try:
-            num_results = min(max(1, num_results), 10)  # Clamp to 1-10
-            # DuckDuckGo HTML search endpoint
-            search_url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
-            req = urllib.request.Request(
-                search_url,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                    "Accept": "text/html",
-                }
-            )
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                html = resp.read().decode("utf-8", errors="replace")
-            
-            # Parse results from HTML
-            results = []
-            # DuckDuckGo HTML results are in <a class="result__a"> tags
-            pattern = r'<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([^<]+)</a>'
-            matches = re.findall(pattern, html)
-            
-            for url, title in matches[:num_results]:
-                # Clean up the URL (DuckDuckGo uses redirects)
-                if url.startswith("//"):
-                    url = "https:" + url
-                # Extract actual URL from DuckDuckGo redirect if present
-                if "uddg=" in url:
-                    parsed = urllib.parse.urlparse(url)
-                    params = urllib.parse.parse_qs(parsed.query)
-                    if "uddg" in params:
-                        url = params["uddg"][0]
-                
-                title = re.sub(r'<[^>]+>', '', title).strip()
-                results.append(f"• {title}\n  {url}")
-            
-            if not results:
-                return f"[No results found for: {query}]"
-            
-            return f"Search results for '{query}':\n\n" + "\n\n".join(results)
-        except Exception as e:
-            return f"[Search error] {e}"
-
-
-    # ================================================================== #
-    #  Python REPL  (stateful — isolated per registry instance)           #
-    # ================================================================== #
-
-    _repl_globals: dict = {}  # isolated per registry instance
-
-    @registry.tool(
-        description="Execute Python code in a persistent session and return stdout + result.",
-        param_descriptions={"code": "Valid Python code to execute"},
-    )
-    def python_repl(code: str) -> str:
-        """Run arbitrary Python code (local execution — no sandboxing)."""
-        stdout_buf = io.StringIO()
-        stderr_buf = io.StringIO()
-        try:
-            with redirect_stdout(stdout_buf), redirect_stderr(stderr_buf):
-                exec(textwrap.dedent(code), _repl_globals)  # noqa: S102
-            output = stdout_buf.getvalue()
-            errors = stderr_buf.getvalue()
-            return (output + errors).strip() or "[No output]"
-        except Exception:
-            return traceback.format_exc()
-
-    @registry.tool(
-        description="Reset the Python REPL session, clearing all variables.",
-    )
-    def python_repl_reset() -> str:
-        """Clears the REPL global namespace."""
-        _repl_globals.clear()
-        return "REPL session reset."
-
-    # ================================================================== #
-    #  Sandboxed Python REPL (secure subprocess isolation)               #
-    # ================================================================== #
-
-    @registry.tool(
-        description=(
-            "Execute Python code in a SECURE SANDBOXED environment. "
-            "Use this for running Python code safely with memory limits (100MB), "
-            "time limits (30s), and restricted module access. Only safe modules "
-            "like math, json, re, datetime, collections are available. "
-            "File system, network, and subprocess operations are BLOCKED. "
-            "Use this instead of python_repl for untrusted code."
-        ),
-        param_descriptions={"code": "Valid Python code to execute (only safe builtins and modules allowed)"},
-    )
-    def python_repl_safe(code: str) -> str:
-        """Execute Python code in a sandboxed subprocess with resource limits."""
-        from .sandboxed_repl import sandboxed_exec
-        return sandboxed_exec(code)
-
-    # ================================================================== #
-    #  Memory / notes  (stateful — isolated per registry instance)        #
-    # ================================================================== #
-
-    _notes: dict[str, str] = {}  # isolated per registry instance
-
-    @registry.tool(
-        description="Save a note under a given key for later retrieval.",
-        param_descriptions={"key": "Note identifier", "value": "Content to store"},
-    )
-    def save_note(key: str, value: str) -> str:
-        """Persist a key-value note in the agent's scratchpad."""
-        _notes[key] = value
-        return f"Saved note '{key}'."
-
-    @registry.tool(
-        description="Retrieve a previously saved note by key.",
-        param_descriptions={"key": "Note identifier to look up"},
-    )
-    def get_note(key: str) -> str:
-        """Retrieve a note from the scratchpad."""
-        if key in _notes:
-            return _notes[key]
-        available = list(_notes.keys())
-        return f"[No note found for '{key}'. Available keys: {available}]"
-
-    @registry.tool(description="List all saved note keys.")
-    def list_notes() -> str:
-        """Return all note keys currently stored."""
-        if not _notes:
-            return "[No notes saved yet]"
-        return "\n".join(f"- {k}" for k in _notes)
+    registry.register_tool(Tool(
+        name="count_chars",
+        description="Count characters in text",
+        params=[ToolParam(name="text", type="string", description="Text to count")],
+        handler=count_chars,
+        category="text",
+    ))
 
     return registry
 
 
-# ================================================================== #
-#  Shared default registry                                             #
-#  Fine for single-agent scripts; use make_builtin_registry() for     #
-#  multi-agent scenarios to get isolated state per agent.             #
-# ================================================================== #
-
+# Default registry instance
 BUILTIN_REGISTRY = make_builtin_registry()

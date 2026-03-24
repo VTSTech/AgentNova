@@ -1,4 +1,4 @@
-﻿"""
+"""
 ⚛️ AgentNova ACP Plugin - Bridge to Agent Control Panel
 
 This plugin connects AgentNova agents to an ACP (Agent Control Panel) server,
@@ -28,7 +28,7 @@ Features:
 
 Usage:
     from agentnova import Agent
-    from agentnova.tools.builtins import BUILTIN_REGISTRY
+    from agentnova.tools import make_builtin_registry
     from agentnova.acp_plugin import ACPPlugin
 
     # Create plugin (uses config.py defaults)
@@ -44,12 +44,12 @@ Usage:
     # Attach to agent
     agent = Agent(
         model="qwen2.5-coder:0.5b",
-        tools=BUILTIN_REGISTRY,
-        on_step=acp.on_step,  # <-- Integration point
+        tools=make_builtin_registry(),
     )
 
-    # Run - all activity logged to ACP
+    # Run with ACP logging
     result = agent.run("What is 2^20?")
+    # After each step, call acp.on_step(step) to log
 
     # Batch operations (efficient for multiple files):
     result = acp.batch_start([
@@ -76,7 +76,7 @@ from typing import Any, Callable, Generator
 
 # Import StepResult for type hints (optional - works without it)
 try:
-    from .core.agent import StepResult
+    from .core.models import StepResult
 except ImportError:
     # Allow standalone usage
     StepResult = Any
@@ -262,7 +262,7 @@ class ACPPlugin:
             "write_file": "WRITE",
             "edit_file": "EDIT",
             "shell": "BASH",
-            "web_search": "SEARCH",
+            "web-search": "SEARCH",
             "http_get": "API",
             "http_post": "API",
             "calculator": "SKILL",
@@ -524,8 +524,8 @@ class ACPPlugin:
                 "inputModes": ["text/plain", "application/json"],
                 "outputModes": ["text/plain"],
             },
-            "web_search": {
-                "id": "web_search",
+            "web-search": {
+                "id": "web-search",
                 "name": "Web Search",
                 "description": "Search the web for information",
                 "tags": ["web", "search", "internet", "query"],
@@ -818,10 +818,12 @@ class ACPPlugin:
         """
         Callback for AgentNova Agent - called on every step.
 
-        This is the main integration point. Pass this method to the
-        Agent constructor:
+        This is the main integration point. Call this method after
+        each step in the agent's run loop:
 
-            agent = Agent(model="...", on_step=acp.on_step)
+            for step in agent.run_stream(prompt):
+                acp.on_step(step)
+                # ... process step
 
         Parameters
         ----------
@@ -840,16 +842,18 @@ class ACPPlugin:
             raise StopIteration(f"ACP STOP: {self._stop_reason}")
 
         step_type = getattr(step, "type", None)
-        self._log(f"Step {self._step_count}: type={step_type}")
+        # Handle both enum and string types
+        step_type_value = step_type.value if hasattr(step_type, 'value') else str(step_type)
+        self._log(f"Step {self._step_count}: type={step_type_value}")
 
         # Handle different step types
-        if step_type == "tool_call":
+        if step_type_value == "tool_call":
             self._handle_tool_call(step)
-        elif step_type == "tool_result":
+        elif step_type_value == "tool_result":
             self._handle_tool_result(step)
-        elif step_type == "thought":
+        elif step_type_value == "thought":
             self._handle_thought(step)
-        elif step_type == "final":
+        elif step_type_value in ("final_answer", "final"):
             self._handle_final(step)
 
     def _handle_tool_call(self, step: StepResult) -> None:
@@ -859,8 +863,17 @@ class ACPPlugin:
         Uses the recommended combined endpoint that can complete previous
         activity AND start new one in a single request (more efficient).
         """
-        tool_name = getattr(step, "tool_name", "unknown")
-        tool_args = getattr(step, "tool_args", {}) or {}
+        tool_call = getattr(step, "tool_call", None)
+        tool_result = getattr(step, "tool_result", None)
+        
+        # Extract tool name and args from tool_call if available
+        if tool_call:
+            tool_name = tool_call.name
+            tool_args = tool_call.arguments
+        else:
+            # Fallback: try to get from step attributes
+            tool_name = getattr(step, "tool_name", "unknown")
+            tool_args = getattr(step, "tool_args", {}) or {}
 
         # Map tool name to ACP action type
         action = self._action_map.get(tool_name.lower(), tool_name.upper())
@@ -895,6 +908,10 @@ class ACPPlugin:
             cmd = tool_args.get("command", "")
             self.log_shell(cmd, status="running")
 
+        # If we have a tool result, complete the activity
+        if tool_result is not None:
+            self._complete_activity(str(tool_result))
+
     def _handle_tool_result(self, step: StepResult) -> None:
         """
         Complete the current activity in ACP.
@@ -903,8 +920,15 @@ class ACPPlugin:
         falls back to /api/complete for final completion.
         """
         content = getattr(step, "content", "")
-        tool_name = getattr(step, "tool_name", "")
+        tool_result = getattr(step, "tool_result", None)
+        
+        # Use tool_result if available, otherwise content
+        result = str(tool_result) if tool_result is not None else content
 
+        self._complete_activity(result)
+
+    def _complete_activity(self, result: str) -> None:
+        """Complete the current activity."""
         # Pop from stack
         if self._activity_stack:
             activity_id = self._activity_stack.pop()
@@ -917,17 +941,16 @@ class ACPPlugin:
 
         # Check for error indicators
         error = None
-        content_lower = content.lower() if content else ""
-        if any(x in content_lower for x in ["[error]", "[failed]", "exception:", "error:"]):
-            error = content[:200]  # Truncate error
+        result_lower = result.lower() if result else ""
+        if any(x in result_lower for x in ["[error]", "[failed]", "exception:", "error:"]):
+            error = result[:200]  # Truncate error
 
-        # Complete using combined endpoint (if we have a next action queued)
-        # For now, use dedicated complete endpoint
+        # Complete using dedicated complete endpoint
         resp = self._request("/api/complete", "POST", {
             "activity_id": activity_id,
-            "result": content[:500] if content else None,
+            "result": result[:500] if result else None,
             "error": error,
-            "content_size": len(content) if content else 0,
+            "content_size": len(result) if result else 0,
         })
 
         self._log(f"Completed activity: {activity_id}")
@@ -938,18 +961,6 @@ class ACPPlugin:
         else:
             self._current_activity_id = None
 
-        # Special handling: Update shell history for shell tool
-        if tool_name.lower() == "shell":
-            cmd = ""  # We don't have the original command here
-            # The tool call handler already logged with "running" status
-            # Update with final status
-            self.log_shell(
-                cmd or "[shell command]",
-                status="error" if error else "completed",
-                output_preview=content[:200] if content else "",
-                error=bool(error),
-            )
-
     def _handle_thought(self, step: StepResult) -> None:
         """
         Log agent thought process.
@@ -959,21 +970,6 @@ class ACPPlugin:
         """
         content = getattr(step, "content", "")
         self._log(f"Thought: {content[:100]}...")
-
-        # Optional: Log thoughts as CHAT for token tracking
-        # Uncomment if you want full thought tracking:
-        # resp = self._request("/api/action", "POST", {
-        #     "action": "CHAT",
-        #     "target": "Agent reasoning",
-        #     "details": content[:200],
-        #     "metadata": self._build_metadata(),
-        # })
-        # self._process_response_fields(resp)
-        # if resp.get("activity_id"):
-        #     self._request("/api/complete", "POST", {
-        #         "activity_id": resp["activity_id"],
-        #         "result": "[thought logged]",
-        #     })
 
     def _handle_final(self, step: StepResult) -> None:
         """Log final answer as an AI note and clean up."""
@@ -991,8 +987,8 @@ class ACPPlugin:
         # Also log as note for persistence
         self._request("/api/notes/add", "POST", {
             "category": "context",
-            "content": f"AgentNova final: {content[:2000]}",  # Increased from 400 to 2000
-            "importance": "high",  # Changed from normal to high
+            "content": f"AgentNova final: {content[:2000]}",
+            "importance": "high",
         })
 
         # Complete any orphaned activities
@@ -1016,7 +1012,7 @@ class ACPPlugin:
             return args.get("command", "")[:100]
         elif tool_name == "calculator":
             return args.get("expression", "")[:100]
-        elif tool_name == "web_search":
+        elif tool_name == "web-search":
             return args.get("query", "")[:100]
         elif tool_name == "http_get":
             return args.get("url", "")[:100]
@@ -1082,7 +1078,7 @@ class ACPPlugin:
         resp = self._request("/api/action", "POST", {
             "action": "CHAT",
             "target": f"{role.title()}: {preview[:50]}...",
-            "details": content[:4000] if content else "",  # Increased from 1000
+            "details": content[:4000] if content else "",
             "priority": "normal",
             "metadata": metadata,
         })
@@ -1095,7 +1091,7 @@ class ACPPlugin:
             # Complete immediately for non-streaming
             self._request("/api/complete", "POST", {
                 "activity_id": activity_id,
-                "result": content[:2000] if content else "",  # Increased from 500
+                "result": content[:2000] if content else "",
             })
             self._log(f"Logged {role} message")
 
@@ -1646,7 +1642,7 @@ class ACPPlugin:
         self._pending_nudge = None
 
     # ------------------------------------------------------------------ #
-    #  A2A Methods (v1.0.4, 1.0.4 - JSON-RPC 2.0)                            #
+    #  A2A Methods (v1.0.4 - JSON-RPC 2.0)                                #
     # ------------------------------------------------------------------ #
 
     def a2a_register(self, use_jsonrpc: bool = True) -> dict:
@@ -2063,291 +2059,3 @@ class ACPPlugin:
 
         self._log(f"A2A: Broadcast {action} to {len(results)} agent(s)")
         return results
-
-    def a2a_map_action_to_tool(self, action: str) -> str | None:
-        """
-        Map an incoming A2A action to a AgentNova tool name.
-
-        ACP-Spec 1.0.4: Other agents send actions like "read_file", "shell", etc.
-        This method maps those actions to AgentNova tool names.
-
-        Parameters
-        ----------
-        action : str
-            Action name from incoming A2A message
-
-        Returns
-        -------
-        str | None
-            AgentNova tool name or None if not supported
-        """
-        # Direct mapping for standard tool names
-        tool_map = {
-            "read_file": "read_file",
-            "read": "read_file",
-            "write_file": "write_file",
-            "write": "write_file",
-            "edit_file": "edit_file",
-            "edit": "edit_file",
-            "shell": "shell",
-            "bash": "shell",
-            "execute": "shell",
-            "web_search": "web_search",
-            "search": "web_search",
-            "http_get": "http_get",
-            "get": "http_get",
-            "http_post": "http_post",
-            "post": "http_post",
-            "calculator": "calculator",
-            "calculate": "calculator",
-            "python_repl": "python_repl",
-            "python": "python_repl",
-            "list_directory": "list_directory",
-            "ls": "list_directory",
-        }
-        return tool_map.get(action.lower())
-
-    def a2a_process_inbox(
-        self,
-        tool_executor: Callable[[str, dict], Any] | None = None,
-        auto_respond: bool = True,
-    ) -> list[dict]:
-        """
-        Process pending A2A messages and optionally respond.
-
-        This method fetches pending messages from the inbox and processes
-        each request-type message by executing the requested action.
-
-        Parameters
-        ----------
-        tool_executor : Callable | None
-            Optional custom tool executor. If None, returns messages without
-            processing. Signature: (action: str, payload: dict) -> result
-        auto_respond : bool
-            Whether to automatically send responses (default: True)
-
-        Returns
-        -------
-        list[dict]
-            List of processed messages with results
-
-        Example
-        -------
-        >>> # Process with custom executor
-        >>> results = acp.a2a_process_inbox(
-        ...     tool_executor=lambda action, payload: my_tools.run(action, payload)
-        ... )
-        """
-        messages = self.a2a_get_inbox()
-        if not messages:
-            return []
-
-        processed = []
-        for msg in messages:
-            msg_id = msg.get("id")
-            msg_type = msg.get("type", "notification")
-            action = msg.get("action", "")
-            payload = msg.get("payload", {})
-            from_agent = msg.get("from_agent", "unknown")
-
-            self._log(f"A2A: Processing {msg_type} from {from_agent}: {action}")
-
-            # Map action to AgentNova tool
-            tool_name = self.a2a_map_action_to_tool(action)
-            supported = tool_name is not None
-
-            result = {
-                "msg_id": msg_id,
-                "from_agent": from_agent,
-                "action": action,
-                "type": msg_type,
-                "status": "processed",
-                "result": None,
-                "error": None,
-                "tool_name": tool_name,
-                "supported": supported,
-            }
-
-            # Check if action is supported
-            if msg_type == "request" and not supported:
-                result["status"] = "unsupported"
-                result["error"] = f"Tool not found: {action}"
-                self._log(f"A2A: Unsupported action: {action}")
-                
-                # Send error response
-                if auto_respond:
-                    self.a2a_send(
-                        to_agent=from_agent,
-                        action=f"{action}_result",
-                        payload={
-                            "text": "",
-                            "success": True,
-                            "result": {"error": f"Tool not found: {action} (action: {action})"},
-                            "original_msg_id": msg_id,
-                        },
-                        message_type="request",
-                        reply_to=msg_id,
-                    )
-
-            # Only process request-type messages with supported actions
-            elif msg_type == "request" and tool_executor:
-                try:
-                    exec_result = tool_executor(action, payload)
-                    result["result"] = exec_result
-                    self._log(f"A2A: Executed {action} -> {str(exec_result)[:100]}")
-
-                    # Send response
-                    if auto_respond:
-                        self.a2a_send(
-                            to_agent=from_agent,
-                            action=f"{action}_result",
-                            payload={
-                                "success": True,
-                                "result": exec_result,
-                                "original_msg_id": msg_id,
-                            },
-                            message_type="response",
-                            reply_to=msg_id,
-                        )
-                        self._log(f"A2A: Sent response to {from_agent}")
-
-                except Exception as e:
-                    result["status"] = "error"
-                    result["error"] = str(e)
-                    self._log(f"A2A: Error executing {action}: {e}")
-
-                    # Send error response
-                    if auto_respond:
-                        self.a2a_send(
-                            to_agent=from_agent,
-                            action=f"{action}_error",
-                            payload={
-                                "success": False,
-                                "error": str(e),
-                                "original_msg_id": msg_id,
-                            },
-                            message_type="response",
-                            reply_to=msg_id,
-                        )
-
-            elif msg_type == "notification":
-                # Notifications don't need responses
-                result["status"] = "acknowledged"
-
-            elif msg_type == "response":
-                # Responses are just informational
-                result["status"] = "received"
-
-            processed.append(result)
-
-        # Note: per spec §3.12, messages expire via TTL — no acknowledgement endpoint.
-        # a2a_acknowledge() is a no-op. Messages will naturally expire.
-        if processed:
-            self._log(f"A2A: Processed {len(processed)} message(s) — will expire via TTL")
-
-        return processed
-
-    def a2a_process_with_tools(
-        self,
-        tools_registry: dict[str, Callable] | None = None,
-    ) -> list[dict]:
-        """
-        Process A2A inbox using a tools registry.
-
-        This is a convenience method that creates a tool executor from
-        a registry of tool functions.
-
-        Parameters
-        ----------
-        tools_registry : dict | None
-            Dict mapping action names to callables.
-            If None, uses built-in mapping.
-
-        Returns
-        -------
-        list[dict]
-            List of processed messages with results
-
-        Example
-        -------
-        >>> tools = {
-        ...     "read_file": lambda p: open(p["path"]).read(),
-        ...     "execute_python": lambda p: exec(p["code"]),
-        ... }
-        >>> results = acp.a2a_process_with_tools(tools)
-        """
-        if tools_registry is None:
-            # Default tools mapping
-            tools_registry = {}
-
-        def executor(action: str, payload: dict) -> Any:
-            if action in tools_registry:
-                return tools_registry[action](payload)
-            else:
-                return {"error": f"Unknown action: {action}"}
-
-        return self.a2a_process_inbox(tool_executor=executor)
-
-
-# ------------------------------------------------------------------ #
-#  Convenience Factory                                                 #
-# ------------------------------------------------------------------ #
-
-def create_acp_agent(
-    model: str,
-    tools: Any = None,
-    acp_url: str | None = None,
-    agent_name: str = "AgentNova",
-    capabilities: list[str] | None = None,
-    endpoint: str | None = None,
-    on_hint: Callable[[dict], None] | None = None,
-    on_nudge: Callable[[dict], None] | None = None,
-    on_orphan: Callable[[list], None] | None = None,
-    **agent_kwargs,
-) -> tuple["Agent", ACPPlugin]:
-    """
-    Create a AgentNova Agent pre-configured with ACP plugin.
-
-    Returns both the agent and plugin for additional control.
-
-    v1.0.4: Full spec compliance with hints, nudge, orphan support, and A2A.
-
-    Usage:
-        from agentnova.acp_plugin import create_acp_agent
-        from agentnova.tools.builtins import BUILTIN_REGISTRY
-
-        agent, acp = create_acp_agent(
-            model="qwen2.5-coder:0.5b",
-            tools=BUILTIN_REGISTRY,
-            capabilities=["code", "research"],
-        )
-
-        # Bootstrap to register with ACP and A2A
-        acp.bootstrap()
-
-        result = agent.run("Calculate 2^20")
-        print(f"Tokens used: {acp.get_session_tokens()}")
-
-        # Send A2A message to another agent
-        acp.a2a_send("Super-Z", "help_request", {"task": "debug code"})
-    """
-    # Import here to avoid circular imports
-    from . import Agent
-
-    plugin = ACPPlugin(
-        base_url=acp_url,
-        agent_name=agent_name,
-        model_name=model,
-        capabilities=capabilities,
-        endpoint=endpoint,
-        on_hint=on_hint,
-        on_nudge=on_nudge,
-        on_orphan=on_orphan,
-    )
-    agent = Agent(
-        model=model,
-        tools=tools,
-        on_step=plugin.on_step,
-        **agent_kwargs,
-    )
-    return agent, plugin

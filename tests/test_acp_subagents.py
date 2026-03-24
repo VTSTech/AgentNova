@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 AgentNova + ACP Integration Test
 ================================
@@ -30,6 +30,8 @@ from agentnova import OLLAMA_BASE_URL, ACP_BASE_URL, DEFAULT_MODEL
 
 def acp_request(endpoint, method="GET", data=None):
     """Make authenticated request to ACP."""
+    from agentnova.config import ACP_USER, ACP_PASS
+    
     url = f"{ACP_BASE_URL}{endpoint}"
     headers = {"Content-Type": "application/json"} if data else {}
     
@@ -40,7 +42,6 @@ def acp_request(endpoint, method="GET", data=None):
     
     # Add basic auth
     import base64
-    from agentnova import ACP_USER, ACP_PASS
     credentials = base64.b64encode(f"{ACP_USER}:{ACP_PASS}".encode()).decode()
     req.add_header("Authorization", f"Basic {credentials}")
     
@@ -94,17 +95,16 @@ def test_basic_agent():
         agent = Agent(
             model=DEFAULT_MODEL,
             system_prompt="You are a helpful coding assistant. Be concise.",
-            model_options={"num_ctx": 2048, "num_predict": 128}
         )
         
         print("\nSending: 'What is 2+2?'")
         start = time.time()
-        response = agent.chat("What is 2+2?")
+        result = agent.run("What is 2+2?")
         elapsed = time.time() - start
         
-        print(f"Response ({elapsed:.1f}s): {response}")
+        print(f"Response ({elapsed:.1f}s): {result.final_answer}")
         
-        acp_complete_activity(activity_id, f"Success: {response[:100]}")
+        acp_complete_activity(activity_id, f"Success: {result.final_answer[:100] if result.final_answer else 'No answer'}")
         # Test passed
         
     except Exception as e:
@@ -123,25 +123,16 @@ def test_tool_agent():
     print(f"ACP: Logged action {activity_id}")
     
     try:
-        from agentnova import Agent, ToolRegistry
+        from agentnova import Agent
+        from agentnova.tools import make_builtin_registry
         
-        registry = ToolRegistry()
-        
-        @registry.tool(description="Calculate mathematical expressions")
-        def calculator(expression: str) -> str:
-            """Evaluate a mathematical expression."""
-            try:
-                result = eval(expression)
-                return str(result)
-            except:
-                return "Error evaluating expression"
+        tools = make_builtin_registry().subset(["calculator"])
         
         agent = Agent(
             model=DEFAULT_MODEL,
-            tools=registry,
+            tools=tools,
             system_prompt="You are a calculator assistant. Use the calculator tool for math.",
             max_steps=5,
-            model_options={"num_ctx": 2048}
         )
         
         print("\nSending: 'What is 123 * 456?'")
@@ -150,9 +141,8 @@ def test_tool_agent():
         elapsed = time.time() - start
         
         print(f"Answer ({elapsed:.1f}s): {run.final_answer}")
-        run.print_trace()
         
-        acp_complete_activity(activity_id, f"Success: {run.final_answer[:100]}")
+        acp_complete_activity(activity_id, f"Success: {run.final_answer[:100] if run.final_answer else 'No answer'}")
         # Test passed
         
     except Exception as e:
@@ -176,13 +166,11 @@ def test_orchestrator_router():
         coder = Agent(
             model=DEFAULT_MODEL,
             system_prompt="You are a Python coding expert. Write clean, simple code.",
-            model_options={"num_ctx": 2048, "num_predict": 256}
         )
         
         explainer = Agent(
             model=DEFAULT_MODEL, 
             system_prompt="You explain concepts clearly and simply.",
-            model_options={"num_ctx": 2048, "num_predict": 256}
         )
         
         orch = Orchestrator(
@@ -203,7 +191,7 @@ def test_orchestrator_router():
         print(f"Time: {elapsed:.1f}s")
         print(f"Answer:\n{result.final_answer}")
         
-        acp_complete_activity(activity_id, f"Routed to {result.chosen_agent}: {result.final_answer[:100]}")
+        acp_complete_activity(activity_id, f"Routed to {result.chosen_agent}: {result.final_answer[:100] if result.final_answer else 'No answer'}")
         # Test passed
         
     except Exception as e:
@@ -225,16 +213,15 @@ def test_builtin_tools():
     
     try:
         from agentnova import Agent
-        from agentnova.tools.builtins import BUILTIN_REGISTRY
+        from agentnova.tools import make_builtin_registry
         
-        tools = BUILTIN_REGISTRY.subset(["calculator", "python_repl"])
+        tools = make_builtin_registry().subset(["calculator", "python_repl"])
         
         agent = Agent(
             model=DEFAULT_MODEL,
             tools=tools,
             system_prompt="You have calculator and python_repl tools. Use them when needed.",
             max_steps=8,
-            model_options={"num_ctx": 2048}
         )
         
         print("\nSending: 'Calculate the fibonacci of 10 using Python'")
@@ -243,9 +230,8 @@ def test_builtin_tools():
         elapsed = time.time() - start
         
         print(f"Answer ({elapsed:.1f}s): {run.final_answer}")
-        run.print_trace()
         
-        acp_complete_activity(activity_id, f"Success: {run.final_answer[:100]}")
+        acp_complete_activity(activity_id, f"Success: {run.final_answer[:100] if run.final_answer else 'No answer'}")
         # Test passed
         
     except Exception as e:

@@ -1,266 +1,272 @@
-﻿"""
-Unit tests for AgentNova agent functions.
+"""
+⚛️ AgentNova — Agent Tests
 
-Tests:
-- Fuzzy tool name matching
-- Python code extraction
-- Tool schema detection
-- Greeting detection
-
-Run with: python -m pytest tests/test_agent.py -v
+Written by VTSTech — https://www.vts-tech.org
 """
 
 import pytest
-import sys
-import os
-
-# Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from agentnova.core.agent import (
-    _fuzzy_match_tool_name,
-    _extract_python_code,
-    _looks_like_tool_schema,
-    _parse_json_tool_call,
-    _is_greeting_or_simple,
-)
-from agentnova.core.tools import ToolRegistry
+from agentnova.core.types import StepResultType, ToolSupportLevel, BackendType
+from agentnova.core.models import Tool, ToolParam, StepResult, AgentRun
+from agentnova.core.memory import Memory, MemoryConfig
+from agentnova.core.tool_parse import ToolParser
+from agentnova.core.helpers import fuzzy_match, normalize_args, sanitize_command, validate_path, is_safe_url
+from agentnova.tools import ToolRegistry, make_builtin_registry
 
 
-# ------------------------------------------------------------------ #
-#  Test fixtures                                                      #
-# ------------------------------------------------------------------ #
+class TestTypes:
+    """Test core type enums."""
 
-@pytest.fixture
-def tool_registry():
-    """Create a simple tool registry for testing."""
-    registry = ToolRegistry()
-    
-    @registry.tool(description="Test calculator")
-    def calculator(expression: str) -> str:
-        return "42"
-    
-    @registry.tool(description="Test Python REPL")
-    def python_repl(code: str) -> str:
-        return "ok"
-    
-    @registry.tool(description="Test shell")
-    def shell(command: str) -> str:
-        return "done"
-    
-    @registry.tool(description="Test web search")
-    def web_search(query: str) -> str:
-        return "results"
-    
-    return registry
+    def test_step_result_type_values(self):
+        assert StepResultType.TOOL_CALL.value > 0
+        assert StepResultType.FINAL_ANSWER.value > 0
+        assert StepResultType.ERROR.value > 0
+
+    def test_tool_support_level(self):
+        assert ToolSupportLevel.NATIVE.value == "native"
+        assert ToolSupportLevel.REACT.value == "react"
+        assert ToolSupportLevel.NONE.value == "none"
+
+    def test_tool_support_detect(self):
+        # Known native models
+        assert ToolSupportLevel.detect("qwen2.5:7b") == ToolSupportLevel.NATIVE
+        assert ToolSupportLevel.detect("llama3.1:8b") == ToolSupportLevel.NATIVE
+
+        # Unknown models default to ReAct
+        assert ToolSupportLevel.detect("unknown-model") == ToolSupportLevel.REACT
+
+    def test_backend_type(self):
+        assert BackendType.OLLAMA.value == "ollama"
+        assert BackendType.BITNET.value == "bitnet"
 
 
-# ------------------------------------------------------------------ #
-#  Fuzzy tool name matching tests                                     #
-# ------------------------------------------------------------------ #
+class TestModels:
+    """Test data models."""
 
-class TestFuzzyToolMatching:
-    """Tests for _fuzzy_match_tool_name function."""
-    
-    def test_exact_match(self, tool_registry):
-        """Exact tool name should match directly."""
-        result = _fuzzy_match_tool_name("calculator", tool_registry)
-        assert result == "calculator"
-    
-    def test_date_to_python_repl(self, tool_registry):
-        """'date' should map to python_repl."""
-        result = _fuzzy_match_tool_name("date", tool_registry)
-        assert result == "python_repl"
-    
-    def test_today_to_python_repl(self, tool_registry):
-        """'today' should map to python_repl."""
-        result = _fuzzy_match_tool_name("today", tool_registry)
-        assert result == "python_repl"
-    
-    def test_datetime_to_python_repl(self, tool_registry):
-        """'datetime' should map to python_repl."""
-        result = _fuzzy_match_tool_name("datetime", tool_registry)
-        assert result == "python_repl"
-    
-    def test_calc_to_calculator(self, tool_registry):
-        """'calc' should map to calculator."""
-        result = _fuzzy_match_tool_name("calc", tool_registry)
-        assert result == "calculator"
-    
-    def test_calculate_to_calculator(self, tool_registry):
-        """'calculate' should map to calculator."""
-        result = _fuzzy_match_tool_name("calculate", tool_registry)
-        assert result == "calculator"
-    
-    def test_bash_to_shell(self, tool_registry):
-        """'bash' should map to shell."""
-        result = _fuzzy_match_tool_name("bash", tool_registry)
-        assert result == "shell"
-    
-    def test_unknown_returns_none(self, tool_registry):
-        """Unknown tool name may return a match due to generous fuzzy matching."""
-        # Note: The fuzzy matching is generous, so "unknown_tool_xyz" might match
-        # because it contains common words. This is expected behavior.
-        result = _fuzzy_match_tool_name("xyzabc123random", tool_registry)
-        # This should definitely not match anything
-        assert result is None or result in ["calculator", "python_repl", "shell", "web_search"]
-    
-    def test_empty_returns_none(self, tool_registry):
-        """Empty string behavior is undefined - may match first tool."""
-        # Note: Empty string edge case - fuzzy matching may return a default
-        result = _fuzzy_match_tool_name("", tool_registry)
-        # We accept either None or a valid tool name
-        assert result is None or result in ["calculator", "python_repl", "shell", "web_search"]
-    
-    def test_get_date_to_python_repl(self, tool_registry):
-        """'get_date' should map to python_repl."""
-        result = _fuzzy_match_tool_name("get_date", tool_registry)
-        assert result == "python_repl"
+    def test_tool_param(self):
+        param = ToolParam(name="test", type="string", description="Test param")
+        schema = param.to_json_schema()
+        assert schema["type"] == "string"
+        assert schema["description"] == "Test param"
+
+    def test_tool(self):
+        tool = Tool(
+            name="test_tool",
+            description="A test tool",
+            params=[ToolParam(name="input", type="string")],
+        )
+        schema = tool.to_json_schema()
+        assert schema["type"] == "function"
+        assert schema["function"]["name"] == "test_tool"
+
+    def test_step_result(self):
+        result = StepResult(
+            type=StepResultType.FINAL_ANSWER,
+            content="Test answer",
+            tokens_used=100,
+        )
+        assert result.type == StepResultType.FINAL_ANSWER
+        assert result.content == "Test answer"
+
+    def test_agent_run(self):
+        run = AgentRun(
+            final_answer="Test",
+            steps=[StepResult(type=StepResultType.FINAL_ANSWER, content="Test")],
+            total_tokens=100,
+            total_ms=50.0,
+        )
+        assert run.final_answer == "Test"
+        assert run.iterations == 1
+        assert run.success is True
 
 
-# ------------------------------------------------------------------ #
-#  Python code extraction tests                                       #
-# ------------------------------------------------------------------ #
+class TestMemory:
+    """Test memory management."""
 
-class TestExtractPythonCode:
-    """Tests for _extract_python_code function."""
-    
-    def test_simple_python_block(self):
-        """Extract code from simple python block."""
-        text = "```python\nprint('hello')\n```"
-        result = _extract_python_code(text)
-        assert result == "print('hello')"
-    
-    def test_multiline_code(self):
-        """Extract multiline code."""
-        text = "```python\nfrom datetime import datetime\nnow = datetime.now()\nprint(now)\n```"
-        result = _extract_python_code(text)
-        assert result.count("\n") == 2
-    
-    def test_no_code_block(self):
-        """Return None when no code block."""
-        text = "This is just plain text."
-        result = _extract_python_code(text)
-        assert result is None
-    
-    def test_code_with_surrounding_text(self):
-        """Extract code from text with surrounding content."""
-        text = "Here's the code:\n```python\nprint('hello')\n```\nThat's it!"
-        result = _extract_python_code(text)
-        assert result == "print('hello')"
+    def test_memory_add(self):
+        memory = Memory()
+        memory.add("user", "Hello")
+        assert len(memory) == 1
 
+    def test_memory_system_prompt(self):
+        memory = Memory()
+        memory.add("system", "You are helpful")
+        memory.add("user", "Hello")
 
-# ------------------------------------------------------------------ #
-#  Tool schema detection tests                                        #
-# ------------------------------------------------------------------ #
+        messages = memory.get_messages()
+        assert messages[0]["role"] == "system"
+        assert messages[0]["content"] == "You are helpful"
 
-class TestLooksLikeToolSchema:
-    """Tests for _looks_like_tool_schema function."""
-    
-    def test_valid_tool_schema(self):
-        """Valid tool schema should return True."""
-        text = '{"name": "calculator", "arguments": {"expression": "2+2"}}'
-        assert _looks_like_tool_schema(text) is True
-    
-    def test_valid_tool_schema_with_parameters(self):
-        """Tool schema with parameters should return True."""
-        text = '{"name": "python_repl", "parameters": {"code": "print(1)"}}'
-        assert _looks_like_tool_schema(text) is True
-    
-    def test_tool_schema_in_markdown(self):
-        """Tool schema in markdown should return True."""
-        text = '```json\n{"name": "date", "arguments": {}}\n```'
-        assert _looks_like_tool_schema(text) is True
-    
-    def test_plain_text_returns_false(self):
-        """Plain text should return False."""
-        text = "This is just a regular answer."
-        assert _looks_like_tool_schema(text) is False
-    
-    def test_regular_json_returns_false(self):
-        """Regular JSON should return False."""
-        text = '{"result": 42, "status": "ok"}'
-        assert _looks_like_tool_schema(text) is False
+    def test_memory_clear(self):
+        memory = Memory()
+        memory.add("user", "Hello")
+        memory.clear()
+        assert len(memory) == 0
+
+    def test_memory_pruning(self):
+        config = MemoryConfig(max_messages=10, keep_recent=3)
+        memory = Memory(config)
+
+        memory.add("system", "System")
+        for i in range(15):
+            memory.add("user", f"Message {i}")
+
+        # Should have pruned some messages
+        assert len(memory.get_messages()) <= 15
 
 
-# ------------------------------------------------------------------ #
-#  JSON tool call parsing tests                                       #
-# ------------------------------------------------------------------ #
+class TestToolParser:
+    """Test tool call parsing."""
 
-class TestParseJsonToolCall:
-    """Tests for _parse_json_tool_call function."""
-    
-    def test_valid_tool_call(self):
-        """Parse valid tool call JSON."""
-        text = '{"name": "calculator", "arguments": {"expression": "2+2"}}'
-        name, args = _parse_json_tool_call(text)
-        assert name == "calculator"
-        assert args == {"expression": "2+2"}
-    
-    def test_tool_call_in_markdown(self):
-        """Parse tool call in markdown code block."""
-        text = '```json\n{"name": "python_repl", "arguments": {"code": "print(1)"}}\n```'
-        name, args = _parse_json_tool_call(text)
-        assert name == "python_repl"
-        assert args == {"code": "print(1)"}
-    
-    def test_parameters_instead_of_arguments(self):
-        """Parse tool call with parameters instead of arguments."""
-        text = '{"name": "shell", "parameters": {"command": "ls"}}'
-        name, args = _parse_json_tool_call(text)
-        assert name == "shell"
-        assert args == {"command": "ls"}
-    
-    def test_empty_arguments(self):
-        """Parse tool call with empty arguments."""
-        text = '{"name": "date", "arguments": {}}'
-        name, args = _parse_json_tool_call(text)
-        assert name == "date"
-        assert args == {}
-    
-    def test_invalid_json_returns_none(self):
-        """Invalid JSON should return None, None."""
-        text = "This is not JSON"
-        name, args = _parse_json_tool_call(text)
-        assert name is None
-        assert args is None
+    def test_parse_react_format(self):
+        parser = ToolParser(["calculator", "shell"])
+        text = """Action: calculator
+Action Input: {"expression": "2 + 2"}"""
 
+        calls = parser.parse(text)
+        assert len(calls) == 1
+        assert calls[0].name == "calculator"
+        assert calls[0].arguments == {"expression": "2 + 2"}
 
-# ------------------------------------------------------------------ #
-#  Greeting detection tests                                           #
-# ------------------------------------------------------------------ #
+    def test_parse_json_format(self):
+        parser = ToolParser(["calculator"])
+        text = '{"name": "calculator", "arguments": {"expression": "2 + 2"}}'
 
-class TestIsGreetingOrSimple:
-    """Tests for _is_greeting_or_simple function."""
-    
-    def test_hello(self):
-        """'hello' should be detected as greeting."""
-        assert _is_greeting_or_simple("hello") is True
-    
-    def test_hi(self):
-        """'hi' should be detected as greeting."""
-        assert _is_greeting_or_simple("hi") is True
-    
-    def test_good_morning(self):
-        """'good morning' should be detected as greeting."""
-        assert _is_greeting_or_simple("good morning") is True
-    
-    def test_thanks(self):
-        """'thanks' should be detected as greeting."""
-        assert _is_greeting_or_simple("thanks") is True
-    
-    def test_question_is_not_greeting(self):
-        """Questions should not be detected as greetings."""
-        assert _is_greeting_or_simple("What is the date?") is False
-    
-    def test_calculation_is_not_greeting(self):
-        """Calculations should not be detected as greetings."""
-        assert _is_greeting_or_simple("What is 2+2?") is False
+        calls = parser.parse(text)
+        assert len(calls) == 1
+        assert calls[0].name == "calculator"
+
+    def test_fuzzy_match(self):
+        parser = ToolParser(["calculator", "shell"])
+
+        # Exact match
+        calls = parser.parse("Action: calculator\nAction Input: {}")
+        assert calls[0].name == "calculator"
+
+    def test_is_final_answer(self):
+        parser = ToolParser([])
+
+        assert parser.is_final_answer("Final Answer: 42")
+        assert parser.is_final_answer("The answer is 42")
+        assert not parser.is_final_answer("Action: calculator")
+
+    def test_extract_final_answer(self):
+        parser = ToolParser([])
+
+        answer = parser.extract_final_answer("Final Answer: 42")
+        assert answer == "42"
 
 
-# ------------------------------------------------------------------ #
-#  Run tests                                                          #
-# ------------------------------------------------------------------ #
+class TestHelpers:
+    """Test helper functions."""
+
+    def test_fuzzy_match(self):
+        candidates = ["calculator", "shell", "read_file"]
+
+        # Exact match
+        assert fuzzy_match("calculator", candidates) == "calculator"
+
+        # Fuzzy match
+        assert fuzzy_match("calc", candidates) == "calculator"
+        assert fuzzy_match("readfile", candidates) == "read_file"
+
+    def test_normalize_args(self):
+        expected = ["expression", "timeout"]
+        args = {"expr": "2 + 2", "time_limit": 30}
+
+        normalized = normalize_args(args, expected)
+        assert "expression" in normalized or "expr" in normalized
+
+    def test_sanitize_command_safe(self):
+        is_safe, error, cmd = sanitize_command("echo hello")
+        assert is_safe is True
+
+    def test_sanitize_command_blocked(self):
+        is_safe, error, cmd = sanitize_command("rm -rf /")
+        assert is_safe is False
+        assert "Blocked" in error
+
+    def test_validate_path_safe(self):
+        is_valid, error = validate_path("./output/test.txt")
+        assert is_valid is True
+
+    def test_validate_path_unsafe(self):
+        is_valid, error = validate_path("/etc/passwd")
+        assert is_valid is False
+
+    def test_is_safe_url(self):
+        is_safe, _ = is_safe_url("https://example.com")
+        assert is_safe is True
+
+    def test_is_safe_url_ssrf(self):
+        is_safe, _ = is_safe_url("http://localhost/admin")
+        assert is_safe is False
+
+
+class TestToolRegistry:
+    """Test tool registry."""
+
+    def test_register_function(self):
+        registry = ToolRegistry()
+
+        @registry.register(description="Test tool")
+        def test_func(input: str) -> str:
+            return input
+
+        assert "test_func" in registry.names()
+
+    def test_register_tool(self):
+        registry = ToolRegistry()
+        tool = Tool(name="test", description="Test", handler=lambda x: x)
+        registry.register_tool(tool)
+
+        assert registry.get("test") == tool
+
+    def test_subset(self):
+        registry = make_builtin_registry()
+        subset = registry.subset(["calculator", "shell"])
+
+        assert len(subset) == 2
+        assert "calculator" in subset.names()
+
+    def test_fuzzy_get(self):
+        registry = make_builtin_registry()
+
+        tool = registry.get_fuzzy("calc")
+        assert tool is not None
+        assert tool.name == "calculator"
+
+
+class TestBuiltins:
+    """Test built-in tools."""
+
+    def test_calculator(self):
+        registry = make_builtin_registry()
+        tool = registry.get("calculator")
+
+        result = tool.execute(expression="2 + 2")
+        assert result == "4"
+
+    def test_calculator_complex(self):
+        registry = make_builtin_registry()
+        tool = registry.get("calculator")
+
+        result = tool.execute(expression="sqrt(16)")
+        assert result == "4.0"
+
+    def test_count_words(self):
+        registry = make_builtin_registry()
+        tool = registry.get("count_words")
+
+        result = tool.execute(text="hello world")
+        assert result == "2"
+
+    def test_get_time(self):
+        registry = make_builtin_registry()
+        tool = registry.get("get_time")
+
+        result = tool.execute()
+        assert len(result) > 0  # Returns timestamp string
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

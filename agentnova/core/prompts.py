@@ -1,8 +1,8 @@
-﻿"""
-⚛️ AgentNova R02.6 — Prompts
+"""
+⚛️ AgentNova — Prompts
 Few-shot prompts, argument aliases, and platform constants for small model support.
 
-Written by VTSTech — https://www.vts-tech.org — https://github.com/VTSTech/AgentNova
+Written by VTSTech — https://www.vts-tech.org
 """
 
 import platform as _platform
@@ -62,7 +62,7 @@ TOOL_ARG_ALIASES = {
         "text": "command", "input": "command", "arg": "command",
         "args": "command", "str": "command", "value": "command",
     },
-    "web_search": {
+    "web-search": {
         "query": "query",  # correct
         "search": "query", "q": "query", "term": "query", "search_query": "query",
         "keywords": "query", "text": "query", "input": "query",
@@ -191,3 +191,211 @@ Final Answer: <your final response to the user>
 
 IMPORTANT: Action Input must be valid JSON. Only use tools listed below.
 """
+
+
+# ------------------------------------------------------------------ #
+#  Base System Prompts                                                 #
+# ------------------------------------------------------------------ #
+
+BASE_SYSTEM_PROMPT = "You are a helpful AI assistant."
+
+NO_TOOLS_SYSTEM_PROMPT = """Answer questions directly. For math, show work then give answer.
+
+Examples:
+Q: What is 7 * 8?
+A: 7 * 8 = 56
+
+Q: What is 15 plus 27?
+A: 15 + 27 = 42
+
+Q: What is 17 divided by 4?
+A: 17 / 4 = 4.25
+
+Q: I have 10 apples. I give 3 to Bob and 2 to Alice. How many left?
+A: 10 - 3 - 2 = 5
+
+Keep answers brief. Show calculation first, then the final number."""
+
+
+# ------------------------------------------------------------------ #
+#  Prompt Construction Functions                                       #
+# ------------------------------------------------------------------ #
+
+def get_system_prompt(
+    model_name: str,
+    tool_support: str = "react",
+    tools: list | None = None,
+) -> str:
+    """
+    Get the appropriate system prompt for a model.
+
+    Args:
+        model_name: Name of the model
+        tool_support: Tool support level ("native", "react", "none")
+        tools: List of available tools
+
+    Returns:
+        System prompt string
+    """
+    from .model_family_config import (
+        get_family_config, get_react_system_suffix, get_native_tool_hints,
+        get_no_tools_system_prompt, should_use_few_shot, get_few_shot_style,
+    )
+    
+    # Detect model family
+    family = None
+    name_lower = model_name.lower()
+    families = [
+        "qwen2.5", "qwen2", "qwen", "qwen3",
+        "llama3.3", "llama3.2", "llama3.1", "llama3", "llama",
+        "mistral", "mixtral",
+        "gemma3", "gemma2", "gemma",
+        "granitemoe", "granite",
+        "phi3", "phi",
+        "codellama",
+        "command-r", "command",
+        "deepseek",
+        "dolphin",
+    ]
+    for f in families:
+        if f in name_lower:
+            family = f
+            break
+    
+    # Get family config
+    config = get_family_config(family) if family else None
+    
+    # Base prompt
+    base_prompt = BASE_SYSTEM_PROMPT
+    
+    # No tools - use simple prompt
+    if tool_support == "none":
+        no_tools_prompt = get_no_tools_system_prompt(family or "")
+        if no_tools_prompt:
+            return no_tools_prompt
+        return NO_TOOLS_SYSTEM_PROMPT
+    
+    # Native tool support: tools are passed via API, only add hints (not descriptions)
+    if tool_support == "native":
+        hints = get_native_tool_hints(family or "")
+        if hints:
+            return f"{base_prompt}\n\n{hints}"
+        return base_prompt
+    
+    # ReAct mode: add tool descriptions + format instructions
+    if tools and tool_support == "react":
+        tool_prompt = get_tool_prompt(tools, tool_support, family)
+        return f"{base_prompt}\n\n{tool_prompt}"
+    
+    return base_prompt
+
+
+def get_tool_prompt(tools: list, tool_support: str = "react", family: str | None = None) -> str:
+    """
+    Generate tool description prompt.
+
+    Args:
+        tools: List of available tools
+        tool_support: Tool support level
+        family: Model family for family-specific hints
+
+    Returns:
+        Tool description string
+    """
+    from .model_family_config import (
+        get_react_system_suffix, get_native_tool_hints,
+        should_use_few_shot, get_few_shot_style,
+    )
+    
+    if not tools:
+        return ""
+
+    lines = ["Available tools:"]
+
+    for tool in tools:
+        # Get tool name and description
+        name = getattr(tool, 'name', str(tool))
+        desc = getattr(tool, 'description', '')
+        params = getattr(tool, 'params', [])
+        
+        params_str = ""
+        if params:
+            param_list = []
+            for p in params:
+                p_name = getattr(p, 'name', str(p))
+                p_desc = getattr(p, 'description', '')
+                p_req = getattr(p, 'required', True)
+                req = "" if p_req else " (optional)"
+                param_list.append(f"{p_name}{req}: {p_desc}")
+            params_str = f" - Parameters: {', '.join(param_list)}"
+
+        lines.append(f"  - {name}: {desc}{params_str}")
+
+    # Add format instructions based on tool support
+    if tool_support == "react":
+        lines.append("")
+        lines.append(get_react_system_suffix(family or ""))
+        
+        # CRITICAL: ALL ReAct models need few-shot examples
+        # This was causing regression when family config had prefers_few_shot=False
+        # ReAct models MUST have examples to learn the format
+        style = get_few_shot_style(family or "")
+        if style == "compact":
+            lines.append(FEW_SHOT_COMPACT)
+        else:
+            lines.append(FEW_SHOT_SUFFIX)
+    
+    elif tool_support == "native":
+        hints = get_native_tool_hints(family or "")
+        if hints:
+            lines.append("")
+            lines.append(hints)
+
+    return "\n".join(lines)
+
+
+def get_react_prompt(
+    question: str,
+    tools: list | None = None,
+    scratchpad: str = "",
+) -> str:
+    """
+    Generate a ReAct prompt for the given question.
+
+    Args:
+        question: User question
+        tools: Available tools
+        scratchpad: Previous reasoning/observations
+
+    Returns:
+        Complete ReAct prompt
+    """
+    tool_desc = get_tool_prompt(tools or [], "react")
+
+    prompt = f"""{REACT_SYSTEM_SUFFIX}
+
+{tool_desc}
+
+Question: {question}
+"""
+
+    if scratchpad:
+        prompt += f"\n{scratchpad}\n"
+
+    return prompt
+
+
+__all__ = [
+    "PLATFORM_DIR_CMD",
+    "PLATFORM_LIST_CMD",
+    "TOOL_ARG_ALIASES",
+    "FEW_SHOT_SUFFIX",
+    "FEW_SHOT_COMPACT",
+    "NATIVE_TOOL_HINTS",
+    "REACT_SYSTEM_SUFFIX",
+    "BASE_SYSTEM_PROMPT",
+    "NO_TOOLS_SYSTEM_PROMPT",
+    "get_system_prompt",
+    "get_tool_prompt",
+    "get_react_prompt",
+]
