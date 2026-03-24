@@ -175,7 +175,7 @@ def main():
         if backend_name == "ollama":
             print("   Start with: ollama serve")
             print("   Or set OLLAMA_BASE_URL to your remote server")
-        return 1
+        return {"passed": 0, "total": 1, "time": 0, "exit_code": 1}
     
     print(f"\n⚛️ AgentNova Quick Diagnostic (5 questions)")
     print(f"   Backend: {backend_name} ({backend.base_url})")
@@ -183,8 +183,11 @@ def main():
     
     result = run_diagnostic(model, backend, debug=args.debug)
     
-    return 0 if result["passed"] == result["total"] else 1
+    # Return granular results for test runner, exit_code for direct execution
+    result["exit_code"] = 0 if result["passed"] == result["total"] else 1
+    return result
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    result = main()
+    sys.exit(result.get("exit_code", 0))

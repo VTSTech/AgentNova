@@ -814,16 +814,33 @@ def cmd_test(args: argparse.Namespace) -> int:
             sys.argv = ["test"] + test_argv
             
             try:
-                exit_code = module.main()
+                result = module.main()
             finally:
                 sys.argv = old_argv
             
-            results[tid] = {"passed": exit_code == 0, "exit_code": exit_code}
+            # Handle both old-style exit code and new-style result dict
+            if isinstance(result, dict):
+                # New-style: granular results
+                passed = result.get("passed", 0)
+                total = result.get("total", 1)
+                time_s = result.get("time", 0)
+                exit_code = result.get("exit_code", 0)
+                results[tid] = {
+                    "passed": exit_code == 0,
+                    "exit_code": exit_code,
+                    "granular": f"{passed}/{total}",
+                    "time": time_s,
+                }
+            else:
+                # Old-style: just exit code
+                exit_code = result if result is not None else 1
+                results[tid] = {"passed": exit_code == 0, "exit_code": exit_code}
             
             # Log test result to ACP
             if acp:
                 status = "passed" if exit_code == 0 else "failed"
-                acp.log_chat("assistant", f"Test {info['name']}: {status}")
+                granular = results[tid].get("granular", "")
+                acp.log_chat("assistant", f"Test {info['name']}: {status} {granular}")
             
         except ImportError as e:
             print(f"{red('Error:')} Could not import test module: {e}")
@@ -846,7 +863,15 @@ def cmd_test(args: argparse.Namespace) -> int:
     
     for tid, result in results.items():
         status = bright_green("✓ PASS") if result.get("passed") else red("✗ FAIL")
-        print(f"  [{tid}] {TESTS[tid]['name']:<20} {status}")
+        granular = result.get("granular", "")
+        time_s = result.get("time", 0)
+        
+        # Show granular results if available
+        if granular:
+            time_str = f" ({time_s:.1f}s)" if time_s else ""
+            print(f"  [{tid}] {TESTS[tid]['name']:<20} {status}  {cyan(granular)}{time_str}")
+        else:
+            print(f"  [{tid}] {TESTS[tid]['name']:<20} {status}")
     
     print(dim("-" * 50))
     pct = 100 * passed // total if total > 0 else 0
