@@ -423,14 +423,16 @@ class OllamaBackend(BaseBackend):
 
             # 2. Check for NATIVE tool_calls in API response structure
             # This is the ONLY path to "native" classification
+            # Note: generate() already parses tool_calls into flat format: {"name": ..., "arguments": ...}
             if tool_calls:
                 for tc in tool_calls:
-                    func = tc.get("function", {})
-                    func_name = func.get("name", "")
+                    # After parsing by generate(), structure is flat
+                    func_name = tc.get("name", "")
+                    args = tc.get("arguments", {})
+                    
                     # Verify it's calling our tool (not hallucinating a different one)
                     if func_name == "get_weather":
                         # Check for reasonable arguments
-                        args = func.get("arguments", {})
                         if isinstance(args, dict) and ("location" in args or "city" in args or len(args) > 0):
                             return ToolSupportLevel.NATIVE
                     # Native tool_calls exist but wrong function - still native capability
