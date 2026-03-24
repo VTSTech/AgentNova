@@ -425,6 +425,42 @@ class OllamaBackend(BaseBackend):
                     return ToolSupportLevel.NONE
             return ToolSupportLevel.REACT
 
+        finally:
+            # Always unload the model after testing to free memory
+            try:
+                self.unload_model(model)
+            except Exception:
+                pass  # Ignore errors during cleanup
+
+    def unload_model(self, model: str) -> dict:
+        """
+        Unload a model from memory (stop keeping it warm).
+        Equivalent to: ollama stop <model>
+
+        Args:
+            model: Model name to unload
+
+        Returns:
+            Response dict from server
+        """
+        import urllib.request
+        import urllib.error
+
+        url = f"{self.base_url}/api/generate"
+        body = {"model": model, "keep_alive": 0}
+
+        try:
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(body).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=10) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except (urllib.error.HTTPError, urllib.error.URLError):
+            return {"status": "not_running"}
+
     def pull_model(self, model: str, stream: bool = False) -> dict | Generator:
         """Pull a model from Ollama registry."""
         import urllib.request
