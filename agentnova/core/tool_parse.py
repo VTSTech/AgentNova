@@ -1,4 +1,4 @@
-﻿"""
+"""
 ⚛️ AgentNova — Tool Parser
 Regex patterns and functions for parsing tool calls from model output.
 
