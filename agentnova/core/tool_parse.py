@@ -1,4 +1,4 @@
-"""
+﻿"""
 ⚛️ AgentNova — Tool Parser
 Regex patterns and functions for parsing tool calls from model output.
 
@@ -117,8 +117,9 @@ def _looks_like_tool_schema_dump(text: str) -> bool:
 
 def _extract_tool_from_json(obj: dict, debug: bool = False) -> tuple[str | None, dict | None]:
     """Extract tool name and args from a parsed JSON object."""
-    name = obj.get("name") or obj.get("function") or obj.get("tool")
-    args = obj.get("arguments") or obj.get("parameters") or obj.get("args") or {}
+    # Try standard keys first
+    name = obj.get("name") or obj.get("function") or obj.get("tool") or obj.get("action")
+    args = obj.get("arguments") or obj.get("parameters") or obj.get("args") or obj.get("actionInput") or {}
 
     # Handle bare argument objects
     if not name and isinstance(obj, dict):
