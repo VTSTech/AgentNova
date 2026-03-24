@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -149,6 +150,42 @@ def bright_magenta(text: str) -> str:
 def bright_red(text: str) -> str:
     """Bright red text."""
     return c(text, Color.BRIGHT_RED)
+
+
+# ANSI escape code pattern for stripping
+_ANSI_ESCAPE = re.compile(r'\x1b\[[0-9;]*m')
+
+
+def visible_len(text: str) -> int:
+    """Get the visible length of text (excluding ANSI codes)."""
+    return len(_ANSI_ESCAPE.sub('', text))
+
+
+def pad_colored(text: str, width: int, align: str = 'left') -> str:
+    """Pad colored text to a given visible width.
+    
+    Args:
+        text: Text that may contain ANSI color codes
+        width: Target visible width
+        align: 'left', 'right', or 'center'
+    
+    Returns:
+        Text padded with spaces to reach the target visible width
+    """
+    visible = visible_len(text)
+    padding = width - visible
+    
+    if padding <= 0:
+        return text
+    
+    if align == 'left':
+        return text + ' ' * padding
+    elif align == 'right':
+        return ' ' * padding + text
+    else:  # center
+        left = padding // 2
+        right = padding - left
+        return ' ' * left + text + ' ' * right
 
 
 # ============================================================================
@@ -521,12 +558,19 @@ def cmd_models(args: argparse.Namespace) -> int:
     cache_updated = False
     
     # Always show tools column
+    # Column widths
+    NAME_W = 36
+    SIZE_W = 8
+    CTX_W = 8
+    TOOLS_W = 10
+    FAMILY_W = 12
+    
     print()
     print(f"{bright_cyan('⚛ AgentNova')} - Available Models")
     print(dim(f"  Backend: {backend.base_url}"))
-    print(dim("-" * 92))
-    print(f"  {'Name':<36} {'Size':>8}  {'Context':>8}  {'Tools':>10}  {'Family':<12}")
-    print(dim("-" * 92))
+    print(dim("-" * (4 + NAME_W + SIZE_W + CTX_W + TOOLS_W + FAMILY_W + 8)))
+    print(f"  {'Name':<{NAME_W}} {'Size':>{SIZE_W}}  {'Context':>{CTX_W}}  {'Tools':>{TOOLS_W}}  {'Family':<{FAMILY_W}}")
+    print(dim("-" * (4 + NAME_W + SIZE_W + CTX_W + TOOLS_W + FAMILY_W + 8)))
 
     for m in models:
         name = m.get("name", "unknown")
@@ -564,28 +608,43 @@ def cmd_models(args: argparse.Namespace) -> int:
                 cache_updated = True
                 status = support.value
                 # Overwrite the "Testing..." line
-                print(f"\r  {cyan(name):<46} {size_gb:>6.2f} GB  {dim(ctx_str):>8}  ", end="")
+                name_col = pad_colored(cyan(name), NAME_W)
+                size_col = f"{size_gb:>6.2f} GB"
+                ctx_col = pad_colored(dim(ctx_str), CTX_W, 'right')
+                print(f"\r  {name_col} {size_col}  {ctx_col}  ", end="")
                 if status == "native":
-                    print(f"{bright_green('✓ native'):>19}  {dim('(' + family + ')')}")
+                    tool_col = pad_colored(bright_green("✓ native"), TOOLS_W, 'right')
                 else:
-                    print(f"{yellow('○ react'):>19}  {dim('(' + family + ')')}")
+                    tool_col = pad_colored(yellow("○ react"), TOOLS_W, 'right')
+                print(f"{tool_col}  {dim('(' + family + ')')}")
             elif not cache_valid:
                 # No valid cache - show as untested
-                print(f"  {cyan(name):<46} {size_gb:>6.2f} GB  {dim(ctx_str):>8}  {dim('? untested'):>19}  {dim('(' + family + ')')}")
+                name_col = pad_colored(cyan(name), NAME_W)
+                size_col = f"{size_gb:>6.2f} GB"
+                ctx_col = pad_colored(dim(ctx_str), CTX_W, 'right')
+                tool_col = pad_colored(dim("? untested"), TOOLS_W, 'right')
+                print(f"  {name_col} {size_col}  {ctx_col}  {tool_col}  {dim('(' + family + ')')}")
             else:
                 # Use cached value
                 status = cached.get("support", "untested")
                 if status == "native":
-                    tool_icon = bright_green("✓ native")
+                    tool_col = pad_colored(bright_green("✓ native"), TOOLS_W, 'right')
                 elif status == "react":
-                    tool_icon = yellow("○ react")
+                    tool_col = pad_colored(yellow("○ react"), TOOLS_W, 'right')
                 else:
-                    tool_icon = dim("? untested")
-                print(f"  {cyan(name):<46} {size_gb:>6.2f} GB  {dim(ctx_str):>8}  {tool_icon:>19}  {dim('(' + family + ')')}")
+                    tool_col = pad_colored(dim("? untested"), TOOLS_W, 'right')
+                name_col = pad_colored(cyan(name), NAME_W)
+                size_col = f"{size_gb:>6.2f} GB"
+                ctx_col = pad_colored(dim(ctx_str), CTX_W, 'right')
+                print(f"  {name_col} {size_col}  {ctx_col}  {tool_col}  {dim('(' + family + ')')}")
         else:
-            print(f"  {cyan(name):<46} {size_gb:>6.2f} GB  {dim(ctx_str):>8}  {dim('? n/a'):>19}  {dim('(' + family + ')')}")
+            name_col = pad_colored(cyan(name), NAME_W)
+            size_col = f"{size_gb:>6.2f} GB"
+            ctx_col = pad_colored(dim(ctx_str), CTX_W, 'right')
+            tool_col = pad_colored(dim("? n/a"), TOOLS_W, 'right')
+            print(f"  {name_col} {size_col}  {ctx_col}  {tool_col}  {dim('(' + family + ')')}")
 
-    print(dim("-" * 92))
+    print(dim("-" * (4 + NAME_W + SIZE_W + CTX_W + TOOLS_W + FAMILY_W + 8)))
     print(f"Total: {bright_green(str(len(models)))} models")
     
     # Save cache if updated
