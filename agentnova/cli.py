@@ -971,13 +971,6 @@ def cmd_modelfile(args: argparse.Namespace) -> int:
                 print(dim(f"  {line.strip()}"))
         print()
 
-    # License
-    license_info = info.get("license", "")
-    if license_info:
-        print(cyan("LICENSE:"))
-        print(f"  {license_info}")
-        print()
-
     # Details
     details = info.get("details", {})
     if details:
