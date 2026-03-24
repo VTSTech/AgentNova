@@ -19,6 +19,14 @@ The refactor-1 branch represents a complete architectural overhaul of AgentNova,
 | Type Coverage | Partial | Full | **+100%** |
 | ACP Integration | No | Yes | **New** |
 
+### Latest Updates (R03-alpha)
+
+- **Tool Support Detection**: Improved detection now respects family config for models without tool support (dolphin, gemma3)
+- **Cache System**: Tool support results now cached with all three states (native, react, none)
+- **Models Table**: Fixed ANSI color code alignment in `agentnova models` output
+- **Modelfile Command**: Removed verbose LICENSE text from output
+- **ReAct Parsing**: Fixed `'str' object has no attribute 'items'` bug when JSON returns string
+
 ---
 
 ## Architecture Comparison
@@ -329,8 +337,15 @@ agent = Agent(model="...", tools=registry)
 - [x] Skills system (full - acp, datetime, skill-creator, web_search)
 - [x] Modelfile CLI command
 - [x] Skills CLI command
+- [x] Models table alignment fix
+- [x] Tool support detection (native/react/none)
+- [x] Family config for no-tool models
 
-### ✅ Refactor-1 Now Feature Complete
+### 🔧 Known Issues
+- [ ] ReAct mode regression: Models using ReAct not outputting proper format
+- [ ] Need to investigate why ReAct worked before refactor
+
+### ✅ Refactor-1 Feature Complete
 
 All features from main branch have been successfully ported to refactor-1.
 
@@ -338,9 +353,13 @@ All features from main branch have been successfully ported to refactor-1.
 
 ## Conclusion
 
-Refactor-1 is now **feature complete** with all functionality from main branch ported. The codebase is ~60% smaller while maintaining full feature parity and adding new capabilities like ACP integration and pluggable backends.
+Refactor-1 is **feature complete** with all functionality from main branch ported. The codebase is ~60% smaller while maintaining full feature parity and adding new capabilities like ACP integration and pluggable backends.
 
-**Status:** ✅ **Production Ready** - All features ported, tested, and operational.
+**Native tool models** (qwen2.5, granite4, functiongemma) perform identically to main branch.
+
+**Known Issue**: ReAct-mode models may show regression. Investigation needed for models that previously scored 100% with ReAct.
+
+**Status:** ✅ **Production Ready** for native tool models. 🔧 **Needs Investigation** for ReAct-mode models.
 
 ---
 
