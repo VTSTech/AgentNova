@@ -412,6 +412,32 @@ class Agent:
 
             # ---- Native tool fallback: text response after tool success ----
             if self._tool_support == ToolSupportLevel.NATIVE and not native_tool_calls and content and successful_results:
+                # For small models: trust tool result over model's interpretation
+                # Check if we have a simple numeric result from the last tool call
+                last_result = successful_results[-1] if successful_results else ""
+                if "→" in last_result:
+                    last_result = last_result.split("→")[-1].strip()
+                elif ":" in last_result:
+                    last_result = last_result.split(":")[-1].strip()
+                
+                # If tool result is a simple number, use it as final answer
+                try:
+                    tool_result_num = float(last_result)
+                    # Tool returned a number - use it directly for simple queries
+                    from .core.helpers import is_simple_answered_query
+                    if is_simple_answered_query(prompt, successful_results):
+                        if self.debug:
+                            print(f"  Native mode: using tool result {tool_result_num} as final answer (overriding model text)")
+                        steps.append(StepResult(
+                            type=StepResultType.FINAL_ANSWER,
+                            content=str(tool_result_num),
+                            tokens_used=tokens,
+                        ))
+                        self.memory.add("assistant", str(tool_result_num))
+                        break
+                except (ValueError, TypeError):
+                    pass
+                
                 if self.debug:
                     print(f"  Native mode: text response after tool success -> final answer")
                 steps.append(StepResult(
