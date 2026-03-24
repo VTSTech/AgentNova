@@ -335,13 +335,14 @@ def get_tool_prompt(tools: list, tool_support: str = "react", family: str | None
         lines.append("")
         lines.append(get_react_system_suffix(family or ""))
         
-        # Add few-shot if needed for this family
-        if should_use_few_shot(family or ""):
-            style = get_few_shot_style(family or "")
-            if style == "compact":
-                lines.append(FEW_SHOT_COMPACT)
-            else:
-                lines.append(FEW_SHOT_SUFFIX)
+        # CRITICAL: ALL ReAct models need few-shot examples
+        # This was causing regression when family config had prefers_few_shot=False
+        # ReAct models MUST have examples to learn the format
+        style = get_few_shot_style(family or "")
+        if style == "compact":
+            lines.append(FEW_SHOT_COMPACT)
+        else:
+            lines.append(FEW_SHOT_SUFFIX)
     
     elif tool_support == "native":
         hints = get_native_tool_hints(family or "")

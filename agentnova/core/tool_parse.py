@@ -384,11 +384,9 @@ def _parse_react(text: str, tool_names: list[str] | None = None) -> tuple[str | 
     
     Handles multiple format variations from small models.
     """
-    # Repetition detection pattern - catches "Final Answer: X" repeated
-    rep_re = re.compile(r'(Final Answer:\s*[^\n]+)(\s*\1){2,}', re.IGNORECASE)
-    match = rep_re.search(text)
-    if match:
-        text = rep_re.sub(r'\1', text)
+    # Fix repetition issues from small models (qwen3:0.6b, etc.)
+    from .helpers import detect_and_fix_repetition
+    text = detect_and_fix_repetition(text)
     
     thought = None
     tool_name = None
