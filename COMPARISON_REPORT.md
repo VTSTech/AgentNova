@@ -27,6 +27,13 @@ The refactor-1 branch represents a complete architectural overhaul of AgentNova,
 - **Modelfile Command**: Removed verbose LICENSE text from output
 - **ReAct Parsing**: Fixed `'str' object has no attribute 'items'` bug when JSON returns string
 
+### Latest Updates (R03.1-alpha)
+
+- **Web Search Skill**: Fixed naming (`web_search` → `web-search`) and UTF-8 encoding issues
+  - Skill name now complies with Agent Skills spec (`^[a-z0-9]+(-[a-z0-9]+)*$`)
+  - Removed escape artifacts (`\_`, `&nbsp;`) from SKILL.md
+  - Updated 4 code files with correct tool name references
+
 ---
 
 ## Architecture Comparison
@@ -69,7 +76,7 @@ AgentNova/agentnova/
 │   ├── acp/
 │   ├── datetime/
 │   ├── skill-creator/
-│   └── web_search/
+│   └── web-search/       # Fixed: was web_search (underscore)
 └── tools/
     ├── builtins.py
     └── sandboxed_repl.py
@@ -109,7 +116,11 @@ agentnova/agentnova/
 │   └── builtins.py
 ├── skills/               # Simplified
 │   ├── __init__.py
-│   └── loader.py
+│   ├── loader.py
+│   ├── acp/
+│   ├── datetime/
+│   ├── skill-creator/
+│   └── web-search/       # Fixed naming (was web_search)
 └── examples/             # 6 core examples
 ```
 
@@ -334,7 +345,8 @@ agent = Agent(model="...", tools=registry)
 - [x] Type system
 - [x] Sandboxed REPL tool
 - [x] Math prompts module
-- [x] Skills system (full - acp, datetime, skill-creator, web_search)
+- [x] Skills system (full - acp, datetime, skill-creator, web-search)
+- [x] Web-search skill naming fixed (hyphen format per Agent Skills spec)
 - [x] Modelfile CLI command
 - [x] Skills CLI command
 - [x] Models table alignment fix
@@ -344,6 +356,10 @@ agent = Agent(model="...", tools=registry)
 ### 🔧 Known Issues
 - [ ] ReAct mode regression: Models using ReAct not outputting proper format
 - [ ] Need to investigate why ReAct worked before refactor
+
+### ✅ Recent Fixes
+- [x] Web-search skill: Renamed from `web_search` to `web-search` (Agent Skills spec compliance)
+- [x] Web-search skill: Fixed UTF-8 encoding (removed escape artifacts)
 
 ### ✅ Refactor-1 Feature Complete
 
