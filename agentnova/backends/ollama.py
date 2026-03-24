@@ -375,11 +375,12 @@ class OllamaBackend(BaseBackend):
         model's template, which can vary within the same family. Each model
         must be tested individually.
 
-        The test runs TWO calls to avoid false positives:
-        1. First call tests if model can use tool API
-        2. Second call verifies consistency (some models sporadically return tool_calls)
-
-        A model is classified as NATIVE only if it consistently makes valid tool calls.
+        The test uses a calculator tool which requires the model to:
+        1. Extract a math expression from the prompt
+        2. Format it correctly as a tool argument
+        
+        This is more representative of real-world tool usage than simple
+        weather/location tests.
 
         Args:
             model: Model name
@@ -402,45 +403,51 @@ class OllamaBackend(BaseBackend):
                 # Family is known to not support tools - return NONE directly
                 return ToolSupportLevel.NONE
 
-        # Make a real test call with tools
-        # IMPORTANT: Test tool must have actual parameters like real tools do!
-        # Models behave differently with parameterless tools vs tools with required params.
+        # Use a calculator tool for testing - this requires the model to:
+        # 1. Understand it needs to use a tool
+        # 2. Extract the expression from the prompt
+        # 3. Format it correctly as an argument
+        # This is harder than simple location-passing tests.
         test_tool = Tool(
-            name="get_weather",
-            description="Get the current weather for a location",
+            name="calculate",
+            description="Evaluate a mathematical expression and return the result",
             params=[ToolParam(
-                name="location",
+                name="expression",
                 type="string",
-                description="The city and country, e.g., 'Paris, France'"
+                description="The math expression to evaluate, e.g., '15 * 8' or '42 + 17'"
             )],
         )
 
-        def is_valid_tool_call(tool_calls: list) -> bool:
-            """Check if tool calls are valid and meaningful."""
+        def is_valid_calculator_call(tool_calls: list, expected_nums: list) -> bool:
+            """Check if tool calls are valid calculator calls with expected numbers."""
             if not tool_calls:
                 return False
             for tc in tool_calls:
                 name = tc.get("name", "")
                 args = tc.get("arguments", {})
                 # Must call the correct tool
-                if name != "get_weather":
+                if name != "calculate":
                     return False
-                # Should have location argument (it's required for a valid call)
-                if not args or "location" not in args:
+                # Must have expression argument
+                if not args or "expression" not in args:
                     return False
-                # Location should be reasonable (not empty, not random)
-                location = args.get("location", "")
-                if not location or len(location) < 2:
+                # Expression should contain the expected numbers
+                expr = args.get("expression", "")
+                if not expr:
                     return False
+                # Check that expected numbers appear in expression
+                for num in expected_nums:
+                    if str(num) not in expr:
+                        return False
             return True
 
         try:
-            # First test call
+            # First test call - simple multiplication
             response1 = self.generate(
                 model=model,
                 messages=[{
                     "role": "user",
-                    "content": "What's the weather like in Tokyo?"
+                    "content": "What is 15 times 8?"
                 }],
                 tools=[test_tool],
                 max_tokens=100,
@@ -457,18 +464,17 @@ class OllamaBackend(BaseBackend):
                         return ToolSupportLevel.NONE
                 return ToolSupportLevel.REACT
 
-            # Validate the tool call quality
-            if not is_valid_tool_call(tool_calls_1):
-                # Invalid tool call structure = not truly native
+            # Validate the tool call - must have numbers 15 and 8
+            if not is_valid_calculator_call(tool_calls_1, [15, 8]):
+                # Invalid tool call = not truly native
                 return ToolSupportLevel.REACT
 
-            # Second test call to verify consistency
-            # Some models sporadically return tool_calls but don't reliably use them
+            # Second test call - different operation to verify consistency
             response2 = self.generate(
                 model=model,
                 messages=[{
                     "role": "user",
-                    "content": "What's the weather in Paris, France?"
+                    "content": "Calculate 42 plus 17"
                 }],
                 tools=[test_tool],
                 max_tokens=100,
@@ -477,7 +483,7 @@ class OllamaBackend(BaseBackend):
             tool_calls_2 = response2.get("tool_calls", [])
 
             # Both calls must produce valid tool calls for NATIVE classification
-            if is_valid_tool_call(tool_calls_2):
+            if is_valid_calculator_call(tool_calls_2, [42, 17]):
                 return ToolSupportLevel.NATIVE
 
             # Inconsistent = classify as REACT (not reliable native support)
