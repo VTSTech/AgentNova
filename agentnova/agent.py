@@ -541,11 +541,15 @@ class Agent:
                     if first_tool and hasattr(first_tool, 'params') and first_tool.params:
                         arg_hint = first_tool.params[0].name
                     
+                    # Try to extract expression from prompt for better example
+                    from .core.helpers import extract_calc_expression
+                    expr_example = extract_calc_expression(prompt) or "8 * 7 - 5"
+                    
                     reminder = (
                         f"Answer this question: {prompt}\n\n"
-                        f"Use this format:\n"
+                        f"Use this EXACT format:\n"
                         f"Action: {tool_names[0]}\n"
-                        f"Action Input: {{\"{arg_hint}\": \"<your calculation>\"}}"
+                        f"Action Input: {{\"{arg_hint}\": \"{expr_example}\"}}"
                     )
                     self.memory.add("user", reminder)
                     continue
