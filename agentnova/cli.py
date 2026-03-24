@@ -590,11 +590,10 @@ def cmd_models(args: argparse.Namespace) -> int:
             ctx_str = str(ctx_size)
         
         # Get tool support level (from cache or test)
+        # NOTE: Tool support depends on the model's template, NOT the family.
+        # Each model must be tested individually. Use --tool-support to test.
         if isinstance(backend, OllamaBackend):
             cached = cache.get(name)
-            
-            # Check if cache entry matches current family (detects model updates)
-            cache_valid = cached and cached.get("family") == family
             
             if args.tool_support:
                 # Force test: actually call the model to test tool support
@@ -603,7 +602,7 @@ def cmd_models(args: argparse.Namespace) -> int:
                 cache[name] = {
                     "support": support.value,
                     "tested_at": time.time(),
-                    "family": family,
+                    "family": family,  # Store for info only, not for validation
                 }
                 cache_updated = True
                 status = support.value
@@ -617,14 +616,7 @@ def cmd_models(args: argparse.Namespace) -> int:
                 else:
                     tool_col = pad_colored(yellow("○ react"), TOOLS_W, 'right')
                 print(f"{tool_col}  {dim('(' + family + ')')}")
-            elif not cache_valid:
-                # No valid cache - show as untested
-                name_col = pad_colored(cyan(name), NAME_W)
-                size_col = f"{size_gb:>6.2f} GB"
-                ctx_col = pad_colored(dim(ctx_str), CTX_W, 'right')
-                tool_col = pad_colored(dim("? untested"), TOOLS_W, 'right')
-                print(f"  {name_col} {size_col}  {ctx_col}  {tool_col}  {dim('(' + family + ')')}")
-            else:
+            elif cached:
                 # Use cached value
                 status = cached.get("support", "untested")
                 if status == "native":
@@ -636,6 +628,13 @@ def cmd_models(args: argparse.Namespace) -> int:
                 name_col = pad_colored(cyan(name), NAME_W)
                 size_col = f"{size_gb:>6.2f} GB"
                 ctx_col = pad_colored(dim(ctx_str), CTX_W, 'right')
+                print(f"  {name_col} {size_col}  {ctx_col}  {tool_col}  {dim('(' + family + ')')}")
+            else:
+                # No cache entry - show as untested
+                name_col = pad_colored(cyan(name), NAME_W)
+                size_col = f"{size_gb:>6.2f} GB"
+                ctx_col = pad_colored(dim(ctx_str), CTX_W, 'right')
+                tool_col = pad_colored(dim("? untested"), TOOLS_W, 'right')
                 print(f"  {name_col} {size_col}  {ctx_col}  {tool_col}  {dim('(' + family + ')')}")
         else:
             name_col = pad_colored(cyan(name), NAME_W)
@@ -653,7 +652,7 @@ def cmd_models(args: argparse.Namespace) -> int:
     
     # Show legend
     print(f"\n{dim('Legend:')} {bright_green('✓ native')} (API tools) | {yellow('○ react')} (text parsing) | {dim('? untested')}")
-    print(f"{dim('Use')} {cyan('--tool-support')} {dim('to test models (cached in ~/.cache/agentnova/tool_support.json)')}")
+    print(f"{dim('Tool support depends on model template, not family. Use')} {cyan('--tool-support')} {dim('to test each model.')}")
 
     return 0
 

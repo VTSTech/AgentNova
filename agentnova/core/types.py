@@ -24,40 +24,31 @@ class ToolSupportLevel(Enum):
     NATIVE = "native"      # Native function calling support
     REACT = "react"        # Text-based tool use via ReAct prompting
     NONE = "none"          # No tool support (pure reasoning)
+    UNTESTED = "untested"  # Not yet tested - each model must be tested individually
 
     @classmethod
     def detect(cls, model_name: str, capabilities: dict | None = None) -> "ToolSupportLevel":
         """
-        Auto-detect tool support level from model name and capabilities.
+        Auto-detect tool support level from model capabilities.
+
+        IMPORTANT: Tool support is NOT determined by family name. It depends on
+        the model's template, which can vary within the same family. Each model
+        must be tested individually.
 
         Args:
-            model_name: Name of the model (e.g., "qwen2.5:7b", "llama3.1:8b")
+            model_name: Name of the model (ignored, kept for API compatibility)
             capabilities: Optional capabilities dict from backend
 
         Returns:
-            Detected ToolSupportLevel
+            ToolSupportLevel (UNTESTED if capabilities not provided)
         """
-        name_lower = model_name.lower()
-
-        # Check for known native tool support families
-        native_families = [
-            "qwen2.5", "qwen2", "llama3.1", "llama3.2", "llama3.3",
-            "mistral", "mixtral", "codellama", "command-r",
-            "gemma2", "gemma3", "granite", "granitemoe",
-            "phi3", "phi-3", "firefunction", "claude",
-        ]
-
-        for family in native_families:
-            if family in name_lower:
-                return cls.NATIVE
-
         # Check capabilities if provided
         if capabilities:
             if capabilities.get("supports_function_calling"):
                 return cls.NATIVE
 
-        # Default to ReAct for unknown models (most can be prompted)
-        return cls.REACT
+        # Cannot determine without testing
+        return cls.UNTESTED
 
 
 class BackendType(Enum):

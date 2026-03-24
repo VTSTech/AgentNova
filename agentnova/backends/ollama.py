@@ -343,131 +343,58 @@ class OllamaBackend(BaseBackend):
         except (urllib.error.HTTPError, urllib.error.URLError):
             return []
 
-    # Families with native tool calling support
-    NATIVE_TOOL_FAMILIES = [
-        "qwen2.5", "qwen2", "qwen3",  # Qwen family
-        "llama3.1", "llama3.2", "llama3.3",  # Llama 3.x
-        "mistral", "mixtral", "command-r",
-        "granite", "granitemoe",
-        "gemma2", "gemma3",
-        "phi3",
-    ]
-
-    @classmethod
-    def detect_tool_support_by_family(cls, family: str) -> ToolSupportLevel | None:
-        """
-        Fast detection of tool support by model family.
-        Returns None if family is unknown (needs full test).
-        """
-        if not family:
-            return None
-        
-        family_lower = family.lower()
-        
-        for nf in cls.NATIVE_TOOL_FAMILIES:
-            if nf in family_lower:
-                return ToolSupportLevel.NATIVE
-        
-        # Known non-native families (small models that need ReAct)
-        react_families = ["llama", "smollm", "tinyllama"]
-        for rf in react_families:
-            if rf in family_lower:
-                return ToolSupportLevel.REACT
-        
-        return None  # Unknown family, needs full test
+    # No family-based assumptions - tool support depends on the model's template
+    # Each model must be tested individually. Use --tool-support to test.
 
     def test_tool_support(self, model: str, family: str | None = None, force_test: bool = False) -> ToolSupportLevel:
         """
         Test model's tool support capability.
 
+        IMPORTANT: Tool support is NOT determined by family. It depends on the
+        model's template, which can vary within the same family. Each model
+        must be tested individually.
+
         Args:
             model: Model name
-            family: Optional family name (skips API call if provided and not force_test)
-            force_test: If True, always make a test API call
+            family: Ignored (kept for API compatibility)
+            force_test: If True, make a test API call to determine support
 
         Returns:
-            ToolSupportLevel (NATIVE, REACT, or NONE)
+            ToolSupportLevel (NATIVE, REACT, or UNTESTED if force_test=False)
         """
-        # Fast path: use provided family (skip if force_test)
-        if not force_test and family:
-            detected = self.detect_tool_support_by_family(family)
-            if detected:
-                return detected
+        if not force_test:
+            # Without force_test, we don't know - return UNTESTED
+            # The caller should use cache or show "untested"
+            return ToolSupportLevel.UNTESTED
 
-        # If force_test or family unknown, do actual API test
-        if force_test:
-            # Make a real test call with tools
-            try:
-                test_tool = Tool(
-                    name="calculator",
-                    description="Calculate a math expression",
-                    params=[],
-                )
-
-                response = self.generate(
-                    model=model,
-                    messages=[{
-                        "role": "user",
-                        "content": "Use the calculator to compute 2+2. Do NOT just answer - use the tool."
-                    }],
-                    tools=[test_tool],
-                    max_tokens=50,
-                )
-
-                # Check if model made a tool call
-                if response.get("tool_calls"):
-                    return ToolSupportLevel.NATIVE
-
-                # Check if model tried ReAct format in text
-                content = response.get("content", "").lower()
-                if "action:" in content or "tool_call:" in content or "calculator" in content:
-                    return ToolSupportLevel.REACT
-
-                # No tool usage detected
-                return ToolSupportLevel.REACT
-
-            except Exception as e:
-                # API error, fall back to family detection
-                pass
-
-        # Slow path: get model info from API
-        model_info = self.get_model_info(model)
-
-        if not model_info:
-            # Model not found, assume ReAct
-            return ToolSupportLevel.REACT
-
-        # Check model family from API response
-        details = model_info.get("details", {})
-        api_family = details.get("family", "").lower()
-
-        detected = self.detect_tool_support_by_family(api_family)
-        if detected:
-            return detected
-
-        # Fallback: try to make a test call with tools
+        # Make a real test call with tools
         try:
             test_tool = Tool(
-                name="test",
-                description="Test tool",
+                name="calculator",
+                description="Calculate a math expression",
                 params=[],
             )
 
             response = self.generate(
                 model=model,
-                messages=[{"role": "user", "content": "Test"}],
+                messages=[{
+                    "role": "user",
+                    "content": "Use the calculator to compute 2+2. Do NOT just answer - use the tool."
+                }],
                 tools=[test_tool],
-                max_tokens=10,
+                max_tokens=50,
             )
 
+            # Check if model made a tool call (native support)
             if response.get("tool_calls"):
                 return ToolSupportLevel.NATIVE
 
-        except Exception:
-            pass
+            # Model responded but didn't use tool API - needs ReAct
+            return ToolSupportLevel.REACT
 
-        # Default to ReAct
-        return ToolSupportLevel.REACT
+        except Exception as e:
+            # API error - default to ReAct
+            return ToolSupportLevel.REACT
 
     def pull_model(self, model: str, stream: bool = False) -> dict | Generator:
         """Pull a model from Ollama registry."""
