@@ -375,10 +375,16 @@ class OllamaBackend(BaseBackend):
         model's template, which can vary within the same family. Each model
         must be tested individually.
 
+        The test runs TWO calls to avoid false positives:
+        1. First call tests if model can use tool API
+        2. Second call verifies consistency (some models sporadically return tool_calls)
+
+        A model is classified as NATIVE only if it consistently makes valid tool calls.
+
         Args:
             model: Model name
             family: Optional family hint (used to check family config for known no-tool models)
-            force_test: If True, make a test API call to determine support
+            force_test: If True, make test API calls to determine support
 
         Returns:
             ToolSupportLevel (NATIVE, REACT, NONE, or UNTESTED if force_test=False)
@@ -393,25 +399,44 @@ class OllamaBackend(BaseBackend):
             from ..core.model_family_config import get_family_config
             config = get_family_config(family)
             if config.tool_format == "none" or not config.supports_native_tools:
-                # Family is known to not support tools - verify with test
-                # but be prepared to return NONE instead of REACT
-                pass
+                # Family is known to not support tools - return NONE directly
+                return ToolSupportLevel.NONE
 
         # Make a real test call with tools
         # IMPORTANT: Test tool must have actual parameters like real tools do!
         # Models behave differently with parameterless tools vs tools with required params.
-        try:
-            test_tool = Tool(
-                name="get_weather",
-                description="Get the current weather for a location",
-                params=[ToolParam(
-                    name="location",
-                    type="string",
-                    description="The city and country, e.g., 'Paris, France'"
-                )],
-            )
+        test_tool = Tool(
+            name="get_weather",
+            description="Get the current weather for a location",
+            params=[ToolParam(
+                name="location",
+                type="string",
+                description="The city and country, e.g., 'Paris, France'"
+            )],
+        )
 
-            response = self.generate(
+        def is_valid_tool_call(tool_calls: list) -> bool:
+            """Check if tool calls are valid and meaningful."""
+            if not tool_calls:
+                return False
+            for tc in tool_calls:
+                name = tc.get("name", "")
+                args = tc.get("arguments", {})
+                # Must call the correct tool
+                if name != "get_weather":
+                    return False
+                # Should have location argument (it's required for a valid call)
+                if not args or "location" not in args:
+                    return False
+                # Location should be reasonable (not empty, not random)
+                location = args.get("location", "")
+                if not location or len(location) < 2:
+                    return False
+            return True
+
+        try:
+            # First test call
+            response1 = self.generate(
                 model=model,
                 messages=[{
                     "role": "user",
@@ -421,20 +446,41 @@ class OllamaBackend(BaseBackend):
                 max_tokens=100,
             )
 
-            # Check if model made a tool call (native support)
-            if response.get("tool_calls"):
+            tool_calls_1 = response1.get("tool_calls", [])
+
+            # If first call has no tool calls, check for NONE vs REACT
+            if not tool_calls_1:
+                if family:
+                    from ..core.model_family_config import get_family_config
+                    config = get_family_config(family)
+                    if config.tool_format == "none" or not config.supports_native_tools:
+                        return ToolSupportLevel.NONE
+                return ToolSupportLevel.REACT
+
+            # Validate the tool call quality
+            if not is_valid_tool_call(tool_calls_1):
+                # Invalid tool call structure = not truly native
+                return ToolSupportLevel.REACT
+
+            # Second test call to verify consistency
+            # Some models sporadically return tool_calls but don't reliably use them
+            response2 = self.generate(
+                model=model,
+                messages=[{
+                    "role": "user",
+                    "content": "What's the weather in Paris, France?"
+                }],
+                tools=[test_tool],
+                max_tokens=100,
+            )
+
+            tool_calls_2 = response2.get("tool_calls", [])
+
+            # Both calls must produce valid tool calls for NATIVE classification
+            if is_valid_tool_call(tool_calls_2):
                 return ToolSupportLevel.NATIVE
 
-            # Model responded but didn't use tool API
-            # Check if family is known to not support tools
-            if family:
-                from ..core.model_family_config import get_family_config
-                config = get_family_config(family)
-                if config.tool_format == "none" or not config.supports_native_tools:
-                    # Family is known to not support tools - return NONE
-                    return ToolSupportLevel.NONE
-
-            # Default to ReAct for unknown families
+            # Inconsistent = classify as REACT (not reliable native support)
             return ToolSupportLevel.REACT
 
         except Exception as e:
