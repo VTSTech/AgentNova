@@ -124,6 +124,7 @@ class Agent:
         
         Checks cache first, then tests if needed. Each model must be tested
         individually since tool support depends on the template, not family.
+        However, family config can hint when a model definitely doesn't support tools.
         """
         # Check cache first
         import json
@@ -143,29 +144,52 @@ class Agent:
                         return ToolSupportLevel.NATIVE
                     elif support == "react":
                         return ToolSupportLevel.REACT
+                    elif support == "none":
+                        return ToolSupportLevel.NONE
             except (json.JSONDecodeError, IOError):
                 pass
         
+        # Detect family from model name for family config hint
+        family = None
+        name_lower = self.model.lower()
+        families = [
+            "qwen2.5", "qwen2", "qwen", "qwen3",
+            "llama3.3", "llama3.2", "llama3.1", "llama3", "llama",
+            "mistral", "mixtral",
+            "gemma3", "gemma2", "gemma",
+            "granitemoe", "granite",
+            "phi3", "phi",
+            "codellama",
+            "command-r", "command",
+            "deepseek",
+            "dolphin",
+        ]
+        for f in families:
+            if f in name_lower:
+                family = f
+                break
+        
         # Not cached - test the model
         try:
-            tested = self.backend.test_tool_support(self.model, force_test=True)
-            if tested == ToolSupportLevel.NATIVE:
-                # Cache the result
-                try:
-                    cache_dir.mkdir(parents=True, exist_ok=True)
-                    cache = {}
-                    if cache_file.exists():
-                        with open(cache_file, "r") as f:
-                            cache = json.load(f)
-                    cache[self.model] = {
-                        "support": "native",
-                        "tested_at": time.time(),
-                    }
-                    with open(cache_file, "w") as f:
-                        json.dump(cache, f, indent=2)
-                except (json.JSONDecodeError, IOError):
-                    pass
-                return ToolSupportLevel.NATIVE
+            tested = self.backend.test_tool_support(self.model, family=family, force_test=True)
+            
+            # Cache the result
+            try:
+                cache_dir.mkdir(parents=True, exist_ok=True)
+                cache = {}
+                if cache_file.exists():
+                    with open(cache_file, "r") as f:
+                        cache = json.load(f)
+                cache[self.model] = {
+                    "support": tested.value,
+                    "tested_at": time.time(),
+                }
+                with open(cache_file, "w") as f:
+                    json.dump(cache, f, indent=2)
+            except (json.JSONDecodeError, IOError):
+                pass
+            
+            return tested
         except Exception:
             pass
         

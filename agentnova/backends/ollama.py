@@ -356,16 +356,25 @@ class OllamaBackend(BaseBackend):
 
         Args:
             model: Model name
-            family: Ignored (kept for API compatibility)
+            family: Optional family hint (used to check family config for known no-tool models)
             force_test: If True, make a test API call to determine support
 
         Returns:
-            ToolSupportLevel (NATIVE, REACT, or UNTESTED if force_test=False)
+            ToolSupportLevel (NATIVE, REACT, NONE, or UNTESTED if force_test=False)
         """
         if not force_test:
             # Without force_test, we don't know - return UNTESTED
             # The caller should use cache or show "untested"
             return ToolSupportLevel.UNTESTED
+
+        # Check family config first for models known to not support tools
+        if family:
+            from ..core.model_family_config import get_family_config
+            config = get_family_config(family)
+            if config.tool_format == "none" or not config.supports_native_tools:
+                # Family is known to not support tools - verify with test
+                # but be prepared to return NONE instead of REACT
+                pass
 
         # Make a real test call with tools
         try:
@@ -389,11 +398,25 @@ class OllamaBackend(BaseBackend):
             if response.get("tool_calls"):
                 return ToolSupportLevel.NATIVE
 
-            # Model responded but didn't use tool API - needs ReAct
+            # Model responded but didn't use tool API
+            # Check if family is known to not support tools
+            if family:
+                from ..core.model_family_config import get_family_config
+                config = get_family_config(family)
+                if config.tool_format == "none" or not config.supports_native_tools:
+                    # Family is known to not support tools - return NONE
+                    return ToolSupportLevel.NONE
+
+            # Default to ReAct for unknown families
             return ToolSupportLevel.REACT
 
         except Exception as e:
-            # API error - default to ReAct
+            # API error - check family config for fallback
+            if family:
+                from ..core.model_family_config import get_family_config
+                config = get_family_config(family)
+                if config.tool_format == "none" or not config.supports_native_tools:
+                    return ToolSupportLevel.NONE
             return ToolSupportLevel.REACT
 
     def pull_model(self, model: str, stream: bool = False) -> dict | Generator:
