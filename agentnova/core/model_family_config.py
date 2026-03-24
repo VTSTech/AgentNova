@@ -164,6 +164,27 @@ Keep answers brief. Show calculation first, then the final number.""",
         few_shot_style="react",
     ),
     
+    # QWEN35 (Qwen 3.5) - Successor to Qwen3, NO thinking mode
+    # Note: Unlike Qwen3, Qwen3.5 does NOT have thinking mode (simpler template)
+    "qwen35": ModelFamilyConfig(
+        family="qwen35",
+        start_tokens={
+            "system": "<|im_start|>system",
+            "user": "<|im_start|>user",
+            "assistant": "<|im_start|>assistant",
+        },
+        stop_tokens=["<|im_end|>"],
+        tool_format="xml",
+        tool_call_start="<tool_calljson\n",
+        tool_call_end="\n</tool_call",
+        supports_native_tools=True,
+        system_prompt_style="separate",
+        preferred_temperature=0.6,
+        needs_think_directive=False,  # Qwen3.5 does NOT have thinking mode
+        prefers_few_shot=False,  # Native models should NOT have few-shot
+        few_shot_style="react",
+    ),
+    
     # LLAMA - Meta's Llama models
     "llama": ModelFamilyConfig(
         family="llama",
@@ -361,7 +382,7 @@ def detect_family(model_name: str) -> str | None:
     """Detect model family from model name."""
     name_lower = model_name.lower()
     families = [
-        "qwen2.5", "qwen2", "qwen", "qwen3",
+        "qwen2.5", "qwen2", "qwen35", "qwen3", "qwen",
         "llama3.3", "llama3.2", "llama3.1", "llama3", "llama",
         "mistral", "mixtral",
         "gemma3", "gemma2", "gemma",
@@ -393,4 +414,5 @@ __all__ = [
     "get_native_tool_hints",
     "get_no_tools_system_prompt",
     "detect_family",
+    "needs_no_think_directive",
 ]
