@@ -526,6 +526,30 @@ class Agent:
 
                 break
 
+            # ---- ReAct format reminder for small models ----
+            # If model didn't use ReAct format and we haven't succeeded yet, send a reminder
+            if self._tool_support == ToolSupportLevel.REACT and not successful_results:
+                if not hasattr(self, '_format_reminder_sent'):
+                    self._format_reminder_sent = True
+                    if self.debug:
+                        print(f"  Model didn't use ReAct format, sending reminder")
+                    
+                    self.memory.add("assistant", content)
+                    tool_names = self.tools.names()
+                    first_tool = self.tools.all()[0] if self.tools.all() else None
+                    arg_hint = "input"
+                    if first_tool and hasattr(first_tool, 'params') and first_tool.params:
+                        arg_hint = first_tool.params[0].name
+                    
+                    reminder = (
+                        f"Answer this question: {prompt}\n\n"
+                        f"Use this format:\n"
+                        f"Action: {tool_names[0]}\n"
+                        f"Action Input: {{\"{arg_hint}\": \"<your calculation>\"}}"
+                    )
+                    self.memory.add("user", reminder)
+                    continue
+
             # No tool call or final answer - treat as response
             if self.debug:
                 print(f"  No tool calls detected, treating as final answer")
