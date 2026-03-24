@@ -646,6 +646,52 @@ class Agent:
                             pass
                     continue
 
+            # ---- Native tool fallback: synthesize after empty retries exhausted ----
+            # If we've exhausted retries and still no tool call, synthesize one
+            if self._tool_support == ToolSupportLevel.NATIVE and not native_tool_calls and not successful_results and self.tools.names():
+                if self.debug:
+                    print(f"  Native fallback: synthesizing tool call after empty retries")
+                
+                from .core.helpers import extract_calc_expression
+                expr = extract_calc_expression(prompt)
+                
+                if expr and "calculator" in self.tools.names():
+                    if self.debug:
+                        print(f"  Auto-synthesizing calculator call: {expr}")
+                    
+                    result = self._execute_tool("calculator", {"expression": expr}, prompt)
+                    tool_calls += 1
+                    
+                    self.memory.add("assistant", content or "")
+                    self.memory.add("user", f"Observation: {result}")
+                    
+                    if not str(result).startswith("Error"):
+                        successful_results.append(f"calculator: {result}")
+                    
+                    steps.append(StepResult(
+                        type=StepResultType.TOOL_CALL,
+                        content=f"[Auto-synthesized] calculator({expr})",
+                        tool_result=result,
+                        tokens_used=tokens,
+                    ))
+                    
+                    # For simple numeric results, accept as final answer
+                    result_str = str(result).strip()
+                    if result_str and not result_str.startswith("Error"):
+                        try:
+                            float(result_str)
+                            if self.debug:
+                                print(f"  Accepting synthesized result as final answer: {result_str}")
+                            steps.append(StepResult(
+                                type=StepResultType.FINAL_ANSWER,
+                                content=result_str,
+                                tokens_used=tokens,
+                            ))
+                            break
+                        except (ValueError, TypeError):
+                            pass
+                    continue
+
             # No tool call or final answer - treat as response
             if self.debug:
                 print(f"  No tool calls detected, treating as final answer")
