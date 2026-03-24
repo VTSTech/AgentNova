@@ -371,21 +371,19 @@ class OllamaBackend(BaseBackend):
         """
         Test model's tool support capability.
 
-        IMPORTANT: Tool support is NOT determined by family. It depends on the
-        model's template, which can vary within the same family. Each model
-        must be tested individually.
+        Detection logic (from main branch):
+        1. HTTP 400 "does not support tools" → none (Ollama's explicit rejection)
+        2. Native tool_calls in API response, calling correct function → native
+        3. No tool_calls but content has JSON tool call pattern → react (text-based)
+        4. No tool_calls, no tool-like JSON, but API accepted tools → react
 
-        The test uses a calculator tool which requires the model to:
-        1. Extract a math expression from the prompt
-        2. Format it correctly as a tool argument
-        
-        This is more representative of real-world tool usage than simple
-        weather/location tests.
+        Key insight: "native" requires ACTUAL native tool_calls structure in API response.
+        Models that output JSON as text are "react", not "native".
 
         Args:
             model: Model name
-            family: Optional family hint (used to check family config for known no-tool models)
-            force_test: If True, make test API calls to determine support
+            family: Optional family hint (unused, kept for API compatibility)
+            force_test: If True, make a test API call to determine support
 
         Returns:
             ToolSupportLevel (NATIVE, REACT, NONE, or UNTESTED if force_test=False)
@@ -395,107 +393,69 @@ class OllamaBackend(BaseBackend):
             # The caller should use cache or show "untested"
             return ToolSupportLevel.UNTESTED
 
-        # Check family config first for models known to not support tools
-        if family:
-            from ..core.model_family_config import get_family_config
-            config = get_family_config(family)
-            if config.tool_format == "none" or not config.supports_native_tools:
-                # Family is known to not support tools - return NONE directly
-                return ToolSupportLevel.NONE
-
-        # Use a calculator tool for testing - this requires the model to:
-        # 1. Understand it needs to use a tool
-        # 2. Extract the expression from the prompt
-        # 3. Format it correctly as an argument
-        # This is harder than simple location-passing tests.
+        # Test tool: Weather (simple, commonly supported)
         test_tool = Tool(
-            name="calculate",
-            description="Evaluate a mathematical expression and return the result",
+            name="get_weather",
+            description="Get the current weather for a location",
             params=[ToolParam(
-                name="expression",
+                name="location",
                 type="string",
-                description="The math expression to evaluate, e.g., '15 * 8' or '42 + 17'"
+                description="The city and country, e.g., 'Paris, France'"
             )],
         )
 
-        def is_valid_calculator_call(tool_calls: list, expected_nums: list) -> bool:
-            """Check if tool calls are valid calculator calls with expected numbers."""
-            if not tool_calls:
-                return False
-            for tc in tool_calls:
-                name = tc.get("name", "")
-                args = tc.get("arguments", {})
-                # Must call the correct tool
-                if name != "calculate":
-                    return False
-                # Must have expression argument
-                if not args or "expression" not in args:
-                    return False
-                # Expression should contain the expected numbers
-                expr = args.get("expression", "")
-                if not expr:
-                    return False
-                # Check that expected numbers appear in expression
-                for num in expected_nums:
-                    if str(num) not in expr:
-                        return False
-            return True
-
         try:
-            # First test call - simple multiplication
-            response1 = self.generate(
+            # Send request with tools but NO system prompt override
+            # Use model's default Modelfile system prompt
+            response = self.generate(
                 model=model,
                 messages=[{
                     "role": "user",
-                    "content": "What is 15 times 8?"
+                    "content": "What's the weather like in Tokyo?"
                 }],
                 tools=[test_tool],
                 max_tokens=100,
             )
 
-            tool_calls_1 = response1.get("tool_calls", [])
+            message = response.get("message", response)
+            tool_calls = message.get("tool_calls", [])
+            content = message.get("content", "")
 
-            # If first call has no tool calls, check for NONE vs REACT
-            if not tool_calls_1:
-                if family:
-                    from ..core.model_family_config import get_family_config
-                    config = get_family_config(family)
-                    if config.tool_format == "none" or not config.supports_native_tools:
-                        return ToolSupportLevel.NONE
+            # 2. Check for NATIVE tool_calls in API response structure
+            # This is the ONLY path to "native" classification
+            if tool_calls:
+                for tc in tool_calls:
+                    func = tc.get("function", {})
+                    func_name = func.get("name", "")
+                    # Verify it's calling our tool (not hallucinating a different one)
+                    if func_name == "get_weather":
+                        # Check for reasonable arguments
+                        args = func.get("arguments", {})
+                        if isinstance(args, dict) and ("location" in args or "city" in args or len(args) > 0):
+                            return ToolSupportLevel.NATIVE
+                    # Native tool_calls exist but wrong function - still native capability
+                    # (model might be confused but HAS native support)
+                    elif func_name:  # Any function name = native structure
+                        return ToolSupportLevel.NATIVE
+
+            # 3. Check for text-based tool calls in content
+            # Models that output JSON like {"name": "get_weather", ...} as TEXT
+            if self._contains_text_tool_call(content):
                 return ToolSupportLevel.REACT
 
-            # Validate the tool call - must have numbers 15 and 8
-            if not is_valid_calculator_call(tool_calls_1, [15, 8]):
-                # Invalid tool call = not truly native
-                return ToolSupportLevel.REACT
-
-            # Second test call - different operation to verify consistency
-            response2 = self.generate(
-                model=model,
-                messages=[{
-                    "role": "user",
-                    "content": "Calculate 42 plus 17"
-                }],
-                tools=[test_tool],
-                max_tokens=100,
-            )
-
-            tool_calls_2 = response2.get("tool_calls", [])
-
-            # Both calls must produce valid tool calls for NATIVE classification
-            if is_valid_calculator_call(tool_calls_2, [42, 17]):
-                return ToolSupportLevel.NATIVE
-
-            # Inconsistent = classify as REACT (not reliable native support)
+            # 4. API succeeded, no explicit rejection, no native tool_calls
+            # Model accepted tools parameter but didn't use native calling
+            # This is the "react" case - can still parse text-based tool calls
             return ToolSupportLevel.REACT
 
         except Exception as e:
-            # API error - check family config for fallback
-            if family:
-                from ..core.model_family_config import get_family_config
-                config = get_family_config(family)
-                if config.tool_format == "none" or not config.supports_native_tools:
-                    return ToolSupportLevel.NONE
+            error_str = str(e)
+
+            # 1. Check for explicit "does not support tools" rejection
+            if "does not support tools" in error_str.lower():
+                return ToolSupportLevel.NONE
+
+            # Other HTTP errors or connection issues
             return ToolSupportLevel.REACT
 
         finally:
@@ -504,6 +464,50 @@ class OllamaBackend(BaseBackend):
                 self.unload_model(model)
             except Exception:
                 pass  # Ignore errors during cleanup
+
+    def _contains_text_tool_call(self, content: str) -> bool:
+        """
+        Check if the response content contains a JSON tool call pattern.
+        Models that output tool calls as TEXT (not native API) show this pattern.
+
+        Examples:
+          {"name": "get_weather", "arguments": {"location": "Tokyo"}}
+          {"tool": "calculator", "arguments": {"expression": "2+2"}}
+        """
+        if not content:
+            return False
+
+        import re
+
+        # Remove markdown code blocks if present
+        cleaned = re.sub(r"```(?:json)?", "", content).strip().rstrip("`").strip()
+
+        # Look for JSON object pattern
+        start = cleaned.find("{")
+        end = cleaned.rfind("}")
+        if start == -1 or end == -1:
+            return False
+
+        try:
+            import json
+            obj = json.loads(cleaned[start:end + 1])
+
+            # Check for tool call patterns
+            if not isinstance(obj, dict):
+                return False
+
+            # Pattern 1: {"name": "...", "arguments": {...}}
+            if "name" in obj and ("arguments" in obj or "parameters" in obj):
+                return True
+
+            # Pattern 2: {"tool": "...", "arguments": {...}}
+            if "tool" in obj and "arguments" in obj:
+                return True
+
+            return False
+
+        except json.JSONDecodeError:
+            return False
 
     def unload_model(self, model: str) -> dict:
         """
