@@ -1,8 +1,29 @@
-# ⚛️ AgentNova
+# ⚛️ AgentNova R03
 
 **Status: Alpha**
 
-A minimal, hackable agentic framework engineered for local LLM inference.
+A minimal, hackable agentic framework engineered to run **entirely locally** with [Ollama](https://ollama.com) or [BitNet](https://github.com/microsoft/BitNet).
+
+Inspired by the architecture of OpenClaw, rebuilt from scratch for local-first operation.
+
+**Written by [VTSTech](https://www.vts-tech.org)** · [GitHub](https://github.com/VTSTech/AgentNova)
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/VTSTech/AgentNova/blob/main/AgentNova.ipynb)
+[![GitHub commits](https://badgen.net/github/commits/VTSTech/AgentNova)](https://GitHub.com/VTSTech/AgentNova/commit/) [![GitHub latest commit](https://badgen.net/github/last-commit/VTSTech/AgentNova)](https://GitHub.com/VTSTech/AgentNova/commit/)
+
+[![pip - agentnova](https://img.shields.io/badge/pip-agentnova-2ea44f?logo=PyPi)](https://pypi.org/project/agentnova/) [![PyPI version fury.io](https://badge.fury.io/py/agentnova.svg)](https://pypi.org/project/agentnova/) [![PyPI download month](https://img.shields.io/pypi/dm/agentnova.svg)](https://pypi.org/project/agentnova/) [![PyPI download day](https://img.shields.io/pypi/dd/agentnova.svg)](https://pypi.org/project/agentnova/)
+
+[![License](https://img.shields.io/badge/License-MIT-blue)](#license) [![Go to Python website](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2FVTSTech%2FAgentNova%2Frefs%2Fheads%2Fmain%2Fpyproject.toml&query=project.requires-python&label=python&logo=python&logoColor=white)](https://python.org)
+
+---
+
+## 📚 Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Architecture.md](https://github.com/VTSTech/AgentNova/blob/main/Architecture.md) | Technical documentation for developers (directory structure, core design, orchestrator modes) |
+| [CHANGELOG.md](https://github.com/VTSTech/AgentNova/blob/main/CHANGELOG.md) | Version history and release notes (includes LocalClaw history) |
+| [TESTS.md](https://github.com/VTSTech/AgentNova/blob/main/TESTS.md) | Benchmark results, model recommendations, and testing guide |
 
 ## Features
 
@@ -126,11 +147,21 @@ agentnova/
 
 AgentNova supports three levels of tool use:
 
-1. **Native** — Models with built-in function calling (qwen2.5, llama3.1+, mistral, etc.)
-2. **ReAct** — Text-based tool use via reasoning prompts
+1. **Native** — Models with built-in function calling (qwen2.5, llama3.1+, mistral, granite, functiongemma)
+2. **ReAct** — Text-based tool use via reasoning prompts (qwen2.5-coder, qwen3)
 3. **None** — Pure reasoning without tools
 
-Tool support is auto-detected based on model family, but can be forced:
+Tool support is auto-detected by running `agentnova models --tool-support`. Results are cached in `~/.cache/agentnova/tool_support.json`.
+
+```bash
+# Test and cache tool support for all models
+agentnova models --tool-support
+
+# Re-test (ignore cache)
+agentnova models --tool-support --no-cache
+```
+
+You can also force ReAct mode:
 
 ```python
 agent = Agent(model="qwen2.5:0.5b", force_react=True)
@@ -220,6 +251,18 @@ python -m agentnova.examples.04_gsm8k_benchmark
 | Tool Test | 10 | Calculator, shell, datetime tools |
 | Reasoning Test | 13 | Logic, deduction, patterns, spatial |
 | GSM8K Benchmark | 50 | Math word problems |
+
+### Benchmark Results (Quick Diagnostic)
+
+| Model | Score | Time | Tool Support |
+|-------|-------|------|-------------|
+| functiongemma:270m | 5/5 (100%) | ~20s | native |
+| granite4:350m | 5/5 (100%) | ~50s | native |
+| qwen2.5:0.5b | 5/5 (100%) | 38s | native |
+| qwen2.5-coder:0.5b | 5/5 (100%) | 93s | react |
+| qwen3:0.6b | 5/5 (100%) | 70s | react |
+
+All tested models achieve 100% on the Quick Diagnostic. Native models are ~2x faster than ReAct models due to direct API tool calling.
 
 ## Development
 
