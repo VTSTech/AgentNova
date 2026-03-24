@@ -207,7 +207,7 @@ def run_reasoning_test(model: str, backend, debug: bool = False) -> dict:
         expected = test["expected"]
         check_type = test["type"]
         
-        print(f"\n📋 [{category}] {prompt[:50]}...")
+        print(f"\n📋 [{category}] {prompt}...")
         
         t0 = time.time()
         run = agent.run(prompt)
@@ -227,7 +227,7 @@ def run_reasoning_test(model: str, backend, debug: bool = False) -> dict:
         results["passed"] += int(passed)
         
         status = "✅" if passed else "❌"
-        print(f"  {status} Expected: {expected} | Got: {response[:60]}")
+        print(f"  {status} Expected: {expected} | Got: {response}")
         print(f"     {elapsed:.1f}s")
     
     return results
