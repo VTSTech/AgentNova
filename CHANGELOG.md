@@ -150,6 +150,27 @@ agent = Agent(model="qwen2.5:0.5b")  # Uses default backend
 - Examples reduced to 6 core tests
 - No `modelfile` or `skills` CLI commands yet
 
+## [refactor-1] - 2026-03-24
+
+### Fixed
+
+#### Web Search Skill Naming and Encoding
+- **Renamed skill folder** from `web_search` to `web-search` (hyphen format)
+  - Agent Skills spec requires `^[a-z0-9]+(-[a-z0-9]+)*$` format for skill names
+  - Previous underscore format would fail SkillLoader validation
+- **Fixed SKILL.md encoding** - Rewrote with clean UTF-8
+  - Removed escape artifacts: `\_` → `_`, `&nbsp;` removed
+  - Updated skill name in frontmatter to `web-search`
+- **Updated code references** across 4 files:
+  - `acp_plugin.py` - action map (`web-search: "SEARCH"`) and skill template
+  - `core/prompts.py` - `TOOL_ARG_ALIASES["web-search"]`
+  - `core/tool_parse.py` - `arg_to_tool` mapping and malformed extraction
+  - `core/args_normal.py` - example reference
+
+### Verified
+- Skill loads correctly: `loader.load('web-search')` ✓
+- Name validates against Agent Skills spec regex ✓
+
 ---
 
 For main branch changelog, see: https://github.com/VTSTech/AgentNova/blob/main/CHANGELOG.md
