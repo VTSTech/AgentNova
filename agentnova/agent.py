@@ -763,6 +763,12 @@ class Agent:
 
         if self.debug:
             print(f"  [DEBUG] Sending {len(messages)} messages")
+            for i, msg in enumerate(messages):
+                role = msg.get('role', '?')
+                content = msg.get('content', '')
+                tc = msg.get('tool_calls', [])
+                content_preview = content[:150] if content else '(empty)'
+                print(f"  [MSG {i}] role={role}, content={content_preview!r}{' [has tool_calls]' if tc else ''}")
             print(f"  [DEBUG] Tools: {[t.name for t in self.tools.all()] if self.tools else None}")
 
         # Check if model needs thinking disabled (qwen3, deepseek-r1, etc.)
