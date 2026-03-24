@@ -115,19 +115,55 @@ class Agent:
         self._kwargs = kwargs
 
     def _detect_tool_support(self) -> ToolSupportLevel:
-        """Detect the tool support level for the model."""
-        # First check model config
-        config_support = self.model_config.tool_support
-
-        if config_support == "native" and not self.force_react:
-            # Verify with backend test
+        """Detect the tool support level for the model.
+        
+        Checks cache first, then tests if needed. Each model must be tested
+        individually since tool support depends on the template, not family.
+        """
+        # Check cache first
+        import json
+        from pathlib import Path
+        
+        cache_dir = Path.home() / ".cache" / "agentnova"
+        cache_file = cache_dir / "tool_support.json"
+        
+        if cache_file.exists():
             try:
-                tested = self.backend.test_tool_support(self.model)
-                if tested == ToolSupportLevel.NATIVE:
-                    return ToolSupportLevel.NATIVE
-            except Exception:
+                with open(cache_file, "r") as f:
+                    cache = json.load(f)
+                cached = cache.get(self.model)
+                if cached:
+                    support = cached.get("support", "react")
+                    if support == "native":
+                        return ToolSupportLevel.NATIVE
+                    elif support == "react":
+                        return ToolSupportLevel.REACT
+            except (json.JSONDecodeError, IOError):
                 pass
-
+        
+        # Not cached - test the model
+        try:
+            tested = self.backend.test_tool_support(self.model, force_test=True)
+            if tested == ToolSupportLevel.NATIVE:
+                # Cache the result
+                try:
+                    cache_dir.mkdir(parents=True, exist_ok=True)
+                    cache = {}
+                    if cache_file.exists():
+                        with open(cache_file, "r") as f:
+                            cache = json.load(f)
+                    cache[self.model] = {
+                        "support": "native",
+                        "tested_at": time.time(),
+                    }
+                    with open(cache_file, "w") as f:
+                        json.dump(cache, f, indent=2)
+                except (json.JSONDecodeError, IOError):
+                    pass
+                return ToolSupportLevel.NATIVE
+        except Exception:
+            pass
+        
         return ToolSupportLevel.REACT
 
     def _add_system_prompt(self) -> None:

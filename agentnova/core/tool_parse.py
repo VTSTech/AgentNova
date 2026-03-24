@@ -438,10 +438,16 @@ def _parse_react(text: str, tool_names: list[str] | None = None) -> tuple[str | 
         # Try to parse JSON args
         try:
             tool_args = json.loads(raw_args)
+            # Ensure tool_args is a dict - json.loads can return str, list, etc.
+            if not isinstance(tool_args, dict):
+                tool_args = {"input": str(tool_args)}
         except json.JSONDecodeError:
             sanitized = _sanitize_model_json(raw_args)
             try:
                 tool_args = json.loads(sanitized)
+                # Ensure tool_args is a dict
+                if not isinstance(tool_args, dict):
+                    tool_args = {"input": str(tool_args)}
             except json.JSONDecodeError:
                 # Last resort: check for known patterns in the raw text
                 expr_match = re.search(r'"expression":\s*"([^"]+)"', raw_args)
