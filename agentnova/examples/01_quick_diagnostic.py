@@ -86,9 +86,11 @@ def run_diagnostic(model: str, backend, debug: bool = False) -> dict:
     
     results = {"model": model, "passed": 0, "total": len(TESTS), "time": 0, "tests": {}}
     
-    system_prompt = """You are a helpful assistant with a calculator tool.
-When asked to calculate, use the calculator tool with the expression.
-After getting the result, provide just the number as your answer."""
+    # System prompt that instructs the model to use the calculator
+    system_prompt = """You are a helpful assistant with access to a calculator tool.
+When asked to calculate something, ALWAYS use the calculator tool.
+Pass the mathematical expression to the calculator (e.g., "15 + 27" or "8 * 7 - 5").
+After getting the result, provide the final answer as a number."""
     
     for i, (test_name, prompt, tools, expected) in enumerate(TESTS):
         print(f"  {test_name}...", end=" ", flush=True)
@@ -103,6 +105,7 @@ After getting the result, provide just the number as your answer."""
                 backend=backend,
                 max_steps=5,
                 debug=debug,
+                system_prompt=system_prompt,
             )
             
             t0 = time.time()
