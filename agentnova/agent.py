@@ -620,11 +620,11 @@ class Agent:
         if tool is None:
             return f"Error: Unknown tool '{name}'. Available tools: {self.tools.names()}"
 
-        # Normalize arguments
+        # Normalize arguments with tool-specific aliases
         expected_params = [p.name for p in tool.params]
         
         from .core.helpers import normalize_args, synthesize_tool_args
-        normalized_args = normalize_args(args, expected_params)
+        normalized_args = normalize_args(args, expected_params, tool_name=name)
         
         # Synthesize missing/incomplete arguments for small models
         synthesized_args = synthesize_tool_args(name, normalized_args, user_prompt)

@@ -72,7 +72,7 @@ def fuzzy_match(query: str, candidates: list[str], threshold: float = 0.4) -> st
 # Argument Normalization
 # ============================================================================
 
-# Common argument name aliases
+# Common argument name aliases (generic)
 ARG_ALIASES = {
     # Calculator
     "expression": ["expr", "exp", "formula", "calculation", "math"],
@@ -98,52 +98,108 @@ ARG_ALIASES = {
 }
 
 
-def normalize_args(args: dict[str, Any], expected_params: list[str]) -> dict[str, Any]:
+def normalize_args(args: dict[str, Any], expected_params: list[str], tool_name: str = "") -> dict[str, Any]:
     """
     Normalize argument names to match expected parameters.
 
     Small models often use alternative argument names. This function
     maps common aliases to the canonical parameter names.
 
+    Uses tool-specific aliases from TOOL_ARG_ALIASES if available.
+
     Args:
         args: Dictionary of provided arguments
         expected_params: List of expected parameter names
+        tool_name: Name of the tool (for tool-specific alias lookup)
 
     Returns:
         Dictionary with normalized argument names
     """
     if not args:
         return {}
+    
+    # Guard: ensure args is a dict
+    if not isinstance(args, dict):
+        if args is None:
+            return {}
+        if isinstance(args, str):
+            return {"input": args}
+        return {}
 
     normalized = {}
     expected_set = set(expected_params)
+    power_parts = {}
+    
+    # Import tool-specific aliases
+    from .prompts import TOOL_ARG_ALIASES
+    
+    # Get tool-specific aliases
+    tool_aliases = TOOL_ARG_ALIASES.get(tool_name, {}) if tool_name else {}
 
     for key, value in args.items():
         key_lower = key.lower().replace("-", "_")
+        target_param = None
+        target_pname = None
 
-        # Direct match
-        if key in expected_set:
-            normalized[key] = value
-            continue
+        # Strategy 1: Tool-specific alias lookup
+        if key_lower in tool_aliases:
+            alias_target = tool_aliases[key_lower]
+            if alias_target == "_combine_power":
+                power_parts[key_lower] = value
+                continue
+            elif alias_target in expected_set:
+                target_param = alias_target
+                target_pname = alias_target
+        
+        # Strategy 2: Direct match
+        if target_param is None and key in expected_set:
+            target_param = key
+            target_pname = key
+        
+        # Strategy 3: Case-insensitive match
+        if target_param is None:
+            for param in expected_params:
+                if param.lower() == key_lower:
+                    target_param = param
+                    target_pname = param
+                    break
 
-        # Check if key_lower matches any expected param (case insensitive)
-        for param in expected_params:
-            if param.lower() == key_lower:
-                normalized[param] = value
-                break
-        else:
-            # Check aliases
-            found = False
+        # Strategy 4: Generic aliases
+        if target_param is None:
             for canonical, aliases in ARG_ALIASES.items():
                 if key_lower in aliases or key_lower == canonical.lower():
                     if canonical in expected_set:
-                        normalized[canonical] = value
-                        found = True
+                        target_param = canonical
+                        target_pname = canonical
                         break
 
-            # Keep original if no mapping found
-            if not found:
-                normalized[key] = value
+        # Strategy 5: Prefix/substring matching
+        if target_param is None:
+            for param in expected_params:
+                if param in key_lower or key_lower.startswith(param):
+                    target_param = param
+                    target_pname = param
+                    break
+
+        if target_pname is None:
+            target_pname = key
+
+        # Coerce string numbers to the declared type (if we have tool info)
+        # Keep the value as-is for now since we don't have type info
+        if target_pname not in normalized:
+            normalized[target_pname] = value
+        elif target_pname in normalized and isinstance(normalized[target_pname], str):
+            pass
+    
+    # Handle power operation combination for calculator
+    if power_parts and "expression" in expected_set:
+        base = power_parts.get("base") or power_parts.get("value") or power_parts.get("x")
+        exp = power_parts.get("exponent") or power_parts.get("power") or power_parts.get("n") or power_parts.get("p") or power_parts.get("exp")
+        
+        if base is not None and exp is not None:
+            normalized["expression"] = f"{base} ** {exp}"
+        elif base is not None:
+            normalized["expression"] = str(base)
 
     return normalized
 
