@@ -170,11 +170,16 @@ class Agent:
 
     def _add_system_prompt(self) -> None:
         """Add the system prompt to memory."""
-        system_prompt = get_system_prompt(
-            model_name=self.model,
-            tool_support=self._tool_support.value,
-            tools=self.tools.all() if self.tools else None,
-        )
+        if self._custom_system_prompt:
+            # Use custom system prompt if provided
+            system_prompt = self._custom_system_prompt
+        else:
+            # Use default generated system prompt
+            system_prompt = get_system_prompt(
+                model_name=self.model,
+                tool_support=self._tool_support.value,
+                tools=self.tools.all() if self.tools else None,
+            )
         self.memory.add("system", system_prompt)
 
     def run(self, prompt: str, stream: bool = False) -> AgentRun:
