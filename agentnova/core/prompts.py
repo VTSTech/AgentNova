@@ -274,8 +274,15 @@ def get_system_prompt(
             return no_tools_prompt
         return NO_TOOLS_SYSTEM_PROMPT
     
-    # Add tool information if tools available
-    if tools and tool_support != "none":
+    # Native tool support: tools are passed via API, only add hints (not descriptions)
+    if tool_support == "native":
+        hints = get_native_tool_hints(family or "")
+        if hints:
+            return f"{base_prompt}\n\n{hints}"
+        return base_prompt
+    
+    # ReAct mode: add tool descriptions + format instructions
+    if tools and tool_support == "react":
         tool_prompt = get_tool_prompt(tools, tool_support, family)
         return f"{base_prompt}\n\n{tool_prompt}"
     
