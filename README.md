@@ -118,6 +118,7 @@ agentnova chat -m llama3.2:3b --skills skill-creator --tools write_file,shell
 agentnova chat -m qwen2.5-coder:0.5b --fast --verbose
 ```
 
+<<<<<<< Updated upstream
 ### 4. Using BitNet backend
 
 ```bash
@@ -138,6 +139,8 @@ agentnova run "Calculate 17 * 23" --backend bitnet --tools calculator
 
 ---
 
+=======
+>>>>>>> Stashed changes
 ## Tool Support Levels
 
 AgentNova automatically detects each model's tool support level:

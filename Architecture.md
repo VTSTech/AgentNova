@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 # AgentNova Architecture
 
 Technical documentation for developers contributing to or extending AgentNova.
@@ -103,10 +104,14 @@ tool_support = get_tool_support(model, client)
 ---
 
 ## Directory Structure
+=======
+## Architecture
+>>>>>>> Stashed changes
 
 ```
 agentnova/
 ├── core/
+<<<<<<< Updated upstream
 │   ├── ollama_client.py   # Zero-dependency HTTP wrapper (stdlib urllib only)
 │   ├── tools.py           # Decorator-based tool registry + JSON schema generation
 │   ├── memory.py          # Sliding-window conversation memory with summarization
@@ -516,3 +521,27 @@ agentnova chat --temperature 0.1                # Lower = more deterministic
 9. **Numeric results are returned directly** (R02.3) - The synthesis logic no longer tries to detect incomplete multi-step calculations. Numeric results pass through unchanged. This avoids double-processing errors when models compute full expressions in one calculator call.
 
 10. **Module imports are stable** - `from agentnova import Agent, AgentRun, StepResult` still works. Internal modules (`types`, `models`, `prompts`, `helpers`, `args_normal`, `tool_parse`) can be imported directly for testing or extension.
+=======
+│   ├── types.py         # Enum types
+│   ├── models.py        # Data models
+│   ├── memory.py        # Sliding window memory
+│   ├── tool_parse.py    # Tool call extraction
+│   ├── helpers.py       # Utilities (fuzzy match, security)
+│   ├── prompts.py       # Model-specific prompts
+│   └── model_config.py  # Model family configurations
+├── tools/
+│   ├── registry.py      # Tool registry
+│   └── builtins.py      # Built-in tools
+├── backends/
+│   ├── base.py          # Abstract backend
+│   ├── ollama.py        # Ollama backend
+│   └── bitnet.py        # BitNet backend
+├── skills/
+│   └── loader.py        # Skill loader
+├── agent.py             # Main Agent class
+├── agent_mode.py        # Autonomous mode
+├── orchestrator.py      # Multi-agent orchestration
+├── config.py            # Configuration
+└── cli.py               # Command-line interface
+```
+>>>>>>> Stashed changes
