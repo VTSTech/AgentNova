@@ -110,6 +110,9 @@ class Agent:
         # Initialize tool parser
         self._parser = ToolParser(self.tools.names())
 
+        # Store custom system prompt (if provided)
+        self._custom_system_prompt = system_prompt
+
         # Add system prompt
         self._add_system_prompt()
 
