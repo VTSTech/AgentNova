@@ -509,6 +509,26 @@ class Agent:
                         print(f"  Tool: {tool_name}({tool_args})")
                         print(f"  Result: {str(result)[:200]}...")
 
+                    # For small models: if result is a simple numeric answer, accept it as final
+                    result_str = str(result).strip()
+                    if result_str and not result_str.startswith("Error"):
+                        try:
+                            float(result_str)  # Is it a number?
+                            # It's a number - accept as final answer for simple queries
+                            from .core.helpers import is_simple_answered_query
+                            if is_simple_answered_query(prompt, successful_results):
+                                if self.debug:
+                                    print(f"  Accepting tool result as final answer: {result_str}")
+                                steps.append(StepResult(
+                                    type=StepResultType.FINAL_ANSWER,
+                                    content=result_str,
+                                    tokens_used=tokens,
+                                ))
+                                self.memory.add("assistant", f"Final Answer: {result_str}")
+                                break
+                        except (ValueError, TypeError):
+                            pass  # Not a simple number, continue loop
+
                     continue
 
             # Check for final answer
