@@ -772,7 +772,7 @@ class Agent:
                 role = msg.get('role', '?')
                 content = msg.get('content', '')
                 tc = msg.get('tool_calls', [])
-                content_preview = content[:150] if content else '(empty)'
+                content_preview = content[:1024] if content else '(empty)'
                 print(f"  [MSG {i}] role={role}, content={content_preview!r}{' [has tool_calls]' if tc else ''}")
             print(f"  [DEBUG] Tools: {[t.name for t in self.tools.all()] if self.tools else None}")
 
