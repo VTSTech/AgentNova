@@ -498,6 +498,7 @@ class ToolParser:
         2. ReAct format
         3. XML format
         4. Embedded JSON in markdown
+        5. JSON anywhere in text (fallback)
 
         Args:
             text: Model output text
@@ -519,6 +520,11 @@ class ToolParser:
         # Try embedded JSON in markdown
         if not calls:
             calls.extend(self._parse_markdown_json(text))
+
+        # FALLBACK: Try to find JSON anywhere in text
+        # This handles cases like: {"action": "calculator", "actionInput": {...}}
+        if not calls:
+            calls.extend(self._parse_json_anywhere(text))
 
         return calls
 
@@ -637,6 +643,36 @@ class ToolParser:
             except json.JSONDecodeError:
                 continue
 
+        return calls
+
+    def _parse_json_anywhere(self, text: str) -> list[ToolCall]:
+        """
+        Find and parse JSON tool calls anywhere in text.
+        
+        This is a fallback for models that output JSON like:
+        {"action": "calculator", "actionInput": {"expression": "15 + 27"}}
+        
+        without using "Action:" prefix or markdown code blocks.
+        """
+        if _looks_like_tool_schema_dump(text):
+            return []
+        
+        calls = []
+        
+        # Use the existing _parse_json_tool_call function
+        name, args = _parse_json_tool_call(text)
+        
+        if name:
+            # Fuzzy match the tool name
+            matched_name = self._fuzzy_match_tool(name)
+            
+            calls.append(ToolCall(
+                name=matched_name,
+                arguments=args if isinstance(args, dict) else {},
+                raw=text,
+                confidence=0.8,
+            ))
+        
         return calls
 
     def _fuzzy_match_tool(self, name: str) -> str:
