@@ -1,4 +1,6 @@
-# ⚛️ AgentNova R02.6
+# ⚛️ AgentNova R03
+
+**Status: Alpha**
 
 A minimal, hackable agentic framework engineered to run **entirely locally** with [Ollama](https://ollama.com) or [BitNet](https://github.com/microsoft/BitNet).
 
@@ -23,305 +25,245 @@ Inspired by the architecture of OpenClaw, rebuilt from scratch for local-first o
 | [CHANGELOG.md](https://github.com/VTSTech/AgentNova/blob/main/CHANGELOG.md) | Version history and release notes (includes LocalClaw history) |
 | [TESTS.md](https://github.com/VTSTech/AgentNova/blob/main/TESTS.md) | Benchmark results, model recommendations, and testing guide |
 
----
+## Features
+
+- **Zero dependencies** — Uses Python stdlib only (urllib for HTTP)
+- **Ollama + BitNet backends** — Switch with `--backend` flag
+- **Three-tier tool support** — Native, ReAct, or none (auto-detected)
+- **Small model optimized** — Fuzzy matching, argument normalization
+- **Built-in security** — Path validation, command blocklist, SSRF protection
+- **Multi-agent orchestration** — Router, pipeline, and parallel modes
 
 ## Installation
 
 ```bash
-
-# Install from GitHub using pip:
-pip install git+https://github.com/VTSTech/AgentNova.git
-```
-
-### Backward Compatibility
-
-The package was previously named `localclaw`. For backward compatibility:
-
-```bash
-# Old package name still works (shows deprecation warning)
-pip install localclaw
-
-# Old CLI command still works
-localclaw run "What is the capital of Japan?"  # Redirects to agentnova
-
-# Old imports still work (with deprecation warning)
-import localclaw  # Re-exports from agentnova
-```
-
-We recommend updating to the new package name:
-
-```python
-# Old
-import localclaw
-from localclaw import Agent
-
-# New
-import agentnova
-from agentnova import Agent
-```
-
-### From Source
-
-```bash
+# From source
 git clone https://github.com/VTSTech/AgentNova.git
 cd AgentNova
 pip install -e .
+
+# Or from PyPI (when published)
+pip install agentnova
 ```
-
-### No Installation Required
-
-AgentNova uses only Python stdlib — no dependencies! You can also just copy the `agentnova` directory into your project:
-
-```bash
-cp -r agentnova /path/to/your/project/
-```
-
----
 
 ## Quick Start
 
-### 1. Test Model Tool Support (Recommended First Step)
+### CLI Usage
 
 ```bash
-# Test all models for native tool support
-agentnova models --tool_support
+# Run a single prompt
+agentnova run "What is 15 * 8?" --tools calculator
 
-# Results saved to tested_models.json for future reference
-```
+# Interactive chat
+agentnova chat -m qwen2.5:0.5b --tools calculator,shell
 
-### 2. Single prompt
+# Autonomous agent mode
+agentnova agent -m qwen2.5:7b --tools calculator,shell,write_file
 
-```bash
-# Simple Q&A
-agentnova run "What is the capital of Japan?"
-
-# With streaming output
-agentnova run "Tell me a joke." --stream
-
-# Specify a model
-agentnova run "Explain quantum computing" -m llama3.2:3b
-```
-
-### 3. Interactive chat
-
-```bash
-# Start interactive session
-agentnova chat -m qwen2.5-coder:0.5b
-
-# With tools enabled
-agentnova chat -m llama3.1:8b --tools calculator,shell,read_file,write_file
-
-# With skills loaded
-agentnova chat -m llama3.2:3b --skills skill-creator --tools write_file,shell
-
-# Fast mode (reduced context for speed)
-agentnova chat -m qwen2.5-coder:0.5b --fast --verbose
-```
-
-<<<<<<< Updated upstream
-### 4. Using BitNet backend
-
-```bash
-agentnova chat --backend bitnet --force-react
-agentnova run "Calculate 17 * 23" --backend bitnet --tools calculator
-```
-
----
-
-## Key Features
-
-- **Zero dependencies** — uses Python stdlib only
-- **Ollama + BitNet backends** — switch with `--backend` flag
-- **Three-tier tool support** — native, ReAct, or none (auto-detected per model)
-- **Agent Skills** — follows [Agent Skills specification](https://agentskills.io/)
-- **Small model optimized** — pure reasoning mode for sub-500M models
-- **Built-in security** — path validation, command blocklist, SSRF protection
-
----
-
-=======
->>>>>>> Stashed changes
-## Tool Support Levels
-
-AgentNova automatically detects each model's tool support level:
-
-| Level | Description | When to Use |
-|-------|-------------|-------------|
-| `native` | Ollama API tool-calling | Models trained for function calling |
-| `react` | Text-based ReAct prompting | Models that accept tools but need format guidance |
-| `none` | No tool support | Models that reject tools; use pure reasoning |
-
-### Testing Tool Support
-
-```bash
-# Test all models
-agentnova models --tool_support
-
-# Example output:
-  Model                                      Family       Context    Tool Support
-  ──────────────────────────────────────────────────────────────────────────────
-  gemma3:270m                                gemma3       32K        ○ none
-  granite4:350m                              granite      32K        ✓ native
-  qwen2.5-coder:0.5b-instruct-q4_k_m         qwen2        32K        ReAct
-  functiongemma:270m                         gemma3       32K        ✓ native
-```
-
-### Performance by Tool Support
-
-R02.6 Quick Diagnostic results (5 questions, ~30-120s/model):
-
-| Model | Score | Time | Tool Support |
-|-------|-------|------|--------------|
-| **`functiongemma:270m`** | **100%** | 19.6s | native |
-| **`granite4:350m`** | **100%** | 49.4s | native |
-| **`qwen2.5:0.5b`** | **100%** | 66.3s | native |
-| **`qwen2.5-coder:0.5b`** | **100%** | 116.5s | react |
-| **`qwen3:0.6b`** | **100%** | 122.8s | react |
-| `gemma3:270m` | 80% | 14.3s | none |
-| `dolphin3.0-qwen2.5:0.5b` | 80% | 26.6s | none |
-| `qwen:0.5b` | 20% | 27.0s | none |
-
-**Key improvements in R02.6**:
-- **5 models achieve 100%** - All tool-calling models now perfect!
-- **functiongemma:270m fastest** at 19.6s (native tools + 270M params)
-- **Multi-step expression extraction** - Handles `8 times 7 minus 5`, word problems, time calculations
-- **ReAct JSON parsing fixed** - Clean extraction even with trailing text
-- **Verbose response fallback** - Uses numeric result when model gives long explanation
-- **Tool-calling outperforms pure reasoning** - ALL native/react models score 100% vs max 80% for no-tool models
-
----
-
-## CLI Commands
-
-| Command | Description |
-|---------|-------------|
-| `run "prompt"` | Run single prompt and exit |
-| `chat` | Interactive multi-turn conversation |
-| `models` | List available Ollama models with tool support info |
-| `tools` | List built-in tools |
-| `skills` | List available Agent Skills |
-| `test [example]` | Run example/test scripts (`--list` to see all) |
-| `modelfile [model]` | Show model's Modelfile system prompt |
-
-### Key Flags
-
-| Flag | Description |
-|------|-------------|
-| `-m`, `--model` | Model name (default: qwen2.5-coder:0.5b) |
-| `--tools` | Comma-separated tool list |
-| `--skills` | Comma-separated skill list |
-| `--backend` | `ollama` or `bitnet` |
-| `--stream` | Stream output token-by-token |
-| `--fast` | Preset: reduced context for speed |
-| `-v`, `--verbose` | Show tool calls and timing |
-| `--acp` | Enable ACP (Agent Control Panel) integration |
-| `--use-mf-sys` | Use Modelfile system prompt instead of AgentNova default |
-| `--force-react` | Force ReAct mode for all models |
-| `--debug` | Show debug info (parsed tool calls, fuzzy matching) |
-| `--num-ctx` | Context window size for test commands |
-| `--num-predict` | Max tokens to predict for test commands |
-
-### Models Command
-
-```bash
-# List models with family, context size, and tool support
+# List available models
 agentnova models
 
-# Test each model for native tool support (recommended)
-agentnova models --tool_support
+# List available tools
+agentnova tools
 ```
 
-Output shows:
-- **Model** - Model name
-- **Family** - Model family from Ollama API
-- **Context** - Context window size
-- **Tool Support** - `✓ native`, `ReAct`, `○ none`, or `untested`
+### Python API
 
+```python
+from agentnova import Agent
+from agentnova.tools import make_builtin_registry
+
+# Create tools
+tools = make_builtin_registry().subset(["calculator", "shell"])
+
+# Create agent
+agent = Agent(
+    model="qwen2.5:0.5b",
+    tools=tools,
+    backend="ollama",
+)
+
+# Run
+result = agent.run("What is 15 * 8?")
+print(result.final_answer)
+print(f"Completed in {result.total_ms:.0f}ms")
 ```
-⚛️ AgentNova R02.6 Models
-  Model                                      Family       Context    Tool Support
-  ──────────────────────────────────────────────────────────────────────────────
-  gemma3:270m                                gemma3       32K        ○ none
-  granite4:350m                              granite      32K        ✓ native
-  qwen2.5-coder:0.5b-instruct-q4_k_m         qwen2        32K        ReAct
-  functiongemma:270m                         gemma3       32K        untested
 
-  1 model(s) untested. Use --tool_support to detect native support.
+### Multi-Agent Orchestration
+
+```python
+from agentnova import Agent, Orchestrator, AgentCard
+
+orchestrator = Orchestrator(mode="router")
+
+# Register specialized agents
+orchestrator.register(AgentCard(
+    name="math_agent",
+    description="Handles mathematical calculations",
+    capabilities=["calculate", "math", "compute"],
+    tools=["calculator"],
+))
+
+orchestrator.register(AgentCard(
+    name="file_agent",
+    description="Handles file operations",
+    capabilities=["read", "write", "file"],
+    tools=["read_file", "write_file"],
+))
+
+# Route tasks to appropriate agent
+result = orchestrator.run("Calculate 15 * 8 and save to file")
 ```
 
-### Test Command Examples
+## Tool Support Levels
+
+AgentNova supports three levels of tool use:
+
+1. **Native** — Models with built-in function calling (qwen2.5, llama3.1+, mistral, granite, functiongemma)
+2. **ReAct** — Text-based tool use via reasoning prompts (qwen2.5-coder, qwen3)
+3. **None** — Pure reasoning without tools
+
+Tool support is auto-detected by running `agentnova models --tool-support`. Results are cached in `~/.cache/agentnova/tool_support.json`.
 
 ```bash
-# List all available tests
-agentnova test --list
+# Test and cache tool support for all models
+agentnova models --tool-support
 
-# Quick diagnostic - 5 questions, ~30s/model (NEW in R02.3)
-agentnova test 15 --model granite3.1-moe:1b
-agentnova test 15 --model all --debug
-
-# Run GSM8K benchmark (50 math questions)
-agentnova test 14 --acp --timeout 6400
-
-# Run with debug output
-agentnova test 02 --debug --verbose
+# Re-test (ignore cache)
+agentnova models --tool-support --no-cache
 ```
 
----
+You can also force ReAct mode:
 
-## Built-in Tools
+```python
+agent = Agent(model="qwen2.5:0.5b", force_react=True)
+```
 
-| Tool | Description |
-|------|-------------|
-| `calculator` | Evaluate math expressions |
-| `python_repl` | Execute Python code |
-| `shell` | Run shell commands |
-| `read_file` | Read file contents |
-| `write_file` | Write content to file |
-| `list_directory` | List directory contents |
-| `http_get` | HTTP GET request |
-| `save_note` / `get_note` | Save and retrieve notes |
+## Model Families
 
----
+Configured model families with optimized prompts:
+
+- **qwen2.5** — Native tool support, excellent performance
+- **llama3.1/3.2/3.3** — Native tool support
+- **mistral/mixtral** — Native tool support
+- **gemma2/gemma3** — ReAct mode, special prompting
+- **granite/granitemoe** — Native tool support
+- **phi3** — Native tool support
+- **deepseek** — Native with `<think/>` tag handling
+
+## Security Features
+
+Built-in security for safe operation:
+
+- **Command blocklist** — Blocks dangerous shell commands (rm, sudo, etc.)
+- **Path validation** — Prevents access to sensitive directories
+- **SSRF protection** — Blocks requests to local/internal URLs
+- **Injection detection** — Detects shell injection patterns
 
 ## Configuration
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `OLLAMA_BASE_URL` | Ollama server URL | `http://localhost:11434` |
-| `BITNET_BASE_URL` | BitNet server URL | `http://localhost:8765` |
-| `ACP_BASE_URL` | ACP (Agent Control Panel) server URL | `http://localhost:8766` |
-| `AGENTNOVA_BACKEND` | Backend: `ollama` or `bitnet` | `ollama` |
-| `AGENTNOVA_MODEL` | Default model | `qwen2.5-coder:0.5b-instruct-q4_k_m` |
-| `AGENTNOVA_SECURITY_MODE` | Security mode: `strict`, `permissive`, `disabled` | `permissive` |
-
----
-
-## Setup Ollama
+Environment variables:
 
 ```bash
-# Make sure Ollama is running:
-ollama serve
+# Backend URLs
+OLLAMA_BASE_URL=https://your-ollama-server.com    # Default: http://localhost:11434
+BITNET_BASE_URL=http://localhost:8765              # BitNet server URL
+BITNET_TUNNEL=https://your-tunnel.com              # Alternative BitNet URL
+ACP_BASE_URL=http://localhost:8766                 # ACP server URL
 
-# Pull a model:
-ollama pull qwen2.5-coder:0.5b-instruct-q4_k_m
-
-# Test tool support:
-agentnova models --tool_support
+# Agent settings
+AGENTNOVA_BACKEND=ollama      # Default backend: ollama or bitnet
+AGENTNOVA_MODEL=qwen2.5:0.5b  # Default model
+AGENTNOVA_MAX_STEPS=10        # Maximum reasoning steps
+AGENTNOVA_DEBUG=false         # Enable debug output
 ```
 
----
+Check current configuration:
+```bash
+agentnova config
+agentnova config --urls  # Show only URLs
+```
 
-## About
+## LocalClaw Redirect
 
-**⚛️ AgentNova ** is written and maintained by **VTSTech**.
+The `localclaw` command is provided for backward compatibility:
 
-- 🌐 Website: [https://www.vts-tech.org](https://www.vts-tech.org)
-- 📦 GitHub: [https://github.com/VTSTech/AgentNova](https://github.com/VTSTech/AgentNova)
-- 💻 More projects: [https://github.com/VTSTech](https://github.com/VTSTech)
+```bash
+# Both work identically
+localclaw run "What is 2+2?"
+agentnova run "What is 2+2?"
+```
 
----
+## Tests & Examples
 
-For more details, see:
-- [Architecture.md](https://github.com/VTSTech/AgentNova/blob/main/Architecture.md) — Technical architecture and design decisions
-- [CHANGELOG.md](https://github.com/VTSTech/AgentNova/blob/main/CHANGELOG.md) — Version history and release notes
-- [TESTS.md](https://github.com/VTSTech/AgentNova/blob/main/TESTS.md) — Benchmark results and model recommendations
+AgentNova includes a suite of tests for validating agent capabilities:
+
+```bash
+# Basic agent test (no tools)
+python -m agentnova.examples.00_basic_agent
+
+# Quick 5-question diagnostic
+python -m agentnova.examples.01_quick_diagnostic
+
+# Tool usage tests (calculator, shell, datetime)
+python -m agentnova.examples.02_tool_test
+
+# Logic and reasoning tests (BBH-style)
+python -m agentnova.examples.03_reasoning_test
+
+# GSM8K math benchmark (50 questions)
+python -m agentnova.examples.04_gsm8k_benchmark
+```
+
+### Test Categories
+
+| Test | Questions | Focus |
+|------|-----------|-------|
+| Quick Diagnostic | 5 | Calculator tool, multi-step reasoning |
+| Tool Test | 10 | Calculator, shell, datetime tools |
+| Reasoning Test | 13 | Logic, deduction, patterns, spatial |
+| GSM8K Benchmark | 50 | Math word problems |
+
+### Benchmark Results (Quick Diagnostic)
+
+| Model | Score | Time | Tool Support |
+|-------|-------|------|-------------|
+| functiongemma:270m | 5/5 (100%) | ~20s | native |
+| granite4:350m | 5/5 (100%) | ~50s | native |
+| qwen2.5:0.5b | 5/5 (100%) | 38s | native |
+| qwen2.5-coder:0.5b | 5/5 (100%) | 93s | react |
+| qwen3:0.6b | 5/5 (100%) | 70s | react |
+
+All tested models achieve 100% on the Quick Diagnostic. Native models are ~2x faster than ReAct models due to direct API tool calling.
+
+## Development
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run unit tests
+pytest
+
+# Format code
+black agentnova
+ruff check agentnova
+```
+
+## License
+
+MIT License - See LICENSE file for details.
+
+## Author
+
+**VTSTech** — [https://www.vts-tech.org](https://www.vts-tech.org)
+
+## Contributing
+
+Contributions welcome! Please read the contributing guidelines first.
+
+## Acknowledgments
+
+- Built for local inference with [Ollama](https://ollama.ai)
+- Optimized for small, efficient models
+- Inspired by ReAct and other agentic frameworks
