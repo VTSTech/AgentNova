@@ -1,4 +1,4 @@
-"""
+﻿"""
 ⚛️ AgentNova — Tool Parser
 Regex patterns and functions for parsing tool calls from model output.
 
@@ -653,17 +653,17 @@ class ToolParser:
         return bool(self.parse(text))
 
     def is_final_answer(self, text: str) -> bool:
-        """Check if text indicates a final answer."""
+        """Check if text indicates a final answer.
+        
+        IMPORTANT: This must be conservative - only match explicit ReAct format markers.
+        Overly broad patterns like "Result:" or "Therefore," cause small models to
+        bypass tool calling when they shouldn't.
+        """
+        # Only match explicit ReAct format markers (matching main branch behavior)
         patterns = [
-            r"Final Answer:",
-            r"Answer:",
-            r"Result:",
-            r"The answer is",
-            r"Therefore,?",
-            r"In conclusion,?",
+            r"Final Answer:",  # Standard ReAct marker
         ]
 
-        text_lower = text.lower()
         for pattern in patterns:
             if re.search(pattern, text, re.IGNORECASE):
                 return True
