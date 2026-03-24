@@ -46,6 +46,7 @@ class Agent:
         memory_config: MemoryConfig | None = None,
         force_react: bool = False,
         debug: bool = False,
+        system_prompt: str | None = None,
         **kwargs,
     ):
         """
@@ -59,6 +60,7 @@ class Agent:
             memory_config: Memory configuration
             force_react: Force ReAct mode even for native-capable models
             debug: Enable debug output
+            system_prompt: Custom system prompt (if None, uses default)
             **kwargs: Additional configuration
         """
         self.model = model
