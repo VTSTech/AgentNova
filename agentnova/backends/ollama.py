@@ -14,7 +14,7 @@ from typing import Any, Generator, Optional
 
 from .base import BaseBackend, BackendConfig
 from ..core.types import BackendType, ToolSupportLevel
-from ..core.models import Tool
+from ..core.models import Tool, ToolParam
 from ..config import OLLAMA_BASE_URL
 
 
@@ -377,21 +377,27 @@ class OllamaBackend(BaseBackend):
                 pass
 
         # Make a real test call with tools
+        # IMPORTANT: Test tool must have actual parameters like real tools do!
+        # Models behave differently with parameterless tools vs tools with required params.
         try:
             test_tool = Tool(
-                name="calculator",
-                description="Calculate a math expression",
-                params=[],
+                name="get_weather",
+                description="Get the current weather for a location",
+                params=[ToolParam(
+                    name="location",
+                    type="string",
+                    description="The city and country, e.g., 'Paris, France'"
+                )],
             )
 
             response = self.generate(
                 model=model,
                 messages=[{
                     "role": "user",
-                    "content": "Use the calculator to compute 2+2. Do NOT just answer - use the tool."
+                    "content": "What's the weather like in Tokyo?"
                 }],
                 tools=[test_tool],
-                max_tokens=50,
+                max_tokens=100,
             )
 
             # Check if model made a tool call (native support)

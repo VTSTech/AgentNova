@@ -34,6 +34,15 @@ The refactor-1 branch represents a complete architectural overhaul of AgentNova,
   - Removed escape artifacts (`\_`, `&nbsp;`) from SKILL.md
   - Updated 4 code files with correct tool name references
 
+### Latest Updates (R03.2-alpha)
+
+- **Tool Support Detection Fix**: Fixed false "native" detection bug
+  - Previous: Test tool had NO parameters, causing incorrect "native" detection
+  - Now: Test tool has required `location` parameter (matches main branch)
+  - Models behave differently with parameterless vs parameterized tools
+  - `qwen2.5:0.5b` was incorrectly detected as "native" but returned empty responses
+  - Cache cleared: Delete `~/.cache/agentnova/tool_support.json` to re-test
+
 ---
 
 ## Architecture Comparison
@@ -360,6 +369,7 @@ agent = Agent(model="...", tools=registry)
 ### ✅ Recent Fixes
 - [x] Web-search skill: Renamed from `web_search` to `web-search` (Agent Skills spec compliance)
 - [x] Web-search skill: Fixed UTF-8 encoding (removed escape artifacts)
+- [x] Tool support detection: Fixed test tool with no params causing false "native" detection
 
 ### ✅ Refactor-1 Feature Complete
 

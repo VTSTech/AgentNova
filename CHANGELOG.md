@@ -150,7 +150,7 @@ agent = Agent(model="qwen2.5:0.5b")  # Uses default backend
 - Examples reduced to 6 core tests
 - No `modelfile` or `skills` CLI commands yet
 
-## [refactor-1] - 2026-03-24
+## [refactor-1.1] - 2026-03-24
 
 ### Fixed
 
@@ -170,6 +170,21 @@ agent = Agent(model="qwen2.5:0.5b")  # Uses default backend
 ### Verified
 - Skill loads correctly: `loader.load('web-search')` ✓
 - Name validates against Agent Skills spec regex ✓
+
+## [refactor-1.2] - 2026-03-24
+
+### Fixed
+
+#### Tool Support Detection Regression
+- **Fixed test tool parameters** in `backends/ollama.py`
+  - Previous: Test tool had NO parameters, causing false "native" detection
+  - Now: Test tool has required `location` parameter like main branch
+  - Models behave differently with parameterless tools vs tools with required params
+- **Why this matters**:
+  - `qwen2.5:0.5b` was incorrectly detected as "native" because the test tool had no params
+  - When actual tools with required params were passed, model returned empty responses
+  - Now properly detects models that can't fill in tool parameters
+- **Cache cleared**: Delete `~/.cache/agentnova/tool_support.json` to re-test models
 
 ---
 
