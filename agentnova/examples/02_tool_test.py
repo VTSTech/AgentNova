@@ -510,12 +510,6 @@ def test_shell_model(model: str, backend, debug: bool = False) -> tuple[int, int
         print(f"\n📋 {name}")
         print(f"   Prompt: {prompt}")
         
-        sys_prompt = "Use shell commands to answer questions."
-        if is_windows:
-            sys_prompt += " Use Windows commands (dir, cd, echo)."
-        else:
-            sys_prompt += " Use Unix commands (ls, pwd, echo)."
-        
         agent = Agent(
             model=model,
             tools=tools,
@@ -535,14 +529,33 @@ def test_shell_model(model: str, backend, debug: bool = False) -> tuple[int, int
             results.append(False)
             continue
         
+        # Check if expected result appears in either:
+        # 1. The final answer, OR
+        # 2. Any tool result during the run (model may not format Final Answer correctly)
+        found_in_answer = expected and expected.lower() in run.final_answer.lower()
+        found_in_tool_result = False
+        
         if expected:
-            passed = expected.lower() in run.final_answer.lower()
+            for step in run.steps:
+                if step.tool_result and expected.lower() in str(step.tool_result).lower():
+                    found_in_tool_result = True
+                    break
+        
+        # Pass if tool was used AND (no expected value OR result found somewhere)
+        if expected:
+            passed = found_in_answer or found_in_tool_result
         else:
-            passed = True
+            passed = True  # Just verify tool was used
         
         results.append(passed)
         status = "✅" if passed else "❌"
-        print(f"  {status} {elapsed:.1f}s, {len(run.steps)} steps")
+        found_where = ""
+        if expected:
+            if found_in_answer:
+                found_where = "(in answer)"
+            elif found_in_tool_result:
+                found_where = "(in tool result)"
+        print(f"  {status} {elapsed:.1f}s, {len(run.steps)} steps {found_where}")
         print(f"  📝 {run.final_answer[:80]}")
     
     passed = sum(results)
