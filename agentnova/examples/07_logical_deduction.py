@@ -5,9 +5,9 @@ examples/07_logical_deduction.py
 Logical deduction tests (from BIG-bench).
 
 Tests logical reasoning abilities:
-  � Syllogisms and deductive reasoning
-  � Conditional reasoning
-  � Quantifiers and set logic
+  • Syllogisms and deductive reasoning
+  • Conditional reasoning
+  • Quantifiers and set logic
 
 Usage:
   python examples/07_logical_deduction.py
@@ -18,7 +18,7 @@ Environment Variables:
   OLLAMA_BASE_URL     - Ollama server URL
   AGENTNOVA_MODEL     - Default model
 
-Written by VTSTech � https://www.vts-tech.org
+Written by VTSTech — https://www.vts-tech.org
 """
 
 import sys
@@ -235,7 +235,7 @@ def check_answer(response: str, expected: str, check_type: str) -> bool:
 def run_tests(model: str, backend, debug: bool = False) -> dict:
     """Run logical deduction tests for a model."""
     print(f"\n{'='*60}")
-    print(f"?  Logical Deduction Tests: {model}")
+    print(f"🧩 Logical Deduction Tests: {model}")
     print(f"{'='*60}")
     
     results = {"model": model, "passed": 0, "total": len(TESTS), "time": 0, "categories": {}}
@@ -248,7 +248,7 @@ def run_tests(model: str, backend, debug: bool = False) -> dict:
         expected = test["expected"]
         check_type = test["type"]
         
-        print(f"\n?  [{category}] {prompt}...")
+        print(f"\n📋 [{category}] {prompt[:55]}...")
         
         # Create fresh agent for each test (isolates memory)
         agent = Agent(
@@ -274,8 +274,8 @@ def run_tests(model: str, backend, debug: bool = False) -> dict:
         
         results["passed"] += int(passed)
         
-        status = "?" if passed else "?"
-        print(f"  {status} Expected: {expected} | Got: {response}")
+        status = "✅" if passed else "❌"
+        print(f"  {status} Expected: {expected} | Got: {response[:50]}")
         print(f"     {elapsed:.1f}s")
     
     return results
@@ -290,9 +290,27 @@ def main():
     backend = get_default_backend(backend_name)
     
     if not backend.is_running():
-        print(f"? {backend_name.capitalize()} not running at {backend.base_url}")
+        print(f"❌ {backend_name.capitalize()} not running at {backend.base_url}")
         return {"passed": 0, "total": len(TESTS), "time": 0, "exit_code": 1}
     
-    print(f"\n?? AgentNova Logical Deduction Tests ({len(TESTS)} questions)")
+    print(f"\n⚛️ AgentNova Logical Deduction Tests ({len(TESTS)} questions)")
     print(f"   Backend: {backend_name} ({backend.base_url})")
     print(f"   Model: {model}")
+    
+    result = run_tests(model, backend, args.debug)
+    
+    print(f"\n{'='*60}")
+    print("📊 Results by Category")
+    print(f"{'='*60}")
+    
+    for category, stats in result["categories"].items():
+        pct = stats["passed"] / stats["total"] * 100
+        bar = "█" * stats["passed"] + "░" * (stats["total"] - stats["passed"])
+        print(f"  {category:<18} {bar} {stats['passed']}/{stats['total']} ({pct:.0f}%)")
+    
+    pass_rate = result["passed"] / result["total"] * 100
+    print(f"\n📊 Overall: {result['passed']}/{result['total']} ({pass_rate:.0f}%) in {result['time']:.1f}s")
+    print(f"{'='*60}")
+    
+    result["exit_code"] = 0 if result["passed"] == result["total"] else 1
+    return result
