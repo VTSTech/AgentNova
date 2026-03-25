@@ -288,6 +288,15 @@ def run_tests(model: str, backend, debug: bool = False) -> dict:
     
     results = {"model": model, "passed": 0, "total": len(TESTS), "time": 0, "categories": {}}
     
+    # Custom system prompt for common sense questions
+    common_sense_prompt = """Answer common sense questions directly and briefly.
+
+Instructions:
+- Use one word when asked for one word
+- Use numbers when asked for numbers
+- Give the most direct, obvious answer
+- Trust your common knowledge"""
+
     # Note: We create a fresh agent for each test to avoid memory contamination
     # This ensures wrong answers don't affect subsequent questions
     
@@ -305,6 +314,7 @@ def run_tests(model: str, backend, debug: bool = False) -> dict:
             backend=backend,
             max_steps=1,  # Single-step for reasoning (no tools)
             debug=debug,
+            system_prompt=common_sense_prompt,
         )
         
         t0 = time.time()

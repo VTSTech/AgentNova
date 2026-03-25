@@ -255,6 +255,16 @@ def run_tests(model: str, backend, debug: bool = False) -> dict:
     
     results = {"model": model, "passed": 0, "total": len(TESTS), "time": 0, "categories": {}}
     
+    # Custom system prompt for logical deduction
+    logic_prompt = """Answer logical reasoning questions carefully.
+
+Instructions:
+- Think step by step if needed, but give a direct final answer
+- For yes/no questions, answer yes or no
+- For number questions, give just the number
+- Use "uncertain" if the conclusion cannot be determined from the premises
+- Be precise and logical"""
+
     # Note: We create a fresh agent for each test to avoid memory contamination
     
     for test in TESTS:
@@ -271,6 +281,7 @@ def run_tests(model: str, backend, debug: bool = False) -> dict:
             backend=backend,
             max_steps=1,
             debug=debug,
+            system_prompt=logic_prompt,
         )
         
         t0 = time.time()
@@ -329,3 +340,8 @@ def main():
     
     result["exit_code"] = 0 if result["passed"] == result["total"] else 1
     return result
+
+
+if __name__ == "__main__":
+    result = main()
+    sys.exit(result.get("exit_code", 0))

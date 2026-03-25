@@ -286,6 +286,15 @@ def run_tests(model: str, backend, debug: bool = False) -> dict:
     
     results = {"model": model, "passed": 0, "total": len(TESTS), "time": 0, "categories": {}}
     
+    # Custom system prompt for general knowledge
+    knowledge_prompt = """Answer factual questions directly and briefly.
+
+Instructions:
+- Use one word when asked for one word
+- Use numbers when asked for numbers
+- Give the most accurate fact you know
+- Be concise and direct"""
+
     # Note: We create a fresh agent for each test to avoid memory contamination
     
     for test in TESTS:
@@ -302,6 +311,7 @@ def run_tests(model: str, backend, debug: bool = False) -> dict:
             backend=backend,
             max_steps=1,
             debug=debug,
+            system_prompt=knowledge_prompt,
         )
         
         t0 = time.time()
@@ -357,3 +367,11 @@ def main():
     pass_rate = result["passed"] / result["total"] * 100
     print(f"\n📊 Overall: {result['passed']}/{result['total']} ({pass_rate:.0f}%) in {result['time']:.1f}s")
     print(f"{'='*60}")
+    
+    result["exit_code"] = 0 if result["passed"] == result["total"] else 1
+    return result
+
+
+if __name__ == "__main__":
+    result = main()
+    sys.exit(result.get("exit_code", 0))

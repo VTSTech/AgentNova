@@ -316,6 +316,16 @@ def run_tests(model: str, backend, debug: bool = False) -> dict:
     
     results = {"model": model, "passed": 0, "total": len(TESTS), "time": 0, "categories": {}}
     
+    # Custom system prompt for reading comprehension
+    comprehension_prompt = """Answer questions based on the text provided. Be direct and concise.
+
+Instructions:
+- Read the text carefully
+- Answer with the specific information requested
+- Use one word when asked for one word
+- Use numbers when asked for numbers
+- Be brief and accurate"""
+
     # Note: We create a fresh agent for each test to avoid memory contamination
     
     for test in TESTS:
@@ -332,6 +342,7 @@ def run_tests(model: str, backend, debug: bool = False) -> dict:
             backend=backend,
             max_steps=1,
             debug=debug,
+            system_prompt=comprehension_prompt,
         )
         
         t0 = time.time()

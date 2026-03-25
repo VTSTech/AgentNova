@@ -265,6 +265,15 @@ def run_tests(model: str, backend, debug: bool = False) -> dict:
     
     results = {"model": model, "passed": 0, "total": len(TESTS), "time": 0, "categories": {}}
     
+    # Custom system prompt for implicit reasoning
+    implicit_prompt = """Answer questions by reading between the lines.
+
+Instructions:
+- Think about what is implied, not just what is stated
+- Consider emotions, intentions, and unstated meanings
+- Use one word when asked for one word
+- Give the most likely interpretation"""
+
     # Note: We create a fresh agent for each test to avoid memory contamination
     
     for test in TESTS:
@@ -281,6 +290,7 @@ def run_tests(model: str, backend, debug: bool = False) -> dict:
             backend=backend,
             max_steps=1,
             debug=debug,
+            system_prompt=implicit_prompt,
         )
         
         t0 = time.time()

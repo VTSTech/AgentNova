@@ -272,6 +272,15 @@ def run_tests(model: str, backend, debug: bool = False) -> dict:
     
     results = {"model": model, "passed": 0, "total": len(TESTS), "time": 0, "categories": {}}
     
+    # Custom system prompt for analogical reasoning
+    analogy_prompt = """Complete analogies by understanding the relationship pattern.
+
+Instructions:
+- Identify the relationship between the first pair
+- Apply the same relationship to find the missing word
+- Use one word when asked for one word
+- Think about: part-whole, opposites, function, category, cause-effect"""
+
     # Note: We create a fresh agent for each test to avoid memory contamination
     
     for test in TESTS:
@@ -288,6 +297,7 @@ def run_tests(model: str, backend, debug: bool = False) -> dict:
             backend=backend,
             max_steps=1,
             debug=debug,
+            system_prompt=analogy_prompt,
         )
         
         t0 = time.time()

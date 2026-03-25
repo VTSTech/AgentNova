@@ -275,6 +275,15 @@ def run_tests(model: str, backend, debug: bool = False) -> dict:
     
     results = {"model": model, "passed": 0, "total": len(TESTS), "time": 0, "categories": {}}
     
+    # Custom system prompt for causal reasoning
+    causal_prompt = """Answer questions about cause and effect relationships.
+
+Instructions:
+- Think about what causes what
+- Distinguish between correlation and causation
+- Use one word when asked for one word
+- Be direct and logical"""
+
     # Note: We create a fresh agent for each test to avoid memory contamination
     
     for test in TESTS:
@@ -291,6 +300,7 @@ def run_tests(model: str, backend, debug: bool = False) -> dict:
             backend=backend,
             max_steps=1,  # Single-step for reasoning (no tools)
             debug=debug,
+            system_prompt=causal_prompt,
         )
         
         t0 = time.time()
