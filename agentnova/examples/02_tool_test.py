@@ -629,9 +629,14 @@ def test_file_model(model: str, backend, debug: bool = False) -> tuple[int, int]
         test_file = os.path.join(tmpdir, "test.txt")
         write_file(test_file, "Hello from AgentNova!")
         
+        # Convert path to forward slashes for better small model compatibility
+        # Forward slashes work on both Windows and Unix
+        test_file_fs = test_file.replace("\\", "/")
+        tmpdir_fs = tmpdir.replace("\\", "/")
+        
         tests = [
-            ("Read file", f"Read the file at {test_file}", "AgentNova"),
-            ("List directory", f"List files in {tmpdir}", "test.txt"),
+            ("Read file", f"Read the file at {test_file_fs}", "AgentNova"),
+            ("List directory", f"List files in {tmpdir_fs}", "test.txt"),
         ]
         
         results = []
@@ -752,12 +757,14 @@ def test_all_tools_model(model: str, backend, debug: bool = False) -> tuple[int,
     with tempfile.TemporaryDirectory() as tmpdir:
         test_file = os.path.join(tmpdir, "multi_test.txt")
         write_file(test_file, "Test content 123")
+        # Use forward slashes for better compatibility
+        test_file_fs = test_file.replace("\\", "/")
         
         tests = [
             ("Calculator choice", "What is 25 times 4?", "100", "calculator"),
             ("Shell choice", "Echo the text 'MultiTool'", "MultiTool", "shell"),
             ("Date choice", "What is today's date?", None, "get_date"),
-            ("File read choice", f"Read the file at {test_file}", "Test content", "read_file"),
+            ("File read choice", f"Read the file at {test_file_fs}", "Test content", "read_file"),
         ]
         
         results = []

@@ -54,6 +54,8 @@ def _sanitize_model_json(text: str) -> str:
        "Today: " + datetime.now().strftime(...)  becomes  "Today: "
 
     3. Trailing commas before } or ] (technically invalid JSON)
+
+    4. Over-escaped backslashes (Windows paths): \\\\ -> \\
     """
     text = re.sub(r':\s*True\b', ': true', text)
     text = re.sub(r':\s*False\b', ': false', text)
@@ -63,6 +65,13 @@ def _sanitize_model_json(text: str) -> str:
     text = re.sub(r'\[\s*None\b', '[null', text)
     text = re.sub(r'("(?:[^"\\]|\\.)*")\s*\+\s*[^,\'"}\]\n]+', r'\1', text)
     text = re.sub(r',\s*([}\]])', r'\1', text)
+    
+    # Fix over-escaped backslashes in Windows paths
+    # Models often output: "C:\\\\Users\\\\..." instead of "C:\\Users\\..."
+    # Replace 4+ backslashes with 2
+    text = re.sub(r'\\\\\\\\', r'\\\\', text)
+    # Replace 3 backslashes with 2 (odd number issue)
+    text = re.sub(r'\\\\\\(?=[^\\"])', r'\\\\', text)
 
     return text
 

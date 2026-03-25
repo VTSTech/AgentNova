@@ -54,6 +54,12 @@ TOOL_ARG_ALIASES = {
         "filepath": "file_path", "file_path": "file_path", "filename": "file_path",
         "file": "file_path", "input": "file_path", "source": "file_path", "location": "file_path",
     },
+    "list_directory": {
+        "path": "path",  # correct
+        "dir": "path", "directory": "path", "folder": "path",
+        "dir_path": "path", "directory_path": "path", "folder_path": "path",
+        "location": "path",
+    },
     "shell": {
         "command": "command",  # correct
         "cmd": "command", "exec": "command", "shell_cmd": "command",
@@ -122,12 +128,27 @@ Action Input: {{"code": "print(2 ** 10)"}}
 Example 6 - Write to file:
 Thought: User wants to save text to a file
 Action: write_file
-Action Input: {{"path": "/tmp/test.txt", "content": "Hello World"}}
+Action Input: {{"file_path": "/tmp/test.txt", "content": "Hello World"}}
 
 Example 7 - Read a file:
 Thought: User wants to see file contents
 Action: read_file
-Action Input: {{"path": "/tmp/test.txt"}}
+Action Input: {{"file_path": "/tmp/test.txt"}}
+
+Example 8 - List directory:
+Thought: User wants to see files in a directory
+Action: list_directory
+Action Input: {{"path": "/tmp"}}
+
+Example 9 - Get date:
+Thought: User wants to know today's date
+Action: get_date
+Action Input: {{}}
+
+Example 10 - Get time:
+Thought: User wants to know current time
+Action: get_time
+Action Input: {{}}
 
 CRITICAL RULES:
 1. Action line: just the tool name (no backticks, no quotes)
@@ -136,9 +157,13 @@ CRITICAL RULES:
    - calculator: {{"expression": "15 * 8"}}
    - shell: {{"command": "echo Hello"}}
    - python_repl: {{"code": "print(result)"}}
-   - write_file: {{"path": "/path/file.txt", "content": "text to write"}}
-   - read_file: {{"path": "/path/file.txt"}}
+   - write_file: {{"file_path": "/path/file.txt", "content": "text to write"}}
+   - read_file: {{"file_path": "/path/file.txt"}}
+   - list_directory: {{"path": "/tmp"}}
+   - get_date: {{}} (no arguments)
+   - get_time: {{}} or {{"timezone": "America/New_York"}}
 4. MATH OPERATORS: * (multiply), ** (power), / (divide), + (add), - (subtract)
+5. NEVER write Observation yourself - wait for the actual result!
 ═══════════════════════════════════════════════════════════════
 """
 
@@ -149,11 +174,15 @@ Calculator: {{"expression": "15 * 8"}}
 Shell: {{"command": "echo Hello World"}}
 Current dir: {{"command": "{PLATFORM_DIR_CMD}"}}
 Python: {{"code": "print(result)"}}
-Write file: {{"path": "/tmp/file.txt", "content": "Hello"}}
-Read file: {{"path": "/tmp/file.txt"}}
+Write file: {{"file_path": "/tmp/file.txt", "content": "Hello"}}
+Read file: {{"file_path": "/tmp/file.txt"}}
+List dir: {{"path": "/tmp"}}
+Get date: {{}}
+Get time: {{}}
 
-ARGUMENT NAMES: expression (calculator), command (shell), code (python_repl), path+content (write_file), path (read_file)
+ARGUMENT NAMES: expression (calculator), command (shell), code (python_repl), file_path+content (write_file), file_path (read_file), path (list_directory)
 MATH: * = multiply, ** = power, / = divide
+NEVER write Observation yourself - wait for real result!
 """
 
 # Few-shot for native tool models - focuses on WHEN to call tools
