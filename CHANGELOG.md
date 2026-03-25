@@ -4,48 +4,6 @@ All notable changes to AgentNova refactor-1 will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [R03.1] - 2026-03-26
-
-### Fixed
-
-#### Tool Support Display - "none" Status Shown as "untested"
-- **Fixed display logic in `cli.py`** - Models tested with `--tool-support` that returned `"none"` (no tool support) were incorrectly displayed as `"? untested"` on subsequent `agentnova models` runs
-  - Root cause: The `else` branch in cached value display was catching `"none"` and `"error"` statuses and showing them as untested
-  - Added explicit handling for all status values:
-    - `"native"` → `✓ native` (green)
-    - `"react"` → `○ react` (yellow)
-    - `"none"` → `✗ none` (red) ← **NEW**
-    - `"error"` → `✗ error` (red) ← **NEW**
-    - else → `? untested` (dim)
-- **Updated legend** to include all status types:
-  - `Legend: ✓ native (API tools) | ○ react (text parsing) | ✗ none (no tools) | ? untested`
-
-#### Tool Support Cache - Atomic Writes
-- **Fixed cache persistence in `cli.py`** - Implemented atomic write pattern for `tool_support.json`
-  - Writes to temp file first, then atomic rename
-  - Explicit `fsync()` to ensure data is flushed to disk
-  - Prevents partial writes in containerized/Docker environments
-  - Clean temp file cleanup on error
-- **Improved error handling in `_load_tool_cache()`**:
-  - Validates loaded JSON is a dict
-  - Debug mode warnings for corrupted files
-  - Auto-removal of corrupted cache files
-
-### Added
-
-#### CLI `--num-ctx` Flag
-- **Added `--num-ctx` parameter** to `run`, `chat`, `agent`, and `test` commands
-  - Sets the context window size in tokens (Ollama defaults to 2048)
-  - Overrides `AGENTNOVA_NUM_CTX` environment variable
-  - Falls back to config default if not specified
-  - Displayed in mode startup info (e.g., `Context: 32K`)
-  - Usage: `agentnova chat -m qwen2.5:0.5b --num-ctx 32768`
-
-### Changed
-- Models without tool support now clearly indicated with `✗ none` instead of appearing untested
-
----
-
 ## [R03.1] - 2026-03-25
 
 ### Soul Spec v0.5 Integration
@@ -80,6 +38,12 @@ Implemented ClawSouls Soul Spec v0.5 support for persona packages. Souls allow d
 - **`agentnova soul` command** to inspect soul packages
   - `--validate` to run validation checks
   - `--prompt` to show generated system prompt
+- **`--num-ctx` parameter** for run, chat, agent, test commands
+  - Sets the context window size in tokens (Ollama defaults to 2048)
+  - Overrides `AGENTNOVA_NUM_CTX` environment variable
+  - Falls back to config default if not specified
+  - Displayed in mode startup info (e.g., `Context: 32K`)
+  - Usage: `agentnova chat -m qwen2.5:0.5b --num-ctx 32768`
 
 #### Agent Integration
 - **`soul` parameter** in Agent.__init__
@@ -104,11 +68,32 @@ Implemented ClawSouls Soul Spec v0.5 support for persona packages. Souls allow d
 - **Added error handling** - Catch exceptions during testing, still cache result
 - **Better error messages** - Warn on cache save failures
 - **Fixed stray `")` in output**
+- **Implemented atomic write pattern** for `tool_support.json`
+  - Writes to temp file first, then atomic rename
+  - Explicit `fsync()` to ensure data is flushed to disk
+  - Prevents partial writes in containerized/Docker environments
+  - Clean temp file cleanup on error
+- **Improved error handling in `_load_tool_cache()`**:
+  - Validates loaded JSON is a dict
+  - Debug mode warnings for corrupted files
+  - Auto-removal of corrupted cache files
+
+#### Tool Support Display
+- **Fixed display logic for `"none"` status** - Models tested with `--tool-support` that returned `"none"` (no tool support) were incorrectly displayed as `"? untested"` on subsequent `agentnova models` runs
+  - Added explicit handling for all status values:
+    - `"native"` → `✓ native` (green)
+    - `"react"` → `○ react` (yellow)
+    - `"none"` → `✗ none` (red)
+    - `"error"` → `✗ error` (red)
+    - else → `? untested` (dim)
+- **Updated legend** to include all status types:
+  - `Legend: ✓ native (API tools) | ○ react (text parsing) | ✗ none (no tools) | ? untested`
 
 ### Changed
 - Soul feature is **disabled by default** - Must use `--soul` flag to enable
 - Context column shows `2K/32K` format when runtime differs from max
 - Yellow highlight for context when using Ollama default (2K)
+- Models without tool support now clearly indicated with `✗ none` instead of appearing untested
 
 ### Usage
 
