@@ -4,6 +4,68 @@ All notable changes to AgentNova refactor-1 will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [R03-alpha] - 2026-03-25
+
+### BIG-bench Inspired Test Suite
+
+Added comprehensive reasoning and knowledge benchmark tests inspired by Google's BIG-bench dataset. Each test contains 25 questions across 5 subcategories.
+
+### Added
+
+#### New Test Files (examples/)
+- **`05_common_sense.py`** - Everyday knowledge and reasoning (25 questions)
+  - Physical properties, Objects, Social, Practical, Nature
+  - Tests basic world knowledge and common sense understanding
+- **`06_causal_reasoning.py`** - Cause and effect understanding (25 questions)
+  - Direct Causal, Cause vs Effect, Correlation, Causal Chains, Counterfactual
+  - Tests ability to identify causes, effects, and distinguish correlation from causation
+- **`07_logical_deduction.py`** - Syllogisms and logic puzzles (25 questions)
+  - Syllogisms, Conditionals, Transitive, Quantifiers, Counter-intuitive
+  - Includes famous cognitive reflection tests (bat & ball, lily pads, widgets)
+- **`08_reading_comprehension.py`** - Text understanding and inference (25 questions)
+  - Factual, Inference, Main Idea, Sequencing, Vocabulary
+  - Tests ability to extract and infer information from passages
+- **`09_general_knowledge.py`** - Geography, science, and facts (25 questions)
+  - Geography (capitals, landmarks), Science (astronomy, biology), Math
+  - Tests factual knowledge across domains
+- **`10_implicit_reasoning.py`** - Understanding implied meanings (25 questions)
+  - Implied States, Intentions, Consequences, Social, Assumptions
+  - Tests ability to read between the lines and infer unstated information
+- **`11_analogical_reasoning.py`** - Pattern and relationship mapping (25 questions)
+  - Part-Whole, Opposites, Function, Category, Cause-Effect
+  - Tests verbal analogy completion and relational reasoning
+
+#### CLI Updates
+- **Extended test registry** in `cli.py`
+  - Tests 05-11 now available via `agentnova test <id>`
+  - `agentnova test --list` shows all 12 available tests
+
+### Test Categories Summary
+
+| ID | Category | Questions | Subcategories |
+|----|----------|-----------|---------------|
+| 05 | Common Sense | 25 | Physical, Objects, Social, Practical, Nature |
+| 06 | Causal Reasoning | 25 | Direct Causal, Cause vs Effect, Correlation, Causal Chains, Counterfactual |
+| 07 | Logical Deduction | 25 | Syllogisms, Conditionals, Transitive, Quantifiers, Counter-intuitive |
+| 08 | Reading Comprehension | 25 | Factual, Inference, Main Idea, Sequencing, Vocabulary |
+| 09 | General Knowledge | 25 | Geography, Science (Astronomy, Biology), Math |
+| 10 | Implicit Reasoning | 25 | Implied States, Intentions, Consequences, Social, Assumptions |
+| 11 | Analogical Reasoning | 25 | Part-Whole, Opposites, Function, Category, Cause-Effect |
+
+### Usage
+```bash
+# List all available tests
+agentnova test --list
+
+# Run specific test
+agentnova test 10 --model qwen2.5:0.5b
+
+# Run all tests
+agentnova test all
+```
+
+---
+
 ## [R03-alpha] (refactor-1) - 2026-03-24
 
 ### Major Architecture Refactoring
