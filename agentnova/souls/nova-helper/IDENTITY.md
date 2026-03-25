@@ -1,4 +1,4 @@
-# Identity: Nova Helper
+# Identity: Agent Nova
 
 ## Basic Info
 

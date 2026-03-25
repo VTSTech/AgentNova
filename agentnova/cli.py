@@ -586,11 +586,10 @@ def cmd_models(args: argparse.Namespace) -> int:
     cache = {} if args.no_cache else _load_tool_cache()
     cache_updated = False
     
-    # Always show tools column
     # Column widths
     NAME_W = 36
     SIZE_W = 8
-    CTX_W = 8
+    CTX_W = 12  # Wider for "2K/32K" format
     TOOLS_W = 10
     FAMILY_W = 12
     
@@ -607,20 +606,29 @@ def cmd_models(args: argparse.Namespace) -> int:
         size_gb = size / (1024**3) if size else 0
         family = m.get("details", {}).get("family", "unknown")
         
-        # Get context size (fast path using family)
-        ctx_size = backend.get_model_context_size(name, family=family)
+        # Get both runtime and max context
+        runtime_ctx = backend.get_model_runtime_context(name)
+        max_ctx = backend.get_model_max_context(name, family=family)
         
-        # Format context size nicely
-        if ctx_size >= 1000000:
-            ctx_str = f"{ctx_size // 1000}K"
-        elif ctx_size >= 1000:
-            ctx_str = f"{ctx_size // 1000}K"
+        # Format context size: "2K/32K" format
+        def format_ctx(n):
+            if n >= 1000000:
+                return f"{n // 1000}K"
+            elif n >= 1000:
+                return f"{n // 1000}K"
+            return str(n)
+        
+        if runtime_ctx == max_ctx:
+            # Runtime matches max (explicitly set or same)
+            ctx_str = format_ctx(runtime_ctx)
+        elif runtime_ctx == 2048:
+            # Using Ollama default - show "2K / 32K max"
+            ctx_str = f"{format_ctx(runtime_ctx)}/{format_ctx(max_ctx)}"
         else:
-            ctx_str = str(ctx_size)
+            # Custom runtime setting
+            ctx_str = f"{format_ctx(runtime_ctx)}/{format_ctx(max_ctx)}"
         
         # Get tool support level (from cache or test)
-        # NOTE: Tool support depends on the model's template, NOT the family.
-        # Each model must be tested individually. Use --tool-support to test.
         if isinstance(backend, OllamaBackend):
             cached = cache.get(name)
             
@@ -631,14 +639,14 @@ def cmd_models(args: argparse.Namespace) -> int:
                 cache[name] = {
                     "support": support.value,
                     "tested_at": time.time(),
-                    "family": family,  # Store for info only, not for validation
+                    "family": family,
                 }
                 cache_updated = True
                 status = support.value
                 # Overwrite the "Testing..." line
                 name_col = pad_colored(cyan(name), NAME_W)
                 size_col = f"{size_gb:>6.2f} GB"
-                ctx_col = pad_colored(dim(ctx_str), CTX_W, 'right')
+                ctx_col = pad_colored(yellow(ctx_str) if runtime_ctx == 2048 else dim(ctx_str), CTX_W, 'right')
                 print(f"\r  {name_col} {size_col}  {ctx_col}  ", end="")
                 if status == "native":
                     tool_col = pad_colored(bright_green("✓ native"), TOOLS_W, 'right')
@@ -656,13 +664,13 @@ def cmd_models(args: argparse.Namespace) -> int:
                     tool_col = pad_colored(dim("? untested"), TOOLS_W, 'right')
                 name_col = pad_colored(cyan(name), NAME_W)
                 size_col = f"{size_gb:>6.2f} GB"
-                ctx_col = pad_colored(dim(ctx_str), CTX_W, 'right')
+                ctx_col = pad_colored(yellow(ctx_str) if runtime_ctx == 2048 else dim(ctx_str), CTX_W, 'right')
                 print(f"  {name_col} {size_col}  {ctx_col}  {tool_col}  {dim('(' + family + ')')}")
             else:
                 # No cache entry - show as untested
                 name_col = pad_colored(cyan(name), NAME_W)
                 size_col = f"{size_gb:>6.2f} GB"
-                ctx_col = pad_colored(dim(ctx_str), CTX_W, 'right')
+                ctx_col = pad_colored(yellow(ctx_str) if runtime_ctx == 2048 else dim(ctx_str), CTX_W, 'right')
                 tool_col = pad_colored(dim("? untested"), TOOLS_W, 'right')
                 print(f"  {name_col} {size_col}  {ctx_col}  {tool_col}  {dim('(' + family + ')')}")
         else:
@@ -681,7 +689,8 @@ def cmd_models(args: argparse.Namespace) -> int:
     
     # Show legend
     print(f"\n{dim('Legend:')} {bright_green('✓ native')} (API tools) | {yellow('○ react')} (text parsing) | {dim('? untested')}")
-    print(f"{dim('Tool support depends on model template, not family. Use')} {cyan('--tool-support')} {dim('to test each model.')}")
+    print(f"{dim('Context:')} {yellow('2K/32K')} = runtime/max (Ollama defaults to 2K unless num_ctx is set)")
+    print(f"{dim('Tool support depends on model template, not family. Use')} {cyan('--tool-support')} {dim('to test each model.')}\")")
 
     return 0
 

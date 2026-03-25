@@ -265,6 +265,7 @@ class OllamaBackend(BaseBackend):
             return None
 
     # Known defaults by model family
+    # Note: These are fallbacks. Actual context is read from model_info.<family>.context_length
     FAMILY_CONTEXT_DEFAULTS = {
         "qwen2": 32768,
         "qwen2.5": 32768,
@@ -277,11 +278,12 @@ class OllamaBackend(BaseBackend):
         "mixtral": 32768,
         "gemma": 8192,
         "gemma2": 8192,
-        "gemma3": 8192,
+        "gemma3": 32768,  # gemma3 models typically have 32K context
         "phi3": 128000,
         "granite": 8192,
         "granitemoe": 8192,
         "smollm": 4096,
+        "deepseek": 65536,  # deepseek-coder variants
     }
 
     @classmethod
@@ -295,16 +297,53 @@ class OllamaBackend(BaseBackend):
                 return ctx
         return None
 
-    def get_model_context_size(self, model: str, family: str | None = None) -> int:
+    def get_model_runtime_context(self, model: str) -> int:
         """
-        Get the context window size for a model.
+        Get the actual runtime context window size for a model.
+        
+        This is the num_ctx value from parameters, which Ollama defaults to 2048
+        if not explicitly set in the Modelfile.
+        
+        Args:
+            model: Model name
+        
+        Returns:
+            Runtime context window size in tokens (defaults to 2048)
+        """
+        info = self.get_model_info(model)
+        
+        if not info:
+            return 2048  # Ollama's default
+        
+        # Check parameters string for num_ctx
+        parameters = info.get("parameters", "")
+        if parameters:
+            for line in parameters.split("\n"):
+                line = line.strip()
+                if line.startswith("num_ctx"):
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        try:
+                            return int(parts[1])
+                        except ValueError:
+                            pass
+        
+        # No explicit num_ctx - Ollama defaults to 2048
+        return 2048
+
+    def get_model_max_context(self, model: str, family: str | None = None) -> int:
+        """
+        Get the model's maximum trained context window size.
+        
+        This is the context_length from model_info, representing the model's
+        capability regardless of runtime settings.
         
         Args:
             model: Model name
             family: Optional family name (uses default if provided)
         
         Returns:
-            Context window size in tokens
+            Maximum context window size in tokens
         """
         # Fast path: use family default
         if family:
@@ -316,25 +355,24 @@ class OllamaBackend(BaseBackend):
         info = self.get_model_info(model)
         
         if not info:
-            return 4096  # Default context size
+            return 4096  # Fallback
         
-        # Check parameters string for num_ctx
-        parameters = info.get("parameters", "")
-        if parameters:
-            # Parse num_ctx from parameters string like "num_ctx 8192\nnum_gpu 1"
-            for line in parameters.split("\n"):
-                if line.strip().startswith("num_ctx"):
-                    parts = line.split()
-                    if len(parts) >= 2:
-                        try:
-                            return int(parts[1])
-                        except ValueError:
-                            pass
-        
-        # Check model_info for context_length (some versions expose it here)
+        # Check model_info for context_length
+        # Key format: "<family>.context_length" (e.g., "gemma3.context_length", "qwen2.context_length")
         model_info = info.get("model_info", {})
+        for key, value in model_info.items():
+            if key.endswith(".context_length"):
+                try:
+                    return int(value)
+                except (ValueError, TypeError):
+                    pass
+        
+        # Fallback: check for bare "context_length" key (some versions)
         if "context_length" in model_info:
-            return model_info["context_length"]
+            try:
+                return int(model_info["context_length"])
+            except (ValueError, TypeError):
+                pass
         
         # Check details for family
         details = info.get("details", {})
@@ -344,7 +382,31 @@ class OllamaBackend(BaseBackend):
         if ctx:
             return ctx
         
-        return 4096  # Default fallback
+        return 4096  # Fallback
+
+    def get_model_context_size(self, model: str, family: str | None = None) -> int:
+        """
+        Get the context window size for a model.
+        
+        DEPRECATED: Use get_model_runtime_context() or get_model_max_context() instead.
+        
+        This method returns the runtime context (num_ctx) if explicitly set,
+        otherwise returns the model's max context (for backwards compatibility).
+        
+        Args:
+            model: Model name
+            family: Optional family name
+        
+        Returns:
+            Context window size in tokens
+        """
+        # First check for explicit num_ctx
+        runtime_ctx = self.get_model_runtime_context(model)
+        if runtime_ctx != 2048:  # Explicitly set
+            return runtime_ctx
+        
+        # Otherwise return max context (for backwards compat)
+        return self.get_model_max_context(model, family)
 
     def list_models(self) -> list[dict]:
         """List available models from Ollama."""
