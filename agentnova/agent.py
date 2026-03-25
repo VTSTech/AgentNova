@@ -625,7 +625,7 @@ class Agent:
             # ---- Soul mode: accept conversational responses ----
             # If a soul is loaded (chat mode with personality), accept the model's response
             # as a final answer even if it doesn't follow ReAct format
-            if self.soul is not None and content and not tool_calls_made:
+            if self.soul is not None and content and not native_tool_calls:
                 if self.debug:
                     print(f"  Soul mode: accepting conversational response as final answer")
                 
