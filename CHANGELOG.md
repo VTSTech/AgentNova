@@ -4,7 +4,7 @@ All notable changes to AgentNova refactor-1 will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [R03.1] - 2026-03-25
+## [R03.1] - 2026-03-25 3:42:28 PM
 
 ### Soul Spec v0.5 Integration
 
@@ -182,7 +182,7 @@ your-soul/
 
 ---
 
-## [R03-alpha] - 2026-03-25
+## [R03-alpha] - 2026-03-24 9:21:30PM
 
 ### BIG-bench Inspired Test Suite
 
@@ -244,7 +244,7 @@ agentnova test all
 
 ---
 
-## [R03-alpha] (refactor-1) - 2026-03-24
+## [R03-alpha] (refactor-1) - 2026-03-24 7:07:30PM
 
 ### Major Architecture Refactoring
 
