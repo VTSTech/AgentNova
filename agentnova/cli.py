@@ -731,6 +731,16 @@ def cmd_test(args: argparse.Namespace) -> int:
             "desc": "Geography, science, and facts (25 questions)",
             "module": "agentnova.examples.09_general_knowledge",
         },
+        "10": {
+            "name": "Implicit Reasoning",
+            "desc": "Understanding implied meanings (25 questions)",
+            "module": "agentnova.examples.10_implicit_reasoning",
+        },
+        "11": {
+            "name": "Analogical Reasoning",
+            "desc": "Pattern and relationship mapping (25 questions)",
+            "module": "agentnova.examples.11_analogical_reasoning",
+        },
     }
     
     # List tests
