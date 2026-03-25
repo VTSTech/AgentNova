@@ -4,6 +4,118 @@ All notable changes to AgentNova refactor-1 will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [R03.1] - 2026-03-25
+
+### Soul Spec v0.5 Integration
+
+Implemented ClawSouls Soul Spec v0.5 support for persona packages. Souls allow defining custom agent personalities, behaviors, and constraints through a structured manifest.
+
+### Added
+
+#### Soul Spec Module (`agentnova/soul/`)
+- **`types.py`** - Data structures for Soul Spec v0.5
+  - `SoulManifest` - Main manifest with metadata, files, compatibility
+  - `Author`, `Compatibility`, `SoulFiles`, `Disclosure` dataclasses
+  - `RecommendedSkill` with version constraints
+  - Embodied agent support: `Environment`, `HardwareConstraints`, `PhysicalSafety`
+  - Sensor/actuator definitions for robotics: `Sensor`, `Actuator`
+- **`loader.py`** - SoulLoader class for parsing and loading soul packages
+  - Progressive disclosure (Level 1-3): Quick Scan → Full Read → Deep Dive
+  - System prompt generation from SOUL.md + IDENTITY.md + STYLE.md
+  - Legacy v0.3 `skills: string[]` format support
+  - Tool filtering based on `allowedTools`
+
+#### Sample Soul Package
+- **`agentnova/souls/nova-helper/`** - Example coding assistant soul
+  - `soul.json` - Manifest defining the persona
+  - `SOUL.md` - Core persona definition
+  - `IDENTITY.md` - Background and identity
+  - `STYLE.md` - Communication style guidelines
+
+#### CLI Integration
+- **`--soul` flag** for run, chat, agent commands
+- **`--soul-level` flag** (1-3) for progressive disclosure
+- **`agentnova soul` command** to inspect soul packages
+  - `--validate` to run validation checks
+  - `--prompt` to show generated system prompt
+
+#### Agent Integration
+- **`soul` parameter** in Agent.__init__
+- Automatic tool filtering based on soul's `allowedTools`
+- System prompt generation from soul content
+- Graceful fallback if soul loading fails
+
+### Fixed
+
+#### Context Size Parsing
+- **Fixed model_info context_length parsing** - Key format is `<family>.context_length` (e.g., `gemma3.context_length`), not bare `context_length`
+- **Added runtime vs max context distinction**:
+  - `get_model_runtime_context()` - Actual num_ctx setting (Ollama defaults to 2048)
+  - `get_model_max_context()` - Model's trained maximum context
+- **Updated context display format**: `2K/32K` = runtime/max
+- **Updated FAMILY_CONTEXT_DEFAULTS**:
+  - gemma3: 8K → 32K (correct)
+  - Added deepseek: 64K
+
+#### Tool Support Cache
+- **Fixed cache persistence** - Save after each model test (incremental saving)
+- **Added error handling** - Catch exceptions during testing, still cache result
+- **Better error messages** - Warn on cache save failures
+- **Fixed stray `")` in output**
+
+### Changed
+- Soul feature is **disabled by default** - Must use `--soul` flag to enable
+- Context column shows `2K/32K` format when runtime differs from max
+- Yellow highlight for context when using Ollama default (2K)
+
+### Usage
+
+```bash
+# Inspect a soul package
+agentnova soul nova-helper --validate --prompt
+
+# Use soul with chat mode
+agentnova chat --soul nova-helper -m qwen2.5:0.5b
+
+# Use soul with agent mode
+agentnova agent --soul nova-helper
+
+# Run single prompt with soul
+agentnova run "Debug this code" --soul nova-helper --soul-level 2
+```
+
+### Creating Custom Souls
+
+```
+your-soul/
+├── soul.json      # Required: manifest
+├── SOUL.md        # Required: persona definition
+├── IDENTITY.md    # Optional: background/identity
+└── STYLE.md       # Optional: communication style
+```
+
+```json
+// soul.json
+{
+  "specVersion": "0.5",
+  "name": "your-soul",
+  "displayName": "Your Soul Name",
+  "version": "1.0.0",
+  "description": "Description (max 160 chars)",
+  "author": {"name": "Your Name"},
+  "license": "MIT",
+  "tags": ["tag1", "tag2"],
+  "category": "general",
+  "allowedTools": ["calculator", "shell"],
+  "files": {
+    "soul": "SOUL.md",
+    "identity": "IDENTITY.md"
+  }
+}
+```
+
+---
+
 ## [R03-alpha] - 2026-03-25
 
 ### BIG-bench Inspired Test Suite
