@@ -267,6 +267,8 @@ def create_parser() -> argparse.ArgumentParser:
                            help="Soul progressive disclosure level (1=quick, 2=full, 3=deep)")
     run_parser.add_argument("--num-ctx", type=int, default=None, dest="num_ctx",
                            help="Context window size in tokens (Ollama default is 2048)")
+    run_parser.add_argument("--acp", action="store_true", help="Enable ACP logging to Agent Control Panel")
+    run_parser.add_argument("--acp-url", default=None, help="ACP server URL (default: from config)")
 
     # Chat command
     chat_parser = subparsers.add_parser("chat", help="Interactive chat mode")
@@ -280,6 +282,8 @@ def create_parser() -> argparse.ArgumentParser:
                            help="Soul progressive disclosure level (1=quick, 2=full, 3=deep)")
     chat_parser.add_argument("--num-ctx", type=int, default=None, dest="num_ctx",
                            help="Context window size in tokens (Ollama default is 2048)")
+    chat_parser.add_argument("--acp", action="store_true", help="Enable ACP logging to Agent Control Panel")
+    chat_parser.add_argument("--acp-url", default=None, help="ACP server URL (default: from config)")
 
     # Agent command
     agent_parser = subparsers.add_parser("agent", help="Autonomous agent mode")
@@ -292,6 +296,8 @@ def create_parser() -> argparse.ArgumentParser:
                            help="Soul progressive disclosure level (1=quick, 2=full, 3=deep)")
     agent_parser.add_argument("--num-ctx", type=int, default=None, dest="num_ctx",
                            help="Context window size in tokens (Ollama default is 2048)")
+    agent_parser.add_argument("--acp", action="store_true", help="Enable ACP logging to Agent Control Panel")
+    agent_parser.add_argument("--acp-url", default=None, help="ACP server URL (default: from config)")
 
     # Models command
     models_parser = subparsers.add_parser("models", help="List available models")
