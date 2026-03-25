@@ -324,7 +324,7 @@ def run_tests(model: str, backend, debug: bool = False) -> dict:
         expected = test["expected"]
         check_type = test["type"]
         
-        print(f"\n📋 [{category}] {prompt[:50]}...")
+        print(f"\n📋 [{category}] {prompt}...")
         
         # Create fresh agent for each test (isolates memory)
         agent = Agent(
@@ -351,7 +351,7 @@ def run_tests(model: str, backend, debug: bool = False) -> dict:
         results["passed"] += int(passed)
         
         status = "✅" if passed else "❌"
-        print(f"  {status} Expected: {expected} | Got: {response[:50]}")
+        print(f"  {status} Expected: {expected} | Got: {response}")
         print(f"     {elapsed:.1f}s")
     
     return results
