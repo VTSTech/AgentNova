@@ -204,8 +204,20 @@ class Agent:
     def _add_system_prompt(self) -> None:
         """Add the system prompt to memory."""
         if self._custom_system_prompt:
-            # Use custom system prompt if provided
+            # Use custom system prompt if provided (e.g., from Soul Spec)
             system_prompt = self._custom_system_prompt
+            
+            # IMPORTANT: Append tool descriptions and format instructions if tools exist
+            # Souls define personality but may not include tool usage instructions
+            if self.tools and len(self.tools) > 0 and self._tool_support != ToolSupportLevel.NONE:
+                from .core.prompts import get_tool_prompt
+                tool_prompt = get_tool_prompt(
+                    self.tools.all(),
+                    tool_support=self._tool_support.value,
+                    family=None
+                )
+                if tool_prompt:
+                    system_prompt = f"{system_prompt}\n\n{tool_prompt}"
         else:
             # Use default generated system prompt
             system_prompt = get_system_prompt(
