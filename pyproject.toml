@@ -70,7 +70,7 @@ bitnet = "agentnova.backends.bitnet:BitNetBackend"
 include = ["agentnova", "agentnova.*", "localclaw"]
 
 [tool.setuptools.package-data]
-agentnova = ["py.typed", "skills/*/SKILL.md"]
+agentnova = ["py.typed", "skills/*/SKILL.md", "souls/*/soul.json", "souls/*/*.md"]
 
 [tool.black]
 line-length = 100

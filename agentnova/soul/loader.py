@@ -47,6 +47,69 @@ class SoulLoader:
         self.strict = strict
         self._cache: dict[str, SoulManifest] = {}
     
+    def _resolve_soul_path(self, path: Path) -> Optional[Path]:
+        """
+        Resolve a soul path by searching in multiple locations.
+        
+        Search order:
+        1. Absolute path (as-is)
+        2. Relative to current working directory
+        3. Relative to agentnova package directory (souls/)
+        4. As a built-in soul name (e.g., "nova-helper" -> souls/nova-helper)
+        
+        Returns:
+            Resolved Path or None if not found
+        """
+        # 1. If absolute path, check if it exists
+        if path.is_absolute():
+            if path.exists():
+                return path
+            return None
+        
+        # 2. Try relative to current working directory
+        cwd_path = Path.cwd() / path
+        if cwd_path.exists():
+            return cwd_path
+        
+        # 3. Try relative to agentnova package directory
+        try:
+            import agentnova
+            package_dir = Path(agentnova.__file__).parent
+            package_path = package_dir / "souls" / path
+            if package_path.exists():
+                return package_path
+            # Also try without souls/ prefix if path looks like a soul name
+            if "/" not in str(path) and "\\" not in str(path):
+                package_path = package_dir / "souls" / path
+                if package_path.exists():
+                    return package_path
+        except ImportError:
+            pass
+        
+        # 4. Try as soul name in package souls directory
+        try:
+            import agentnova
+            package_dir = Path(agentnova.__file__).parent
+            # Check if it's a simple name (no path separators)
+            soul_name = str(path).replace("/", "").replace("\\", "")
+            if soul_name == str(path):
+                # It's a simple name, look for it in souls/
+                soul_path = package_dir / "souls" / soul_name
+                if soul_path.exists():
+                    return soul_path
+                # Also try with .json extension
+                json_path = package_dir / "souls" / soul_name / "soul.json"
+                if json_path.exists():
+                    return soul_path
+        except (ImportError, ValueError):
+            pass
+        
+        # 5. Final check - does the original path exist?
+        if path.exists():
+            return path
+        
+        return None
+    
     def load(self, path: Union[str, Path], level: int = 2) -> SoulManifest:
         """
         Load a soul package from a directory or soul.json file.
@@ -62,6 +125,13 @@ class SoulLoader:
             SoulManifest with loaded content
         """
         path = Path(path)
+        
+        # Try to resolve the path in multiple locations
+        resolved_path = self._resolve_soul_path(path)
+        if resolved_path is None:
+            raise ValueError(f"Not a valid soul path: {path}")
+        
+        path = resolved_path
         
         # Determine soul directory and manifest path
         if path.is_file() and path.name == "soul.json":
