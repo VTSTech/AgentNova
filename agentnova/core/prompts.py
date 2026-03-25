@@ -88,7 +88,7 @@ TOOL_ARG_ALIASES = {
 # ------------------------------------------------------------------ #
 # Added to system prompt when using models < 2B parameters
 
-FEW_SHOT_SUFFIX = """
+FEW_SHOT_SUFFIX = f"""
 
 ═══════════════════════════════════════════════════════════════
 TOOL USAGE EXAMPLES - Follow this EXACT format:
@@ -97,54 +97,60 @@ TOOL USAGE EXAMPLES - Follow this EXACT format:
 Example 1 - Multiplication:
 Thought: I need to multiply 15 times 8
 Action: calculator
-Action Input: {"expression": "15 * 8"}
+Action Input: {{"expression": "15 * 8"}}
 
 Example 2 - Power:
 Thought: I need to calculate 2 to the power of 20
 Action: calculator
-Action Input: {"expression": "2 ** 20"}
+Action Input: {{"expression": "2 ** 20"}}
 
 Example 3 - Echo text:
 Thought: User wants to print some text
 Action: shell
-Action Input: {"command": "echo Hello World"}
+Action Input: {{"command": "echo Hello World"}}
 
-Example 4 - Run Python code:
+Example 4 - Current directory:
+Thought: User wants to know the current directory
+Action: shell
+Action Input: {{"command": "{PLATFORM_DIR_CMD}"}}
+
+Example 5 - Run Python code:
 Thought: I need to compute something in Python
 Action: python_repl
-Action Input: {"code": "print(2 ** 10)"}
+Action Input: {{"code": "print(2 ** 10)"}}
 
-Example 5 - Write to file:
+Example 6 - Write to file:
 Thought: User wants to save text to a file
 Action: write_file
-Action Input: {"path": "/tmp/test.txt", "content": "Hello World"}
+Action Input: {{"path": "/tmp/test.txt", "content": "Hello World"}}
 
-Example 6 - Read a file:
+Example 7 - Read a file:
 Thought: User wants to see file contents
 Action: read_file
-Action Input: {"path": "/tmp/test.txt"}
+Action Input: {{"path": "/tmp/test.txt"}}
 
 CRITICAL RULES:
 1. Action line: just the tool name (no backticks, no quotes)
 2. Action Input: valid JSON with correct argument names for THAT tool
 3. ARGUMENT NAMES BY TOOL:
-   - calculator: {"expression": "15 * 8"}
-   - shell: {"command": "echo Hello"}
-   - python_repl: {"code": "print(result)"}
-   - write_file: {"path": "/path/file.txt", "content": "text to write"}
-   - read_file: {"path": "/path/file.txt"}
+   - calculator: {{"expression": "15 * 8"}}
+   - shell: {{"command": "echo Hello"}}
+   - python_repl: {{"code": "print(result)"}}
+   - write_file: {{"path": "/path/file.txt", "content": "text to write"}}
+   - read_file: {{"path": "/path/file.txt"}}
 4. MATH OPERATORS: * (multiply), ** (power), / (divide), + (add), - (subtract)
 ═══════════════════════════════════════════════════════════════
 """
 
 # Compact version for models that need minimal prompting
-FEW_SHOT_COMPACT = """
+FEW_SHOT_COMPACT = f"""
 TOOL EXAMPLES (ReAct format):
-Calculator: {"expression": "15 * 8"}
-Shell: {"command": "echo Hello World"}
-Python: {"code": "print(result)"}
-Write file: {"path": "/tmp/file.txt", "content": "Hello"}
-Read file: {"path": "/tmp/file.txt"}
+Calculator: {{"expression": "15 * 8"}}
+Shell: {{"command": "echo Hello World"}}
+Current dir: {{"command": "{PLATFORM_DIR_CMD}"}}
+Python: {{"code": "print(result)"}}
+Write file: {{"path": "/tmp/file.txt", "content": "Hello"}}
+Read file: {{"path": "/tmp/file.txt"}}
 
 ARGUMENT NAMES: expression (calculator), command (shell), code (python_repl), path+content (write_file), path (read_file)
 MATH: * = multiply, ** = power, / = divide
