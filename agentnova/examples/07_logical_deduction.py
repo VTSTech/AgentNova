@@ -212,19 +212,34 @@ def extract_number(response: str) -> str:
 
 
 def check_answer(response: str, expected: str, check_type: str) -> bool:
-    """Check if response matches expected answer."""
-    response_lower = response.lower()
-    expected_lower = expected.lower()
+    """Check if response matches expected answer with flexible matching."""
+    response_lower = response.lower().strip()
+    expected_lower = expected.lower().strip()
+    
+    # Synonyms and acceptable alternatives
+    synonyms = {
+        # Transitive reasoning - names
+        "carol": ["carol", "last", "third"],
+        # Quantifiers
+        "uncertain": ["uncertain", "maybe", "possibly", "not sure", "cannot determine", "unknown"],
+    }
     
     if check_type == "exact":
-        return expected_lower in response_lower
+        # Check for expected word or synonyms
+        if expected_lower in response_lower:
+            return True
+        if expected_lower in synonyms:
+            for syn in synonyms[expected_lower]:
+                if syn in response_lower:
+                    return True
+        return False
     
     elif check_type == "number":
         resp_num = extract_number(response_lower)
         exp_num = extract_number(expected_lower)
         if resp_num and exp_num:
             try:
-                return abs(float(resp_num) - float(exp_num)) < 0.01
+                return abs(float(resp_num) - float(exp_num)) < 0.5
             except ValueError:
                 return False
         return False

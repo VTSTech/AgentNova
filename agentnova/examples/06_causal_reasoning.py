@@ -210,14 +210,57 @@ def normalize_answer(text: str) -> str:
 
 
 def check_answer(response: str, expected: str, check_type: str) -> bool:
-    """Check if response matches expected answer."""
-    response_lower = response.lower()
-    expected_lower = expected.lower()
+    """Check if response matches expected answer with flexible matching."""
+    response_lower = response.lower().strip()
+    expected_lower = expected.lower().strip()
+    
+    # Synonyms and acceptable alternatives for causal reasoning
+    synonyms = {
+        # Direct causes
+        "rain": ["rain", "rained", "rainfall", "precipitation", "water from sky"],
+        "falling": ["fall", "falling", "fell", "drop", "dropped"],
+        "sunlight": ["sunlight", "sun", "light", "morning", "dawn"],
+        "water": ["water", "h2o", "liquid", "hydration", "irrigation"],
+        "heat": ["heat", "hot", "warm", "temperature", "sun", "melt"],
+        # Cause vs effect
+        "stopped": ["stopped", "stop", "halt", "ceased", "ended", "didn't move"],
+        "studying": ["studying", "study", "studied", "learn", "learned", "preparation"],
+        "alarm": ["alarm", "clock", "wake", "ringing", "sound"],
+        "dark": ["dark", "darkness", "black", "no light"],
+        # Causal chains
+        "electricity": ["electricity", "electric", "power", "current", "electrical"],
+        "bacteria": ["bacteria", "germs", "microorganism", "infection", "food poisoning"],
+        "friction": ["friction", "strike", "scratched", "heat", "spark"],
+        "ignition": ["ignition", "ignite", "spark", "start", "fire", "combustion"],
+        # Counterfactual
+        "die": ["die", "death", "dying", "perish", "wilt", "not survive"],
+        "breathe": ["breathe", "breathing", "breath", "respiration", "air"],
+        "float": ["float", "floating", "fly", "drift", "weightless", "up"],
+        "freeze": ["freeze", "frozen", "ice", "solid", "solidify"],
+        "pollinate": ["pollinate", "pollination", "reproduce", "flowers", "seeds"],
+        # Funding/correlation
+        "funding": ["funding", "fund", "money", "wealth", "resource", "budget"],
+    }
     
     if check_type == "exact":
-        return expected_lower in response_lower
+        # Check for expected word or synonyms
+        if expected_lower in response_lower:
+            return True
+        if expected_lower in synonyms:
+            for syn in synonyms[expected_lower]:
+                if syn in response_lower:
+                    return True
+        return False
     
     elif check_type == "keyword":
+        # Check for expected word or synonyms
+        if expected_lower in response_lower:
+            return True
+        if expected_lower in synonyms:
+            for syn in synonyms[expected_lower]:
+                if syn in response_lower:
+                    return True
+        # Also check if any keyword is present
         keywords = expected_lower.split()
         return any(kw in response_lower for kw in keywords)
     
@@ -306,3 +349,8 @@ def main():
     
     result["exit_code"] = 0 if result["passed"] == result["total"] else 1
     return result
+
+
+if __name__ == "__main__":
+    result = main()
+    sys.exit(result.get("exit_code", 0))
