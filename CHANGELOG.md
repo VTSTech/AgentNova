@@ -53,6 +53,12 @@ Implemented ClawSouls Soul Spec v0.5 support for persona packages. Souls allow d
   - Specifies ACP server URL
   - Falls back to `ACP_BASE_URL` environment variable or config default
   - Usage: `agentnova chat --acp --acp-url https://tunnel.trycloudflare.com`
+- **`--timeout` parameter** for run, chat, agent, test commands
+  - Sets the request timeout in seconds for API calls to the backend
+  - Default: 120 seconds
+  - Useful for slow remote Ollama servers (e.g., cloudflare tunnels)
+  - Displayed in chat/agent mode startup info
+  - Usage: `agentnova chat --timeout 300 --acp --acp-url https://...`
 
 #### Agent Integration
 - **`soul` parameter** in Agent.__init__
