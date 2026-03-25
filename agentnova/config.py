@@ -94,6 +94,11 @@ MAX_STEPS = int(os.environ.get("AGENTNOVA_MAX_STEPS", "10"))
 DEBUG = os.environ.get("AGENTNOVA_DEBUG", "").lower() in ("1", "true", "yes")
 VERBOSE = os.environ.get("AGENTNOVA_VERBOSE", "").lower() in ("1", "true", "yes")
 
+# Context window size (Ollama default is 2048)
+# Set OLLAMA_NUM_CTX or AGENTNOVA_NUM_CTX to override
+NUM_CTX = int(os.environ.get("OLLAMA_NUM_CTX") or os.environ.get("AGENTNOVA_NUM_CTX") or "0")
+# 0 means use Ollama's default (2048)
+
 
 @dataclass
 class Config:
@@ -117,6 +122,7 @@ class Config:
     max_steps: int = field(default_factory=lambda: MAX_STEPS)
     temperature: float = 0.7
     max_tokens: int = 2048
+    num_ctx: int | None = field(default_factory=lambda: NUM_CTX if NUM_CTX > 0 else None)
 
     # Memory settings
     memory_max_messages: int = 50

@@ -53,6 +53,7 @@ class Agent:
         system_prompt: str | None = None,
         soul: str | None = None,
         soul_level: int = 2,
+        num_ctx: int | None = None,
         **kwargs,
     ):
         """
@@ -69,12 +70,14 @@ class Agent:
             system_prompt: Custom system prompt (if None, uses default)
             soul: Path to Soul Spec package (disabled by default)
             soul_level: Progressive disclosure level for soul (1-3)
+            num_ctx: Context window size in tokens (Ollama default is 2048)
             **kwargs: Additional configuration
         """
         self.model = model
         self.max_steps = max_steps
         self.debug = debug
         self.force_react = force_react
+        self.num_ctx = num_ctx
 
         # Initialize backend
         if backend is None:
@@ -825,13 +828,20 @@ class Agent:
             if needs_no_think_directive(self.model_family):
                 think = False
 
+        # Build kwargs for backend
+        backend_kwargs = {"think": think}
+        if self.num_ctx is not None:
+            backend_kwargs["num_ctx"] = self.num_ctx
+            if self.debug:
+                print(f"  [DEBUG] num_ctx: {self.num_ctx}")
+
         response = self.backend.generate(
             model=self.model,
             messages=messages,
             tools=self.tools.all() if self._tool_support == ToolSupportLevel.NATIVE else None,
             temperature=self.model_config.default_temperature,
             max_tokens=self.model_config.default_max_tokens,
-            think=think,
+            **backend_kwargs,
         )
 
         if self.debug:

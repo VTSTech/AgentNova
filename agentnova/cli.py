@@ -265,6 +265,8 @@ def create_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--soul", default=None, help="Path to Soul Spec package (disabled by default)")
     run_parser.add_argument("--soul-level", type=int, default=2, choices=[1, 2, 3],
                            help="Soul progressive disclosure level (1=quick, 2=full, 3=deep)")
+    run_parser.add_argument("--num-ctx", type=int, default=None, dest="num_ctx",
+                           help="Context window size in tokens (Ollama default is 2048)")
 
     # Chat command
     chat_parser = subparsers.add_parser("chat", help="Interactive chat mode")
@@ -276,6 +278,8 @@ def create_parser() -> argparse.ArgumentParser:
     chat_parser.add_argument("--soul", default=None, help="Path to Soul Spec package (disabled by default)")
     chat_parser.add_argument("--soul-level", type=int, default=2, choices=[1, 2, 3],
                            help="Soul progressive disclosure level (1=quick, 2=full, 3=deep)")
+    chat_parser.add_argument("--num-ctx", type=int, default=None, dest="num_ctx",
+                           help="Context window size in tokens (Ollama default is 2048)")
 
     # Agent command
     agent_parser = subparsers.add_parser("agent", help="Autonomous agent mode")
@@ -286,6 +290,8 @@ def create_parser() -> argparse.ArgumentParser:
     agent_parser.add_argument("--soul", default=None, help="Path to Soul Spec package (disabled by default)")
     agent_parser.add_argument("--soul-level", type=int, default=2, choices=[1, 2, 3],
                            help="Soul progressive disclosure level (1=quick, 2=full, 3=deep)")
+    agent_parser.add_argument("--num-ctx", type=int, default=None, dest="num_ctx",
+                           help="Context window size in tokens (Ollama default is 2048)")
 
     # Models command
     models_parser = subparsers.add_parser("models", help="List available models")
@@ -308,6 +314,8 @@ def create_parser() -> argparse.ArgumentParser:
     test_parser.add_argument("--acp-url", default=None, help="ACP server URL (default: http://localhost:8766)")
     test_parser.add_argument("--use-mf-sys", action="store_true", dest="use_modelfile_system",
                              help="Use the model's Modelfile system prompt instead of custom test prompts")
+    test_parser.add_argument("--num-ctx", type=int, default=None, dest="num_ctx",
+                           help="Context window size in tokens (Ollama default is 2048)")
 
     # Version command
     subparsers.add_parser("version", help="Show version information")
@@ -358,6 +366,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         debug=args.debug,
         soul=getattr(args, 'soul', None),
         soul_level=getattr(args, 'soul_level', 2),
+        num_ctx=getattr(args, 'num_ctx', None) or config.num_ctx,
     )
 
     result = agent.run(args.prompt)
@@ -393,6 +402,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
         debug=args.debug,
         soul=getattr(args, 'soul', None),
         soul_level=getattr(args, 'soul_level', 2),
+        num_ctx=getattr(args, 'num_ctx', None) or config.num_ctx,
     )
 
     print_banner()
@@ -400,6 +410,9 @@ def cmd_chat(args: argparse.Namespace) -> int:
     print(f"{dim('Backend:')} {backend_name} ({dim(backend.base_url)})")
     if agent.soul:
         print(f"{dim('Soul:')} {green(agent.soul.display_name)} v{agent.soul.version}")
+    if agent.num_ctx:
+        ctx_display = f"{agent.num_ctx // 1024}K" if agent.num_ctx >= 1024 else str(agent.num_ctx)
+        print(f"{dim('Context:')} {yellow(ctx_display)}")
     print(f"{dim('Status:')} {yellow('Alpha')}")
     print("Type '/quit' to exit, '/help' for commands\n")
 
@@ -460,6 +473,7 @@ def cmd_agent(args: argparse.Namespace) -> int:
         debug=args.debug,
         soul=getattr(args, 'soul', None),
         soul_level=getattr(args, 'soul_level', 2),
+        num_ctx=getattr(args, 'num_ctx', None) or config.num_ctx,
     )
 
     agent_mode = AgentMode(agent, verbose=True)
@@ -469,6 +483,9 @@ def cmd_agent(args: argparse.Namespace) -> int:
     print(f"{dim('Backend:')} {backend_name} ({dim(backend.base_url)})")
     if agent.soul:
         print(f"{dim('Soul:')} {green(agent.soul.display_name)} v{agent.soul.version}")
+    if agent.num_ctx:
+        ctx_display = f"{agent.num_ctx // 1024}K" if agent.num_ctx >= 1024 else str(agent.num_ctx)
+        print(f"{dim('Context:')} {yellow(ctx_display)}")
     print(f"{dim('Status:')} {yellow('Alpha')}")
     print("Give the agent a goal to accomplish autonomously.")
     print(f"Commands: {cyan('/status')}, {cyan('/pause')}, {cyan('/resume')}, {cyan('/stop')}, {cyan('/quit')}\n")
@@ -865,6 +882,8 @@ def cmd_test(args: argparse.Namespace) -> int:
         os.environ["AGENTNOVA_MODEL"] = args.model
     if args.backend:
         os.environ["AGENTNOVA_BACKEND"] = args.backend
+    if getattr(args, 'num_ctx', None):
+        os.environ["AGENTNOVA_NUM_CTX"] = str(args.num_ctx)
     
     # Build argv for test modules (they have their own argparse)
     test_argv = []
@@ -882,6 +901,10 @@ def cmd_test(args: argparse.Namespace) -> int:
     print(f"{bright_magenta('Test Runner')} — {len(tests_to_run)} test(s)")
     print(f"{dim('Backend:')} {backend_name} ({backend.base_url})")
     print(f"{dim('Model:')} {args.model or config.default_model}")
+    num_ctx_val = getattr(args, 'num_ctx', None) or config.num_ctx
+    if num_ctx_val:
+        ctx_display = f"{num_ctx_val // 1024}K" if num_ctx_val >= 1024 else str(num_ctx_val)
+        print(f"{dim('Context:')} {yellow(ctx_display)}")
     if acp:
         print(f"{dim('ACP:')} {green('✓ Connected')} ({acp.base_url})")
     print()
@@ -999,7 +1022,7 @@ def cmd_config(args: argparse.Namespace) -> int:
     """Show current configuration."""
     from .config import (
         OLLAMA_BASE_URL, BITNET_BASE_URL, ACP_BASE_URL,
-        AGENTNOVA_BACKEND, DEFAULT_MODEL,
+        AGENTNOVA_BACKEND, DEFAULT_MODEL, NUM_CTX,
     )
 
     if args.urls:
@@ -1012,6 +1035,9 @@ def cmd_config(args: argparse.Namespace) -> int:
         print(dim("-" * 40))
         print(f"  {dim('Backend:')}       {green(AGENTNOVA_BACKEND)}")
         print(f"  {dim('Default Model:')} {cyan(DEFAULT_MODEL)}")
+        if NUM_CTX and NUM_CTX > 0:
+            ctx_display = f"{NUM_CTX // 1024}K" if NUM_CTX >= 1024 else str(NUM_CTX)
+            print(f"  {dim('Context Window:')} {yellow(ctx_display)} (num_ctx)")
         print()
         print(f"  {yellow('URLs:')}")
         print(f"    {dim('Ollama:')} {OLLAMA_BASE_URL}")
@@ -1025,6 +1051,7 @@ def cmd_config(args: argparse.Namespace) -> int:
         print(f"  {dim('ACP_BASE_URL')}       - ACP server URL")
         print(f"  {dim('AGENTNOVA_BACKEND')}  - Default backend (ollama/bitnet)")
         print(f"  {dim('AGENTNOVA_MODEL')}    - Default model")
+        print(f"  {dim('OLLAMA_NUM_CTX')}     - Context window size (default: 2048)")
 
     return 0
 
