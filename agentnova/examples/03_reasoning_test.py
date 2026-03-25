@@ -194,12 +194,7 @@ def run_reasoning_test(model: str, backend, debug: bool = False) -> dict:
     
     results = {"model": model, "passed": 0, "total": len(REASONING_TESTS), "time": 0, "categories": {}}
     
-    agent = Agent(
-        model=model,
-        backend=backend,
-        max_steps=1,  # Single-step for reasoning (no tools)
-        debug=debug,
-    )
+    # Note: We create a fresh agent for each test to avoid memory contamination
     
     for test in REASONING_TESTS:
         category = test["category"]
@@ -207,7 +202,15 @@ def run_reasoning_test(model: str, backend, debug: bool = False) -> dict:
         expected = test["expected"]
         check_type = test["type"]
         
-        print(f"\n📋 [{category}] {prompt}...")
+        print(f"\n📋 [{category}] {prompt[:50]}...")
+        
+        # Create fresh agent for each test (isolates memory)
+        agent = Agent(
+            model=model,
+            backend=backend,
+            max_steps=1,  # Single-step for reasoning (no tools)
+            debug=debug,
+        )
         
         t0 = time.time()
         run = agent.run(prompt)
@@ -227,7 +230,7 @@ def run_reasoning_test(model: str, backend, debug: bool = False) -> dict:
         results["passed"] += int(passed)
         
         status = "✅" if passed else "❌"
-        print(f"  {status} Expected: {expected} | Got: {response}")
+        print(f"  {status} Expected: {expected} | Got: {response[:60]}")
         print(f"     {elapsed:.1f}s")
     
     return results

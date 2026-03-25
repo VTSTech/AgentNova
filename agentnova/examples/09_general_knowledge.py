@@ -247,12 +247,7 @@ def run_tests(model: str, backend, debug: bool = False) -> dict:
     
     results = {"model": model, "passed": 0, "total": len(TESTS), "time": 0, "categories": {}}
     
-    agent = Agent(
-        model=model,
-        backend=backend,
-        max_steps=1,
-        debug=debug,
-    )
+    # Note: We create a fresh agent for each test to avoid memory contamination
     
     for test in TESTS:
         category = test["category"]
@@ -261,6 +256,14 @@ def run_tests(model: str, backend, debug: bool = False) -> dict:
         check_type = test["type"]
         
         print(f"\n📋 [{category}] {prompt[:55]}...")
+        
+        # Create fresh agent for each test (isolates memory)
+        agent = Agent(
+            model=model,
+            backend=backend,
+            max_steps=1,
+            debug=debug,
+        )
         
         t0 = time.time()
         run = agent.run(prompt)
