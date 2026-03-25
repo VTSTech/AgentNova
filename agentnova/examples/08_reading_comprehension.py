@@ -336,7 +336,7 @@ Instructions:
         expected = test["expected"]
         check_type = test["type"]
         
-        print(f"\n📋 [{category}] {prompt[:50]}...")
+        print(f"\n📋 [{category}] {prompt}...")
         
         # Create fresh agent for each test (isolates memory)
         # If use_mf_sys=True, don't pass custom system_prompt (use model's Modelfile)
@@ -368,7 +368,7 @@ Instructions:
         results["passed"] += int(passed)
         
         status = "✅" if passed else "❌"
-        print(f"  {status} Expected: {expected} | Got: {response[:50]}")
+        print(f"  {status} Expected: {expected} | Got: {response}")
         print(f"     {elapsed:.1f}s")
     
     return results
