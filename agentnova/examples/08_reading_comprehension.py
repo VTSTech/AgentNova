@@ -310,7 +310,7 @@ def check_answer(response: str, expected: str, check_type: str) -> bool:
     return False
 
 
-def run_tests(model: str, backend, debug: bool = False, use_mf_sys: bool = False) -> dict:
+def run_tests(model: str, backend, debug: bool = False) -> dict:
     """Run reading comprehension tests for a model."""
     print(f"\n{'='*60}")
     print(f"📖 Reading Comprehension Tests: {model}")
@@ -318,7 +318,7 @@ def run_tests(model: str, backend, debug: bool = False, use_mf_sys: bool = False
     
     results = {"model": model, "passed": 0, "total": len(TESTS), "time": 0, "categories": {}}
     
-    # Custom system prompt for reading comprehension (ignored if use_mf_sys=True)
+    # Custom system prompt for reading comprehension
     comprehension_prompt = """Answer questions based on the text provided. Be direct and concise.
 
 Instructions:
@@ -339,17 +339,13 @@ Instructions:
         print(f"\n📋 [{category}] {prompt[:50]}...")
         
         # Create fresh agent for each test (isolates memory)
-        # If use_mf_sys=True, don't pass custom system_prompt (use model's Modelfile)
-        agent_kwargs = {
-            "model": model,
-            "backend": backend,
-            "max_steps": 1,
-            "debug": debug,
-        }
-        if not use_mf_sys:
-            agent_kwargs["system_prompt"] = comprehension_prompt
-        
-        agent = Agent(**agent_kwargs)
+        agent = Agent(
+            model=model,
+            backend=backend,
+            max_steps=1,
+            debug=debug,
+            system_prompt=comprehension_prompt,
+        )
         
         t0 = time.time()
         run = agent.run(prompt)
@@ -377,7 +373,6 @@ Instructions:
 def main():
     args = parse_args()
     config = get_config()
-    shared_config = parse_shared_args(args)
     
     model = args.model or config.default_model
     backend_name = args.backend or config.backend
@@ -390,12 +385,8 @@ def main():
     print(f"\n⚛️ AgentNova Reading Comprehension Tests ({len(TESTS)} questions)")
     print(f"   Backend: {backend_name} ({backend.base_url})")
     print(f"   Model: {model}")
-    if shared_config.use_modelfile_system:
-        print(f"   System Prompt: Modelfile (native)")
-    else:
-        print(f"   System Prompt: Custom (reading comprehension)")
     
-    result = run_tests(model, backend, args.debug, shared_config.use_modelfile_system)
+    result = run_tests(model, backend, args.debug)
     
     print(f"\n{'='*60}")
     print("📊 Results by Category")
