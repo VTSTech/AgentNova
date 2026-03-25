@@ -1,4 +1,4 @@
-"""
+﻿"""
 ⚛️ AgentNova — CLI
 Command-line interface for AgentNova.
 
@@ -705,6 +705,31 @@ def cmd_test(args: argparse.Namespace) -> int:
             "name": "GSM8K Benchmark",
             "desc": "Grade school math problems",
             "module": "agentnova.examples.04_gsm8k_benchmark",
+        },
+        "05": {
+            "name": "Common Sense",
+            "desc": "Everyday knowledge and reasoning (25 questions)",
+            "module": "agentnova.examples.05_common_sense",
+        },
+        "06": {
+            "name": "Causal Reasoning",
+            "desc": "Cause and effect understanding (25 questions)",
+            "module": "agentnova.examples.06_causal_reasoning",
+        },
+        "07": {
+            "name": "Logical Deduction",
+            "desc": "Syllogisms and logic puzzles (25 questions)",
+            "module": "agentnova.examples.07_logical_deduction",
+        },
+        "08": {
+            "name": "Reading Comprehension",
+            "desc": "Text understanding and inference (25 questions)",
+            "module": "agentnova.examples.08_reading_comprehension",
+        },
+        "09": {
+            "name": "General Knowledge",
+            "desc": "Geography, science, and facts (25 questions)",
+            "module": "agentnova.examples.09_general_knowledge",
         },
     }
     
