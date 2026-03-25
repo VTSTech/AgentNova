@@ -1,4 +1,4 @@
-"""
+﻿"""
 ⚛️ AgentNova — Helper Functions
 Utility functions for fuzzy matching, argument normalization, and security.
 
@@ -263,6 +263,36 @@ ALLOWED_PATH_PATTERNS = {
     "~/tmp", "~/temp",
 }
 
+# Windows-specific temp directories (will be checked dynamically)
+_WINDOWS_TEMP_ENV_VARS = ["TEMP", "TMP", "LOCALAPPDATA"]
+
+
+def _get_system_temp_dirs() -> list[str]:
+    """Get system temp directories (cross-platform)."""
+    import tempfile
+    
+    dirs = []
+    
+    # Standard temp directory
+    try:
+        system_temp = tempfile.gettempdir()
+        if system_temp:
+            dirs.append(system_temp)
+    except Exception:
+        pass
+    
+    # Windows-specific: check environment variables
+    if os.name == "nt":
+        for env_var in _WINDOWS_TEMP_ENV_VARS:
+            env_val = os.environ.get(env_var)
+            if env_val and os.path.isabs(env_val):
+                dirs.append(env_val)
+                # LOCALAPPDATA\Temp is common on Windows
+                if env_var == "LOCALAPPDATA":
+                    dirs.append(os.path.join(env_val, "Temp"))
+    
+    return list(set(dirs))  # Remove duplicates
+
 
 def validate_path(path: str, allowed_dirs: list[str] | None = None) -> tuple[bool, str]:
     """
@@ -296,22 +326,54 @@ def validate_path(path: str, allowed_dirs: list[str] | None = None) -> tuple[boo
     if not os.path.isabs(path):
         return True, ""
 
-    # For absolute paths, check against sensitive system directories
-    # These are the truly dangerous ones
-    critical_system_dirs = ["/etc", "/root", "/var", "/usr", "/bin", "/sbin", "/boot", "/dev", "/proc", "/sys"]
-    for critical in critical_system_dirs:
-        if normalized.startswith(critical):
-            return False, f"Access to system directory denied: {critical}"
+    # For absolute paths, check against sensitive system directories (platform-specific)
+    if os.name == "nt":  # Windows
+        # Windows critical directories
+        windir = os.environ.get("WINDIR", "C:\\Windows").lower()
+        program_files = os.environ.get("ProgramFiles", "C:\\Program Files").lower()
+        program_files_x86 = os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)").lower()
+        
+        normalized_lower = normalized.lower()
+        critical_paths = [
+            windir,
+            program_files,
+            program_files_x86,
+            "c:\\windows",
+            "c:\\program files",
+            "c:\\program files (x86)",
+            "c:\\programdata",
+        ]
+        for critical in critical_paths:
+            if critical and normalized_lower.startswith(critical.lower()):
+                return False, f"Access to system directory denied"
+    else:  # Unix-like
+        critical_system_dirs = ["/etc", "/root", "/var", "/usr", "/bin", "/sbin", "/boot", "/dev", "/proc", "/sys"]
+        for critical in critical_system_dirs:
+            if normalized.startswith(critical):
+                return False, f"Access to system directory denied: {critical}"
 
-    # Allow /tmp and /home for file operations
-    if normalized.startswith("/tmp") or normalized.startswith("/var/tmp"):
+    # Allow system temp directories (cross-platform)
+    system_temps = _get_system_temp_dirs()
+    for temp_dir in system_temps:
+        try:
+            if normalized.lower().startswith(temp_dir.lower()) if os.name == "nt" else normalized.startswith(temp_dir):
+                return True, ""
+        except Exception:
+            pass
+
+    # Allow /tmp and /home for file operations (Unix)
+    if normalized.startswith("/tmp") or normalized.startswith("/var/tmp") or normalized.startswith("/home"):
         return True, ""
 
     # Check against allowed directories
     allowed = allowed_dirs or list(ALLOWED_PATH_PATTERNS)
     for allowed_dir in allowed:
-        if normalized.startswith(os.path.abspath(allowed_dir)):
-            return True, ""
+        try:
+            abs_allowed = os.path.abspath(allowed_dir)
+            if normalized.lower().startswith(abs_allowed.lower()) if os.name == "nt" else normalized.startswith(abs_allowed):
+                return True, ""
+        except Exception:
+            pass
 
     return False, f"Path not in allowed directories: {path}"
 
