@@ -178,7 +178,10 @@ def test_file_direct() -> tuple[int, int]:
         # Test read_file
         print(f"\n  Testing read_file...")
         read_result = read_file(test_file)
-        read_ok = test_content in read_result
+        # Normalize line endings for comparison (Windows uses \r\n)
+        read_normalized = read_result.replace('\r\n', '\n').replace('\r', '\n')
+        test_normalized = test_content.replace('\r\n', '\n').replace('\r', '\n')
+        read_ok = test_normalized in read_normalized or test_normalized == read_normalized
         results.append(read_ok)
         status = "✅" if read_ok else "❌"
         print(f"    {status} read_file: {read_result[:40]}...")
