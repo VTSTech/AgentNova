@@ -558,21 +558,62 @@ def _load_tool_cache() -> dict:
     if cache_file.exists():
         try:
             with open(cache_file, "r") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, IOError):
-            pass
+                data = json.load(f)
+                # Validate it's a dict
+                if isinstance(data, dict):
+                    return data
+                # Corrupted - not a dict
+                if os.environ.get("AGENTNOVA_DEBUG"):
+                    print(f"Warning: Cache file corrupted (not a dict), ignoring", file=sys.stderr)
+                return {}
+        except json.JSONDecodeError as e:
+            # Corrupted JSON - warn in debug mode
+            if os.environ.get("AGENTNOVA_DEBUG"):
+                print(f"Warning: Cache file has invalid JSON: {e}", file=sys.stderr)
+            # Try to remove corrupted file
+            try:
+                cache_file.unlink()
+            except Exception:
+                pass
+            return {}
+        except IOError as e:
+            if os.environ.get("AGENTNOVA_DEBUG"):
+                print(f"Warning: Could not read cache file: {e}", file=sys.stderr)
     return {}
 
 
 def _save_tool_cache(cache: dict) -> None:
-    """Save tool support results to cache."""
-    cache_file = _get_cache_dir() / "tool_support.json"
+    """Save tool support results to cache using atomic writes."""
+    import tempfile
+    
+    cache_dir = _get_cache_dir()
+    cache_file = cache_dir / "tool_support.json"
+    
     try:
-        with open(cache_file, "w") as f:
-            json.dump(cache, f, indent=2)
+        # Write to a temp file first, then rename for atomicity
+        # This prevents partial writes if the process is interrupted
+        fd, temp_path = tempfile.mkstemp(
+            dir=str(cache_dir),
+            prefix=".tool_support_",
+            suffix=".json.tmp"
+        )
+        
+        try:
+            with os.fdopen(fd, 'w') as f:
+                json.dump(cache, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            
+            # Atomic rename (on POSIX systems)
+            os.replace(temp_path, str(cache_file))
+        except Exception:
+            # Clean up temp file on error
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+            raise
+            
     except IOError as e:
         # Log the error but don't fail - cache is optional
-        import sys
         print(f"Warning: Could not save tool cache: {e}", file=sys.stderr)
 
 
