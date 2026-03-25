@@ -297,6 +297,8 @@ def create_parser() -> argparse.ArgumentParser:
     test_parser.add_argument("--list", action="store_true", help="List available tests")
     test_parser.add_argument("--acp", action="store_true", help="Enable ACP logging to Agent Control Panel")
     test_parser.add_argument("--acp-url", default=None, help="ACP server URL (default: http://localhost:8766)")
+    test_parser.add_argument("--use-mf-sys", action="store_true", dest="use_modelfile_system",
+                             help="Use the model's Modelfile system prompt instead of custom test prompts")
 
     # Version command
     subparsers.add_parser("version", help="Show version information")
@@ -817,6 +819,8 @@ def cmd_test(args: argparse.Namespace) -> int:
         test_argv.append("--debug")
     if args.backend:
         test_argv.extend(["--backend", args.backend])
+    if getattr(args, 'use_modelfile_system', False):
+        test_argv.append("--use-mf-sys")
     
     # Run tests
     print_banner()
