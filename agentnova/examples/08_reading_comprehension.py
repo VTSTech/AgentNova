@@ -31,7 +31,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agentnova import Agent, get_config
 from agentnova.backends import get_default_backend
-from agentnova.shared_args import add_shared_args, parse_shared_args
 
 
 def parse_args():
@@ -39,7 +38,8 @@ def parse_args():
     parser.add_argument("-m", "--model", default=None, help="Model to test")
     parser.add_argument("--debug", action="store_true", help="Enable debug output")
     parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None)
-    add_shared_args(parser)  # Adds --use-mf-sys, --force-react, etc.
+    parser.add_argument("--use-mf-sys", action="store_true", dest="use_modelfile_system",
+                        help="Use the model's Modelfile system prompt instead of custom prompt")
     return parser.parse_args()
 
 
@@ -377,7 +377,6 @@ Instructions:
 def main():
     args = parse_args()
     config = get_config()
-    shared_config = parse_shared_args(args)
     
     model = args.model or config.default_model
     backend_name = args.backend or config.backend
@@ -390,12 +389,12 @@ def main():
     print(f"\n⚛️ AgentNova Reading Comprehension Tests ({len(TESTS)} questions)")
     print(f"   Backend: {backend_name} ({backend.base_url})")
     print(f"   Model: {model}")
-    if shared_config.use_modelfile_system:
+    if args.use_modelfile_system:
         print(f"   System Prompt: Modelfile (native)")
     else:
         print(f"   System Prompt: Custom (reading comprehension)")
     
-    result = run_tests(model, backend, args.debug, shared_config.use_modelfile_system)
+    result = run_tests(model, backend, args.debug, args.use_modelfile_system)
     
     print(f"\n{'='*60}")
     print("📊 Results by Category")
