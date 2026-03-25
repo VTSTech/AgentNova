@@ -18,17 +18,20 @@ _BACKENDS: dict[str, type[BaseBackend]] = {
 }
 
 
-def get_backend(name: str, **kwargs) -> BaseBackend:
+def get_backend(name: str, timeout: int | None = None, **kwargs) -> BaseBackend:
     """
     Get a backend instance by name.
 
     Args:
         name: Backend name ("ollama", "bitnet")
+        timeout: Request timeout in seconds (default: 120)
         **kwargs: Backend-specific configuration
 
     Returns:
         Backend instance
     """
+    from .base import BackendConfig
+    
     name_lower = name.lower()
 
     if name_lower not in _BACKENDS:
@@ -42,6 +45,10 @@ def get_backend(name: str, **kwargs) -> BaseBackend:
             kwargs["base_url"] = OLLAMA_BASE_URL
         elif name_lower == "bitnet":
             kwargs["base_url"] = BITNET_BASE_URL
+
+    # Create BackendConfig with timeout if specified
+    if "config" not in kwargs and timeout is not None:
+        kwargs["config"] = BackendConfig(timeout=timeout)
 
     return backend_class(**kwargs)
 

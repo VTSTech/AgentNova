@@ -267,6 +267,8 @@ def create_parser() -> argparse.ArgumentParser:
                            help="Soul progressive disclosure level (1=quick, 2=full, 3=deep)")
     run_parser.add_argument("--num-ctx", type=int, default=None, dest="num_ctx",
                            help="Context window size in tokens (Ollama default is 2048)")
+    run_parser.add_argument("--timeout", type=int, default=None,
+                           help="Request timeout in seconds (default: 120)")
     run_parser.add_argument("--acp", action="store_true", help="Enable ACP logging to Agent Control Panel")
     run_parser.add_argument("--acp-url", default=None, help="ACP server URL (default: from config)")
 
@@ -282,6 +284,8 @@ def create_parser() -> argparse.ArgumentParser:
                            help="Soul progressive disclosure level (1=quick, 2=full, 3=deep)")
     chat_parser.add_argument("--num-ctx", type=int, default=None, dest="num_ctx",
                            help="Context window size in tokens (Ollama default is 2048)")
+    chat_parser.add_argument("--timeout", type=int, default=None,
+                           help="Request timeout in seconds (default: 120)")
     chat_parser.add_argument("--acp", action="store_true", help="Enable ACP logging to Agent Control Panel")
     chat_parser.add_argument("--acp-url", default=None, help="ACP server URL (default: from config)")
 
@@ -296,6 +300,8 @@ def create_parser() -> argparse.ArgumentParser:
                            help="Soul progressive disclosure level (1=quick, 2=full, 3=deep)")
     agent_parser.add_argument("--num-ctx", type=int, default=None, dest="num_ctx",
                            help="Context window size in tokens (Ollama default is 2048)")
+    agent_parser.add_argument("--timeout", type=int, default=None,
+                           help="Request timeout in seconds (default: 120)")
     agent_parser.add_argument("--acp", action="store_true", help="Enable ACP logging to Agent Control Panel")
     agent_parser.add_argument("--acp-url", default=None, help="ACP server URL (default: from config)")
 
@@ -322,6 +328,8 @@ def create_parser() -> argparse.ArgumentParser:
                              help="Use the model's Modelfile system prompt instead of custom test prompts")
     test_parser.add_argument("--num-ctx", type=int, default=None, dest="num_ctx",
                            help="Context window size in tokens (Ollama default is 2048)")
+    test_parser.add_argument("--timeout", type=int, default=None,
+                           help="Request timeout in seconds (default: 120)")
 
     # Version command
     subparsers.add_parser("version", help="Show version information")
@@ -393,7 +401,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     if should_stop:
         return 1
 
-    backend = get_backend(backend_name)
+    timeout = getattr(args, 'timeout', None)
+    backend = get_backend(backend_name, timeout=timeout)
 
     # Build tools
     if args.tools:
@@ -443,7 +452,8 @@ def cmd_chat(args: argparse.Namespace) -> int:
     if should_stop:
         return 1
 
-    backend = get_backend(backend_name)
+    timeout = getattr(args, 'timeout', None)
+    backend = get_backend(backend_name, timeout=timeout)
 
     if args.tools:
         all_tools = make_builtin_registry()
@@ -471,6 +481,8 @@ def cmd_chat(args: argparse.Namespace) -> int:
     if agent.num_ctx:
         ctx_display = f"{agent.num_ctx // 1024}K" if agent.num_ctx >= 1024 else str(agent.num_ctx)
         print(f"{dim('Context:')} {yellow(ctx_display)}")
+    if timeout:
+        print(f"{dim('Timeout:')} {yellow(str(timeout) + 's')}")
     if acp:
         print(f"{dim('ACP:')} {green('✓ Connected')} ({acp.base_url})")
     print(f"{dim('Status:')} {yellow('Alpha')}")
@@ -533,7 +545,8 @@ def cmd_agent(args: argparse.Namespace) -> int:
     if should_stop:
         return 1
 
-    backend = get_backend(backend_name)
+    timeout = getattr(args, 'timeout', None)
+    backend = get_backend(backend_name, timeout=timeout)
 
     if args.tools:
         all_tools = make_builtin_registry()
@@ -562,6 +575,8 @@ def cmd_agent(args: argparse.Namespace) -> int:
     if agent.num_ctx:
         ctx_display = f"{agent.num_ctx // 1024}K" if agent.num_ctx >= 1024 else str(agent.num_ctx)
         print(f"{dim('Context:')} {yellow(ctx_display)}")
+    if timeout:
+        print(f"{dim('Timeout:')} {yellow(str(timeout) + 's')}")
     if acp:
         print(f"{dim('ACP:')} {green('✓ Connected')} ({acp.base_url})")
     print(f"{dim('Status:')} {yellow('Alpha')}")
@@ -975,7 +990,8 @@ def cmd_test(args: argparse.Namespace) -> int:
     # Check backend
     config = get_config()
     backend_name = args.backend or config.backend
-    backend = get_backend(backend_name)
+    timeout = getattr(args, 'timeout', None)
+    backend = get_backend(backend_name, timeout=timeout)
     
     if not backend.is_running():
         print(f"{red('Error:')} {backend_name.capitalize()} not running at {backend.base_url}")
