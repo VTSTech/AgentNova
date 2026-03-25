@@ -74,34 +74,57 @@ class SoulLoader:
         # 3. Try relative to agentnova package directory
         try:
             import agentnova
-            package_dir = Path(agentnova.__file__).parent
-            package_path = package_dir / "souls" / path
-            if package_path.exists():
-                return package_path
-            # Also try without souls/ prefix if path looks like a soul name
-            if "/" not in str(path) and "\\" not in str(path):
+            if agentnova.__file__ is not None:
+                package_dir = Path(agentnova.__file__).parent
                 package_path = package_dir / "souls" / path
                 if package_path.exists():
                     return package_path
-        except ImportError:
+                # Also try without souls/ prefix if path looks like a soul name
+                if "/" not in str(path) and "\\" not in str(path):
+                    package_path = package_dir / "souls" / path
+                    if package_path.exists():
+                        return package_path
+            else:
+                # Fallback: try importlib.resources for namespace packages (Windows pip install)
+                try:
+                    import importlib.resources as resources
+                    if hasattr(resources, 'files'):
+                        package_path = resources.files('agentnova') / 'souls' / path
+                        if package_path.is_dir():
+                            return Path(str(package_path))
+                except (ImportError, TypeError, AttributeError):
+                    pass
+        except (ImportError, TypeError):
             pass
         
         # 4. Try as soul name in package souls directory
         try:
             import agentnova
-            package_dir = Path(agentnova.__file__).parent
-            # Check if it's a simple name (no path separators)
-            soul_name = str(path).replace("/", "").replace("\\", "")
-            if soul_name == str(path):
-                # It's a simple name, look for it in souls/
-                soul_path = package_dir / "souls" / soul_name
-                if soul_path.exists():
-                    return soul_path
-                # Also try with .json extension
-                json_path = package_dir / "souls" / soul_name / "soul.json"
-                if json_path.exists():
-                    return soul_path
-        except (ImportError, ValueError):
+            if agentnova.__file__ is not None:
+                package_dir = Path(agentnova.__file__).parent
+                # Check if it's a simple name (no path separators)
+                soul_name = str(path).replace("/", "").replace("\\", "")
+                if soul_name == str(path):
+                    # It's a simple name, look for it in souls/
+                    soul_path = package_dir / "souls" / soul_name
+                    if soul_path.exists():
+                        return soul_path
+                    # Also try with .json extension
+                    json_path = package_dir / "souls" / soul_name / "soul.json"
+                    if json_path.exists():
+                        return soul_path
+            else:
+                # Fallback: try importlib.resources for namespace packages (Windows pip install)
+                try:
+                    import importlib.resources as resources
+                    soul_name = str(path).replace("/", "").replace("\\", "")
+                    if soul_name == str(path) and hasattr(resources, 'files'):
+                        soul_path = resources.files('agentnova') / 'souls' / soul_name
+                        if soul_path.is_dir():
+                            return Path(str(soul_path))
+                except (ImportError, TypeError, AttributeError):
+                    pass
+        except (ImportError, ValueError, TypeError):
             pass
         
         # 5. Final check - does the original path exist?
