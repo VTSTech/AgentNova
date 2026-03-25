@@ -44,6 +44,15 @@ Implemented ClawSouls Soul Spec v0.5 support for persona packages. Souls allow d
   - Falls back to config default if not specified
   - Displayed in mode startup info (e.g., `Context: 32K`)
   - Usage: `agentnova chat -m qwen2.5:0.5b --num-ctx 32768`
+- **`--acp` flag** for run, chat, agent, test commands
+  - Enables ACP (Agent Control Panel) logging
+  - Logs user prompts and assistant responses
+  - Shows connection status on startup
+  - Graceful fallback if ACP unavailable
+- **`--acp-url` parameter** for run, chat, agent, test commands
+  - Specifies ACP server URL
+  - Falls back to `ACP_BASE_URL` environment variable or config default
+  - Usage: `agentnova chat --acp --acp-url https://tunnel.trycloudflare.com`
 
 #### Agent Integration
 - **`soul` parameter** in Agent.__init__
