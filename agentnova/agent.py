@@ -30,11 +30,15 @@ class Agent:
     - Sliding window memory
     - Streaming support
     - Debug mode
+    - Soul Spec v0.5 support (disabled by default, enable with soul=)
 
     Example:
         agent = Agent(model="qwen2.5:0.5b", tools=["calculator", "shell"])
         result = agent.run("What is 15 * 8?")
         print(result.final_answer)
+        
+        # With Soul Spec (disabled by default)
+        agent = Agent(model="qwen2.5:0.5b", soul="/path/to/soul/package")
     """
 
     def __init__(
@@ -47,6 +51,8 @@ class Agent:
         force_react: bool = False,
         debug: bool = False,
         system_prompt: str | None = None,
+        soul: str | None = None,
+        soul_level: int = 2,
         **kwargs,
     ):
         """
@@ -61,6 +67,8 @@ class Agent:
             force_react: Force ReAct mode even for native-capable models
             debug: Enable debug output
             system_prompt: Custom system prompt (if None, uses default)
+            soul: Path to Soul Spec package (disabled by default)
+            soul_level: Progressive disclosure level for soul (1-3)
             **kwargs: Additional configuration
         """
         self.model = model
@@ -102,6 +110,40 @@ class Agent:
         # Detect model family
         from .core.model_family_config import detect_family
         self.model_family = detect_family(model)
+
+        # Load Soul Spec package (disabled by default, enable with soul=)
+        self.soul = None
+        self._soul_level = soul_level
+        if soul is not None:
+            try:
+                from .soul import load_soul, build_system_prompt as build_soul_prompt
+                self.soul = load_soul(soul, level=soul_level)
+                
+                # Filter tools based on soul.allowed_tools
+                if self.soul.allowed_tools and len(self.soul.allowed_tools) > 0:
+                    allowed = set(self.soul.allowed_tools)
+                    current_tools = set(self.tools.names())
+                    # Keep only allowed tools that exist
+                    filtered = current_tools.intersection(allowed)
+                    if filtered != current_tools:
+                        if debug:
+                            print(f"[Soul] Filtering tools: {current_tools} -> {filtered}")
+                        self.tools = self.tools.subset(list(filtered))
+                
+                # Generate system prompt from soul if not provided
+                if system_prompt is None:
+                    system_prompt = build_soul_prompt(self.soul, level=soul_level)
+                    if debug:
+                        print(f"[Soul] Loaded: {self.soul.display_name} v{self.soul.version}")
+            except ImportError:
+                if debug:
+                    print("[Soul] Soul module not available, ignoring soul parameter")
+            except FileNotFoundError as e:
+                if debug:
+                    print(f"[Soul] Soul package not found: {e}")
+            except Exception as e:
+                if debug:
+                    print(f"[Soul] Error loading soul: {e}")
 
         # Determine tool support level
         if force_react:

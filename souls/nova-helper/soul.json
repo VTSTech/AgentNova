@@ -1,0 +1,30 @@
+{
+  "specVersion": "0.5",
+  "name": "nova-helper",
+  "displayName": "Nova Helper",
+  "version": "1.0.0",
+  "description": "A helpful coding assistant with expertise in Python, debugging, and code review.",
+  "author": {
+    "name": "VTSTech",
+    "github": "VTSTech"
+  },
+  "license": "MIT",
+  "tags": ["coding", "python", "assistant", "debugging"],
+  "category": "development/assistant",
+  "compatibility": {
+    "frameworks": ["openclaw", "agentnova"],
+    "models": ["*"]
+  },
+  "allowedTools": ["calculator", "shell", "write_file", "read_file"],
+  "recommendedSkills": [],
+  "files": {
+    "soul": "SOUL.md",
+    "identity": "IDENTITY.md",
+    "style": "STYLE.md"
+  },
+  "disclosure": {
+    "summary": "A helpful coding assistant specialized in Python and debugging."
+  },
+  "deprecated": false,
+  "repository": "https://github.com/VTSTech/AgentNova"
+}

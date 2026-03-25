@@ -8,6 +8,7 @@ Features:
   • Three-tier tool support — native, ReAct, or none (auto-detected)
   • Small model optimized — fuzzy matching, argument normalization
   • Built-in security — path validation, command blocklist, SSRF protection
+  • Soul Spec v0.5 — persona packages (disabled by default, use --soul)
 
 Status: Alpha
 
@@ -22,6 +23,9 @@ Example Usage:
 
     result = agent.run("What is 15 * 8?")
     print(result.final_answer)
+    
+    # With Soul Spec (disabled by default)
+    agent = Agent(model="qwen2.5:0.5b", soul="/path/to/soul/package")
 """
 
 __version__ = "0.3.0"
@@ -59,6 +63,21 @@ try:
     from .acp_plugin import ACPPlugin
 except ImportError:
     ACPPlugin = None  # type: ignore
+
+# Optional Soul Spec support (graceful import)
+try:
+    from .soul import (
+        SoulManifest, SoulLoader, load_soul, build_system_prompt,
+        Environment, InteractionMode, HardwareConstraints,
+    )
+except ImportError:
+    SoulManifest = None  # type: ignore
+    SoulLoader = None  # type: ignore
+    load_soul = None  # type: ignore
+    build_system_prompt = None  # type: ignore
+    Environment = None  # type: ignore
+    InteractionMode = None  # type: ignore
+    HardwareConstraints = None  # type: ignore
 
 __all__ = [
     # Version
@@ -115,4 +134,12 @@ __all__ = [
     "parse_shared_args",
     # ACP Plugin
     "ACPPlugin",
+    # Soul Spec
+    "SoulManifest",
+    "SoulLoader",
+    "load_soul",
+    "build_system_prompt",
+    "Environment",
+    "InteractionMode",
+    "HardwareConstraints",
 ]
