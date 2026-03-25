@@ -349,11 +349,49 @@ def create_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _init_acp(args: argparse.Namespace, config, agent_name: str = "AgentNova") -> tuple:
+    """
+    Initialize ACP plugin if requested.
+    
+    Returns:
+        tuple: (acp_plugin or None, should_stop bool)
+    """
+    if not getattr(args, 'acp', False):
+        return None, False
+    
+    try:
+        from .acp_plugin import ACPPlugin
+        acp_url = getattr(args, 'acp_url', None) or config.acp_base_url
+        acp = ACPPlugin(
+            base_url=acp_url,
+            agent_name=agent_name,
+            model_name=getattr(args, 'model', None) or config.default_model,
+            debug=getattr(args, 'debug', False),
+        )
+        # Bootstrap ACP connection
+        bootstrap_result = acp.bootstrap()
+        if bootstrap_result.get("stop_flag"):
+            print(f"{red('Error:')} ACP STOP flag is set: {bootstrap_result.get('warnings')}")
+            return None, True
+        return acp, False
+    except ImportError:
+        print(f"{yellow('Warning:')} ACP plugin not available, continuing without ACP logging")
+        return None, False
+    except Exception as e:
+        print(f"{yellow('Warning:')} Failed to connect to ACP: {e}")
+        return None, False
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     """Execute the run command."""
     config = get_config()
     model = args.model or config.default_model
     backend_name = args.backend or config.backend
+
+    # Initialize ACP if requested
+    acp, should_stop = _init_acp(args, config, "AgentNova-Run")
+    if should_stop:
+        return 1
 
     backend = get_backend(backend_name)
 
@@ -375,8 +413,17 @@ def cmd_run(args: argparse.Namespace) -> int:
         num_ctx=getattr(args, 'num_ctx', None) or config.num_ctx,
     )
 
+    # Log to ACP
+    if acp:
+        acp.log_chat("user", args.prompt)
+
     result = agent.run(args.prompt)
     print(result.final_answer)
+
+    # Log result to ACP
+    if acp:
+        acp.log_chat("assistant", result.final_answer)
+        acp.a2a_unregister()
 
     if args.verbose:
         print(f"\n⏱️ Completed in {result.total_ms:.0f}ms")
@@ -390,6 +437,11 @@ def cmd_chat(args: argparse.Namespace) -> int:
     config = get_config()
     model = args.model or config.default_model
     backend_name = args.backend or config.backend
+
+    # Initialize ACP if requested
+    acp, should_stop = _init_acp(args, config, "AgentNova-Chat")
+    if should_stop:
+        return 1
 
     backend = get_backend(backend_name)
 
@@ -419,6 +471,8 @@ def cmd_chat(args: argparse.Namespace) -> int:
     if agent.num_ctx:
         ctx_display = f"{agent.num_ctx // 1024}K" if agent.num_ctx >= 1024 else str(agent.num_ctx)
         print(f"{dim('Context:')} {yellow(ctx_display)}")
+    if acp:
+        print(f"{dim('ACP:')} {green('✓ Connected')} ({acp.base_url})")
     print(f"{dim('Status:')} {yellow('Alpha')}")
     print("Type '/quit' to exit, '/help' for commands\n")
 
@@ -433,6 +487,9 @@ def cmd_chat(args: argparse.Namespace) -> int:
             continue
 
         if user_input == "/quit":
+            if acp:
+                acp.log_chat("user", "/quit")
+                acp.a2a_unregister()
             print(bright_cyan("👋 Goodbye!"))
             break
 
@@ -451,8 +508,16 @@ def cmd_chat(args: argparse.Namespace) -> int:
             print(f"Memory turns: {yellow(str(len(agent.memory)))}")
             continue
 
+        # Log user message to ACP
+        if acp:
+            acp.log_chat("user", user_input)
+
         result = agent.run(user_input)
         print(f"\n{bright_magenta('Assistant')}: {result.final_answer}\n")
+
+        # Log assistant response to ACP
+        if acp:
+            acp.log_chat("assistant", result.final_answer)
 
     return 0
 
@@ -462,6 +527,11 @@ def cmd_agent(args: argparse.Namespace) -> int:
     config = get_config()
     model = args.model or config.default_model
     backend_name = args.backend or config.backend
+
+    # Initialize ACP if requested
+    acp, should_stop = _init_acp(args, config, "AgentNova-Agent")
+    if should_stop:
+        return 1
 
     backend = get_backend(backend_name)
 
@@ -492,6 +562,8 @@ def cmd_agent(args: argparse.Namespace) -> int:
     if agent.num_ctx:
         ctx_display = f"{agent.num_ctx // 1024}K" if agent.num_ctx >= 1024 else str(agent.num_ctx)
         print(f"{dim('Context:')} {yellow(ctx_display)}")
+    if acp:
+        print(f"{dim('ACP:')} {green('✓ Connected')} ({acp.base_url})")
     print(f"{dim('Status:')} {yellow('Alpha')}")
     print("Give the agent a goal to accomplish autonomously.")
     print(f"Commands: {cyan('/status')}, {cyan('/pause')}, {cyan('/resume')}, {cyan('/stop')}, {cyan('/quit')}\n")
@@ -510,6 +582,9 @@ def cmd_agent(args: argparse.Namespace) -> int:
             cmd = user_input.split()[0]
 
             if cmd == "/quit":
+                if acp:
+                    acp.log_chat("user", "/quit")
+                    acp.a2a_unregister()
                 print(bright_cyan("👋 Goodbye!"))
                 break
             elif cmd == "/status":
@@ -535,9 +610,17 @@ def cmd_agent(args: argparse.Namespace) -> int:
                 print(red(msg))
                 continue
 
+        # Log goal to ACP
+        if acp:
+            acp.log_chat("user", f"Goal: {user_input}")
+
         success, result = agent_mode.run_task(user_input)
         icon = bright_green("✅") if success else bright_red("❌")
         print(f"\n{icon} {result}\n")
+
+        # Log result to ACP
+        if acp:
+            acp.log_chat("assistant", f"Result: {result}")
 
     return 0
 
