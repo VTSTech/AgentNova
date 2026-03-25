@@ -737,6 +737,10 @@ def cmd_models(args: argparse.Namespace) -> int:
                     tool_col = pad_colored(bright_green("✓ native"), TOOLS_W, 'right')
                 elif status == "react":
                     tool_col = pad_colored(yellow("○ react"), TOOLS_W, 'right')
+                elif status == "none":
+                    tool_col = pad_colored(red("✗ none"), TOOLS_W, 'right')
+                elif status == "error":
+                    tool_col = pad_colored(red("✗ error"), TOOLS_W, 'right')
                 else:
                     tool_col = pad_colored(dim("? untested"), TOOLS_W, 'right')
                 name_col = pad_colored(cyan(name), NAME_W)
@@ -765,7 +769,7 @@ def cmd_models(args: argparse.Namespace) -> int:
         _save_tool_cache(cache)
     
     # Show legend
-    print(f"\n{dim('Legend:')} {bright_green('✓ native')} (API tools) | {yellow('○ react')} (text parsing) | {dim('? untested')}")
+    print(f"\n{dim('Legend:')} {bright_green('✓ native')} (API tools) | {yellow('○ react')} (text parsing) | {red('✗ none')} (no tools) | {dim('? untested')}")
     print(f"{dim('Context:')} {yellow('2K/32K')} = runtime/max (Ollama defaults to 2K unless num_ctx is set)")
     print(f"{dim('Tool support depends on model template, not family. Use')} {cyan('--tool-support')} {dim('to test each model.')}")
 
