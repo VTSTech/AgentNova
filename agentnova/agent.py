@@ -622,9 +622,24 @@ class Agent:
 
                 break
 
+            # ---- Soul mode: accept conversational responses ----
+            # If a soul is loaded (chat mode with personality), accept the model's response
+            # as a final answer even if it doesn't follow ReAct format
+            if self.soul is not None and content and not tool_calls_made:
+                if self.debug:
+                    print(f"  Soul mode: accepting conversational response as final answer")
+                
+                steps.append(StepResult(
+                    type=StepResultType.FINAL_ANSWER,
+                    content=content,
+                    tokens_used=tokens,
+                ))
+                break
+
             # ---- ReAct format reminder for small models ----
             # If model didn't use ReAct format and we haven't succeeded yet, send a reminder
-            if self._tool_support == ToolSupportLevel.REACT and not successful_results:
+            # BUT skip this if a soul is loaded - chat mode should allow natural conversation
+            if self._tool_support == ToolSupportLevel.REACT and not successful_results and self.soul is None:
                 if not hasattr(self, '_format_reminder_sent'):
                     self._format_reminder_sent = True
                     if self.debug:
@@ -652,7 +667,8 @@ class Agent:
 
             # ---- ReAct fallback: synthesize tool call after reminder failed ----
             # If reminder was sent but model still didn't output tool call, try to synthesize one
-            if self._tool_support == ToolSupportLevel.REACT and not successful_results and hasattr(self, '_format_reminder_sent'):
+            # BUT skip this if a soul is loaded - chat mode should allow natural conversation
+            if self._tool_support == ToolSupportLevel.REACT and not successful_results and hasattr(self, '_format_reminder_sent') and self.soul is None:
                 if self.debug:
                     print(f"  ReAct fallback: attempting to synthesize tool call")
                 
