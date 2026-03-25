@@ -98,6 +98,30 @@ Implemented ClawSouls Soul Spec v0.5 support for persona packages. Souls allow d
 - **Updated legend** to include all status types:
   - `Legend: ✓ native (API tools) | ○ react (text parsing) | ✗ none (no tools) | ? untested`
 
+#### Soul Mode Chat Behavior
+- **Fixed ReAct format enforcement in chat mode with soul** - Model was being forced to use ReAct format even for simple conversational greetings when a soul (personality) was loaded
+  - Added check: if `soul` is loaded, accept conversational responses as final answers
+  - ReAct format reminder now skipped when soul is active
+  - ReAct fallback synthesis now skipped when soul is active
+  - Chat mode with personality now allows natural conversation without forcing tool use
+
+#### Soul Mode Tool Instructions
+- **Fixed tool instructions missing when using soul** - When a soul was loaded, the system prompt only included the persona content without tool descriptions or ReAct format instructions
+  - Soul's system prompt now appends tool descriptions and ReAct format examples
+  - Models with soul + tools now properly understand how to use available tools
+  - Example: `get_date` tool is now properly called when asking "What is the current date?"
+
+#### Python 3.10 Compatibility
+- **Fixed f-string SyntaxError** - Backslash in f-string expression (`split('\n')` inside `{}`) caused syntax error on Python 3.10
+  - Moved `split('\n')` outside of f-string to variable before formatting
+  - Error: `SyntaxError: f-string expression part cannot include a backslash`
+
+#### Windows Compatibility
+- **Fixed `agentnova.__file__` being None on Windows** - In certain installation scenarios on Windows, `agentnova.__file__` returns `None` causing `TypeError: expected str, bytes or os.PathLike object, not NoneType`
+  - Added explicit check for `agentnova.__file__ is not None`
+  - Falls back to `importlib.resources.files()` for Python 3.9+ when `__file__` is unavailable
+  - Soul loading now works correctly on Windows
+
 ### Changed
 - Soul feature is **disabled by default** - Must use `--soul` flag to enable
 - Context column shows `2K/32K` format when runtime differs from max
