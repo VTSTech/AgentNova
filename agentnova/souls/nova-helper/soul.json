@@ -1,7 +1,7 @@
 {
   "specVersion": "0.5",
   "name": "nova-helper",
-  "displayName": "Nova Helper",
+  "displayName": "Agent Nova",
   "version": "1.0.0",
   "description": "A helpful coding assistant with expertise in Python, debugging, and code review.",
   "author": {
