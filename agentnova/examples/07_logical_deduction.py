@@ -37,6 +37,8 @@ def parse_args():
     parser.add_argument("-m", "--model", default=None, help="Model to test")
     parser.add_argument("--debug", action="store_true", help="Enable debug output")
     parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None)
+    parser.add_argument("--use-mf-sys", action="store_true", dest="use_modelfile_system",
+                        help="Use the model's Modelfile system prompt instead of custom prompt")
     return parser.parse_args()
 
 
@@ -247,7 +249,7 @@ def check_answer(response: str, expected: str, check_type: str) -> bool:
     return False
 
 
-def run_tests(model: str, backend, debug: bool = False) -> dict:
+def run_tests(model: str, backend, debug: bool = False, use_mf_sys: bool = False) -> dict:
     """Run logical deduction tests for a model."""
     print(f"\n{'='*60}")
     print(f"🧩 Logical Deduction Tests: {model}")
@@ -255,7 +257,7 @@ def run_tests(model: str, backend, debug: bool = False) -> dict:
     
     results = {"model": model, "passed": 0, "total": len(TESTS), "time": 0, "categories": {}}
     
-    # Custom system prompt for logical deduction
+    # Custom system prompt for logical deduction (ignored if use_mf_sys=True)
     logic_prompt = """Answer logical reasoning questions carefully.
 
 Instructions:
@@ -273,16 +275,20 @@ Instructions:
         expected = test["expected"]
         check_type = test["type"]
         
-        print(f"\n📋 [{category}] {prompt}...")
+        print(f"\n📋 [{category}] {prompt[:55]}...")
         
         # Create fresh agent for each test (isolates memory)
-        agent = Agent(
-            model=model,
-            backend=backend,
-            max_steps=1,
-            debug=debug,
-            system_prompt=logic_prompt,
-        )
+        # If use_mf_sys=True, don't pass custom system_prompt (use model's Modelfile)
+        agent_kwargs = {
+            "model": model,
+            "backend": backend,
+            "max_steps": 1,
+            "debug": debug,
+        }
+        if not use_mf_sys:
+            agent_kwargs["system_prompt"] = logic_prompt
+        
+        agent = Agent(**agent_kwargs)
         
         t0 = time.time()
         run = agent.run(prompt)
@@ -301,7 +307,7 @@ Instructions:
         results["passed"] += int(passed)
         
         status = "✅" if passed else "❌"
-        print(f"  {status} Expected: {expected} | Got: {response}")
+        print(f"  {status} Expected: {expected} | Got: {response[:50]}")
         print(f"     {elapsed:.1f}s")
     
     return results
@@ -322,8 +328,12 @@ def main():
     print(f"\n⚛️ AgentNova Logical Deduction Tests ({len(TESTS)} questions)")
     print(f"   Backend: {backend_name} ({backend.base_url})")
     print(f"   Model: {model}")
+    if args.use_modelfile_system:
+        print(f"   System Prompt: Modelfile (native)")
+    else:
+        print(f"   System Prompt: Custom (logical deduction)")
     
-    result = run_tests(model, backend, args.debug)
+    result = run_tests(model, backend, args.debug, args.use_modelfile_system)
     
     print(f"\n{'='*60}")
     print("📊 Results by Category")
