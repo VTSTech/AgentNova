@@ -614,6 +614,198 @@ def test_datetime_model(model: str, backend, debug: bool = False) -> tuple[int, 
     return passed, total
 
 
+def test_file_model(model: str, backend, debug: bool = False) -> tuple[int, int]:
+    """Test model's ability to call file tools."""
+    print(f"\n{'='*60}")
+    print(f"📁 File Tools - Model Calling")
+    print(f"   Model: {model}")
+    print(f"{'='*60}")
+    
+    tools = make_builtin_registry().subset(["read_file", "write_file", "list_directory"])
+    
+    # Create a test file first
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_file = os.path.join(tmpdir, "test.txt")
+        write_file(test_file, "Hello from AgentNova!")
+        
+        tests = [
+            ("Read file", f"Read the file at {test_file}", "AgentNova"),
+            ("List directory", f"List files in {tmpdir}", "test.txt"),
+        ]
+        
+        results = []
+        
+        for name, prompt, expected in tests:
+            print(f"\n📋 {name}")
+            print(f"   Prompt: {prompt}")
+            
+            agent = Agent(
+                model=model,
+                tools=tools,
+                backend=backend,
+                max_steps=5,
+                debug=debug,
+            )
+            
+            t0 = time.time()
+            run = agent.run(prompt)
+            elapsed = time.time() - t0
+            
+            # Check if any file tool was used
+            tool_used = (
+                check_tool_used(run, "read_file") or 
+                check_tool_used(run, "write_file") or 
+                check_tool_used(run, "list_directory")
+            )
+            
+            # Check result in answer or tool result
+            found_in_answer = expected.lower() in run.final_answer.lower()
+            found_in_tool_result = False
+            for step in run.steps:
+                if step.tool_result and expected.lower() in str(step.tool_result).lower():
+                    found_in_tool_result = True
+                    break
+            
+            passed = (found_in_answer or found_in_tool_result) if expected else tool_used
+            results.append(passed)
+            
+            status = "✅" if passed else "❌"
+            tool_status = "🔧" if tool_used else "⚠️"
+            found_where = "(in answer)" if found_in_answer else "(in tool result)" if found_in_tool_result else ""
+            print(f"  {status} {tool_status} Tool used: {tool_used} | {elapsed:.1f}s {found_where}")
+            print(f"  📝 {run.final_answer[:60]}")
+    
+    passed = sum(results)
+    total = len(results)
+    print(f"\n📊 File Model: {passed}/{total} ({100*passed//total}%)")
+    return passed, total
+
+
+def test_python_repl_model(model: str, backend, debug: bool = False) -> tuple[int, int]:
+    """Test model's ability to call python_repl tool."""
+    print(f"\n{'='*60}")
+    print(f"🐍 Python REPL Tool - Model Calling")
+    print(f"   Model: {model}")
+    print(f"{'='*60}")
+    
+    tools = make_builtin_registry().subset(["python_repl"])
+    
+    tests = [
+        ("Calculate power", "Use Python to calculate 2 to the power of 20", "1048576"),
+        ("Math with math module", "Use Python to calculate the square root of 144", "12"),
+    ]
+    
+    results = []
+    
+    for name, prompt, expected in tests:
+        print(f"\n📋 {name}")
+        print(f"   Prompt: {prompt}")
+        
+        agent = Agent(
+            model=model,
+            tools=tools,
+            backend=backend,
+            max_steps=5,
+            debug=debug,
+        )
+        
+        t0 = time.time()
+        run = agent.run(prompt)
+        elapsed = time.time() - t0
+        
+        tool_used = check_tool_used(run, "python_repl")
+        
+        # Check result in answer or tool result
+        found_in_answer = expected in run.final_answer
+        found_in_tool_result = False
+        for step in run.steps:
+            if step.tool_result and expected in str(step.tool_result):
+                found_in_tool_result = True
+                break
+        
+        passed = found_in_answer or found_in_tool_result
+        results.append(passed)
+        
+        status = "✅" if passed else "❌"
+        tool_status = "🔧" if tool_used else "⚠️"
+        print(f"  {status} {tool_status} Tool used: {tool_used} | {elapsed:.1f}s")
+        print(f"  📝 {run.final_answer[:60]}")
+    
+    passed = sum(results)
+    total = len(results)
+    print(f"\n📊 Python REPL Model: {passed}/{total} ({100*passed//total}%)")
+    return passed, total
+
+
+def test_all_tools_model(model: str, backend, debug: bool = False) -> tuple[int, int]:
+    """Test model's ability to choose correct tools when all are available."""
+    print(f"\n{'='*60}")
+    print(f"🧰 All Tools - Model Calling")
+    print(f"   Model: {model}")
+    print(f"{'='*60}")
+    
+    # Give model access to ALL tools
+    tools = make_builtin_registry()
+    
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_file = os.path.join(tmpdir, "multi_test.txt")
+        write_file(test_file, "Test content 123")
+        
+        tests = [
+            ("Calculator choice", "What is 25 times 4?", "100", "calculator"),
+            ("Shell choice", "Echo the text 'MultiTool'", "MultiTool", "shell"),
+            ("Date choice", "What is today's date?", None, "get_date"),
+            ("File read choice", f"Read the file at {test_file}", "Test content", "read_file"),
+        ]
+        
+        results = []
+        
+        for name, prompt, expected, expected_tool in tests:
+            print(f"\n📋 {name}")
+            print(f"   Prompt: {prompt}")
+            print(f"   Expected tool: {expected_tool}")
+            
+            agent = Agent(
+                model=model,
+                tools=tools,
+                backend=backend,
+                max_steps=5,
+                debug=debug,
+            )
+            
+            t0 = time.time()
+            run = agent.run(prompt)
+            elapsed = time.time() - t0
+            
+            # Check if correct tool was used
+            correct_tool = check_tool_used(run, expected_tool)
+            
+            # Check result
+            passed = correct_tool
+            if expected:
+                found = expected.lower() in run.final_answer.lower()
+                if not found:
+                    for step in run.steps:
+                        if step.tool_result and expected.lower() in str(step.tool_result).lower():
+                            found = True
+                            break
+                passed = passed and found
+            
+            results.append(passed)
+            
+            status = "✅" if passed else "❌"
+            tool_status = "🔧" if correct_tool else "⚠️"
+            print(f"  {status} {tool_status} Correct tool: {correct_tool} | {elapsed:.1f}s")
+            print(f"  📝 {run.final_answer[:60]}")
+    
+    passed = sum(results)
+    total = len(results)
+    print(f"\n📊 All Tools Model: {passed}/{total} ({100*passed//total}%)")
+    return passed, total
+
+
 def run_phase2(model: str, backend, debug: bool) -> tuple[int, int]:
     """Run all Phase 2 (model tool calling) tests."""
     print(f"\n{'#'*60}")
@@ -624,6 +816,7 @@ def run_phase2(model: str, backend, debug: bool) -> tuple[int, int]:
     total_passed = 0
     total_tests = 0
     
+    # Test each tool category separately
     p, t = test_calculator_model(model, backend, debug)
     total_passed += p
     total_tests += t
@@ -633,6 +826,19 @@ def run_phase2(model: str, backend, debug: bool) -> tuple[int, int]:
     total_tests += t
     
     p, t = test_datetime_model(model, backend, debug)
+    total_passed += p
+    total_tests += t
+    
+    p, t = test_file_model(model, backend, debug)
+    total_passed += p
+    total_tests += t
+    
+    p, t = test_python_repl_model(model, backend, debug)
+    total_passed += p
+    total_tests += t
+    
+    # Test with ALL tools available (model must choose correct tool)
+    p, t = test_all_tools_model(model, backend, debug)
     total_passed += p
     total_tests += t
     
