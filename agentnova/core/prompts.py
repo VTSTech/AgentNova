@@ -40,19 +40,19 @@ TOOL_ARG_ALIASES = {
         "program": "code", "source": "code", "input": "code",
     },
     "write_file": {
-        "path": "path",  # correct
-        "filepath": "path", "file_path": "path", "filename": "path",
-        "file": "path", "dest": "path", "destination": "path",
-        "output_path": "path", "outputfile": "path", "location": "path",
+        "path": "file_path",  # actual param name is file_path
+        "filepath": "file_path", "file_path": "file_path", "filename": "file_path",
+        "file": "file_path", "dest": "file_path", "destination": "file_path",
+        "output_path": "file_path", "outputfile": "file_path", "location": "file_path",
         "content": "content",  # correct
         "data": "content", "text": "content", "body": "content",
         "output": "content", "string": "content", "value": "content",
         "write": "content", "output_data": "content",
     },
     "read_file": {
-        "path": "path",  # correct
-        "filepath": "path", "file_path": "path", "filename": "path",
-        "file": "path", "input": "path", "source": "path", "location": "path",
+        "path": "file_path",  # actual param name is file_path
+        "filepath": "file_path", "file_path": "file_path", "filename": "file_path",
+        "file": "file_path", "input": "file_path", "source": "file_path", "location": "file_path",
     },
     "shell": {
         "command": "command",  # correct
