@@ -15,7 +15,7 @@
     "frameworks": ["openclaw", "agentnova"],
     "models": ["*"]
   },
-  "allowedTools": ["calculator", "shell", "write_file", "read_file"],
+  "allowedTools": ["calculator", "shell", "write_file", "read_file", "get_time", "http_get", "shell", "get_date"],
   "recommendedSkills": [],
   "files": {
     "soul": "SOUL.md",

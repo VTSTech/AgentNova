@@ -1413,17 +1413,21 @@ def cmd_soul(args: argparse.Namespace) -> int:
         print(dim("─" * 70))
         if soul.soul_content:
             print(f"\n  {cyan('SOUL.md:')}")
-            for line in soul.soul_content.split("\n")[:10]:
+            lines = soul.soul_content.split("\n")
+            for line in lines[:10]:
                 print(f"    {line}")
-            if len(soul.soul_content.split("\n")) > 10:
-                print(f"    {dim('...')} ({len(soul.soul_content.split('\n')) - 10} more lines)")
+            if len(lines) > 10:
+                remaining = len(lines) - 10
+                print(f"    {dim('...')} ({remaining} more lines)")
         
         if soul.identity_content:
             print(f"\n  {cyan('IDENTITY.md:')}")
-            for line in soul.identity_content.split("\n")[:10]:
+            lines = soul.identity_content.split("\n")
+            for line in lines[:10]:
                 print(f"    {line}")
-            if len(soul.identity_content.split("\n")) > 10:
-                print(f"    {dim('...')} ({len(soul.identity_content.split('\n')) - 10} more lines)")
+            if len(lines) > 10:
+                remaining = len(lines) - 10
+                print(f"    {dim('...')} ({remaining} more lines)")
     
     # Show generated system prompt
     if args.prompt:
