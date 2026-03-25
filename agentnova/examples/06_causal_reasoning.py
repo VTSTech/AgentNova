@@ -1,0 +1,310 @@
+#!/usr/bin/env python3
+"""
+examples/06_causal_reasoning.py
+-------------------------------
+Causal reasoning tests (from BIG-bench).
+
+Tests understanding of cause and effect:
+  • Identifying causes and effects
+  • Distinguishing correlation from causation
+  • Understanding causal chains
+
+Usage:
+  python examples/06_causal_reasoning.py
+  python examples/06_causal_reasoning.py --model qwen2.5:0.5b --debug
+  agentnova test 06
+
+Environment Variables:
+  OLLAMA_BASE_URL     - Ollama server URL
+  AGENTNOVA_MODEL     - Default model
+
+Written by VTSTech — https://www.vts-tech.org
+"""
+
+import sys
+import os
+import time
+import argparse
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from agentnova import Agent, get_config
+from agentnova.backends import get_default_backend
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="AgentNova Causal Reasoning Tests")
+    parser.add_argument("-m", "--model", default=None, help="Model to test")
+    parser.add_argument("--debug", action="store_true", help="Enable debug output")
+    parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None)
+    return parser.parse_args()
+
+
+# Causal reasoning tests (inspired by BIG-bench causal_judgment)
+TESTS = [
+    # Direct cause and effect
+    {
+        "category": "Direct Causal",
+        "prompt": "If it rained last night and the ground is wet, what caused the ground to be wet? Answer with one word.",
+        "expected": "rain",
+        "type": "keyword",
+    },
+    {
+        "category": "Direct Causal",
+        "prompt": "A glass fell off a table and broke. What caused the glass to break? Answer in a short phrase.",
+        "expected": "falling",
+        "type": "keyword",
+    },
+    {
+        "category": "Direct Causal",
+        "prompt": "The sun rises in the morning and the birds start singing. What causes the birds to sing? Answer with one factor.",
+        "expected": "sunlight",
+        "type": "keyword",
+    },
+    {
+        "category": "Direct Causal",
+        "prompt": "A plant was watered regularly and grew tall. What caused the plant to grow? Answer with one word.",
+        "expected": "water",
+        "type": "keyword",
+    },
+    {
+        "category": "Direct Causal",
+        "prompt": "Ice was left in the sun and melted. What caused the ice to melt? Answer with one word.",
+        "expected": "heat",
+        "type": "keyword",
+    },
+    
+    # Distinguishing cause from effect
+    {
+        "category": "Cause vs Effect",
+        "prompt": "A person exercised and their heart rate increased. Which is the cause and which is the effect? Answer: X is cause, Y is effect.",
+        "expected": "exercise is cause",
+        "type": "keyword",
+    },
+    {
+        "category": "Cause vs Effect",
+        "prompt": "A car ran out of fuel and stopped moving. What is the effect in this situation? Answer with one word.",
+        "expected": "stopped",
+        "type": "keyword",
+    },
+    {
+        "category": "Cause vs Effect",
+        "prompt": "A student studied hard and passed the exam. Which came first - studying or passing? Answer with one word.",
+        "expected": "studying",
+        "type": "keyword",
+    },
+    {
+        "category": "Cause vs Effect",
+        "prompt": "The alarm rang and the person woke up. What was the cause of waking up? Answer with one word.",
+        "expected": "alarm",
+        "type": "keyword",
+    },
+    {
+        "category": "Cause vs Effect",
+        "prompt": "The lights went out and the room became dark. What was the effect? Answer with one word.",
+        "expected": "dark",
+        "type": "keyword",
+    },
+    
+    # Correlation vs Causation
+    {
+        "category": "Correlation",
+        "prompt": "Ice cream sales increase in summer. Drowning incidents also increase in summer. Does eating ice cream cause drowning? Answer yes or no.",
+        "expected": "no",
+        "type": "exact",
+    },
+    {
+        "category": "Correlation",
+        "prompt": "People who carry umbrellas often get wet. Do umbrellas cause people to get wet? Answer yes or no.",
+        "expected": "no",
+        "type": "exact",
+    },
+    {
+        "category": "Correlation",
+        "prompt": "Schools with more libraries tend to have better test scores. Is this because libraries improve learning, or because well-funded schools have both? Answer with the second option's main idea.",
+        "expected": "funding",
+        "type": "keyword",
+    },
+    {
+        "category": "Correlation",
+        "prompt": "Sleeping with shoes on correlates with waking up with a headache. Is the headache caused by shoes? Answer yes or no.",
+        "expected": "no",
+        "type": "exact",
+    },
+    {
+        "category": "Correlation",
+        "prompt": "Nations with more chocolate consumption have more Nobel laureates. Does chocolate cause Nobel prizes? Answer yes or no.",
+        "expected": "no",
+        "type": "exact",
+    },
+    
+    # Causal chains
+    {
+        "category": "Causal Chains",
+        "prompt": "Pressing a switch turns on a light. What makes the light turn on? Answer with the most direct cause.",
+        "expected": "electricity",
+        "type": "keyword",
+    },
+    {
+        "category": "Causal Chains",
+        "prompt": "A seed is planted, watered, and sprouts. Which action is necessary for sprouting? Answer with one word.",
+        "expected": "water",
+        "type": "keyword",
+    },
+    {
+        "category": "Causal Chains",
+        "prompt": "Eating spoiled food can cause stomach illness. What is the intermediate step? Answer with one word.",
+        "expected": "bacteria",
+        "type": "keyword",
+    },
+    {
+        "category": "Causal Chains",
+        "prompt": "A match is struck, it ignites, and starts a fire. What is the first cause in this chain? Answer with one word.",
+        "expected": "friction",
+        "type": "keyword",
+    },
+    {
+        "category": "Causal Chains",
+        "prompt": "Turning a key starts a car. What happens between turning the key and the engine starting? Answer briefly.",
+        "expected": "ignition",
+        "type": "keyword",
+    },
+    
+    # Counterfactual reasoning
+    {
+        "category": "Counterfactual",
+        "prompt": "If the sun did not rise tomorrow, what would happen to plants? Answer briefly.",
+        "expected": "die",
+        "type": "keyword",
+    },
+    {
+        "category": "Counterfactual",
+        "prompt": "If humans had no lungs, what would they be unable to do? Answer with one word.",
+        "expected": "breathe",
+        "type": "keyword",
+    },
+    {
+        "category": "Counterfactual",
+        "prompt": "If gravity stopped working, what would happen to objects on Earth? Answer briefly.",
+        "expected": "float",
+        "type": "keyword",
+    },
+    {
+        "category": "Counterfactual",
+        "prompt": "If water did not freeze at 0 degrees Celsius, what would happen to lakes in winter? Answer briefly.",
+        "expected": "freeze",
+        "type": "keyword",
+    },
+    {
+        "category": "Counterfactual",
+        "prompt": "If there were no bees, what would happen to many flowers? Answer briefly.",
+        "expected": "pollinate",
+        "type": "keyword",
+    },
+]
+
+
+def normalize_answer(text: str) -> str:
+    """Normalize answer for comparison."""
+    return text.lower().strip()
+
+
+def check_answer(response: str, expected: str, check_type: str) -> bool:
+    """Check if response matches expected answer."""
+    response_lower = response.lower()
+    expected_lower = expected.lower()
+    
+    if check_type == "exact":
+        return expected_lower in response_lower
+    
+    elif check_type == "keyword":
+        keywords = expected_lower.split()
+        return any(kw in response_lower for kw in keywords)
+    
+    return False
+
+
+def run_tests(model: str, backend, debug: bool = False) -> dict:
+    """Run causal reasoning tests for a model."""
+    print(f"\n{'='*60}")
+    print(f"🔗 Causal Reasoning Tests: {model}")
+    print(f"{'='*60}")
+    
+    results = {"model": model, "passed": 0, "total": len(TESTS), "time": 0, "categories": {}}
+    
+    agent = Agent(
+        model=model,
+        backend=backend,
+        max_steps=1,  # Single-step for reasoning (no tools)
+        debug=debug,
+    )
+    
+    for test in TESTS:
+        category = test["category"]
+        prompt = test["prompt"]
+        expected = test["expected"]
+        check_type = test["type"]
+        
+        print(f"\n📋 [{category}] {prompt[:55]}...")
+        
+        t0 = time.time()
+        run = agent.run(prompt)
+        elapsed = time.time() - t0
+        results["time"] += elapsed
+        
+        response = run.final_answer
+        passed = check_answer(response, expected, check_type)
+        
+        if category not in results["categories"]:
+            results["categories"][category] = {"passed": 0, "total": 0}
+        results["categories"][category]["total"] += 1
+        if passed:
+            results["categories"][category]["passed"] += 1
+        
+        results["passed"] += int(passed)
+        
+        status = "✅" if passed else "❌"
+        print(f"  {status} Expected: {expected} | Got: {response[:50]}")
+        print(f"     {elapsed:.1f}s")
+    
+    return results
+
+
+def main():
+    args = parse_args()
+    config = get_config()
+    
+    model = args.model or config.default_model
+    backend_name = args.backend or config.backend
+    backend = get_default_backend(backend_name)
+    
+    if not backend.is_running():
+        print(f"❌ {backend_name.capitalize()} not running at {backend.base_url}")
+        return {"passed": 0, "total": len(TESTS), "time": 0, "exit_code": 1}
+    
+    print(f"\n⚛️ AgentNova Causal Reasoning Tests ({len(TESTS)} questions)")
+    print(f"   Backend: {backend_name} ({backend.base_url})")
+    print(f"   Model: {model}")
+    
+    result = run_tests(model, backend, args.debug)
+    
+    print(f"\n{'='*60}")
+    print("📊 Results by Category")
+    print(f"{'='*60}")
+    
+    for category, stats in result["categories"].items():
+        pct = stats["passed"] / stats["total"] * 100
+        bar = "█" * stats["passed"] + "░" * (stats["total"] - stats["passed"])
+        print(f"  {category:<18} {bar} {stats['passed']}/{stats['total']} ({pct:.0f}%)")
+    
+    pass_rate = result["passed"] / result["total"] * 100
+    print(f"\n📊 Overall: {result['passed']}/{result['total']} ({pass_rate:.0f}%) in {result['time']:.1f}s")
+    print(f"{'='*60}")
+    
+    result["exit_code"] = 0 if result["passed"] == result["total"] else 1
+    return result
+
+
+if __name__ == "__main__":
+    result = main()
+    sys.exit(result.get("exit_code", 0))
