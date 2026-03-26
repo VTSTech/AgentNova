@@ -17,8 +17,6 @@ Inspired by the architecture of OpenClaw, rebuilt from scratch for local-first o
 
 <img width="801" height="603" alt="image" src="https://github.com/user-attachments/assets/457acc38-231f-4d75-aec6-fa4897fbbb88" />
 
----
-
 ## 📚 Documentation
 
 | Document | Description |
