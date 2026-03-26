@@ -137,6 +137,18 @@ def shell(command: str, timeout: int = 30) -> str:
     Returns:
         Command output or error message
     """
+    # Fix for tiny models that add spurious characters (e.g., ="pwd" instead of "pwd")
+    # Strip leading = or other assignment-like prefixes
+    if command.startswith('='):
+        command = command[1:].strip()
+    
+    # Also handle cases like "command=xxx" -> "xxx"
+    if '=' in command and not command.startswith('echo'):
+        parts = command.split('=', 1)
+        if len(parts) == 2 and not any(c in parts[0] for c in ' \t$'):
+            # Looks like "key=value" format, take the value part
+            command = parts[1].strip().strip('"\'')
+    
     # sanitize_command validates the command string but returns it unchanged.
     # The third return value is the original command — NOT a sanitised version.
     # The actual security comes from the blocked-command and injection checks
