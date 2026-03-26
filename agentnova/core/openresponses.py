@@ -358,30 +358,45 @@ class Response:
             "previous_response_id": self.previous_response_id
         }
     
-    def mark_in_progress(self) -> None:
+    def mark_in_progress(self, debug: bool = False) -> None:
         """Transition to in_progress state."""
         if self.status == ResponseStatus.QUEUED:
+            old_status = self.status
             self.status = ResponseStatus.IN_PROGRESS
+            if debug:
+                print(f"[OpenResponses.Response] State transition: {old_status.value} -> {self.status.value}")
     
-    def mark_completed(self) -> None:
+    def mark_completed(self, debug: bool = False) -> None:
         """Transition to completed state."""
+        old_status = self.status
         self.status = ResponseStatus.COMPLETED
         self.completed_at = time.time()
+        if debug:
+            print(f"[OpenResponses.Response] State transition: {old_status.value} -> {self.status.value}")
     
-    def mark_failed(self, error: dict) -> None:
+    def mark_failed(self, error: dict, debug: bool = False) -> None:
         """Transition to failed state."""
+        old_status = self.status
         self.status = ResponseStatus.FAILED
         self.error = error
         self.completed_at = time.time()
+        if debug:
+            print(f"[OpenResponses.Response] State transition: {old_status.value} -> {self.status.value}")
+            print(f"[OpenResponses.Response] Error: {error}")
     
-    def mark_incomplete(self) -> None:
+    def mark_incomplete(self, debug: bool = False) -> None:
         """Transition to incomplete state (token budget exhausted)."""
+        old_status = self.status
         self.status = ResponseStatus.INCOMPLETE
         self.completed_at = time.time()
+        if debug:
+            print(f"[OpenResponses.Response] State transition: {old_status.value} -> {self.status.value}")
     
-    def add_output_item(self, item: Item) -> None:
+    def add_output_item(self, item: Item, debug: bool = False) -> None:
         """Add an output item."""
         self.output.append(item)
+        if debug:
+            print(f"[OpenResponses.Response] Output item added: id={item.id}, type={item.type}")
     
     def get_final_answer(self) -> str | None:
         """
