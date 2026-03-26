@@ -1,6 +1,6 @@
 """
 ⚛️ AgentNova — Prompts
-Few-shot prompts, argument aliases, and platform constants for small model support.
+Argument aliases, platform constants, and few-shot examples for small model support.
 
 Written by VTSTech — https://www.vts-tech.org
 """
@@ -185,76 +185,6 @@ MATH: * = multiply, ** = power, / = divide
 NEVER write Observation yourself - wait for real result!
 """
 
-# Few-shot for native tool models - focuses on WHEN to call tools
-# Platform-aware: use python_repl for date/time since shell commands vary
-NATIVE_TOOL_HINTS = """
-TOOL USAGE RULES - YOU MUST CALL TOOLS:
-
-1. MATH QUESTIONS: Always call calculator tool
-   - "times/multiplied" → calculator(expression="A * B")
-   - "power of/to the power" → calculator(expression="A ** B")
-   - "square root" → calculator(expression="sqrt(N)")
-   - "divided by" → calculator(expression="A / B")
-   - Parentheses matter: "(10 + 5) times 3" → calculator(expression="(10 + 5) * 3")
-
-2. SHELL QUESTIONS: Always call shell tool
-   - "echo" something → shell(command="echo YourText")
-
-3. FILE OPERATIONS: Use write_file and read_file
-   - Write to file → write_file(path="/path/file.txt", content="text to write")
-   - Read a file → read_file(path="/path/file.txt")
-
-4. DATE/TIME: Use python_repl (works on all platforms)
-   - "date/today" → python_repl(code="from datetime import datetime; print(datetime.now())")
-
-5. PYTHON: Use python_repl with correct syntax
-   - Power is ** not ^ : python_repl(code="print(2 ** 20)")
-
-NEVER respond with empty content. ALWAYS call a tool when asked to compute or execute.
-"""
-
-REACT_SYSTEM_SUFFIX = """
-You have access to tools. Use the following format EXACTLY:
-
-Thought: <your reasoning about what to do next>
-Action: <tool_name>
-Action Input: <JSON object with tool arguments>
-Observation: <the result will appear here>
-... (repeat Thought/Action/Action Input/Observation as needed)
-Thought: I now have enough information.
-Final Answer: <your final response to the user>
-
-IMPORTANT: Action Input must be valid JSON. Only use tools listed below.
-"""
-
-
-# ------------------------------------------------------------------ #
-#  Base System Prompts                                                 #
-# ------------------------------------------------------------------ #
-
-BASE_SYSTEM_PROMPT = "You are a helpful AI assistant."
-
-NO_TOOLS_SYSTEM_PROMPT = """Answer questions directly. For math, show work then give answer.
-
-Examples:
-Q: What is 7 * 8?
-A: 7 * 8 = 56
-
-Q: What is 15 plus 27?
-A: 15 + 27 = 42
-
-Q: What is 17 divided by 4?
-A: 17 / 4 = 4.25
-
-Q: I have 10 apples. I give 3 to Bob and 2 to Alice. How many left?
-A: 10 - 3 - 2 = 5
-
-Keep answers brief. Show calculation first, then the final number."""
-
-
-# ------------------------------------------------------------------ #
-#  Prompt Construction Functions                                       #
-# ------------------------------------------------------------------ #
 
 def get_system_prompt(
     model_name: str,
@@ -264,88 +194,50 @@ def get_system_prompt(
     """
     Get the appropriate system prompt for a model.
 
+    NOTE: This function is kept for backward compatibility.
+    The Agent class now uses soul-based prompting by default.
+
     Args:
         model_name: Name of the model
-        tool_support: Tool support level ("native", "react", "none")
+        tool_support: Tool support level (ignored, kept for compatibility)
         tools: List of available tools
 
     Returns:
         System prompt string
     """
-    from .model_family_config import (
-        get_family_config, get_react_system_suffix, get_native_tool_hints,
-        get_no_tools_system_prompt, should_use_few_shot, get_few_shot_style,
-    )
-    
-    # Detect model family
-    family = None
-    name_lower = model_name.lower()
-    families = [
-        "qwen2.5", "qwen2", "qwen", "qwen3",
-        "llama3.3", "llama3.2", "llama3.1", "llama3", "llama",
-        "mistral", "mixtral",
-        "gemma3", "gemma2", "gemma",
-        "granitemoe", "granite",
-        "phi3", "phi",
-        "codellama",
-        "command-r", "command",
-        "deepseek",
-        "dolphin",
-    ]
-    for f in families:
-        if f in name_lower:
-            family = f
-            break
-    
-    # Get family config
-    config = get_family_config(family) if family else None
-    
-    # Base prompt
-    base_prompt = BASE_SYSTEM_PROMPT
-    
-    # No tools - use simple prompt
-    if tool_support == "none":
-        no_tools_prompt = get_no_tools_system_prompt(family or "")
-        if no_tools_prompt:
-            return no_tools_prompt
-        return NO_TOOLS_SYSTEM_PROMPT
-    
-    # Native tool support: tools are passed via API, only add hints (not descriptions)
-    if tool_support == "native":
-        hints = get_native_tool_hints(family or "")
-        if hints:
-            return f"{base_prompt}\n\n{hints}"
-        return base_prompt
-    
-    # ReAct mode: add tool descriptions + format instructions
-    if tools and tool_support == "react":
-        tool_prompt = get_tool_prompt(tools, tool_support, family)
-        return f"{base_prompt}\n\n{tool_prompt}"
-    
-    return base_prompt
+    if tools:
+        tool_prompt = get_tool_prompt(tools)
+        return f"You are a helpful AI assistant.\n\n{tool_prompt}"
+    return "You are a helpful AI assistant."
 
 
 def get_tool_prompt(tools: list, tool_support: str = "react", family: str | None = None) -> str:
     """
     Generate tool description prompt.
 
+    NOTE: family and tool_support parameters are ignored.
+    Kept for backward compatibility.
+
     Args:
         tools: List of available tools
-        tool_support: Tool support level
-        family: Model family for family-specific hints
+        tool_support: Tool support level (ignored)
+        family: Model family (ignored)
 
     Returns:
         Tool description string
     """
-    from .model_family_config import (
-        get_react_system_suffix, get_native_tool_hints,
-        should_use_few_shot, get_few_shot_style,
-    )
-    
     if not tools:
         return ""
 
-    lines = ["Available tools:"]
+    lines = ["## Available Tools\n"]
+    lines.append("When you need to use a tool, follow this EXACT format:\n")
+    lines.append("```")
+    lines.append("Thought: <brief reasoning>")
+    lines.append("Action: <tool_name>")
+    lines.append("Action Input: <JSON arguments>")
+    lines.append("```\n")
+    lines.append("| Tool | Description | Arguments |")
+    lines.append("|------|-------------|-----------|")
 
     for tool in tools:
         # Get tool name and description
@@ -353,38 +245,40 @@ def get_tool_prompt(tools: list, tool_support: str = "react", family: str | None
         desc = getattr(tool, 'description', '')
         params = getattr(tool, 'params', [])
         
-        params_str = ""
+        # Build arguments example
         if params:
-            param_list = []
+            param_pairs = []
             for p in params:
                 p_name = getattr(p, 'name', str(p))
-                p_desc = getattr(p, 'description', '')
-                p_req = getattr(p, 'required', True)
-                req = "" if p_req else " (optional)"
-                param_list.append(f"{p_name}{req}: {p_desc}")
-            params_str = f" - Parameters: {', '.join(param_list)}"
-
-        lines.append(f"  - {name}: {desc}{params_str}")
-
-    # Add format instructions based on tool support
-    if tool_support == "react":
-        lines.append("")
-        lines.append(get_react_system_suffix(family or ""))
-        
-        # CRITICAL: ALL ReAct models need few-shot examples
-        # This was causing regression when family config had prefers_few_shot=False
-        # ReAct models MUST have examples to learn the format
-        style = get_few_shot_style(family or "")
-        if style == "compact":
-            lines.append(FEW_SHOT_COMPACT)
+                p_type = getattr(p, 'type', 'string')
+                if p_type == 'string':
+                    param_pairs.append(f'"{p_name}": "..."')
+                elif p_type in ('number', 'integer', 'float'):
+                    param_pairs.append(f'"{p_name}": 0')
+                else:
+                    param_pairs.append(f'"{p_name}": ...')
+            args_example = "{" + ", ".join(param_pairs) + "}"
         else:
-            lines.append(FEW_SHOT_SUFFIX)
+            args_example = "{}"
+
+        # Truncate description if too long for table
+        short_desc = desc.split('.')[0] if desc else "No description"
+        if len(short_desc) > 50:
+            short_desc = short_desc[:47] + "..."
+
+        lines.append(f"| `{name}` | {short_desc} | `{args_example}` |")
+
+    lines.append("")
+    lines.append("**CRITICAL RULE**: If a tool is NOT in the available tools list, do NOT try to use it. Respond directly instead.")
+    lines.append("")
+    lines.append("After tool execution, provide the Final Answer:")
+    lines.append("```")
+    lines.append("Thought: I have the result")
+    lines.append("Final Answer: <the answer>")
+    lines.append("```")
     
-    elif tool_support == "native":
-        hints = get_native_tool_hints(family or "")
-        if hints:
-            lines.append("")
-            lines.append(hints)
+    # Add few-shot examples for better tool usage
+    lines.append(FEW_SHOT_COMPACT)
 
     return "\n".join(lines)
 
@@ -405,11 +299,9 @@ def get_react_prompt(
     Returns:
         Complete ReAct prompt
     """
-    tool_desc = get_tool_prompt(tools or [], "react")
+    tool_desc = get_tool_prompt(tools or [])
 
-    prompt = f"""{REACT_SYSTEM_SUFFIX}
-
-{tool_desc}
+    prompt = f"""{tool_desc}
 
 Question: {question}
 """
@@ -426,10 +318,6 @@ __all__ = [
     "TOOL_ARG_ALIASES",
     "FEW_SHOT_SUFFIX",
     "FEW_SHOT_COMPACT",
-    "NATIVE_TOOL_HINTS",
-    "REACT_SYSTEM_SUFFIX",
-    "BASE_SYSTEM_PROMPT",
-    "NO_TOOLS_SYSTEM_PROMPT",
     "get_system_prompt",
     "get_tool_prompt",
     "get_react_prompt",

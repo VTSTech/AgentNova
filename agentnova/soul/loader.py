@@ -490,3 +490,115 @@ def load_soul(path: Union[str, Path], level: int = 2) -> SoulManifest:
 def build_system_prompt(manifest: SoulManifest, level: int = 2) -> str:
     """Convenience function to build system prompt."""
     return get_soul_loader().build_system_prompt(manifest, level=level)
+
+
+def build_system_prompt_with_tools(
+    manifest: SoulManifest,
+    tools: list,
+    level: int = 3,
+) -> str:
+    """
+    Build a system prompt with dynamic tool injection.
+    
+    This replaces the static tool reference in the soul with the actual
+    available tools at runtime.
+    
+    Args:
+        manifest: Loaded soul manifest
+        tools: List of Tool objects available
+        level: Progressive disclosure level
+    
+    Returns:
+        System prompt with tools injected
+    """
+    # Get base prompt
+    base_prompt = build_system_prompt(manifest, level=level)
+    
+    # Build dynamic tool section
+    tool_section = _build_tool_section(tools)
+    
+    # Check if soul has a static tool reference to replace
+    # If SOUL.md has a tool reference table, replace it
+    if "### Tool Reference" in base_prompt or "| Tool | When to use" in base_prompt:
+        # Find and replace the tool reference section
+        lines = base_prompt.split("\n")
+        new_lines = []
+        in_tool_section = False
+        tool_section_started = False
+        
+        for i, line in enumerate(lines):
+            # Detect start of tool reference
+            if "### Tool Reference" in line or ("| Tool |" in line and "When to use" in line):
+                in_tool_section = True
+                tool_section_started = True
+                # Add our dynamic tool section instead
+                new_lines.append(tool_section)
+                continue
+            
+            # Detect end of tool reference table (next section or empty line after table)
+            if in_tool_section:
+                # Check if we've reached a new section or end of table
+                if line.startswith("## ") or line.startswith("**CRITICAL"):
+                    in_tool_section = False
+                    new_lines.append(line)
+                elif line.startswith("##") and not line.startswith("###"):
+                    in_tool_section = False
+                    new_lines.append(line)
+                # Skip the old tool table lines
+                continue
+            else:
+                new_lines.append(line)
+        
+        # If we didn't find a tool section, append it
+        if not tool_section_started:
+            new_lines.append("\n\n" + tool_section)
+        
+        return "\n".join(new_lines)
+    else:
+        # No existing tool reference, append tools
+        return f"{base_prompt}\n\n{tool_section}"
+
+
+def _build_tool_section(tools: list) -> str:
+    """Build the dynamic tool section for system prompt."""
+    if not tools:
+        return ""
+    
+    lines = ["### Tool Reference (only use if available)"]
+    lines.append("")
+    lines.append("| Tool | When to use | Arguments |")
+    lines.append("|------|-------------|-----------|")
+    
+    for tool in tools:
+        # Get tool name and description
+        name = getattr(tool, 'name', str(tool))
+        desc = getattr(tool, 'description', '')
+        params = getattr(tool, 'params', [])
+        
+        # Build arguments example
+        if params:
+            param_pairs = []
+            for p in params:
+                p_name = getattr(p, 'name', str(p))
+                p_type = getattr(p, 'type', 'string')
+                if p_type == 'string':
+                    param_pairs.append(f'"{p_name}": "..."')
+                elif p_type in ('number', 'integer', 'float'):
+                    param_pairs.append(f'"{p_name}": 0')
+                else:
+                    param_pairs.append(f'"{p_name}": ...')
+            args_example = "{" + ", ".join(param_pairs) + "}"
+        else:
+            args_example = "{}"
+        
+        # Build "when to use" from description
+        short_desc = desc.split('.')[0] if desc else "No description"
+        if len(short_desc) > 40:
+            short_desc = short_desc[:37] + "..."
+        
+        lines.append(f"| `{name}` | {short_desc} | `{args_example}` |")
+    
+    lines.append("")
+    lines.append("**CRITICAL RULE**: If a tool is NOT in the available tools list, do NOT try to use it. Respond directly instead.")
+    
+    return "\n".join(lines)

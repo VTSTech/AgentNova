@@ -8,6 +8,8 @@ Implements OpenResponses patterns:
 - tool_choice: Control tool invocation behavior
 - allowed_tools: Restrict which tools can be invoked
 
+All models use the nova-helper soul for consistent behavior.
+
 Written by VTSTech — https://www.vts-tech.org
 """
 
@@ -17,11 +19,8 @@ import time
 from typing import Any, Generator, Optional
 
 from .core.models import AgentRun, StepResult, Tool, ToolParam, ToolCall
-from .core.types import StepResultType, ToolSupportLevel
 from .core.memory import Memory, MemoryConfig
 from .core.tool_parse import ToolParser
-from .core.prompts import get_system_prompt
-from .core.model_config import get_model_config
 from .core.openresponses import (
     Response, ResponseStatus, ItemStatus,
     ToolChoice, ToolChoiceType,
@@ -35,10 +34,6 @@ from .tools import ToolRegistry, make_builtin_registry
 from .backends import BaseBackend, get_default_backend
 
 
-# Alias for cleaner code (ToolSupportLevel enum)
-ToolSupport = ToolSupportLevel
-
-
 class Agent:
     """
     AgentNova Agent - ReAct loop implementation with OpenResponses compliance.
@@ -49,13 +44,12 @@ class Agent:
     - Response state machine: queued → in_progress → completed/failed
     - Items: Atomic units of context with lifecycle states
     
-    Legacy Features (maintained for compatibility):
-    - Three-tier tool support (native, ReAct, none)
-    - Auto-detects model capabilities
-    - Sliding window memory
-    - Streaming support
-    - Debug mode
-    - Soul Spec v0.5 support
+    All models use the nova-helper soul for consistent tool-calling behavior.
+    The model must explicitly format tool calls using ReAct format:
+    
+        Thought: <reasoning>
+        Action: <tool_name>
+        Action Input: {"arg": "value"}
 
     Example:
         agent = Agent(model="qwen2.5:0.5b", tools=["calculator", "shell"])
@@ -76,11 +70,10 @@ class Agent:
         backend: BaseBackend | str | None = None,
         max_steps: int = 10,
         memory_config: MemoryConfig | None = None,
-        force_react: bool = False,
         debug: bool = False,
         system_prompt: str | None = None,
-        soul: str | None = None,
-        soul_level: int = 2,
+        soul: str = "nova-helper",
+        soul_level: int = 3,
         num_ctx: int | None = None,
         # OpenResponses parameters
         tool_choice: str | ToolChoice = "auto",
@@ -96,10 +89,9 @@ class Agent:
             backend: Backend instance or name ("ollama", "bitnet")
             max_steps: Maximum reasoning steps
             memory_config: Memory configuration
-            force_react: Force ReAct mode even for native-capable models
             debug: Enable debug output
-            system_prompt: Custom system prompt (if None, uses default)
-            soul: Path to Soul Spec package (disabled by default)
+            system_prompt: Custom system prompt (overrides soul)
+            soul: Path to Soul Spec package (default: "nova-helper")
             soul_level: Progressive disclosure level for soul (1-3)
             num_ctx: Context window size in tokens (Ollama default is 2048)
             tool_choice: Control tool invocation ("auto", "required", "none", or specific tool name)
@@ -109,7 +101,6 @@ class Agent:
         self.model = model
         self.max_steps = max_steps
         self.debug = debug
-        self.force_react = force_react
         self.num_ctx = num_ctx
 
         # Initialize backend
@@ -158,17 +149,26 @@ class Agent:
         # Initialize memory
         self.memory = Memory(memory_config or MemoryConfig())
 
-        # Get model configuration
+        # Get model configuration (for temperature, max_tokens defaults)
+        from .core.model_config import get_model_config
         self.model_config = get_model_config(model)
 
-        # Detect model family
+        # Detect model family (for backend-specific settings like think=False)
         from .core.model_family_config import detect_family
         self.model_family = detect_family(model)
 
-        # Load Soul Spec package (disabled by default, enable with soul=)
+        # Load Soul Spec package (default: nova-helper)
         self.soul = None
         self._soul_level = soul_level
-        if soul is not None:
+        
+        # Determine if tools are available
+        has_tools = self.tools and len(self.tools) > 0 and self.tool_choice.type != ToolChoiceType.NONE
+        
+        if system_prompt is not None:
+            # Custom system prompt provided
+            self._custom_system_prompt = system_prompt
+        elif soul is not None:
+            # Load soul and build system prompt
             try:
                 from .soul import load_soul, build_system_prompt as build_soul_prompt
                 self.soul = load_soul(soul, level=soul_level)
@@ -182,46 +182,38 @@ class Agent:
                         if debug:
                             print(f"[Soul] Filtering tools: {current_tools} -> {filtered}")
                         self.tools = self.tools.subset(list(filtered))
+                        has_tools = len(self.tools) > 0
                 
-                # Generate system prompt from soul if not provided
-                if system_prompt is None:
-                    system_prompt = build_soul_prompt(self.soul, level=soul_level)
-                    if debug:
-                        print(f"[Soul] Loaded: {self.soul.display_name} v{self.soul.version}")
+                # Build system prompt from soul
+                self._custom_system_prompt = build_soul_prompt(self.soul, level=soul_level)
+                
+                if debug:
+                    print(f"[Soul] Loaded: {self.soul.display_name} v{self.soul.version}")
             except ImportError:
                 if debug:
-                    print("[Soul] Soul module not available, ignoring soul parameter")
+                    print("[Soul] Soul module not available, using default prompt")
+                self._custom_system_prompt = self._build_default_prompt(has_tools)
             except FileNotFoundError as e:
                 if debug:
                     print(f"[Soul] Soul package not found: {e}")
+                self._custom_system_prompt = self._build_default_prompt(has_tools)
             except Exception as e:
                 if debug:
                     print(f"[Soul] Error loading soul: {e}")
-
-        # Determine tool support level
-        # OpenResponses: tool_choice="none" overrides tool support
-        if self.tool_choice.type == ToolChoiceType.NONE:
-            self._tool_support = ToolSupport.NONE
-            self._tool_support_source = "tool_choice_none"
-        elif force_react:
-            self._tool_support = ToolSupport.REACT
-            self._tool_support_source = "force_react"
-        elif not self.tools or len(self.tools) == 0:
-            self._tool_support = ToolSupport.NONE
-            self._tool_support_source = "no_tools"
+                self._custom_system_prompt = self._build_default_prompt(has_tools)
         else:
-            self._tool_support = self._detect_tool_support()
-            if not hasattr(self, '_tool_support_source'):
-                self._tool_support_source = "detected"
+            self._custom_system_prompt = self._build_default_prompt(has_tools)
+
+        # Inject dynamic tool section if tools are available
+        if has_tools:
+            tool_section = self._build_tool_section()
+            self._custom_system_prompt = f"{self._custom_system_prompt}\n\n{tool_section}"
 
         # Initialize tool parser
         self._parser = ToolParser(self.tools.names())
 
-        # Store custom system prompt (if provided)
-        self._custom_system_prompt = system_prompt
-
-        # Add system prompt
-        self._add_system_prompt()
+        # Add system prompt to memory
+        self.memory.add("system", self._custom_system_prompt)
 
         # Store kwargs
         self._kwargs = kwargs
@@ -229,59 +221,77 @@ class Agent:
         # Response history for previous_response_id support
         self._response_history: dict[str, Response] = {}
 
-    def _detect_tool_support(self) -> ToolSupportLevel:
-        """Detect the tool support level for the model.
-        
-        Checks cache only. Run `agentnova models --tool_support` to test.
-        Untested models default to REACT for reliability.
-        """
-        import json
-        from pathlib import Path
-        
-        cache_dir = Path.home() / ".cache" / "agentnova"
-        cache_file = cache_dir / "tool_support.json"
-        
-        if cache_file.exists():
-            try:
-                with open(cache_file, "r") as f:
-                    cache = json.load(f)
-                cached = cache.get(self.model)
-                if cached:
-                    support = cached.get("support", "react")
-                    self._tool_support_source = f"cache({support})"
-                    if support == "native":
-                        return ToolSupport.NATIVE
-                    elif support == "react":
-                        return ToolSupport.REACT
-                    elif support == "none":
-                        return ToolSupport.NONE
-            except (json.JSONDecodeError, IOError):
-                pass
-        
-        self._tool_support_source = "default(react)"
-        return ToolSupport.REACT
+    def _build_default_prompt(self, has_tools: bool) -> str:
+        """Build a default system prompt when soul is not available."""
+        if has_tools:
+            return """You are a helpful AI assistant with access to tools.
 
-    def _add_system_prompt(self) -> None:
-        """Add the system prompt to memory."""
-        if self._custom_system_prompt:
-            system_prompt = self._custom_system_prompt
-            
-            if self.tools and len(self.tools) > 0 and self._tool_support != ToolSupport.NONE:
-                from .core.prompts import get_tool_prompt
-                tool_prompt = get_tool_prompt(
-                    self.tools.all(),
-                    tool_support=self._tool_support.value,
-                    family=None
-                )
-                if tool_prompt:
-                    system_prompt = f"{system_prompt}\n\n{tool_prompt}"
+When you need to use a tool, follow this EXACT format:
+
+```
+Thought: <brief reasoning>
+Action: <tool_name>
+Action Input: <JSON arguments>
+```
+
+After receiving a tool result, provide the Final Answer:
+
+```
+Thought: I have the result
+Final Answer: <the answer>
+```
+
+**CRITICAL RULES:**
+1. Only use tools from the available tools list
+2. Action Input must be valid JSON
+3. Always use tools for calculations and external operations
+4. Never make up information"""
         else:
-            system_prompt = get_system_prompt(
-                model_name=self.model,
-                tool_support=self._tool_support.value,
-                tools=self.tools.all() if self.tools else None,
-            )
-        self.memory.add("system", system_prompt)
+            return "You are a helpful AI assistant. Answer questions directly and accurately."
+
+    def _build_tool_section(self) -> str:
+        """Build the dynamic tool section for the system prompt."""
+        tools = self.tools.all()
+        if not tools:
+            return ""
+
+        lines = ["## Available Tools\n"]
+        lines.append("**FIRST: Check what tools are available to you right now. Only use tools from the available list.**\n")
+        lines.append("| Tool | When to use | Arguments |")
+        lines.append("|------|-------------|-----------|")
+
+        for tool in tools:
+            name = getattr(tool, 'name', str(tool))
+            desc = getattr(tool, 'description', '')
+            params = getattr(tool, 'params', [])
+            
+            # Build arguments example
+            if params:
+                param_pairs = []
+                for p in params:
+                    p_name = getattr(p, 'name', str(p))
+                    p_type = getattr(p, 'type', 'string')
+                    if p_type == 'string':
+                        param_pairs.append(f'"{p_name}": "..."')
+                    elif p_type in ('number', 'integer', 'float'):
+                        param_pairs.append(f'"{p_name}": 0')
+                    else:
+                        param_pairs.append(f'"{p_name}": ...')
+                args_example = "{" + ", ".join(param_pairs) + "}"
+            else:
+                args_example = "{}"
+
+            # Truncate description if too long for table
+            short_desc = desc.split('.')[0] if desc else "No description"
+            if len(short_desc) > 50:
+                short_desc = short_desc[:47] + "..."
+
+            lines.append(f"| `{name}` | {short_desc} | `{args_example}` |")
+
+        lines.append("")
+        lines.append("**CRITICAL RULE**: If a tool is NOT in the available tools list, do NOT try to use it. Respond directly instead.")
+
+        return "\n".join(lines)
 
     def run(self, prompt: str, stream: bool = False) -> AgentRun:
         """
@@ -327,7 +337,6 @@ class Agent:
         if self.debug:
             print(f"\n[AgentNova] Model: {self.model}")
             print(f"[AgentNova] Backend: {self.backend.base_url}")
-            print(f"[AgentNova] Tool support: {self._tool_support.value} (source: {getattr(self, '_tool_support_source', 'unknown')})")
             print(f"[AgentNova] tool_choice: {self.tool_choice.type.value}")
             print(f"[AgentNova] Tools: {self.tools.names()}")
             print(f"[AgentNova] Prompt: {prompt}\n")
@@ -361,25 +370,55 @@ class Agent:
                 print(f"  Content: {content[:200] if content else '(empty)'}...")
                 print(f"  Native tool calls: {native_tool_calls}")
 
-            # ---- Native tool calling ----
-            if self._tool_support == ToolSupport.NATIVE and native_tool_calls:
-                self.memory.add_tool_call("assistant", content, native_tool_calls)
-                
+            # ---- Process tool calls (native or ReAct) ----
+            tool_calls_found = []
+
+            # Check for native tool calls from backend
+            if native_tool_calls:
                 for tc in native_tool_calls:
-                    tool_name = tc.get("name", "")
-                    tool_args = tc.get("arguments", {})
-                    tool_call_id = tc.get("id", "")
+                    tool_calls_found.append({
+                        "name": tc.get("name", ""),
+                        "arguments": tc.get("arguments", {}),
+                        "id": tc.get("id", ""),
+                    })
+
+            # Check for ReAct format tool calls
+            elif content:
+                parsed_calls = self._parser.parse(content)
+                for call in parsed_calls:
+                    tool_calls_found.append({
+                        "name": call.name,
+                        "arguments": call.arguments,
+                        "id": "",
+                    })
+
+            # Execute tool calls if found
+            if tool_calls_found:
+                # For native calls, use special memory format
+                if native_tool_calls:
+                    self.memory.add_tool_call("assistant", content, native_tool_calls)
+                else:
+                    self.memory.add("assistant", content)
+
+                for tc in tool_calls_found:
+                    tool_name = tc["name"]
+                    tool_args = tc["arguments"]
+                    tool_call_id = tc.get("id", "") or ""
 
                     # OpenResponses: Check allowed_tools
                     if self._allowed_tools and tool_name not in self._allowed_tools:
                         error_msg = f"Tool '{tool_name}' not in allowed_tools: {self._allowed_tools}"
                         if self.debug:
                             print(f"  BLOCKED: {error_msg}")
-                        self.memory.add_tool_result(
-                            tool_call_id=tool_call_id,
-                            name=tool_name,
-                            content=f"Error: {error_msg}",
-                        )
+                        
+                        if native_tool_calls:
+                            self.memory.add_tool_result(
+                                tool_call_id=tool_call_id,
+                                name=tool_name,
+                                content=f"Error: {error_msg}",
+                            )
+                        else:
+                            self.memory.add("user", f"Observation: Error: {error_msg}")
                         continue
 
                     # Fuzzy match tool name
@@ -397,15 +436,18 @@ class Agent:
                     fc_item.status = ItemStatus.COMPLETED
 
                     # Create FunctionCallOutputItem
-                    fco_item = create_function_call_output(tool_call_id, str(result))
+                    fco_item = create_function_call_output(fc_item.call_id, str(result))
                     response.add_output_item(fco_item)
 
                     # Add tool result to memory
-                    self.memory.add_tool_result(
-                        tool_call_id=tool_call_id,
-                        name=tool_name,
-                        content=str(result),
-                    )
+                    if native_tool_calls:
+                        self.memory.add_tool_result(
+                            tool_call_id=fc_item.call_id,
+                            name=tool_name,
+                            content=str(result),
+                        )
+                    else:
+                        self.memory.add("user", f"Observation: {result}")
 
                     if not str(result).startswith("Error"):
                         successful_results.append(f"{tool_name}: {result}")
@@ -424,59 +466,6 @@ class Agent:
 
                 # Continue the agentic loop
                 continue
-
-            # ---- ReAct tool calling ----
-            if self._tool_support == ToolSupport.REACT:
-                parsed_calls = self._parser.parse(content)
-
-                if parsed_calls:
-                    call = parsed_calls[0]
-                    tool_name = call.name
-                    tool_args = call.arguments
-
-                    # OpenResponses: Check allowed_tools
-                    if self._allowed_tools and tool_name not in self._allowed_tools:
-                        error_msg = f"Tool '{tool_name}' not in allowed_tools: {self._allowed_tools}"
-                        if self.debug:
-                            print(f"  BLOCKED: {error_msg}")
-                        self.memory.add("assistant", content)
-                        self.memory.add("user", f"Observation: Error: {error_msg}")
-                        continue
-
-                    # Create FunctionCallItem
-                    fc_item = create_function_call_item(tool_name, tool_args)
-                    fc_item.status = ItemStatus.IN_PROGRESS
-                    response.add_output_item(fc_item)
-
-                    result = self._execute_tool(tool_name, tool_args, prompt)
-                    tool_calls += 1
-
-                    # Update status
-                    fc_item.status = ItemStatus.COMPLETED
-
-                    # Create FunctionCallOutputItem
-                    fco_item = create_function_call_output(fc_item.call_id, str(result))
-                    response.add_output_item(fco_item)
-
-                    self.memory.add("assistant", content)
-                    self.memory.add("user", f"Observation: {result}")
-
-                    if not str(result).startswith("Error"):
-                        successful_results.append(f"{tool_name}: {result}")
-
-                    steps.append(StepResult(
-                        type=StepResultType.TOOL_CALL,
-                        content=content,
-                        tool_call=call,
-                        tool_result=result,
-                        tokens_used=tokens,
-                    ))
-
-                    if self.debug:
-                        print(f"  Tool: {tool_name}({tool_args})")
-                        print(f"  Result: {str(result)[:200]}...")
-
-                    continue
 
             # ---- Check for Final Answer ----
             # The model explicitly signals completion with "Final Answer:"
@@ -605,7 +594,7 @@ class Agent:
                 content = msg.get('content', '')
                 tc = msg.get('tool_calls', [])
                 content_preview = content[:2048] if content else '(empty)'
-                print(f"  [MSG {i}] role={role}, content={content_preview!r}{' as tool_calls]' if tc else ''}")
+                print(f"  [MSG {i}] role={role}, content={content_preview!r}{' as tool_calls]' if tc else ']'}")
             print(f"  [DEBUG] Tools: {[t.name for t in self.tools.all()] if self.tools else None}")
 
         # Check if model needs thinking disabled (qwen3, deepseek-r1, etc.)
@@ -622,16 +611,10 @@ class Agent:
             if self.debug:
                 print(f"  [DEBUG] num_ctx: {self.num_ctx}")
 
-        # Determine if tools should be passed
-        # OpenResponses: tool_choice="none" means no tools
-        pass_tools = None
-        if self._tool_support == ToolSupport.NATIVE and self.tool_choice.type != ToolChoiceType.NONE:
-            pass_tools = self.tools.all()
-
         response = self.backend.generate(
             model=self.model,
             messages=messages,
-            tools=pass_tools,
+            tools=None,  # We use ReAct prompting, not native tool definitions
             temperature=self.model_config.default_temperature,
             max_tokens=self.model_config.default_max_tokens,
             **backend_kwargs,
@@ -692,19 +675,35 @@ class Agent:
     def clear_memory(self) -> None:
         """Clear conversation memory."""
         self.memory.clear()
-        self._add_system_prompt()
+        self.memory.add("system", self._custom_system_prompt)
 
     def add_tool(self, tool: Tool) -> None:
         """Add a tool to the registry."""
         self.tools.register_tool(tool)
         self._parser = ToolParser(self.tools.names())
+        # Rebuild system prompt with new tool
+        has_tools = len(self.tools) > 0
+        if has_tools:
+            tool_section = self._build_tool_section()
+            # Find and replace tool section in system prompt
+            if "## Available Tools" in self._custom_system_prompt:
+                idx = self._custom_system_prompt.find("## Available Tools")
+                self._custom_system_prompt = self._custom_system_prompt[:idx].rstrip() + "\n\n" + tool_section
+            else:
+                self._custom_system_prompt = self._custom_system_prompt + "\n\n" + tool_section
+        # Update memory
+        self.memory.clear()
+        self.memory.add("system", self._custom_system_prompt)
 
     def get_response(self, response_id: str) -> Response | None:
         """Get a previous response by ID (for previous_response_id support)."""
         return self._response_history.get(response_id)
 
     def __repr__(self) -> str:
-        return f"Agent(model={self.model}, tools={len(self.tools)}, support={self._tool_support.value}, tool_choice={self.tool_choice.type.value})"
+        return f"Agent(model={self.model}, tools={len(self.tools)}, tool_choice={self.tool_choice.type.value})"
 
+
+# Import StepResultType for the AgentRun
+from .core.types import StepResultType
 
 __all__ = ["Agent"]
