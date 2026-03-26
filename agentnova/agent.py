@@ -658,11 +658,14 @@ Final Answer: <the answer>
         # Rebuild system prompt with new tool
         has_tools = len(self.tools) > 0
         if has_tools:
-            tool_section = self._build_tool_section()
+            from .soul.loader import _build_tool_section
+            tool_section = _build_tool_section(self.tools.all())
             # Find and replace tool section in system prompt
-            if "## Available Tools" in self._custom_system_prompt:
-                idx = self._custom_system_prompt.find("## Available Tools")
-                self._custom_system_prompt = self._custom_system_prompt[:idx].rstrip() + "\n\n" + tool_section
+            if "### Tool Reference" in self._custom_system_prompt:
+                # Replace existing tool section
+                import re
+                pattern = r'### Tool Reference.*?(?=\n## |\n\*\*CRITICAL RULE|\Z)'
+                self._custom_system_prompt = re.sub(pattern, tool_section.rstrip(), self._custom_system_prompt, flags=re.DOTALL)
             else:
                 self._custom_system_prompt = self._custom_system_prompt + "\n\n" + tool_section
         # Update memory
