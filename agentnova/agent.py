@@ -192,6 +192,12 @@ class Agent:
                 if cached:
                     support = cached.get("support", "react")
                     self._tool_support_source = f"cache({support})"
+                    if support == "none":
+                        # Log that model is cached as having no tool support
+                        # User may want to clear cache if this is outdated
+                        if self.debug:
+                            print(f"[AgentNova] Model '{self.model}' cached as 'none' tool support")
+                            print(f"[AgentNova] To retest: rm ~/.cache/agentnova/tool_support.json && agentnova models --tool_support")
                     if support == "native":
                         return ToolSupportLevel.NATIVE
                     elif support == "react":
