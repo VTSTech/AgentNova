@@ -1,4 +1,58 @@
-# ⚛️ AgentNova R02.6
+# ⚛️ AgentNova R03.2
+
+## Test 01 Quick Diagnostic (5 Questions)
+
+> **Updated:** 2026-03-26 - Fresh benchmark of ≤0.5B models
+
+Test 01 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
+
+**Usage:**
+```bash
+agentnova test 01 --model qwen2.5:0.5b
+agentnova test 01 --model qwen    # Fuzzy match: all qwen models
+agentnova test 01 --model g       # Fuzzy match: gemma, granite, functiongemma
+```
+
+### Quick Diagnostic Results (R03.2 - ≤0.5B Models)
+
+| Rank | Model | Score | Time | Tool Support | Notes |
+|:----:|-------|------:|-----:|:------------:|-------|
+| 🥇 | **`functiongemma:270m`** | **5/5 (100%)** | 23.7s | native | 🏆 Fastest perfect score! |
+| 🥈 | **`granite4:350m`** | **5/5 (100%)** | 44.5s | native | 🏆 Perfect with native tools |
+| 🥉 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 48.7s | native | 🏆 Perfect with native tools |
+| 4 | **`qwen2.5-coder:0.5b-instruct-q4_k_m`** | **5/5 (100%)** | 93.3s | react | 🏆 Perfect with ReAct |
+| 5 | `nchapman/dolphin3.0-qwen2.5:0.5b` | 3/5 (60%) | 36.8s | none | Q2, Q5 failed |
+| 6 | `qwen:0.5b` | 2/5 (40%) | 56.0s | none | Q2, Q3, Q4 failed |
+| 7 | `gemma3:270m` | 1/5 (20%) | 9.6s | none | Only Q1 passed |
+
+### Test Questions (5 Targeted Tests)
+
+| Q# | Test | Purpose | Expected |
+|----|------|---------|----------|
+| Q1 | Simple Math | Basic calculator tool usage | 42 |
+| Q2 | Multi-step | Observation handling (8×7 then -5) | 51 |
+| Q3 | Division | Fraction/precision handling | 4.25 |
+| Q4 | Word Problem | Natural language → expression | 10 |
+| Q5 | Time Calc | Store hours calculation | 8 |
+
+### Key Findings (R03.2)
+
+1. **4 models achieve 100%** - functiongemma:270m, granite4:350m, qwen2.5:0.5b, qwen2.5-coder:0.5b-instruct
+2. **`functiongemma:270m` fastest perfect** - 23.7s for 5/5, native tools + 270M params!
+3. **Tool-calling dominates** - ALL models with native/react support score 100%
+4. **Pure reasoning struggles** - No-tool models max at 60% (dolphin) due to internal math errors
+5. **`gemma3:270m` fastest but least accurate** - 9.6s but only 20% (1/5)
+6. **Quantized model performs well** - qwen2.5-coder:0.5b-instruct-q4_k_m achieves 100%
+
+### Failure Analysis
+
+| Model | Failed Questions | Issue |
+|-------|-----------------|-------|
+| `gemma3:270m` | Q2, Q3, Q4, Q5 | No tool support, pure reasoning errors |
+| `qwen:0.5b` | Q2, Q3, Q4 | Base model, struggles with multi-step |
+| `dolphin3.0-qwen2.5:0.5b` | Q2, Q5 | Tool support removed by fine-tune |
+
+---
 
 ## Test 16 Agent Mode Test (Autonomous Tasks)
 
@@ -44,55 +98,6 @@ agentnova test 16 --model all --debug
 | ReAct loop | Models repeat actions instead of Final Answer | Extra API calls |
 | Multi-tool planning | Model doesn't chain tools properly | Multi-Tool test fails |
 | Argument confusion | Wrong arg names (expression vs code) | Python REPL fallback |
-
----
-
-## Test 15 Quick Diagnostic (5 Questions)
-
-> **Updated:** 2026-03-23 - R02.6 multi-step extraction, ReAct JSON fix, verbose fallback
-
-Test 15 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
-
-**Usage:**
-```bash
-agentnova test 15 --model granite3.1-moe:1b
-agentnova test 15 --model all --debug
-```
-
-### Quick Diagnostic Results (R02.6)
-
-| Rank | Model | Score | Time | Tool Support | Notes |
-|:----:|-------|------:|-----:|:------------:|-------|
-| 🥇 | **`functiongemma:270m`** | **5/5 (100%)** | 19.6s | native | 🏆 Fastest perfect score! |
-| 🥈 | **`granite4:350m`** | **5/5 (100%)** | 49.4s | native | 🏆 Perfect with native tools |
-| 🥉 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 66.3s | native | 🏆 Perfect with native tools |
-| 4 | **`qwen2.5-coder:0.5b`** | **5/5 (100%)** | 116.5s | react | 🏆 Perfect with ReAct |
-| 4 | **`qwen3:0.6b`** | **5/5 (100%)** | 122.8s | react | 🏆 Perfect with ReAct |
-| 6 | `gemma3:270m` | 4/5 (80%) | 14.3s | none | Pure reasoning, fast |
-| 6 | `dolphin3.0-qwen2.5:0.5b` | 4/5 (80%) | 26.6s | none | Pure reasoning |
-| 8 | `qwen:0.5b` | 1/5 (20%) | 27.0s | none | Base model struggles |
-
-### Test Questions (5 Targeted Tests)
-
-| Q# | Test | Purpose | Expected |
-|----|------|---------|----------|
-| Q1 | Simple Math | Basic calculator tool usage | 42 |
-| Q2 | Multi-step | Observation handling (8×7 then -5) | 51 |
-| Q3 | Division | Fraction/precision handling | 4.25 |
-| Q4 | Word Problem | Natural language → expression | 10 |
-| Q5 | Edge Case | Refusal handling (store hours) | 8 |
-
-### Key Findings (R02.6)
-
-1. **5 models achieve 100%** - functiongemma:270m, granite4:350m, qwen2.5:0.5b, qwen2.5-coder:0.5b, qwen3:0.6b
-2. **`functiongemma:270m` fastest perfect** - 19.6s for 5/5, native tools + 270M params!
-3. **Multi-step extraction fixed** - Q2 "8 times 7 minus 5" now correctly extracts `8 * 7 - 5 = 51`
-4. **Word problem extraction added** - Q4 "has 24, sold 8 and 6" → `24 - 8 - 6 = 10`
-5. **ReAct JSON parsing fixed** - Clean extraction even with trailing text after JSON
-6. **Verbose response fallback** - Uses numeric result when model gives long explanation
-7. **Tool-calling dominates** - ALL models with native/react support score 100%
-8. **Pure reasoning limited** - No-tool models max at 80% due to internal math errors
-9. **All tool-calling models perfect** - Multi-step extraction fixes drove the improvement
 
 ---
 
@@ -276,11 +281,12 @@ AgentNova has been tested with **Microsoft BitNet-b1.58-2B-4T** — a 2B paramet
 
 | Use Case | Recommended Model | Why |
 |----------|-------------------|-----|
-| **🏆 BEST OVERALL** | **`functiongemma:270m`** | **100% in 19.6s** - fastest perfect, native tools! |
-| **Best Runner-up** | **`granite4:350m`** | **100% in 49.4s** - native tools, 350M params |
-| **Best with ReAct** | **`qwen2.5-coder:0.5b`** | **100% in 116.5s** - ReAct mode, code focused |
-| **Best GSM8K** | **`qwen2.5:0.5b`** | **100%** - native tools, fast math! |
-| **Best Speed (100%)** | `functiongemma:270m` | **19.6s**, 100% accuracy, 270M params |
+| **🏆 BEST OVERALL** | **`functiongemma:270m`** | **100% in 23.7s** - fastest perfect, native tools! |
+| **Best Runner-up** | **`granite4:350m`** | **100% in 44.5s** - native tools, 350M params |
+| **Best with ReAct** | **`qwen2.5-coder:0.5b-instruct-q4_k_m`** | **100% in 93.3s** - ReAct mode, code focused |
+| **Best Native** | **`qwen2.5:0.5b`** | **100% in 48.7s** - native tools, fast math! |
+| **Best Speed (100%)** | `functiongemma:270m` | **23.7s**, 100% accuracy, 270M params |
+| **Best Pure Reasoning** | `dolphin3.0-qwen2.5:0.5b` | 60% at 36.8s - no tools needed |
 | **Large context** | `llama3.2:1b` | **128k context window**, 87% accuracy |
 | **CPU-only** | `BitNet-b1.58-2B-4T` | Efficient ternary weights |
 
@@ -288,15 +294,14 @@ AgentNova has been tested with **Microsoft BitNet-b1.58-2B-4T** — a 2B paramet
 
 | Model | Recommended Mode | Reason |
 |-------|------------------|--------|
-| **`functiongemma:270m`** | Native | 🏆 **Test 15 Champion!** 100% at 19.6s |
+| **`functiongemma:270m`** | Native | 🏆 **Test 01 Champion!** 100% at 23.7s |
 | **`granite4:350m`** | Native | 🏆 **100%** - native tools, 350M params |
 | **`qwen2.5:0.5b`** | Native | 🏆 **100%** - native tools work great |
-| **`qwen2.5-coder:0.5b`** | ReAct | 🏆 **100%** - code focused |
-| **`qwen3:0.6b`** | ReAct | 🏆 **100%** - newest qwen |
-| `gemma3:270m` | None | 80%, very fast (14.3s) |
-| `dolphin3.0-qwen2.5:0.5b` | None | 80%, pure reasoning |
+| **`qwen2.5-coder:0.5b-instruct-q4_k_m`** | ReAct | 🏆 **100%** - code focused, quantized |
+| `dolphin3.0-qwen2.5:0.5b` | None | 60%, tool support removed |
+| `gemma3:270m` | None | 20%, very fast (9.6s) but inaccurate |
+| `qwen:0.5b` | None | 40%, base model struggles |
 | `llama3.2:1b` | Native | 87%, 128k context |
-| `qwen:0.5b` | None | 20%, base model struggles |
 
 ---
 
