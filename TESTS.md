@@ -323,13 +323,13 @@ AgentNova has been tested with **Microsoft BitNet-b1.58-2B-4T** — a 2B paramet
 | Use Case | Recommended Model | Why |
 |----------|-------------------|-----|
 | **🏆 BEST OVERALL** | **`functiongemma:270m`** | **100% in 23.7s** - fastest perfect, native tools! |
-| **Best with Soul** | **`dolphin3.0-qwen2.5:0.5b`** + nova-helper | **100% in 38.2s** - soul transforms performance! |
+| **Best with Soul** | **`qwen2.5-coder:0.5b-instruct-q4_k_m`** + nova-helper | **100% in 52.2s** - 2x faster with soul! |
 | **Best Runner-up** | **`granite4:350m`** | **100% in 44.5s** - native tools, 350M params |
 | **Best Qwen3** | **`qwen3:0.6b`** + nova-helper | **100% in 102.3s** - newest Qwen family! |
-| **Best with ReAct** | **`qwen2.5-coder:0.5b-instruct-q4_k_m`** | **100% in 93.3s** - ReAct mode, code focused |
 | **Best Native** | **`qwen2.5:0.5b`** | **100% in 48.7s** - native tools, fast math! |
 | **Best Speed (100%)** | `functiongemma:270m` | **23.7s**, 100% accuracy, 270M params |
 | **Best No-Tool + Soul** | `qwen2:0.5b` + nova-helper | **100% in 53.8s** - fallback synthesis magic! |
+| **Fastest Soul Speedup** | `qwen:0.5b` + nova-helper | **100% in 96.0s** - 2.3x faster than without! |
 | **Smallest 100%** | `gemma3:270m` + nova-helper | **100%** - 270M params with soul! |
 | **Large context** | `llama3.2:1b` | **128k context window**, 87% accuracy |
 | **CPU-only** | `BitNet-b1.58-2B-4T` | Efficient ternary weights |
@@ -341,8 +341,9 @@ AgentNova has been tested with **Microsoft BitNet-b1.58-2B-4T** — a 2B paramet
 | **`functiongemma:270m`** | Native | - | 🏆 **Test 01 Champion!** 100% at 23.7s |
 | **`granite4:350m`** | Native | - | 🏆 **100%** - native tools, 350M params |
 | **`qwen2.5:0.5b`** | Native | - | 🏆 **100%** - native tools work great |
-| **`qwen2.5-coder:0.5b-instruct-q4_k_m`** | ReAct | - | 🏆 **100%** - code focused, quantized |
+| **`qwen2.5-coder:0.5b-instruct-q4_k_m`** | ReAct | nova-helper | 🏆 **100% in 52.2s** - 2x faster with soul! |
 | **`qwen2:0.5b`** | None | nova-helper | 🏆 **100%** - fallback synthesis saves it! |
+| **`qwen:0.5b`** | ReAct | nova-helper | 🏆 **100% in 96.0s** - 2.3x faster with soul! |
 | **`qwen3:0.6b`** | ReAct | nova-helper | 🏆 **100%** - newest Qwen family! |
 | **`qwen3.5:0.8b`** | ReAct | nova-helper | 🏆 **100%** - larger Qwen3.5 model |
 | **`gemma3:270m`** | ReAct | nova-helper | 🏆 **100%** - soul + synthesis fix |
