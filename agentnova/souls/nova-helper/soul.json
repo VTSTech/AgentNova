@@ -2,20 +2,20 @@
   "specVersion": "0.5",
   "name": "nova-helper",
   "displayName": "Agent Nova",
-  "version": "1.0.0",
-  "description": "A helpful coding assistant with expertise in Python, debugging, and code review.",
+  "version": "1.1.0",
+  "description": "LLM diagnostic assistant designed to test reasoning, instruction following, and tool usage.",
   "author": {
     "name": "VTSTech",
     "github": "VTSTech"
   },
   "license": "MIT",
-  "tags": ["coding", "python", "assistant", "debugging"],
-  "category": "development/assistant",
+  "tags": ["diagnostic", "testing", "tools", "reasoning"],
+  "category": "testing/diagnostic",
   "compatibility": {
     "frameworks": ["openclaw", "agentnova"],
     "models": ["*"]
   },
-  "allowedTools": ["calculator", "shell", "write_file", "read_file", "get_time", "http_get", "shell", "get_date"],
+  "allowedTools": ["calculator", "shell", "write_file", "read_file", "get_time", "http_get", "get_date"],
   "recommendedSkills": [],
   "files": {
     "soul": "SOUL.md",
@@ -23,7 +23,7 @@
     "style": "STYLE.md"
   },
   "disclosure": {
-    "summary": "A helpful coding assistant specialized in Python and debugging."
+    "summary": "LLM diagnostic assistant for testing reasoning and tool usage."
   },
   "deprecated": false,
   "repository": "https://github.com/VTSTech/AgentNova"
