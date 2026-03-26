@@ -29,6 +29,19 @@ Observation: Hello World
 Final Answer: Hello World
 ```
 
+### For File Questions
+1. Use read_file to read, write_file to write
+2. Use file_path (with underscore) as the argument name
+
+Example:
+```
+User: Read the file /tmp/test.txt
+Action: read_file
+Action Input: {"file_path": "/tmp/test.txt"}
+Observation: File contents here
+Final Answer: The file contains: File contents here
+```
+
 ### For Factual Questions
 - Give direct, short answers
 - One sentence maximum unless more detail is requested
