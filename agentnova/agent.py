@@ -495,6 +495,7 @@ class Agent:
                                 steps.append(StepResult(
                                     type=StepResultType.TOOL_CALL,
                                     content=f"[Auto-synthesized] calculator({expr})",
+                                    tool_call=ToolCall(name="calculator", arguments={"expression": expr}),
                                     tool_result=result,
                                     tokens_used=tokens,
                                 ))
@@ -600,6 +601,7 @@ class Agent:
                         steps.append(StepResult(
                             type=StepResultType.TOOL_CALL,
                             content=f"[Auto-synthesized] calculator({expr})",
+                            tool_call=ToolCall(name="calculator", arguments={"expression": expr}),
                             tool_result=result,
                             tokens_used=tokens,
                         ))
@@ -704,6 +706,7 @@ class Agent:
                     steps.append(StepResult(
                         type=StepResultType.TOOL_CALL,
                         content=f"[Auto-synthesized] calculator({expr})",
+                        tool_call=ToolCall(name="calculator", arguments={"expression": expr}),
                         tool_result=result,
                         tokens_used=tokens,
                     ))
@@ -750,6 +753,7 @@ class Agent:
                     steps.append(StepResult(
                         type=StepResultType.TOOL_CALL,
                         content=f"[Auto-synthesized] calculator({expr})",
+                        tool_call=ToolCall(name="calculator", arguments={"expression": expr}),
                         tool_result=result,
                         tokens_used=tokens,
                     ))
