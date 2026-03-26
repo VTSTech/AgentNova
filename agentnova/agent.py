@@ -643,6 +643,79 @@ class Agent:
                     if self.debug:
                         print(f"  Model gave Final Answer without tool use (support={self._tool_support.value}), trying fallback synthesis")
                     
+                    # SPECIAL: For soul mode with NONE support, try ReAct parsing first
+                    # The soul prompt tells the model to use ReAct format even if native support is NONE
+                    if self.soul is not None and self._tool_support == ToolSupportLevel.NONE:
+                        parsed_calls = self._parser.parse(content)
+                        if parsed_calls:
+                            call = parsed_calls[0]
+                            tool_name = call.name
+                            tool_args = call.arguments
+                            
+                            if self.debug:
+                                print(f"  Soul+NONE mode: parsed ReAct tool call: {tool_name}")
+                            
+                            result = self._execute_tool(tool_name, tool_args, prompt)
+                            tool_calls += 1
+                            
+                            self.memory.add("assistant", content)
+                            self.memory.add("user", f"Observation: {result}")
+                            
+                            if not str(result).startswith("Error"):
+                                successful_results.append(f"{tool_name}: {result}")
+                            
+                            steps.append(StepResult(
+                                type=StepResultType.TOOL_CALL,
+                                content=content,
+                                tool_call=call,
+                                tool_result=result,
+                                tokens_used=tokens,
+                            ))
+                            continue
+                    
+                    # Check if this is a tool-requiring prompt (date, time, shell, file)
+                    prompt_lower = prompt.lower()
+                    tool_required_indicators = [
+                        ('what time', 'get_time'), ('current time', 'get_time'), ('tell me the time', 'get_time'),
+                        ('what date', 'get_date'), ('current date', 'get_date'), ("today's date", 'get_date'),
+                        ('what day', 'get_date'), ("today's day", 'get_date'),
+                        ('echo ', 'shell'), ('shell to', 'shell'), ('run shell', 'shell'),
+                        ('current directory', 'shell'), ('working directory', 'shell'), ('pwd', 'shell'),
+                        ('read file', 'read_file'), ('read the file', 'read_file'), ('show file', 'read_file'),
+                        ('list files', 'list_directory'), ('list directory', 'list_directory'),
+                        ('write file', 'write_file'), ('write to file', 'write_file'),
+                        ('use python', 'python_repl'), ('python to', 'python_repl'),
+                    ]
+                    
+                    required_tool = None
+                    for indicator, tool_name in tool_required_indicators:
+                        if indicator in prompt_lower and tool_name in self.tools.names():
+                            required_tool = tool_name
+                            break
+                    
+                    if required_tool and self.soul is not None:
+                        if self.debug:
+                            print(f"  Soul mode: prompt requires tool '{required_tool}', not accepting Final Answer")
+                        # Execute the required tool
+                        result = self._execute_tool(required_tool, {}, prompt)
+                        tool_calls += 1
+                        
+                        self.memory.add("assistant", content)
+                        self.memory.add("user", f"Observation: {result}")
+                        
+                        if not str(result).startswith("Error"):
+                            successful_results.append(f"{required_tool}: {result}")
+                        
+                        steps.append(StepResult(
+                            type=StepResultType.TOOL_CALL,
+                            content=f"[Auto-executed] {required_tool}({{}})",
+                            tool_call=ToolCall(name=required_tool, arguments={}),
+                            tool_result=result,
+                            tokens_used=tokens,
+                        ))
+                        continue
+                    
+                    # Try calculator synthesis for math prompts
                     from .core.helpers import extract_calc_expression
                     expr = extract_calc_expression(prompt)
                     
