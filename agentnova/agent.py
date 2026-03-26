@@ -368,6 +368,30 @@ class Agent:
                         print(f"  Tool: {tool_name}({tool_args})")
                         print(f"  Result: {str(result)[:200]}...")
 
+                    # ---- Check for wrong datetime tool selection ----
+                    # If model called get_date for a time question, also call get_time
+                    prompt_lower = prompt.lower()
+                    if tool_name == "get_date" and "get_time" in self.tools.names():
+                        if any(kw in prompt_lower for kw in ["what time", "time is it", "what's the time", "current time"]):
+                            if self.debug:
+                                print(f"  Model called get_date for time question, also calling get_time")
+                            time_result = self._execute_tool("get_time", {}, prompt)
+                            tool_calls += 1
+                            self.memory.add_tool_result(
+                                tool_call_id=f"auto_time_{tool_call_id}",
+                                name="get_time",
+                                content=str(time_result),
+                            )
+                            if not str(time_result).startswith("Error"):
+                                successful_results.append(f"get_time: {time_result}")
+                            steps.append(StepResult(
+                                type=StepResultType.TOOL_CALL,
+                                content="[Auto-corrected] get_time({})",
+                                tool_call=ToolCall(name="get_time", arguments={}),
+                                tool_result=time_result,
+                                tokens_used=tokens,
+                            ))
+
                 # Continue to next step after processing all tool calls
                 continue
 
@@ -888,6 +912,15 @@ class Agent:
         if "python_repl" in available_tools and any(kw in prompt_lower for kw in 
             ["python", "code", "execute", "run"]):
             return "Use the python_repl tool to execute Python code."
+        
+        # DateTime tool hints - help models pick the right one
+        if "get_time" in available_tools and any(kw in prompt_lower for kw in 
+            ["what time", "current time", "time is it", "what's the time"]):
+            return "Use the get_time tool to get the current time."
+        
+        if "get_date" in available_tools and any(kw in prompt_lower for kw in 
+            ["what date", "today's date", "what day", "current date"]):
+            return "Use the get_date tool to get the current date."
         
         if available_tools:
             return f"Use the {available_tools[0]} tool to answer this question."
