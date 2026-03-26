@@ -26,8 +26,9 @@ Action Input: <JSON arguments>
 |------|-------------|-----------|
 | `calculator` | Math calculations | `{"expression": "2 + 3"}` |
 | `shell` | Run shell commands | `{"command": "pwd"}` |
-| `read_file` | Read file contents | `{"filepath": "/path/to/file"}` |
-| `write_file` | Write to file | `{"filepath": "/path", "content": "text"}` |
+| `read_file` | Read file contents | `{"file_path": "/path/to/file"}` |
+| `write_file` | Write to file | `{"file_path": "/path", "content": "text"}` |
+| `list_directory` | List directory contents | `{"path": "/tmp"}` |
 | `get_time` | Get current time | `{}` or `{"timezone": "UTC"}` |
 | `get_date` | Get current date | `{}` |
 | `python_repl` | Run Python code | `{"code": "print(1+1)"}` |
@@ -41,3 +42,12 @@ Action Input: <JSON arguments>
 - If you don't know, say so
 - Always use tools when available for calculations
 - After receiving a tool result, provide the Final Answer
+
+## Final Answer Format
+
+After tool execution, state your answer clearly:
+
+```
+Thought: I have the result
+Final Answer: <the answer>
+```
