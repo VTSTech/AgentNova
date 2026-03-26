@@ -282,14 +282,15 @@ def resolve_model_pattern(
                 print(f"  {dim(f'... and {len(available) - 10} more')}")
         return [] if allow_multiple else ""
     
-    if len(matches) == 1:
-        return matches[0]
-    
-    # Multiple matches
+    # If allow_multiple, always return a list
     if allow_multiple:
         return matches
     
-    # Show matches and let user know we're using the first
+    # Single match - return as string
+    if len(matches) == 1:
+        return matches[0]
+    
+    # Multiple matches - show and use first
     print(f"{yellow('Multiple models match')} '{pattern}':")
     for i, m in enumerate(matches[:5]):
         marker = green("→") if i == 0 else " "
