@@ -162,7 +162,7 @@ def run_benchmark(model: str, backend, questions: list, debug: bool = False) -> 
         results["details"].append({
             "question": question,
             "expected": expected,
-            "response": response[:100],
+            "response": response,
             "extracted": extracted,
             "correct": is_correct,
             "time": elapsed,

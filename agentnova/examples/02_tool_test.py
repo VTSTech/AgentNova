@@ -436,7 +436,8 @@ def check_tool_used(run, tool_name: str) -> bool:
     return False
 
 
-def test_calculator_model(model: str, backend, debug: bool = False) -> tuple[int, int]:
+def test_calculator_model(model: str, backend, debug: bool = False,
+                           soul: str = None, soul_level: int = 2) -> tuple[int, int]:
     """Test model's ability to call calculator tool."""
     print(f"\n{'='*60}")
     print(f"🧮 Calculator Tool - Model Calling")
@@ -465,6 +466,8 @@ def test_calculator_model(model: str, backend, debug: bool = False) -> tuple[int
             backend=backend,
             max_steps=5,
             debug=debug,
+            soul=soul,
+            soul_level=soul_level,
         )
         
         t0 = time.time()
@@ -492,7 +495,8 @@ def test_calculator_model(model: str, backend, debug: bool = False) -> tuple[int
     return passed, total
 
 
-def test_shell_model(model: str, backend, debug: bool = False) -> tuple[int, int]:
+def test_shell_model(model: str, backend, debug: bool = False,
+                     soul: str = None, soul_level: int = 2) -> tuple[int, int]:
     """Test model's ability to call shell tool."""
     print(f"\n{'='*60}")
     print(f"🖥️ Shell Tool - Model Calling")
@@ -519,6 +523,8 @@ def test_shell_model(model: str, backend, debug: bool = False) -> tuple[int, int
             backend=backend,
             max_steps=5,
             debug=debug,
+            soul=soul,
+            soul_level=soul_level,
         )
         
         t0 = time.time()
@@ -567,7 +573,8 @@ def test_shell_model(model: str, backend, debug: bool = False) -> tuple[int, int
     return passed, total
 
 
-def test_datetime_model(model: str, backend, debug: bool = False) -> tuple[int, int]:
+def test_datetime_model(model: str, backend, debug: bool = False,
+                        soul: str = None, soul_level: int = 2) -> tuple[int, int]:
     """Test model's ability to call datetime tools."""
     print(f"\n{'='*60}")
     print(f"📅 DateTime Tools - Model Calling")
@@ -593,6 +600,8 @@ def test_datetime_model(model: str, backend, debug: bool = False) -> tuple[int, 
             backend=backend,
             max_steps=5,
             debug=debug,
+            soul=soul,
+            soul_level=soul_level,
         )
         
         t0 = time.time()
@@ -609,7 +618,7 @@ def test_datetime_model(model: str, backend, debug: bool = False) -> tuple[int, 
         status = "✅" if passed else "❌"
         tool_status = "🔧" if tool_used else "⚠️"
         print(f"  {status} {tool_status} Tool used: {tool_used} | {elapsed:.1f}s")
-        print(f"  📝 {run.final_answer[:60]}")
+        print(f"  📝 {run.final_answer}")
     
     passed = sum(results)
     total = len(results)
@@ -617,7 +626,8 @@ def test_datetime_model(model: str, backend, debug: bool = False) -> tuple[int, 
     return passed, total
 
 
-def test_file_model(model: str, backend, debug: bool = False) -> tuple[int, int]:
+def test_file_model(model: str, backend, debug: bool = False,
+                    soul: str = None, soul_level: int = 2) -> tuple[int, int]:
     """Test model's ability to call file tools."""
     print(f"\n{'='*60}")
     print(f"📁 File Tools - Model Calling")
@@ -654,6 +664,8 @@ def test_file_model(model: str, backend, debug: bool = False) -> tuple[int, int]
                 backend=backend,
                 max_steps=5,
                 debug=debug,
+                soul=soul,
+                soul_level=soul_level,
             )
             
             t0 = time.time()
@@ -682,7 +694,7 @@ def test_file_model(model: str, backend, debug: bool = False) -> tuple[int, int]
             tool_status = "🔧" if tool_used else "⚠️"
             found_where = "(in answer)" if found_in_answer else "(in tool result)" if found_in_tool_result else ""
             print(f"  {status} {tool_status} Tool used: {tool_used} | {elapsed:.1f}s {found_where}")
-            print(f"  📝 {run.final_answer[:60]}")
+            print(f"  📝 {run.final_answer}")
     
     passed = sum(results)
     total = len(results)
@@ -690,7 +702,8 @@ def test_file_model(model: str, backend, debug: bool = False) -> tuple[int, int]
     return passed, total
 
 
-def test_python_repl_model(model: str, backend, debug: bool = False) -> tuple[int, int]:
+def test_python_repl_model(model: str, backend, debug: bool = False,
+                           soul: str = None, soul_level: int = 2) -> tuple[int, int]:
     """Test model's ability to call python_repl tool."""
     print(f"\n{'='*60}")
     print(f"🐍 Python REPL Tool - Model Calling")
@@ -716,6 +729,8 @@ def test_python_repl_model(model: str, backend, debug: bool = False) -> tuple[in
             backend=backend,
             max_steps=5,
             debug=debug,
+            soul=soul,
+            soul_level=soul_level,
         )
         
         t0 = time.time()
@@ -738,7 +753,7 @@ def test_python_repl_model(model: str, backend, debug: bool = False) -> tuple[in
         status = "✅" if passed else "❌"
         tool_status = "🔧" if tool_used else "⚠️"
         print(f"  {status} {tool_status} Tool used: {tool_used} | {elapsed:.1f}s")
-        print(f"  📝 {run.final_answer[:60]}")
+        print(f"  📝 {run.final_answer}")
     
     passed = sum(results)
     total = len(results)
@@ -746,7 +761,8 @@ def test_python_repl_model(model: str, backend, debug: bool = False) -> tuple[in
     return passed, total
 
 
-def test_all_tools_model(model: str, backend, debug: bool = False) -> tuple[int, int]:
+def test_all_tools_model(model: str, backend, debug: bool = False,
+                         soul: str = None, soul_level: int = 2) -> tuple[int, int]:
     """Test model's ability to choose correct tools when all are available."""
     print(f"\n{'='*60}")
     print(f"🧰 All Tools - Model Calling")
@@ -783,6 +799,8 @@ def test_all_tools_model(model: str, backend, debug: bool = False) -> tuple[int,
                 backend=backend,
                 max_steps=5,
                 debug=debug,
+                soul=soul,
+                soul_level=soul_level,
             )
             
             t0 = time.time()
@@ -808,7 +826,7 @@ def test_all_tools_model(model: str, backend, debug: bool = False) -> tuple[int,
             status = "✅" if passed else "❌"
             tool_status = "🔧" if correct_tool else "⚠️"
             print(f"  {status} {tool_status} Correct tool: {correct_tool} | {elapsed:.1f}s")
-            print(f"  📝 {run.final_answer[:60]}")
+            print(f"  📝 {run.final_answer}")
     
     passed = sum(results)
     total = len(results)
@@ -816,7 +834,8 @@ def test_all_tools_model(model: str, backend, debug: bool = False) -> tuple[int,
     return passed, total
 
 
-def run_phase2(model: str, backend, debug: bool) -> tuple[int, int]:
+def run_phase2(model: str, backend, debug: bool,
+               soul: str = None, soul_level: int = 2) -> tuple[int, int]:
     """Run all Phase 2 (model tool calling) tests."""
     print(f"\n{'#'*60}")
     print(f"# PHASE 2: Model Tool Calling")
@@ -827,28 +846,28 @@ def run_phase2(model: str, backend, debug: bool) -> tuple[int, int]:
     total_tests = 0
     
     # Test each tool category separately
-    p, t = test_calculator_model(model, backend, debug)
+    p, t = test_calculator_model(model, backend, debug, soul=soul, soul_level=soul_level)
     total_passed += p
     total_tests += t
     
-    p, t = test_shell_model(model, backend, debug)
+    p, t = test_shell_model(model, backend, debug, soul=soul, soul_level=soul_level)
     total_passed += p
     total_tests += t
     
-    p, t = test_datetime_model(model, backend, debug)
+    p, t = test_datetime_model(model, backend, debug, soul=soul, soul_level=soul_level)
     total_passed += p
     total_tests += t
     
-    p, t = test_file_model(model, backend, debug)
+    p, t = test_file_model(model, backend, debug, soul=soul, soul_level=soul_level)
     total_passed += p
     total_tests += t
     
-    p, t = test_python_repl_model(model, backend, debug)
+    p, t = test_python_repl_model(model, backend, debug, soul=soul, soul_level=soul_level)
     total_passed += p
     total_tests += t
     
     # Test with ALL tools available (model must choose correct tool)
-    p, t = test_all_tools_model(model, backend, debug)
+    p, t = test_all_tools_model(model, backend, debug, soul=soul, soul_level=soul_level)
     total_passed += p
     total_tests += t
     
@@ -891,8 +910,11 @@ def main():
             print(f"\n⚛️ AgentNova Model Tool Tests")
             print(f"   Backend: {backend_name} ({backend.base_url})")
             print(f"   Model: {model}")
+            if args.soul:
+                print(f"   Soul: {args.soul}")
             
-            phase2_passed, phase2_total = run_phase2(model, backend, args.debug)
+            phase2_passed, phase2_total = run_phase2(model, backend, args.debug,
+                                                     soul=args.soul, soul_level=args.soul_level)
             total_passed += phase2_passed
             total_tests += phase2_total
     
