@@ -519,14 +519,22 @@ def build_system_prompt_with_tools(
     # Build dynamic tool section
     tool_section = _build_tool_section(tools)
     
-    # Check if soul has a static tool reference to replace
-    # Pattern matches:
-    # 1. "### Tool Reference" header (with optional parenthetical text)
-    # 2. Empty line(s) after header
-    # 3. Table (header row, separator row, data rows)
-    # 4. Empty line(s) after table
-    # 5. CRITICAL RULE line
-    pattern = r'### Tool Reference[^\n]*\n+\| Tool \| When to use \|[^\n]*\n\|[-| ]+\|\n(?:\|[^|]+\|[^|]+\|[^|]+\|\n)*\n?\*\*CRITICAL RULE\*\*[^\n]*'
+    # Pattern to match the static tool section in SOUL.md
+    # Matches:
+    # 1. ### Tool Reference header (with optional parenthetical text)
+    # 2. Table header: | Tool | When to use | Arguments |
+    # 3. Separator row: |------|-------------|-----------|
+    # 4. One or more data rows (3-column table)
+    # 5. Blank line
+    # 6. **CRITICAL RULE** line
+    pattern = (
+        r'### Tool Reference[^\n]*\n+'
+        r'\| Tool \| When to use \| Arguments \|\n'
+        r'\|[-| ]+\|\n'
+        r'(?:\|[^|]*\|[^|]*\|[^|]*\|[^\n]*\n)+'
+        r'\n'
+        r'\*\*CRITICAL RULE\*\*[^\n]*'
+    )
     
     if re.search(pattern, base_prompt):
         result = re.sub(pattern, tool_section.rstrip(), base_prompt)
