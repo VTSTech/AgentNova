@@ -43,6 +43,7 @@ def parse_args():
     parser.add_argument("-m", "--model", default=None, help="Model to test")
     parser.add_argument("--debug", action="store_true", help="Enable debug output")
     parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None)
+    parser.add_argument("--force-react", action="store_true", help="Force ReAct mode for tool calling")
     return parser.parse_args()
 
 
@@ -78,7 +79,7 @@ def extract_number(text: str) -> str | None:
     return match.group(0) if match else None
 
 
-def run_diagnostic(model: str, backend, debug: bool = False) -> dict:
+def run_diagnostic(model: str, backend, debug: bool = False, force_react: bool = False) -> dict:
     """Run diagnostic tests for a model."""
     print(f"\n{'='*60}")
     print(f"🧪 Quick Diagnostic: {model}")
@@ -105,6 +106,7 @@ After getting the result, provide the final answer as a number."""
                 backend=backend,
                 max_steps=5,
                 debug=debug,
+                force_react=force_react,
                 system_prompt=system_prompt,
             )
             
