@@ -673,12 +673,20 @@ class Agent:
                             ))
                             continue
                     
-                    # Check if this is a tool-requiring prompt (date, time, shell, file)
+                    # Check if this is a tool-requiring prompt for tools with NO required args
+                    # IMPORTANT: Only auto-execute tools that don't need arguments (get_date, get_time)
+                    # Tools like read_file, shell, python_repl NEED arguments we can't extract here
                     prompt_lower = prompt.lower()
-                    tool_required_indicators = [
+                    
+                    # Tools that can be called with empty arguments
+                    no_arg_tool_indicators = [
                         ('what time', 'get_time'), ('current time', 'get_time'), ('tell me the time', 'get_time'),
                         ('what date', 'get_date'), ('current date', 'get_date'), ("today's date", 'get_date'),
                         ('what day', 'get_date'), ("today's day", 'get_date'),
+                    ]
+                    
+                    # Tools that need arguments we can't auto-extract
+                    arg_tool_indicators = [
                         ('echo ', 'shell'), ('shell to', 'shell'), ('run shell', 'shell'),
                         ('current directory', 'shell'), ('working directory', 'shell'), ('pwd', 'shell'),
                         ('read file', 'read_file'), ('read the file', 'read_file'), ('show file', 'read_file'),
@@ -687,33 +695,54 @@ class Agent:
                         ('use python', 'python_repl'), ('python to', 'python_repl'),
                     ]
                     
-                    required_tool = None
-                    for indicator, tool_name in tool_required_indicators:
+                    # Auto-execute tools with no required arguments
+                    required_no_arg_tool = None
+                    for indicator, tool_name in no_arg_tool_indicators:
                         if indicator in prompt_lower and tool_name in self.tools.names():
-                            required_tool = tool_name
+                            required_no_arg_tool = tool_name
                             break
                     
-                    if required_tool and self.soul is not None:
+                    if required_no_arg_tool and self.soul is not None:
                         if self.debug:
-                            print(f"  Soul mode: prompt requires tool '{required_tool}', not accepting Final Answer")
-                        # Execute the required tool
-                        result = self._execute_tool(required_tool, {}, prompt)
+                            print(f"  Soul mode: prompt requires tool '{required_no_arg_tool}', auto-executing")
+                        # Execute the required tool (safe - no args needed)
+                        result = self._execute_tool(required_no_arg_tool, {}, prompt)
                         tool_calls += 1
                         
                         self.memory.add("assistant", content)
                         self.memory.add("user", f"Observation: {result}")
                         
                         if not str(result).startswith("Error"):
-                            successful_results.append(f"{required_tool}: {result}")
+                            successful_results.append(f"{required_no_arg_tool}: {result}")
                         
                         steps.append(StepResult(
                             type=StepResultType.TOOL_CALL,
-                            content=f"[Auto-executed] {required_tool}({{}})",
-                            tool_call=ToolCall(name=required_tool, arguments={}),
+                            content=f"[Auto-executed] {required_no_arg_tool}({{}})",
+                            tool_call=ToolCall(name=required_no_arg_tool, arguments={}),
                             tool_result=result,
                             tokens_used=tokens,
                         ))
                         continue
+                    
+                    # For tools requiring arguments, send a reminder instead of auto-executing
+                    required_arg_tool = None
+                    for indicator, tool_name in arg_tool_indicators:
+                        if indicator in prompt_lower and tool_name in self.tools.names():
+                            required_arg_tool = tool_name
+                            break
+                    
+                    if required_arg_tool and self.soul is not None:
+                        if self.debug:
+                            print(f"  Soul mode: prompt requires tool '{required_arg_tool}' with args, sending reminder")
+                        # Don't auto-execute - we can't extract the required arguments
+                        # Send a reminder to use the tool instead
+                        if not hasattr(self, '_tool_arg_reminder_sent'):
+                            self._tool_arg_reminder_sent = True
+                            tool_hint = self._get_tool_hint(prompt)
+                            self.memory.add("assistant", content)
+                            self.memory.add("user", f"You must use the {required_arg_tool} tool to answer this question.\n{tool_hint}")
+                            continue
+                        # If reminder already sent, fall through to accept the answer
                     
                     # Try calculator synthesis for math prompts
                     from .core.helpers import extract_calc_expression
