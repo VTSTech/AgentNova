@@ -40,6 +40,9 @@ def parse_args():
     parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None)
     parser.add_argument("--use-mf-sys", action="store_true", dest="use_modelfile_system",
                         help="Use the model's Modelfile system prompt instead of custom prompt")
+    parser.add_argument("--soul", default=None, help="Path to Soul Spec package")
+    parser.add_argument("--soul-level", type=int, default=2, choices=[1, 2, 3],
+                       help="Soul progressive disclosure level")
     return parser.parse_args()
 
 

@@ -55,6 +55,9 @@ def parse_args():
     parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None)
     parser.add_argument("--tools-only", action="store_true", help="Only run Phase 1 (direct tool tests)")
     parser.add_argument("--model-only", action="store_true", help="Only run Phase 2 (model tool calling)")
+    parser.add_argument("--soul", default=None, help="Path to Soul Spec package (ignored for tool tests)")
+    parser.add_argument("--soul-level", type=int, default=2, choices=[1, 2, 3],
+                       help="Soul progressive disclosure level")
     return parser.parse_args()
 
 

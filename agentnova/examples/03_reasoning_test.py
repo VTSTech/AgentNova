@@ -40,6 +40,9 @@ def parse_args():
     parser.add_argument("-m", "--model", default=None, help="Model to test")
     parser.add_argument("--debug", action="store_true", help="Enable debug output")
     parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None)
+    parser.add_argument("--soul", default=None, help="Path to Soul Spec package")
+    parser.add_argument("--soul-level", type=int, default=2, choices=[1, 2, 3],
+                       help="Soul progressive disclosure level")
     return parser.parse_args()
 
 
