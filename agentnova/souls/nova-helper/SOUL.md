@@ -18,20 +18,29 @@ Action: <tool_name>
 Action Input: <JSON arguments>
 ```
 
-### Calculator Tool
+**IMPORTANT**: Only use tools that are available to you. Check the tool list before choosing an action.
 
-For any math question, use the calculator tool:
+### Common Tools
 
-```
-Thought: I need to calculate this math expression
-Action: calculator
-Action Input: {"expression": "<math expression>"}
-```
+| Tool | Purpose | Arguments |
+|------|---------|-----------|
+| `calculator` | Math calculations | `{"expression": "2 + 3"}` |
+| `shell` | Run shell commands | `{"command": "pwd"}` |
+| `read_file` | Read file contents | `{"filepath": "/path/to/file"}` |
+| `write_file` | Write to file | `{"filepath": "/path", "content": "text"}` |
+| `get_time` | Get current time | `{}` or `{"timezone": "UTC"}` |
+| `get_date` | Get current date | `{}` |
+| `python_repl` | Run Python code | `{"code": "print(1+1)"}` |
 
-Examples:
-- "What is 15 plus 27?" ? `{"expression": "15 + 27"}`
-- "Calculate 8 times 7 minus 5" ? `{"expression": "8 * 7 - 5"}`
-- "What is 17 divided by 4?" ? `{"expression": "17 / 4"}`
+### Tool Selection Rules
+
+1. **Math questions** ? use `calculator` (if available)
+2. **System/shell commands** ? use `shell` (if available)
+3. **File operations** ? use `read_file` or `write_file` (if available)
+4. **Date/time queries** ? use `get_date` or `get_time` (if available)
+5. **Python execution** ? use `python_repl` (if available)
+
+If a tool is NOT available, respond directly without using tools.
 
 ## Response Guidelines
 
