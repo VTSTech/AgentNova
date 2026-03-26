@@ -736,13 +736,23 @@ class Agent:
                             print(f"  Soul mode: prompt requires tool '{required_arg_tool}' with args, sending reminder")
                         # Don't auto-execute - we can't extract the required arguments
                         # Send a reminder to use the tool instead
-                        if not hasattr(self, '_tool_arg_reminder_sent'):
-                            self._tool_arg_reminder_sent = True
+                        reminder_count = getattr(self, '_tool_arg_reminder_count', 0)
+                        if reminder_count < 2:
+                            self._tool_arg_reminder_count = reminder_count + 1
                             tool_hint = self._get_tool_hint(prompt)
+                            # Build more specific hint with example
+                            example_hint = self._get_tool_example_hint(required_arg_tool)
                             self.memory.add("assistant", content)
-                            self.memory.add("user", f"You must use the {required_arg_tool} tool to answer this question.\n{tool_hint}")
+                            self.memory.add("user", f"You MUST use the {required_arg_tool} tool. Do NOT give Final Answer without using the tool.\n{tool_hint}\n{example_hint}")
                             continue
-                        # If reminder already sent, fall through to accept the answer
+                        # If reminder sent 2 times already, give up and mark as failure
+                        if self.debug:
+                            print(f"  Soul mode: model refused to use tool '{required_arg_tool}' after 2 reminders, failing")
+                        steps.append(StepResult(
+                            type=StepResultType.ERROR,
+                            error=f"Model refused to use required tool '{required_arg_tool}' after reminders",
+                        ))
+                        break
                     
                     # Try calculator synthesis for math prompts
                     from .core.helpers import extract_calc_expression
@@ -1164,6 +1174,44 @@ class Agent:
             return f"Use the {available_tools[0]} tool to answer this question."
         
         return ""
+
+    def _get_tool_example_hint(self, tool_name: str) -> str:
+        """Get a concrete ReAct example for a specific tool."""
+        examples = {
+            "shell": '''Example format:
+Thought: I need to run a shell command
+Action: shell
+Action Input: {"command": "echo Hello World"}''',
+            "read_file": '''Example format:
+Thought: I need to read a file
+Action: read_file
+Action Input: {"file_path": "/path/to/file"}''',
+            "write_file": '''Example format:
+Thought: I need to write to a file
+Action: write_file
+Action Input: {"file_path": "/path/to/file", "content": "text to write"}''',
+            "python_repl": '''Example format:
+Thought: I need to run Python code
+Action: python_repl
+Action Input: {"code": "print('Hello World')"}''',
+            "calculator": '''Example format:
+Thought: I need to calculate something
+Action: calculator
+Action Input: {"expression": "15 * 8"}''',
+            "get_time": '''Example format:
+Thought: I need to get the current time
+Action: get_time
+Action Input: {}''',
+            "get_date": '''Example format:
+Thought: I need to get the current date
+Action: get_date
+Action Input: {}''',
+            "list_directory": '''Example format:
+Thought: I need to list directory contents
+Action: list_directory
+Action Input: {"path": "/tmp"}''',
+        }
+        return examples.get(tool_name, f"Use Action: {tool_name} with appropriate Action Input JSON.")
 
     def _generate(self) -> dict:
         """Generate a response from the backend."""
