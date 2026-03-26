@@ -327,7 +327,147 @@ __all__ = [
     "pick_best_model",
     "pick_models_for_benchmark",
     "model_exists",
+    "match_models",
+    "resolve_model",
 ]
 
 # Alias for convenience
 get_available_models = get_models
+
+
+def match_models(
+    pattern: str,
+    backend: Optional[BaseBackend] = None,
+    exact_first: bool = True,
+) -> list[str]:
+    """
+    Match models by pattern (fuzzy/partial matching).
+
+    Supports:
+    - Exact match: "qwen2.5:0.5b" → ["qwen2.5:0.5b"]
+    - Prefix match: "qwen" → all models starting with "qwen"
+    - Contains match: "gemma" → all models containing "gemma"
+    - Tag match: ":0.5b" → all models with :0.5b tag
+    - Size filter: "0.5b" → all models with 0.5b in name
+    - Single char: "g" → all models containing "g" (granite, gemma, etc.)
+
+    Parameters
+    ----------
+    pattern : str
+        Pattern to match against model names (case-insensitive)
+    backend : BaseBackend, optional
+        Backend to use for model discovery
+    exact_first : bool
+        If True, exact matches are returned first (and only exact if found)
+
+    Returns
+    -------
+    list[str]
+        List of matching model names, sorted alphabetically
+
+    Examples
+    --------
+    >>> match_models("qwen")
+    ['qwen2.5:0.5b', 'qwen2.5-coder:0.5b', 'qwen3:0.6b', 'qwen:0.5b']
+
+    >>> match_models("g")
+    ['functiongemma:270m', 'gemma3:270m', 'granite4:350m']
+
+    >>> match_models(":0.5b")
+    ['qwen2.5-coder:0.5b', 'qwen2.5:0.5b', 'qwen:0.5b']
+    """
+    available = get_models(client=backend)
+    
+    if not available:
+        return []
+    
+    if not pattern:
+        return sorted(available)
+    
+    pattern_lower = pattern.lower()
+    
+    # Try exact match first
+    if exact_first:
+        exact_matches = [m for m in available if m.lower() == pattern_lower]
+        if exact_matches:
+            return exact_matches
+    
+    # Categorize matches by priority
+    starts_with = []
+    contains = []
+    tag_matches = []
+    
+    for model in available:
+        model_lower = model.lower()
+        
+        # Check if pattern is a tag (starts with ":")
+        if pattern.startswith(":"):
+            if model_lower.endswith(pattern_lower):
+                tag_matches.append(model)
+        else:
+            # Starts with pattern (before any ":" tag)
+            model_base = model_lower.split(":")[0]
+            if model_base.startswith(pattern_lower):
+                starts_with.append(model)
+            elif pattern_lower in model_lower:
+                contains.append(model)
+    
+    # Combine results: starts_with first, then contains, then tag_matches
+    if pattern.startswith(":"):
+        result = sorted(tag_matches)
+    else:
+        result = sorted(starts_with) + sorted(contains)
+    
+    return result
+
+
+def resolve_model(
+    model_spec: str,
+    backend: Optional[BaseBackend] = None,
+    allow_multiple: bool = False,
+) -> str | list[str]:
+    """
+    Resolve a model specification to actual model name(s).
+
+    This is the main entry point for CLI model resolution.
+    Returns a single model name or list if multiple matches.
+
+    Parameters
+    ----------
+    model_spec : str
+        Model name or pattern to resolve
+    backend : BaseBackend, optional
+        Backend to use for model discovery
+    allow_multiple : bool
+        If True, return list of all matches; if False, return first match
+
+    Returns
+    -------
+    str or list[str]
+        Resolved model name(s)
+
+    Raises
+    ------
+    ValueError
+        If no models match the pattern
+
+    Examples
+    --------
+    >>> resolve_model("qwen2.5:0.5b")  # Exact match
+    'qwen2.5:0.5b'
+
+    >>> resolve_model("qwen", allow_multiple=True)  # Multiple matches
+    ['qwen2.5:0.5b', 'qwen2.5-coder:0.5b', 'qwen3:0.6b', 'qwen:0.5b']
+
+    >>> resolve_model("qwen")  # First match
+    'qwen:0.5b'
+    """
+    matches = match_models(model_spec, backend=backend)
+    
+    if not matches:
+        raise ValueError(f"No models found matching '{model_spec}'")
+    
+    if allow_multiple:
+        return matches
+    
+    return matches[0]

@@ -24,6 +24,7 @@ from .orchestrator import Orchestrator, AgentCard
 from .tools import make_builtin_registry
 from .backends import get_backend, get_default_backend, OllamaBackend
 from .config import get_config, AGENTNOVA_BACKEND, OLLAMA_BASE_URL, BITNET_BASE_URL
+from .model_discovery import match_models, get_models
 
 
 # ============================================================================
@@ -240,6 +241,66 @@ def print_banner() -> None:
 
 
 # ============================================================================
+# Model Matching
+# ============================================================================
+
+def resolve_model_pattern(
+    pattern: str,
+    backend_name: str = "ollama",
+    allow_multiple: bool = False,
+) -> str | list[str]:
+    """
+    Resolve a model pattern to actual model name(s).
+    
+    Shows helpful output when multiple models match.
+    
+    Parameters
+    ----------
+    pattern : str
+        Model name or pattern (e.g., "qwen", "g", ":0.5b")
+    backend_name : str
+        Backend to use for model discovery
+    allow_multiple : bool
+        If True, return all matches; if False, return first match
+    
+    Returns
+    -------
+    str or list[str]
+        Resolved model name(s), or empty list if no matches
+    """
+    backend = get_backend(backend_name)
+    matches = match_models(pattern, backend=backend)
+    
+    if not matches:
+        print(f"{red('Error:')} No models found matching '{pattern}'")
+        available = get_models(client=backend)
+        if available:
+            print(f"\n{dim('Available models:')}")
+            for m in sorted(available)[:10]:
+                print(f"  {cyan(m)}")
+            if len(available) > 10:
+                print(f"  {dim(f'... and {len(available) - 10} more')}")
+        return [] if allow_multiple else ""
+    
+    if len(matches) == 1:
+        return matches[0]
+    
+    # Multiple matches
+    if allow_multiple:
+        return matches
+    
+    # Show matches and let user know we're using the first
+    print(f"{yellow('Multiple models match')} '{pattern}':")
+    for i, m in enumerate(matches[:5]):
+        marker = green("→") if i == 0 else " "
+        print(f"  {marker} {cyan(m)}")
+    if len(matches) > 5:
+        print(f"    {dim(f'... and {len(matches) - 5} more')}")
+    print(f"{dim('Using first match:')} {cyan(matches[0])}")
+    return matches[0]
+
+
+# ============================================================================
 # CLI Commands
 # ============================================================================
 
@@ -317,8 +378,9 @@ def create_parser() -> argparse.ArgumentParser:
     # Test command
     test_parser = subparsers.add_parser("test", help="Run diagnostic tests")
     test_parser.add_argument("test_id", nargs="?", default="all", 
-                             help="Test to run: 00, 01, 02, 03, 04, or 'all' (default: all)")
-    test_parser.add_argument("-m", "--model", default=None, help="Model to test")
+                             help="Test to run: 00, 01, 02, ... 11, or 'all' (default: all)")
+    test_parser.add_argument("-m", "--model", default=None, 
+                             help="Model to test (supports patterns: 'qwen', 'g', ':0.5b')")
     test_parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None, help="Backend to use")
     test_parser.add_argument("--debug", action="store_true", help="Enable debug output")
     test_parser.add_argument("--list", action="store_true", help="List available tests")
@@ -1028,29 +1090,28 @@ def cmd_test(args: argparse.Namespace) -> int:
     # Set environment for tests
     if args.debug:
         os.environ["AGENTNOVA_DEBUG"] = "1"
-    if args.model:
-        os.environ["AGENTNOVA_MODEL"] = args.model
     if args.backend:
         os.environ["AGENTNOVA_BACKEND"] = args.backend
     if getattr(args, 'num_ctx', None):
         os.environ["AGENTNOVA_NUM_CTX"] = str(args.num_ctx)
     
-    # Build argv for test modules (they have their own argparse)
-    test_argv = []
-    if args.model:
-        test_argv.extend(["-m", args.model])
-    if args.debug:
-        test_argv.append("--debug")
-    if args.backend:
-        test_argv.extend(["--backend", args.backend])
-    if getattr(args, 'use_modelfile_system', False):
-        test_argv.append("--use-mf-sys")
+    # Resolve model pattern to actual model(s)
+    model_pattern = args.model
+    if model_pattern:
+        models_to_test = resolve_model_pattern(model_pattern, backend_name, allow_multiple=True)
+        if not models_to_test:
+            return 1  # Error already printed
+    else:
+        models_to_test = [config.default_model]
     
     # Run tests
     print_banner()
-    print(f"{bright_magenta('Test Runner')} — {len(tests_to_run)} test(s)")
+    print(f"{bright_magenta('Test Runner')} — {len(tests_to_run)} test(s), {len(models_to_test)} model(s)")
     print(f"{dim('Backend:')} {backend_name} ({backend.base_url})")
-    print(f"{dim('Model:')} {args.model or config.default_model}")
+    if len(models_to_test) == 1:
+        print(f"{dim('Model:')} {cyan(models_to_test[0])}")
+    else:
+        print(f"{dim('Models:')} {cyan(str(len(models_to_test)))} matching '{model_pattern}'")
     num_ctx_val = getattr(args, 'num_ctx', None) or config.num_ctx
     if num_ctx_val:
         ctx_display = f"{num_ctx_val // 1024}K" if num_ctx_val >= 1024 else str(num_ctx_val)
@@ -1059,99 +1120,163 @@ def cmd_test(args: argparse.Namespace) -> int:
         print(f"{dim('ACP:')} {green('✓ Connected')} ({acp.base_url})")
     print()
     
-    results = {}
-    for tid in tests_to_run:
-        info = TESTS[tid]
-        print(f"\n{dim('─' * 50)}")
-        print(f"{cyan(f'[{tid}]')} {bright_magenta(info['name'])}")
-        print(f"{dim(info['desc'])}")
-        print(dim("─" * 50))
+    # Track results per model
+    all_results = {}  # model -> {test_id -> result}
+    
+    for model in models_to_test:
+        model_results = {}
+        print(f"\n{dim('═' * 50)}")
+        print(f"{bright_magenta('Model:')} {cyan(model)}")
+        print(dim("═" * 50))
         
-        # Log test start to ACP
-        if acp:
-            acp.log_chat("user", f"Starting test: {info['name']}")
+        # Set model env var for this run
+        os.environ["AGENTNOVA_MODEL"] = model
         
-        try:
-            # Import and run the test module
-            import importlib
-            module = importlib.import_module(info["module"])
+        for tid in tests_to_run:
+            info = TESTS[tid]
+            print(f"\n{dim('─' * 50)}")
+            print(f"{cyan(f'[{tid}]')} {bright_magenta(info['name'])}")
+            print(f"{dim(info['desc'])}")
+            print(dim("─" * 50))
             
-            # Override sys.argv for the test module's argparse
-            old_argv = sys.argv
-            sys.argv = ["test"] + test_argv
+            # Log test start to ACP
+            if acp:
+                acp.log_chat("user", f"[{model}] Starting test: {info['name']}")
             
             try:
-                result = module.main()
-            finally:
-                sys.argv = old_argv
-            
-            # Handle both old-style exit code and new-style result dict
-            if isinstance(result, dict):
-                # New-style: granular results
-                passed = result.get("passed", 0)
-                total = result.get("total", 1)
-                time_s = result.get("time", 0)
-                exit_code = result.get("exit_code", 0)
-                results[tid] = {
-                    "passed": exit_code == 0,
-                    "exit_code": exit_code,
-                    "granular": f"{passed}/{total}",
-                    "time": time_s,
-                }
-            else:
-                # Old-style: just exit code
-                exit_code = result if result is not None else 1
-                results[tid] = {"passed": exit_code == 0, "exit_code": exit_code}
-            
-            # Log test result to ACP
-            if acp:
-                status = "passed" if exit_code == 0 else "failed"
-                granular = results[tid].get("granular", "")
-                acp.log_chat("assistant", f"Test {info['name']}: {status} {granular}")
-            
-        except ImportError as e:
-            print(f"{red('Error:')} Could not import test module: {e}")
-            results[tid] = {"passed": False, "error": str(e)}
-            if acp:
-                acp.log_chat("assistant", f"Test {info['name']}: import error - {e}")
-        except Exception as e:
-            print(f"{red('Error:')} {e}")
-            results[tid] = {"passed": False, "error": str(e)}
-            if acp:
-                acp.log_chat("assistant", f"Test {info['name']}: error - {e}")
+                # Import and run the test module
+                import importlib
+                module = importlib.import_module(info["module"])
+                
+                # Build argv for test modules (they have their own argparse)
+                test_argv = ["-m", model]
+                if args.debug:
+                    test_argv.append("--debug")
+                if args.backend:
+                    test_argv.extend(["--backend", args.backend])
+                if getattr(args, 'use_modelfile_system', False):
+                    test_argv.append("--use-mf-sys")
+                
+                # Override sys.argv for the test module's argparse
+                old_argv = sys.argv
+                sys.argv = ["test"] + test_argv
+                
+                try:
+                    result = module.main()
+                finally:
+                    sys.argv = old_argv
+                
+                # Handle both old-style exit code and new-style result dict
+                if isinstance(result, dict):
+                    # New-style: granular results
+                    passed = result.get("passed", 0)
+                    total = result.get("total", 1)
+                    time_s = result.get("time", 0)
+                    exit_code = result.get("exit_code", 0)
+                    model_results[tid] = {
+                        "passed": exit_code == 0,
+                        "exit_code": exit_code,
+                        "granular": f"{passed}/{total}",
+                        "time": time_s,
+                    }
+                else:
+                    # Old-style: just exit code
+                    exit_code = result if result is not None else 1
+                    model_results[tid] = {"passed": exit_code == 0, "exit_code": exit_code}
+                
+                # Log test result to ACP
+                if acp:
+                    status = "passed" if exit_code == 0 else "failed"
+                    granular = model_results[tid].get("granular", "")
+                    acp.log_chat("assistant", f"[{model}] Test {info['name']}: {status} {granular}")
+                
+            except ImportError as e:
+                print(f"{red('Error:')} Could not import test module: {e}")
+                model_results[tid] = {"passed": False, "error": str(e)}
+                if acp:
+                    acp.log_chat("assistant", f"[{model}] Test {info['name']}: import error - {e}")
+            except Exception as e:
+                print(f"{red('Error:')} {e}")
+                model_results[tid] = {"passed": False, "error": str(e)}
+                if acp:
+                    acp.log_chat("assistant", f"[{model}] Test {info['name']}: error - {e}")
+        
+        all_results[model] = model_results
     
     # Summary
     print(f"\n{dim('=' * 50)}")
     print(f"{bright_magenta('Test Summary')}")
     print(dim("=" * 50))
     
-    passed = sum(1 for r in results.values() if r.get("passed"))
-    total = len(results)
-    
-    for tid, result in results.items():
-        status = bright_green("✓ PASS") if result.get("passed") else red("✗ FAIL")
-        granular = result.get("granular", "")
-        time_s = result.get("time", 0)
+    # If multiple models, show per-model summary
+    if len(models_to_test) > 1:
+        print(f"\n{bright_magenta('Results by Model:')}")
+        for model in models_to_test:
+            model_results = all_results.get(model, {})
+            passed = sum(1 for r in model_results.values() if r.get("passed"))
+            total = len(model_results)
+            granular_sum = ""
+            # Sum up granular scores if available
+            total_score = 0
+            total_possible = 0
+            total_time = 0
+            for r in model_results.values():
+                if "granular" in r:
+                    try:
+                        parts = r["granular"].split("/")
+                        total_score += int(parts[0])
+                        total_possible += int(parts[1])
+                    except (ValueError, IndexError):
+                        pass
+                total_time += r.get("time", 0)
+            
+            if total_possible > 0:
+                granular_sum = f"  {cyan(f'{total_score}/{total_possible}')}"
+            time_str = f"  {dim(f'({total_time:.1f}s)')}" if total_time else ""
+            status = bright_green("✓") if passed == total else red("✗")
+            print(f"  {status} {cyan(model):<30} {passed}/{total}{granular_sum}{time_str}")
+    else:
+        # Single model - show per-test breakdown
+        model = models_to_test[0]
+        model_results = all_results.get(model, {})
         
-        # Show granular results if available
-        if granular:
-            time_str = f" ({time_s:.1f}s)" if time_s else ""
-            print(f"  [{tid}] {TESTS[tid]['name']:<20} {status}  {cyan(granular)}{time_str}")
-        else:
-            print(f"  [{tid}] {TESTS[tid]['name']:<20} {status}")
-    
-    print(dim("-" * 50))
-    pct = 100 * passed // total if total > 0 else 0
-    print(f"  {bright_green(str(passed))}/{total} tests passed ({pct}%)")
+        for tid, result in model_results.items():
+            status = bright_green("✓ PASS") if result.get("passed") else red("✗ FAIL")
+            granular = result.get("granular", "")
+            time_s = result.get("time", 0)
+            
+            # Show granular results if available
+            if granular:
+                time_str = f" ({time_s:.1f}s)" if time_s else ""
+                print(f"  [{tid}] {TESTS[tid]['name']:<20} {status}  {cyan(granular)}{time_str}")
+            else:
+                print(f"  [{tid}] {TESTS[tid]['name']:<20} {status}")
+        
+        print(dim("-" * 50))
+        passed = sum(1 for r in model_results.values() if r.get("passed"))
+        total = len(model_results)
+        pct = 100 * passed // total if total > 0 else 0
+        print(f"  {bright_green(str(passed))}/{total} tests passed ({pct}%)")
     
     # Log final summary to ACP and unregister (don't shutdown the server!)
     if acp:
-        acp.log_chat("assistant", f"All tests complete: {passed}/{total} passed ({pct}%)")
+        total_passed = sum(
+            1 for model_results in all_results.values() 
+            for r in model_results.values() if r.get("passed")
+        )
+        total_tests = sum(len(mr) for mr in all_results.values())
+        acp.log_chat("assistant", f"All tests complete: {total_passed}/{total_tests} passed")
         # Only unregister from A2A, don't shutdown the ACP server
         acp.a2a_unregister()
         acp._log("Test complete, unregistered from A2A (ACP server remains running)")
     
-    return 0 if passed == total else 1
+    # Return success only if all tests passed
+    total_passed = sum(
+        1 for model_results in all_results.values() 
+        for r in model_results.values() if r.get("passed")
+    )
+    total_tests = sum(len(mr) for mr in all_results.values())
+    return 0 if total_passed == total_tests else 1
 
 
 def cmd_version(args: argparse.Namespace) -> int:
