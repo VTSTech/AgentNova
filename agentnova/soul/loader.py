@@ -518,42 +518,23 @@ def build_system_prompt_with_tools(
     tool_section = _build_tool_section(tools)
     
     # Check if soul has a static tool reference to replace
-    # If SOUL.md has a tool reference table, replace it
-    if "### Tool Reference" in base_prompt or "| Tool | When to use" in base_prompt:
-        # Find and replace the tool reference section
-        lines = base_prompt.split("\n")
-        new_lines = []
-        in_tool_section = False
-        tool_section_started = False
-        
-        for i, line in enumerate(lines):
-            # Detect start of tool reference
-            if "### Tool Reference" in line or ("| Tool |" in line and "When to use" in line):
-                in_tool_section = True
-                tool_section_started = True
-                # Add our dynamic tool section instead
-                new_lines.append(tool_section)
-                continue
-            
-            # Detect end of tool reference table (next section or empty line after table)
-            if in_tool_section:
-                # Check if we've reached a new section or end of table
-                if line.startswith("## ") or line.startswith("**CRITICAL"):
-                    in_tool_section = False
-                    new_lines.append(line)
-                elif line.startswith("##") and not line.startswith("###"):
-                    in_tool_section = False
-                    new_lines.append(line)
-                # Skip the old tool table lines
-                continue
-            else:
-                new_lines.append(line)
-        
-        # If we didn't find a tool section, append it
-        if not tool_section_started:
-            new_lines.append("\n\n" + tool_section)
-        
-        return "\n".join(new_lines)
+    # Pattern: from "### Tool Reference" to the next "##" section or "**CRITICAL RULE**"
+    if "### Tool Reference" in base_prompt:
+        import re
+        # Match from "### Tool Reference" to either:
+        # - A line starting with "## " (new section)
+        # - A line starting with "**CRITICAL RULE**"
+        # - End of content
+        pattern = r'### Tool Reference.*?(?=\n## |\n\*\*CRITICAL RULE|\Z)'
+        result = re.sub(pattern, tool_section.rstrip(), base_prompt, flags=re.DOTALL)
+        return result
+    elif "| Tool | When to use" in base_prompt:
+        # Alternative pattern for markdown tables
+        import re
+        # Match the tool table section
+        pattern = r'\| Tool \| When to use \|.*?(?=\n## |\n\*\*CRITICAL RULE|\Z)'
+        result = re.sub(pattern, tool_section.split("\n", 2)[-1].rstrip() if "\n" in tool_section else tool_section, base_prompt, flags=re.DOTALL)
+        return result
     else:
         # No existing tool reference, append tools
         return f"{base_prompt}\n\n{tool_section}"
