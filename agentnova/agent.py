@@ -157,7 +157,10 @@ class Agent:
             self._tool_support_source = "no_tools"
         else:
             self._tool_support = self._detect_tool_support()
-            self._tool_support_source = "detected"
+            # Note: _detect_tool_support() sets _tool_support_source internally
+            # Only set default if it wasn't set by the detection method
+            if not hasattr(self, '_tool_support_source'):
+                self._tool_support_source = "detected"
 
         # Initialize tool parser
         self._parser = ToolParser(self.tools.names())
@@ -372,9 +375,9 @@ class Agent:
                     # If model called get_date for a time question, also call get_time
                     prompt_lower = prompt.lower()
                     if tool_name == "get_date" and "get_time" in self.tools.names():
-                        if any(kw in prompt_lower for kw in ["what time", "time is it", "what's the time", "current time"]):
+                        if any(kw in prompt_lower for kw in ["what time", "time is it", "what's the time", "current time", "tell me the time", "give me the time"]):
                             if self.debug:
-                                print(f"  Model called get_date for time question, also calling get_time")
+                                print(f"  [Auto-correct] Model called get_date for time question, also calling get_time")
                             time_result = self._execute_tool("get_time", {}, prompt)
                             tool_calls += 1
                             self.memory.add_tool_result(
@@ -389,6 +392,28 @@ class Agent:
                                 content="[Auto-corrected] get_time({})",
                                 tool_call=ToolCall(name="get_time", arguments={}),
                                 tool_result=time_result,
+                                tokens_used=tokens,
+                            ))
+                    
+                    # If model called get_time for a date question, also call get_date
+                    if tool_name == "get_time" and "get_date" in self.tools.names():
+                        if any(kw in prompt_lower for kw in ["what date", "what's the date", "current date", "today's date", "what day is it", "tell me the date"]):
+                            if self.debug:
+                                print(f"  [Auto-correct] Model called get_time for date question, also calling get_date")
+                            date_result = self._execute_tool("get_date", {}, prompt)
+                            tool_calls += 1
+                            self.memory.add_tool_result(
+                                tool_call_id=f"auto_date_{tool_call_id}",
+                                name="get_date",
+                                content=str(date_result),
+                            )
+                            if not str(date_result).startswith("Error"):
+                                successful_results.append(f"get_date: {date_result}")
+                            steps.append(StepResult(
+                                type=StepResultType.TOOL_CALL,
+                                content="[Auto-corrected] get_date({})",
+                                tool_call=ToolCall(name="get_date", arguments={}),
+                                tool_result=date_result,
                                 tokens_used=tokens,
                             ))
 
