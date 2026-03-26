@@ -182,8 +182,10 @@ def main():
     print(f"\n⚛️ AgentNova Quick Diagnostic (5 questions)")
     print(f"   Backend: {backend_name} ({backend.base_url})")
     print(f"   Model: {model}")
+    if args.force_react:
+        print(f"   Force ReAct: True")
     
-    result = run_diagnostic(model, backend, debug=args.debug)
+    result = run_diagnostic(model, backend, debug=args.debug, force_react=args.force_react)
     
     # Return granular results for test runner, exit_code for direct execution
     result["exit_code"] = 0 if result["passed"] == result["total"] else 1
