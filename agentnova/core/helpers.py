@@ -507,6 +507,21 @@ def extract_calc_expression(user_input: str) -> str | None:
     q = user_input.strip()
     q_lower = q.lower()
     
+    # Skip if this looks like a file path (contains /tmp, /home, etc.)
+    # File paths often contain numbers and / which get misinterpreted as division
+    path_indicators = ['/tmp', '/home', '/var', '/etc', '/usr', '/opt', '/root',
+                       'c:\\', 'd:\\', '\\\\', '.txt', '.json', '.py', '.md',
+                       'file_path', 'read file', 'write file', 'list directory']
+    if any(indicator in q_lower for indicator in path_indicators):
+        # This looks like a file operation, not a math question
+        return None
+    
+    # Skip if the prompt is about reading/writing files or shell commands
+    action_indicators = ['echo ', 'shell', 'command', 'execute', 'run ', 
+                         'read the file', 'write to', 'list the', 'show me the file']
+    if any(indicator in q_lower for indicator in action_indicators):
+        return None
+    
     # ---- Multi-step patterns (try first!) ----
     
     # Pattern: "X times Y, then subtract/add Z" or "X times Y then minus Z"
