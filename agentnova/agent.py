@@ -10,7 +10,7 @@ from __future__ import annotations
 import time
 from typing import Any, Generator, Optional
 
-from .core.models import AgentRun, StepResult, Tool, ToolParam
+from .core.models import AgentRun, StepResult, Tool, ToolParam, ToolCall
 from .core.types import StepResultType, ToolSupportLevel
 from .core.memory import Memory, MemoryConfig
 from .core.tool_parse import ToolParser
@@ -348,6 +348,7 @@ class Agent:
                     steps.append(StepResult(
                         type=StepResultType.TOOL_CALL,
                         content=content,
+                        tool_call=ToolCall(name=tool_name, arguments=tool_args),
                         tool_result=result,
                         tokens_used=tokens,
                     ))
