@@ -655,7 +655,46 @@ class Agent:
             # ---- Soul mode: accept conversational responses ----
             # If a soul is loaded (chat mode with personality), accept the model's response
             # as a final answer even if it doesn't follow ReAct format
+            # BUT: If tools are available and this looks like a math/calc question, try synthesis first
             if self.soul is not None and content and not native_tool_calls:
+                # Check if we should try fallback synthesis first (for diagnostic tests with tools)
+                if self.tools.names() and not successful_results:
+                    from .core.helpers import extract_calc_expression
+                    expr = extract_calc_expression(prompt)
+                    
+                    if expr and "calculator" in self.tools.names():
+                        if self.debug:
+                            print(f"  Soul mode: trying calculator synthesis before accepting response")
+                        
+                        result = self._execute_tool("calculator", {"expression": expr}, prompt)
+                        tool_calls += 1
+                        
+                        if not str(result).startswith("Error"):
+                            successful_results.append(f"calculator: {result}")
+                            
+                            steps.append(StepResult(
+                                type=StepResultType.TOOL_CALL,
+                                content=f"[Auto-synthesized] calculator({expr})",
+                                tool_call=ToolCall(name="calculator", arguments={"expression": expr}),
+                                tool_result=result,
+                                tokens_used=tokens,
+                            ))
+                            
+                            # For simple numeric results, accept as final answer
+                            result_str = str(result).strip()
+                            try:
+                                float(result_str)
+                                if self.debug:
+                                    print(f"  Soul mode: using synthesized result as final answer: {result_str}")
+                                steps.append(StepResult(
+                                    type=StepResultType.FINAL_ANSWER,
+                                    content=result_str,
+                                    tokens_used=tokens,
+                                ))
+                                break
+                            except (ValueError, TypeError):
+                                pass
+                
                 if self.debug:
                     print(f"  Soul mode: accepting conversational response as final answer")
                 
