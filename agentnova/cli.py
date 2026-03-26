@@ -483,6 +483,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         tools=tools,
         backend=backend,
         debug=args.debug,
+        force_react=getattr(args, 'force_react', False),
         soul=getattr(args, 'soul', None),
         soul_level=getattr(args, 'soul_level', 2),
         num_ctx=getattr(args, 'num_ctx', None) or config.num_ctx,
