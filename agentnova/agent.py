@@ -135,6 +135,9 @@ class Agent:
         else:
             self.tool_choice = ToolChoice(tool_choice)
 
+        if debug:
+            print(f"[OpenResponses] tool_choice initialized: type={self.tool_choice.type.value}, name={self.tool_choice.name or 'N/A'}")
+
         # OpenResponses: allowed_tools
         # Filter the tools registry to only include allowed tools
         self._allowed_tools = allowed_tools
@@ -142,10 +145,15 @@ class Agent:
             allowed_set = set(allowed_tools)
             current_tools = set(self.tools.names())
             filtered = current_tools.intersection(allowed_set)
+            if debug:
+                print(f"[OpenResponses] allowed_tools filter: {current_tools} ∩ {allowed_set} = {filtered}")
             if filtered != current_tools:
                 if debug:
-                    print(f"[OpenResponses] Filtering tools via allowed_tools: {current_tools} -> {filtered}")
+                    print(f"[OpenResponses] Tools filtered: {current_tools} -> {filtered}")
                 self.tools = self.tools.subset(list(filtered))
+            else:
+                if debug:
+                    print(f"[OpenResponses] No tools filtered out")
 
         # Initialize memory
         self.memory = Memory(memory_config or MemoryConfig())
@@ -290,7 +298,15 @@ Final Answer: <the answer>
             tool_choice=self.tool_choice,
             allowed_tools=self._allowed_tools or [],
         )
+        
+        if self.debug:
+            print(f"\n[OpenResponses] Response created: id={response.id}")
+            print(f"[OpenResponses] Response status: {response.status.value}")
+        
         response.mark_in_progress()
+        
+        if self.debug:
+            print(f"[OpenResponses] Response status: {response.status.value}")
 
         # Add user prompt to memory
         self.memory.add("user", prompt)
@@ -298,6 +314,9 @@ Final Answer: <the answer>
         # Add input item
         user_item = create_message_item("user", prompt)
         response.input.append(user_item)
+        
+        if self.debug:
+            print(f"[OpenResponses] Input item added: id={user_item.id}, type={user_item.type}, role={user_item.role}")
 
         if self.debug:
             print(f"\n[AgentNova] Model: {self.model}")
@@ -350,7 +369,11 @@ Final Answer: <the answer>
             # Check for ReAct format tool calls
             elif content:
                 parsed_calls = self._parser.parse(content)
+                if self.debug and parsed_calls:
+                    print(f"  [OpenResponses] ReAct format tool calls detected: {len(parsed_calls)}")
                 for call in parsed_calls:
+                    if self.debug:
+                        print(f"  [OpenResponses] Parsed: name={call.name}, args={call.arguments}")
                     tool_calls_found.append({
                         "name": call.name,
                         "arguments": call.arguments,
@@ -374,7 +397,7 @@ Final Answer: <the answer>
                     if self._allowed_tools and tool_name not in self._allowed_tools:
                         error_msg = f"Tool '{tool_name}' not in allowed_tools: {self._allowed_tools}"
                         if self.debug:
-                            print(f"  BLOCKED: {error_msg}")
+                            print(f"  [OpenResponses] BLOCKED by allowed_tools: '{tool_name}' not in {self._allowed_tools}")
                         
                         if native_tool_calls:
                             self.memory.add_tool_result(
@@ -393,16 +416,26 @@ Final Answer: <the answer>
                     fc_item = create_function_call_item(tool_name, tool_args, tool_call_id)
                     fc_item.status = ItemStatus.IN_PROGRESS
                     response.add_output_item(fc_item)
+                    
+                    if self.debug:
+                        print(f"  [OpenResponses] FunctionCallItem created: id={fc_item.id}, call_id={fc_item.call_id}")
+                        print(f"  [OpenResponses] FunctionCallItem status: {fc_item.status.value}")
 
                     result = self._execute_tool(tool_name, tool_args, prompt)
                     tool_calls += 1
 
                     # Update FunctionCallItem status
                     fc_item.status = ItemStatus.COMPLETED
+                    
+                    if self.debug:
+                        print(f"  [OpenResponses] FunctionCallItem status: {fc_item.status.value}")
 
                     # Create FunctionCallOutputItem
                     fco_item = create_function_call_output(fc_item.call_id, str(result))
                     response.add_output_item(fco_item)
+                    
+                    if self.debug:
+                        print(f"  [OpenResponses] FunctionCallOutputItem created: id={fco_item.id}, call_id={fco_item.call_id}")
 
                     # Add tool result to memory
                     if native_tool_calls:
@@ -438,7 +471,8 @@ Final Answer: <the answer>
                 # OpenResponses: Check tool_choice="required" enforcement
                 if self.tool_choice.type == ToolChoiceType.REQUIRED and tool_calls == 0:
                     if self.debug:
-                        print(f"  REJECTED: tool_choice='required' but no tools called")
+                        print(f"  [OpenResponses] REJECTED: tool_choice='required' but tool_calls={tool_calls}")
+                        print(f"  [OpenResponses] Enforcing tool requirement...")
                     # Tell model to use tools
                     self.memory.add("assistant", content)
                     self.memory.add("user", "You must use at least one tool before providing a final answer. Use the Action/Action Input format to call a tool.")
@@ -450,6 +484,10 @@ Final Answer: <the answer>
                 msg_item = create_message_item("assistant", answer)
                 msg_item.status = ItemStatus.COMPLETED
                 response.add_output_item(msg_item)
+                
+                if self.debug:
+                    print(f"  [OpenResponses] MessageItem created: id={msg_item.id}, role={msg_item.role}")
+                    print(f"  [OpenResponses] MessageItem status: {msg_item.status.value}")
 
                 steps.append(StepResult(
                     type=StepResultType.FINAL_ANSWER,
@@ -486,6 +524,8 @@ Final Answer: <the answer>
         else:
             # Max steps reached
             response.mark_incomplete()
+            if self.debug:
+                print(f"\n[OpenResponses] Response status: {response.status.value} (max steps reached)")
             steps.append(StepResult(
                 type=StepResultType.MAX_STEPS,
                 content="Maximum steps reached without final answer",
@@ -496,6 +536,12 @@ Final Answer: <the answer>
         # Mark response as completed
         if response.status == ResponseStatus.IN_PROGRESS:
             response.mark_completed()
+        
+        if self.debug:
+            print(f"\n[OpenResponses] Response completed: id={response.id}")
+            print(f"[OpenResponses] Final status: {response.status.value}")
+            print(f"[OpenResponses] Output items: {len(response.output)}")
+            print(f"[OpenResponses] Tool calls made: {tool_calls}")
 
         # Store response for previous_response_id support
         self._response_history[response.id] = response
