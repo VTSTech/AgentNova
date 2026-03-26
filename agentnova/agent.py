@@ -77,7 +77,7 @@ class Agent:
         soul_level: int = 3,
         num_ctx: int | None = None,
         # OpenResponses parameters
-        tool_choice: str | ToolChoice = "auto",
+        tool_choice: str | ToolChoice = "required",
         allowed_tools: list[str] | None = None,
         **kwargs,
     ):
