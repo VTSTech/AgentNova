@@ -145,7 +145,7 @@ After getting the result, provide the final answer as a number."""
             results["tests"][test_name] = {
                 "passed": passed,
                 "time": elapsed,
-                "response": response[:100],
+                "response": response,
                 "expected": expected,
             }
             
@@ -153,7 +153,7 @@ After getting the result, provide the final answer as a number."""
                 print(f"✅ ({elapsed:.1f}s)")
             else:
                 print(f"❌ ({elapsed:.1f}s)")
-                print(f"      Expected: {expected}, Got: {response[:80]}")
+                print(f"      Expected: {expected}, Got: {response}")
             
         except Exception as e:
             results["tests"][test_name] = {"passed": False, "error": str(e)[:100]}
