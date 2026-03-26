@@ -1159,6 +1159,8 @@ def cmd_test(args: argparse.Namespace) -> int:
                     test_argv.append("--debug")
                 if args.backend:
                     test_argv.extend(["--backend", args.backend])
+                if getattr(args, 'force_react', False):
+                    test_argv.append("--force-react")                    
                 if getattr(args, 'use_modelfile_system', False):
                     test_argv.append("--use-mf-sys")
                 
