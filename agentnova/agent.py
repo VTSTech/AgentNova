@@ -151,10 +151,13 @@ class Agent:
         # Determine tool support level
         if force_react:
             self._tool_support = ToolSupportLevel.REACT
+            self._tool_support_source = "force_react"
         elif not self.tools or len(self.tools) == 0:
             self._tool_support = ToolSupportLevel.NONE
+            self._tool_support_source = "no_tools"
         else:
             self._tool_support = self._detect_tool_support()
+            self._tool_support_source = "detected"
 
         # Initialize tool parser
         self._parser = ToolParser(self.tools.names())
@@ -188,6 +191,7 @@ class Agent:
                 cached = cache.get(self.model)
                 if cached:
                     support = cached.get("support", "react")
+                    self._tool_support_source = f"cache({support})"
                     if support == "native":
                         return ToolSupportLevel.NATIVE
                     elif support == "react":
@@ -199,6 +203,7 @@ class Agent:
         
         # Not cached - default to REACT (don't auto-test)
         # User can run `agentnova models --tool_support` to test and cache
+        self._tool_support_source = "default(react)"
         return ToolSupportLevel.REACT
 
     def _add_system_prompt(self) -> None:
@@ -252,7 +257,7 @@ class Agent:
         if self.debug:
             print(f"\n[AgentNova] Model: {self.model}")
             print(f"[AgentNova] Backend: {self.backend.base_url}")
-            print(f"[AgentNova] Tool support: {self._tool_support.value}")
+            print(f"[AgentNova] Tool support: {self._tool_support.value} (source: {getattr(self, '_tool_support_source', 'unknown')})")
             print(f"[AgentNova] Tools: {self.tools.names()}")
             print(f"[AgentNova] Prompt: {prompt}\n")
 
@@ -577,13 +582,17 @@ class Agent:
             # IMPORTANT: For ReAct models without successful tool calls, prioritize fallback synthesis
             # over accepting "Final Answer" - small models often give wrong answers without tools
             if self._parser.is_final_answer(content):
-                # For ReAct models without results, try fallback synthesis first
-                if self._tool_support == ToolSupportLevel.REACT and not successful_results:
+                # For models with tools but no successful results, try fallback synthesis first
+                # This applies to REACT mode AND NONE mode (model may still need tool help)
+                if not successful_results and self.tools.names():
                     if self.debug:
-                        print(f"  ReAct model gave Final Answer without tool use, trying fallback synthesis first")
+                        print(f"  Model gave Final Answer without tool use (support={self._tool_support.value}), trying fallback synthesis")
                     
                     from .core.helpers import extract_calc_expression
                     expr = extract_calc_expression(prompt)
+                    
+                    if self.debug and not expr:
+                        print(f"  Could not extract math expression from prompt")
                     
                     if expr and "calculator" in self.tools.names():
                         if self.debug:
