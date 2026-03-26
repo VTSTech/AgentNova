@@ -212,6 +212,11 @@ class Agent:
                 self._custom_system_prompt = self._build_default_prompt(has_tools)
         else:
             self._custom_system_prompt = self._build_default_prompt(has_tools)
+            if has_tools:
+                # Add tool section to default prompt
+                from .soul.loader import _build_tool_section
+                tool_section = _build_tool_section(self.tools.all())
+                self._custom_system_prompt = f"{self._custom_system_prompt}\n\n{tool_section}"
 
         # Initialize tool parser
         self._parser = ToolParser(self.tools.names())
@@ -430,6 +435,15 @@ Final Answer: <the answer>
             # ---- Check for Final Answer ----
             # The model explicitly signals completion with "Final Answer:"
             if self._parser.is_final_answer(content):
+                # OpenResponses: Check tool_choice="required" enforcement
+                if self.tool_choice.type == ToolChoiceType.REQUIRED and tool_calls == 0:
+                    if self.debug:
+                        print(f"  REJECTED: tool_choice='required' but no tools called")
+                    # Tell model to use tools
+                    self.memory.add("assistant", content)
+                    self.memory.add("user", "You must use at least one tool before providing a final answer. Use the Action/Action Input format to call a tool.")
+                    continue
+                
                 answer = self._parser.extract_final_answer(content)
 
                 # Create output message item
