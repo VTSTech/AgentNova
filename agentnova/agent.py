@@ -1,6 +1,12 @@
 """
 ⚛️ AgentNova — Agent
-Main agent class implementing the ReAct loop.
+Main agent class implementing the ReAct loop with OpenResponses specification.
+
+Implements OpenResponses patterns:
+- Items: Atomic units of context (message, function_call, reasoning)
+- State Machines: Items have states (in_progress, completed, failed)
+- tool_choice: Control tool invocation behavior
+- allowed_tools: Restrict which tools can be invoked
 
 Written by VTSTech — https://www.vts-tech.org
 """
@@ -16,29 +22,51 @@ from .core.memory import Memory, MemoryConfig
 from .core.tool_parse import ToolParser
 from .core.prompts import get_system_prompt
 from .core.model_config import get_model_config
+from .core.openresponses import (
+    Response, ResponseStatus, ItemStatus,
+    ToolChoice, ToolChoiceType,
+    MessageItem, FunctionCallItem, FunctionCallOutputItem,
+    OutputText, InputText,
+    RequestConfig, Error,
+    create_message_item, create_function_call_item, create_function_call_output,
+    create_function_call_output_item,
+)
 from .tools import ToolRegistry, make_builtin_registry
 from .backends import BaseBackend, get_default_backend
 
 
+# Alias for cleaner code (ToolSupportLevel enum)
+ToolSupport = ToolSupportLevel
+
+
 class Agent:
     """
-    AgentNova Agent - ReAct loop implementation.
-
-    Features:
+    AgentNova Agent - ReAct loop implementation with OpenResponses compliance.
+    
+    OpenResponses Features:
+    - tool_choice: Control tool invocation (auto, required, none, specific tool)
+    - allowed_tools: Restrict which tools can be invoked
+    - Response state machine: queued → in_progress → completed/failed
+    - Items: Atomic units of context with lifecycle states
+    
+    Legacy Features (maintained for compatibility):
     - Three-tier tool support (native, ReAct, none)
     - Auto-detects model capabilities
     - Sliding window memory
     - Streaming support
     - Debug mode
-    - Soul Spec v0.5 support (disabled by default, enable with soul=)
+    - Soul Spec v0.5 support
 
     Example:
         agent = Agent(model="qwen2.5:0.5b", tools=["calculator", "shell"])
         result = agent.run("What is 15 * 8?")
         print(result.final_answer)
         
-        # With Soul Spec (disabled by default)
-        agent = Agent(model="qwen2.5:0.5b", soul="/path/to/soul/package")
+        # With tool_choice
+        agent = Agent(model="llama3", tools=["calculator"], tool_choice="required")
+        
+        # With allowed_tools
+        agent = Agent(model="llama3", tools=["calculator", "shell"], allowed_tools=["calculator"])
     """
 
     def __init__(
@@ -54,6 +82,9 @@ class Agent:
         soul: str | None = None,
         soul_level: int = 2,
         num_ctx: int | None = None,
+        # OpenResponses parameters
+        tool_choice: str | ToolChoice = "auto",
+        allowed_tools: list[str] | None = None,
         **kwargs,
     ):
         """
@@ -71,6 +102,8 @@ class Agent:
             soul: Path to Soul Spec package (disabled by default)
             soul_level: Progressive disclosure level for soul (1-3)
             num_ctx: Context window size in tokens (Ollama default is 2048)
+            tool_choice: Control tool invocation ("auto", "required", "none", or specific tool name)
+            allowed_tools: List of tools the model is allowed to invoke (subset of tools)
             **kwargs: Additional configuration
         """
         self.model = model
@@ -104,6 +137,24 @@ class Agent:
         else:
             raise ValueError("tools must be ToolRegistry, list[str], or list[Tool]")
 
+        # OpenResponses: tool_choice
+        if isinstance(tool_choice, ToolChoice):
+            self.tool_choice = tool_choice
+        else:
+            self.tool_choice = ToolChoice(tool_choice)
+
+        # OpenResponses: allowed_tools
+        # Filter the tools registry to only include allowed tools
+        self._allowed_tools = allowed_tools
+        if allowed_tools is not None and len(allowed_tools) > 0:
+            allowed_set = set(allowed_tools)
+            current_tools = set(self.tools.names())
+            filtered = current_tools.intersection(allowed_set)
+            if filtered != current_tools:
+                if debug:
+                    print(f"[OpenResponses] Filtering tools via allowed_tools: {current_tools} -> {filtered}")
+                self.tools = self.tools.subset(list(filtered))
+
         # Initialize memory
         self.memory = Memory(memory_config or MemoryConfig())
 
@@ -122,11 +173,10 @@ class Agent:
                 from .soul import load_soul, build_system_prompt as build_soul_prompt
                 self.soul = load_soul(soul, level=soul_level)
                 
-                # Filter tools based on soul.allowed_tools
+                # Filter tools based on soul.allowed_tools (additional filtering)
                 if self.soul.allowed_tools and len(self.soul.allowed_tools) > 0:
                     allowed = set(self.soul.allowed_tools)
                     current_tools = set(self.tools.names())
-                    # Keep only allowed tools that exist
                     filtered = current_tools.intersection(allowed)
                     if filtered != current_tools:
                         if debug:
@@ -149,16 +199,18 @@ class Agent:
                     print(f"[Soul] Error loading soul: {e}")
 
         # Determine tool support level
-        if force_react:
-            self._tool_support = ToolSupportLevel.REACT
+        # OpenResponses: tool_choice="none" overrides tool support
+        if self.tool_choice.type == ToolChoiceType.NONE:
+            self._tool_support = ToolSupport.NONE
+            self._tool_support_source = "tool_choice_none"
+        elif force_react:
+            self._tool_support = ToolSupport.REACT
             self._tool_support_source = "force_react"
         elif not self.tools or len(self.tools) == 0:
-            self._tool_support = ToolSupportLevel.NONE
+            self._tool_support = ToolSupport.NONE
             self._tool_support_source = "no_tools"
         else:
             self._tool_support = self._detect_tool_support()
-            # Note: _detect_tool_support() sets _tool_support_source internally
-            # Only set default if it wasn't set by the detection method
             if not hasattr(self, '_tool_support_source'):
                 self._tool_support_source = "detected"
 
@@ -174,13 +226,15 @@ class Agent:
         # Store kwargs
         self._kwargs = kwargs
 
+        # Response history for previous_response_id support
+        self._response_history: dict[str, Response] = {}
+
     def _detect_tool_support(self) -> ToolSupportLevel:
         """Detect the tool support level for the model.
         
         Checks cache only. Run `agentnova models --tool_support` to test.
         Untested models default to REACT for reliability.
         """
-        # Check cache first
         import json
         from pathlib import Path
         
@@ -195,35 +249,24 @@ class Agent:
                 if cached:
                     support = cached.get("support", "react")
                     self._tool_support_source = f"cache({support})"
-                    if support == "none":
-                        # Log that model is cached as having no tool support
-                        # User may want to clear cache if this is outdated
-                        if self.debug:
-                            print(f"[AgentNova] Model '{self.model}' cached as 'none' tool support")
-                            print(f"[AgentNova] To retest: rm ~/.cache/agentnova/tool_support.json && agentnova models --tool_support")
                     if support == "native":
-                        return ToolSupportLevel.NATIVE
+                        return ToolSupport.NATIVE
                     elif support == "react":
-                        return ToolSupportLevel.REACT
+                        return ToolSupport.REACT
                     elif support == "none":
-                        return ToolSupportLevel.NONE
+                        return ToolSupport.NONE
             except (json.JSONDecodeError, IOError):
                 pass
         
-        # Not cached - default to REACT (don't auto-test)
-        # User can run `agentnova models --tool_support` to test and cache
         self._tool_support_source = "default(react)"
-        return ToolSupportLevel.REACT
+        return ToolSupport.REACT
 
     def _add_system_prompt(self) -> None:
         """Add the system prompt to memory."""
         if self._custom_system_prompt:
-            # Use custom system prompt if provided (e.g., from Soul Spec)
             system_prompt = self._custom_system_prompt
             
-            # IMPORTANT: Append tool descriptions and format instructions if tools exist
-            # Souls define personality but may not include tool usage instructions
-            if self.tools and len(self.tools) > 0 and self._tool_support != ToolSupportLevel.NONE:
+            if self.tools and len(self.tools) > 0 and self._tool_support != ToolSupport.NONE:
                 from .core.prompts import get_tool_prompt
                 tool_prompt = get_tool_prompt(
                     self.tools.all(),
@@ -233,7 +276,6 @@ class Agent:
                 if tool_prompt:
                     system_prompt = f"{system_prompt}\n\n{tool_prompt}"
         else:
-            # Use default generated system prompt
             system_prompt = get_system_prompt(
                 model_name=self.model,
                 tool_support=self._tool_support.value,
@@ -244,6 +286,14 @@ class Agent:
     def run(self, prompt: str, stream: bool = False) -> AgentRun:
         """
         Run the agent on a prompt.
+
+        This method implements the agentic loop following OpenResponses specification:
+        1. Model samples from input
+        2. If tool call: execute tool, return observation, continue
+        3. If no tool call: return final output items
+
+        IMPORTANT: No fallbacks that bypass the AI model are used.
+        All tool calls must come from the model itself.
 
         Args:
             prompt: User prompt
@@ -257,62 +307,41 @@ class Agent:
         total_tokens = 0
         tool_calls = 0
         successful_results = []
-        empty_retry_count = 0
-        native_retry_count = 0
+
+        # Create OpenResponses Response object
+        response = Response(
+            model=self.model,
+            status=ResponseStatus.QUEUED,
+            tool_choice=self.tool_choice,
+            allowed_tools=self._allowed_tools or [],
+        )
+        response.mark_in_progress()
 
         # Add user prompt to memory
         self.memory.add("user", prompt)
+
+        # Add input item
+        user_item = create_message_item("user", prompt)
+        response.input.append(user_item)
 
         if self.debug:
             print(f"\n[AgentNova] Model: {self.model}")
             print(f"[AgentNova] Backend: {self.backend.base_url}")
             print(f"[AgentNova] Tool support: {self._tool_support.value} (source: {getattr(self, '_tool_support_source', 'unknown')})")
+            print(f"[AgentNova] tool_choice: {self.tool_choice.type.value}")
             print(f"[AgentNova] Tools: {self.tools.names()}")
             print(f"[AgentNova] Prompt: {prompt}\n")
 
-        # ---- Greeting short-circuit ----
-        # For simple greetings, skip tool calling and respond directly
-        from .core.helpers import is_greeting_or_simple
-        if self._tool_support == ToolSupportLevel.NATIVE and is_greeting_or_simple(prompt):
-            # Just get a simple response without tools
-            try:
-                response = self.backend.generate(
-                    model=self.model,
-                    messages=self.memory.get_messages(),
-                    tools=None,  # No tools for greetings
-                    temperature=self.model_config.default_temperature,
-                    max_tokens=100,
-                )
-                content = response.get("content", "")
-                if content and not self._looks_like_tool_schema(content):
-                    if self.debug:
-                        print(f"  Greeting detected, responding directly")
-                    steps.append(StepResult(
-                        type=StepResultType.FINAL_ANSWER,
-                        content=content,
-                        tokens_used=response.get("usage", {}).get("total_tokens", 0),
-                    ))
-                    self.memory.add("assistant", content)
-                    total_ms = (time.time() - start_time) * 1000
-                    return AgentRun(
-                        final_answer=content,
-                        steps=steps,
-                        total_tokens=total_tokens,
-                        total_ms=total_ms,
-                        tool_calls=0,
-                        success=True,
-                    )
-            except Exception:
-                pass  # Fall through to normal processing
-
-        # ReAct loop
+        # OpenResponses: Agentic Loop
+        # The model decides whether to call tools or respond directly.
+        # No synthesis or fallback mechanisms are used.
         for step_num in range(self.max_steps):
             if self.debug:
                 print(f"[Step {step_num + 1}]")
 
-            # Generate response
+            # Generate response from model
             try:
-                response = self._generate()
+                gen_response = self._generate()
             except Exception as e:
                 if self.debug:
                     print(f"  ERROR: {e}")
@@ -320,11 +349,12 @@ class Agent:
                     type=StepResultType.ERROR,
                     error=str(e),
                 ))
+                response.mark_failed({"message": str(e), "type": "model_error"})
                 break
 
-            content = response.get("content", "")
-            native_tool_calls = response.get("tool_calls", [])
-            tokens = response.get("usage", {}).get("total_tokens", 0)
+            content = gen_response.get("content", "")
+            native_tool_calls = gen_response.get("tool_calls", [])
+            tokens = gen_response.get("usage", {}).get("total_tokens", 0)
             total_tokens += tokens
 
             if self.debug:
@@ -332,24 +362,45 @@ class Agent:
                 print(f"  Native tool calls: {native_tool_calls}")
 
             # ---- Native tool calling ----
-            if self._tool_support == ToolSupportLevel.NATIVE and native_tool_calls:
-                native_retry_count = 0  # Reset retry counter on success
-                
-                # Add assistant message with all tool calls (do this ONCE, not per tool)
+            if self._tool_support == ToolSupport.NATIVE and native_tool_calls:
                 self.memory.add_tool_call("assistant", content, native_tool_calls)
                 
                 for tc in native_tool_calls:
                     tool_name = tc.get("name", "")
                     tool_args = tc.get("arguments", {})
-                    tool_call_id = tc.get("id", "")  # Get the actual ID from Ollama
+                    tool_call_id = tc.get("id", "")
+
+                    # OpenResponses: Check allowed_tools
+                    if self._allowed_tools and tool_name not in self._allowed_tools:
+                        error_msg = f"Tool '{tool_name}' not in allowed_tools: {self._allowed_tools}"
+                        if self.debug:
+                            print(f"  BLOCKED: {error_msg}")
+                        self.memory.add_tool_result(
+                            tool_call_id=tool_call_id,
+                            name=tool_name,
+                            content=f"Error: {error_msg}",
+                        )
+                        continue
 
                     # Fuzzy match tool name
                     tool_name = self._parser._fuzzy_match_tool(tool_name)
 
+                    # Create FunctionCallItem
+                    fc_item = create_function_call_item(tool_name, tool_args, tool_call_id)
+                    fc_item.status = ItemStatus.IN_PROGRESS
+                    response.add_output_item(fc_item)
+
                     result = self._execute_tool(tool_name, tool_args, prompt)
                     tool_calls += 1
 
-                    # Add tool result with correct ID
+                    # Update FunctionCallItem status
+                    fc_item.status = ItemStatus.COMPLETED
+
+                    # Create FunctionCallOutputItem
+                    fco_item = create_function_call_output(tool_call_id, str(result))
+                    response.add_output_item(fco_item)
+
+                    # Add tool result to memory
                     self.memory.add_tool_result(
                         tool_call_id=tool_call_id,
                         name=tool_name,
@@ -371,218 +422,11 @@ class Agent:
                         print(f"  Tool: {tool_name}({tool_args})")
                         print(f"  Result: {str(result)[:200]}...")
 
-                    # ---- Check for wrong datetime tool selection ----
-                    # If model called get_date for a time question, also call get_time
-                    prompt_lower = prompt.lower()
-                    if tool_name == "get_date" and "get_time" in self.tools.names():
-                        if any(kw in prompt_lower for kw in ["what time", "time is it", "what's the time", "current time", "tell me the time", "give me the time"]):
-                            if self.debug:
-                                print(f"  [Auto-correct] Model called get_date for time question, also calling get_time")
-                            time_result = self._execute_tool("get_time", {}, prompt)
-                            tool_calls += 1
-                            self.memory.add_tool_result(
-                                tool_call_id=f"auto_time_{tool_call_id}",
-                                name="get_time",
-                                content=str(time_result),
-                            )
-                            if not str(time_result).startswith("Error"):
-                                successful_results.append(f"get_time: {time_result}")
-                            steps.append(StepResult(
-                                type=StepResultType.TOOL_CALL,
-                                content="[Auto-corrected] get_time({})",
-                                tool_call=ToolCall(name="get_time", arguments={}),
-                                tool_result=time_result,
-                                tokens_used=tokens,
-                            ))
-                    
-                    # If model called get_time for a date question, also call get_date
-                    if tool_name == "get_time" and "get_date" in self.tools.names():
-                        if any(kw in prompt_lower for kw in ["what date", "what's the date", "current date", "today's date", "what day is it", "tell me the date"]):
-                            if self.debug:
-                                print(f"  [Auto-correct] Model called get_time for date question, also calling get_date")
-                            date_result = self._execute_tool("get_date", {}, prompt)
-                            tool_calls += 1
-                            self.memory.add_tool_result(
-                                tool_call_id=f"auto_date_{tool_call_id}",
-                                name="get_date",
-                                content=str(date_result),
-                            )
-                            if not str(date_result).startswith("Error"):
-                                successful_results.append(f"get_date: {date_result}")
-                            steps.append(StepResult(
-                                type=StepResultType.TOOL_CALL,
-                                content="[Auto-corrected] get_date({})",
-                                tool_call=ToolCall(name="get_date", arguments={}),
-                                tool_result=date_result,
-                                tokens_used=tokens,
-                            ))
-
-                # Continue to next step after processing all tool calls
+                # Continue the agentic loop
                 continue
 
-            # ---- Native tool fallback: empty response retry ----
-            if self._tool_support == ToolSupportLevel.NATIVE and not native_tool_calls and not content and self.tools.names():
-                if empty_retry_count < 2:
-                    empty_retry_count += 1
-                    if self.debug:
-                        print(f"  Empty native response, retrying with hint ({empty_retry_count}/2)")
-
-                    # Add direct tool hint
-                    tool_hint = self._get_tool_hint(prompt)
-                    self.memory.add("assistant", "")
-                    self.memory.add("user", f"{tool_hint}\n\nOriginal question: {prompt}")
-                    continue
-
-            # ---- Native tool fallback: parse text for tool calls ----
-            if self._tool_support == ToolSupportLevel.NATIVE and not native_tool_calls and content and self.tools.names():
-                parsed_from_text = self._parser.parse(content)
-                if parsed_from_text:
-                    if self.debug:
-                        print(f"  Parsed tool call from text: {parsed_from_text[0].name}")
-                    
-                    call = parsed_from_text[0]
-                    tool_name = call.name
-                    tool_args = call.arguments
-
-                    result = self._execute_tool(tool_name, tool_args, prompt)
-                    tool_calls += 1
-
-                    self.memory.add("assistant", content)
-                    self.memory.add("user", f"Observation: {result}")
-
-                    if not str(result).startswith("Error"):
-                        successful_results.append(f"{tool_name}: {result}")
-
-                    steps.append(StepResult(
-                        type=StepResultType.TOOL_CALL,
-                        content=content,
-                        tool_call=call,
-                        tool_result=result,
-                        tokens_used=tokens,
-                    ))
-
-                    if self.debug:
-                        print(f"  Tool: {tool_name}({tool_args})")
-                        print(f"  Result: {str(result)[:200]}...")
-
-                    # For small models: if result is a simple numeric answer, accept it
-                    result_str = str(result).strip()
-                    if result_str and not result_str.startswith("Error"):
-                        # Check if result is a simple number or short answer
-                        try:
-                            float(result_str)  # Is it a number?
-                            # It's a number - accept as final answer for simple queries
-                            if self.debug:
-                                print(f"  Accepting tool result as final answer: {result_str}")
-                            steps.append(StepResult(
-                                type=StepResultType.FINAL_ANSWER,
-                                content=result_str,
-                                tokens_used=tokens,
-                            ))
-                            break
-                        except (ValueError, TypeError):
-                            pass  # Not a simple number, continue
-
-                    continue
-
-            # ---- Native tool fallback: text response after tool success ----
-            if self._tool_support == ToolSupportLevel.NATIVE and not native_tool_calls and content and successful_results:
-                # For small models: trust tool result over model's interpretation
-                # Check if we have a simple numeric result from the last tool call
-                last_result = successful_results[-1] if successful_results else ""
-                if "→" in last_result:
-                    last_result = last_result.split("→")[-1].strip()
-                elif ":" in last_result:
-                    last_result = last_result.split(":")[-1].strip()
-                
-                # If tool result is a simple number, use it as final answer
-                try:
-                    tool_result_num = float(last_result)
-                    # Tool returned a number - use it directly for simple queries
-                    from .core.helpers import is_simple_answered_query
-                    if is_simple_answered_query(prompt, successful_results):
-                        if self.debug:
-                            print(f"  Native mode: using tool result {tool_result_num} as final answer (overriding model text)")
-                        steps.append(StepResult(
-                            type=StepResultType.FINAL_ANSWER,
-                            content=str(tool_result_num),
-                            tokens_used=tokens,
-                        ))
-                        self.memory.add("assistant", str(tool_result_num))
-                        break
-                except (ValueError, TypeError):
-                    pass
-                
-                if self.debug:
-                    print(f"  Native mode: text response after tool success -> final answer")
-                steps.append(StepResult(
-                    type=StepResultType.FINAL_ANSWER,
-                    content=content,
-                    tokens_used=tokens,
-                ))
-                self.memory.add("assistant", content)
-                break
-
-            # ---- Native tool fallback: try direct tool hint ----
-            if self._tool_support == ToolSupportLevel.NATIVE and not native_tool_calls and content and self.tools.names() and not successful_results:
-                if native_retry_count < 1:
-                    native_retry_count += 1
-                    if self.debug:
-                        print(f"  Native mode: no tool calls, trying direct hint")
-
-                    # Check if content looks like it's trying to answer
-                    looks_like_answer = any(kw in content.lower() for kw in 
-                        ["answer is", "result is", "therefore", "the answer", "equals"])
-                    
-                    if not looks_like_answer:
-                        # Synthesize a tool call based on the prompt
-                        from .core.helpers import extract_calc_expression, is_small_model
-                        
-                        if "calculator" in self.tools.names():
-                            expr = extract_calc_expression(prompt)
-                            if expr:
-                                if self.debug:
-                                    print(f"  Auto-synthesizing calculator call: {expr}")
-                                result = self._execute_tool("calculator", {"expression": expr}, prompt)
-                                tool_calls += 1
-                                
-                                self.memory.add("assistant", content)
-                                self.memory.add("user", f"Observation: {result}")
-                                
-                                if not str(result).startswith("Error"):
-                                    successful_results.append(f"calculator: {result}")
-                                
-                                steps.append(StepResult(
-                                    type=StepResultType.TOOL_CALL,
-                                    content=f"[Auto-synthesized] calculator({expr})",
-                                    tool_call=ToolCall(name="calculator", arguments={"expression": expr}),
-                                    tool_result=result,
-                                    tokens_used=tokens,
-                                ))
-                                
-                                result_str = str(result).strip()
-                                if result_str:
-                                    try:
-                                        float(result_str)
-                                        if self.debug:
-                                            print(f"  Accepting synthesized result as final answer: {result_str}")
-                                        steps.append(StepResult(
-                                            type=StepResultType.FINAL_ANSWER,
-                                            content=result_str,
-                                            tokens_used=tokens,
-                                        ))
-                                        break
-                                    except (ValueError, TypeError):
-                                        pass
-                                continue
-                        
-                        tool_hint = self._get_tool_hint(prompt)
-                        self.memory.add("assistant", content)
-                        self.memory.add("user", f"You must use the tool to answer this.\n{tool_hint}")
-                        continue
-
             # ---- ReAct tool calling ----
-            if self._tool_support == ToolSupportLevel.REACT:
+            if self._tool_support == ToolSupport.REACT:
                 parsed_calls = self._parser.parse(content)
 
                 if parsed_calls:
@@ -590,8 +434,29 @@ class Agent:
                     tool_name = call.name
                     tool_args = call.arguments
 
+                    # OpenResponses: Check allowed_tools
+                    if self._allowed_tools and tool_name not in self._allowed_tools:
+                        error_msg = f"Tool '{tool_name}' not in allowed_tools: {self._allowed_tools}"
+                        if self.debug:
+                            print(f"  BLOCKED: {error_msg}")
+                        self.memory.add("assistant", content)
+                        self.memory.add("user", f"Observation: Error: {error_msg}")
+                        continue
+
+                    # Create FunctionCallItem
+                    fc_item = create_function_call_item(tool_name, tool_args)
+                    fc_item.status = ItemStatus.IN_PROGRESS
+                    response.add_output_item(fc_item)
+
                     result = self._execute_tool(tool_name, tool_args, prompt)
                     tool_calls += 1
+
+                    # Update status
+                    fc_item.status = ItemStatus.COMPLETED
+
+                    # Create FunctionCallOutputItem
+                    fco_item = create_function_call_output(fc_item.call_id, str(result))
+                    response.add_output_item(fco_item)
 
                     self.memory.add("assistant", content)
                     self.memory.add("user", f"Observation: {result}")
@@ -611,196 +476,17 @@ class Agent:
                         print(f"  Tool: {tool_name}({tool_args})")
                         print(f"  Result: {str(result)[:200]}...")
 
-                    # For small models: if result is a simple numeric answer, accept it as final
-                    result_str = str(result).strip()
-                    if result_str and not result_str.startswith("Error"):
-                        try:
-                            float(result_str)  # Is it a number?
-                            # It's a number - accept as final answer for simple queries
-                            from .core.helpers import is_simple_answered_query
-                            if is_simple_answered_query(prompt, successful_results):
-                                if self.debug:
-                                    print(f"  Accepting tool result as final answer: {result_str}")
-                                steps.append(StepResult(
-                                    type=StepResultType.FINAL_ANSWER,
-                                    content=result_str,
-                                    tokens_used=tokens,
-                                ))
-                                self.memory.add("assistant", f"Final Answer: {result_str}")
-                                break
-                        except (ValueError, TypeError):
-                            pass  # Not a simple number, continue loop
-
                     continue
 
-            # Check for final answer
-            # IMPORTANT: For ReAct models without successful tool calls, prioritize fallback synthesis
-            # over accepting "Final Answer" - small models often give wrong answers without tools
+            # ---- Check for Final Answer ----
+            # The model explicitly signals completion with "Final Answer:"
             if self._parser.is_final_answer(content):
-                # For models with tools but no successful results, try fallback synthesis first
-                # This applies to REACT mode AND NONE mode (model may still need tool help)
-                if not successful_results and self.tools.names():
-                    if self.debug:
-                        print(f"  Model gave Final Answer without tool use (support={self._tool_support.value}), trying fallback synthesis")
-                    
-                    # SPECIAL: For soul mode with NONE support, try ReAct parsing first
-                    # The soul prompt tells the model to use ReAct format even if native support is NONE
-                    if self.soul is not None and self._tool_support == ToolSupportLevel.NONE:
-                        parsed_calls = self._parser.parse(content)
-                        if parsed_calls:
-                            call = parsed_calls[0]
-                            tool_name = call.name
-                            tool_args = call.arguments
-                            
-                            if self.debug:
-                                print(f"  Soul+NONE mode: parsed ReAct tool call: {tool_name}")
-                            
-                            result = self._execute_tool(tool_name, tool_args, prompt)
-                            tool_calls += 1
-                            
-                            self.memory.add("assistant", content)
-                            self.memory.add("user", f"Observation: {result}")
-                            
-                            if not str(result).startswith("Error"):
-                                successful_results.append(f"{tool_name}: {result}")
-                            
-                            steps.append(StepResult(
-                                type=StepResultType.TOOL_CALL,
-                                content=content,
-                                tool_call=call,
-                                tool_result=result,
-                                tokens_used=tokens,
-                            ))
-                            continue
-                    
-                    # Check if this is a tool-requiring prompt for tools with NO required args
-                    # IMPORTANT: Only auto-execute tools that don't need arguments (get_date, get_time)
-                    # Tools like read_file, shell, python_repl NEED arguments we can't extract here
-                    prompt_lower = prompt.lower()
-                    
-                    # Tools that can be called with empty arguments
-                    no_arg_tool_indicators = [
-                        ('what time', 'get_time'), ('current time', 'get_time'), ('tell me the time', 'get_time'),
-                        ('what date', 'get_date'), ('current date', 'get_date'), ("today's date", 'get_date'),
-                        ('what day', 'get_date'), ("today's day", 'get_date'),
-                    ]
-                    
-                    # Tools that need arguments we can't auto-extract
-                    arg_tool_indicators = [
-                        ('echo ', 'shell'), ('shell to', 'shell'), ('run shell', 'shell'),
-                        ('current directory', 'shell'), ('working directory', 'shell'), ('pwd', 'shell'),
-                        ('read file', 'read_file'), ('read the file', 'read_file'), ('show file', 'read_file'),
-                        ('list files', 'list_directory'), ('list directory', 'list_directory'),
-                        ('write file', 'write_file'), ('write to file', 'write_file'),
-                        ('use python', 'python_repl'), ('python to', 'python_repl'),
-                    ]
-                    
-                    # Auto-execute tools with no required arguments
-                    required_no_arg_tool = None
-                    for indicator, tool_name in no_arg_tool_indicators:
-                        if indicator in prompt_lower and tool_name in self.tools.names():
-                            required_no_arg_tool = tool_name
-                            break
-                    
-                    if required_no_arg_tool and self.soul is not None:
-                        if self.debug:
-                            print(f"  Soul mode: prompt requires tool '{required_no_arg_tool}', auto-executing")
-                        # Execute the required tool (safe - no args needed)
-                        result = self._execute_tool(required_no_arg_tool, {}, prompt)
-                        tool_calls += 1
-                        
-                        self.memory.add("assistant", content)
-                        self.memory.add("user", f"Observation: {result}")
-                        
-                        if not str(result).startswith("Error"):
-                            successful_results.append(f"{required_no_arg_tool}: {result}")
-                        
-                        steps.append(StepResult(
-                            type=StepResultType.TOOL_CALL,
-                            content=f"[Auto-executed] {required_no_arg_tool}({{}})",
-                            tool_call=ToolCall(name=required_no_arg_tool, arguments={}),
-                            tool_result=result,
-                            tokens_used=tokens,
-                        ))
-                        continue
-                    
-                    # For tools requiring arguments, send a reminder instead of auto-executing
-                    required_arg_tool = None
-                    for indicator, tool_name in arg_tool_indicators:
-                        if indicator in prompt_lower and tool_name in self.tools.names():
-                            required_arg_tool = tool_name
-                            break
-                    
-                    if required_arg_tool and self.soul is not None:
-                        if self.debug:
-                            print(f"  Soul mode: prompt requires tool '{required_arg_tool}' with args, sending reminder")
-                        # Don't auto-execute - we can't extract the required arguments
-                        # Send a reminder to use the tool instead
-                        reminder_count = getattr(self, '_tool_arg_reminder_count', 0)
-                        if reminder_count < 2:
-                            self._tool_arg_reminder_count = reminder_count + 1
-                            tool_hint = self._get_tool_hint(prompt)
-                            # Build more specific hint with example
-                            example_hint = self._get_tool_example_hint(required_arg_tool)
-                            self.memory.add("assistant", content)
-                            self.memory.add("user", f"You MUST use the {required_arg_tool} tool. Do NOT give Final Answer without using the tool.\n{tool_hint}\n{example_hint}")
-                            continue
-                        # If reminder sent 2 times already, give up and mark as failure
-                        if self.debug:
-                            print(f"  Soul mode: model refused to use tool '{required_arg_tool}' after 2 reminders, failing")
-                        steps.append(StepResult(
-                            type=StepResultType.ERROR,
-                            error=f"Model refused to use required tool '{required_arg_tool}' after reminders",
-                        ))
-                        break
-                    
-                    # Try calculator synthesis for math prompts
-                    from .core.helpers import extract_calc_expression
-                    expr = extract_calc_expression(prompt)
-                    
-                    if self.debug and not expr:
-                        print(f"  Could not extract math expression from prompt")
-                    
-                    if expr and "calculator" in self.tools.names():
-                        if self.debug:
-                            print(f"  Auto-synthesizing calculator call: {expr}")
-                        
-                        result = self._execute_tool("calculator", {"expression": expr}, prompt)
-                        tool_calls += 1
-                        
-                        self.memory.add("assistant", content)
-                        self.memory.add("user", f"Observation: {result}")
-                        
-                        if not str(result).startswith("Error"):
-                            successful_results.append(f"calculator: {result}")
-                        
-                        steps.append(StepResult(
-                            type=StepResultType.TOOL_CALL,
-                            content=f"[Auto-synthesized] calculator({expr})",
-                            tool_call=ToolCall(name="calculator", arguments={"expression": expr}),
-                            tool_result=result,
-                            tokens_used=tokens,
-                        ))
-                        
-                        # For simple numeric results, accept as final answer
-                        result_str = str(result).strip()
-                        if result_str and not result_str.startswith("Error"):
-                            try:
-                                float(result_str)
-                                if self.debug:
-                                    print(f"  Accepting synthesized result as final answer: {result_str}")
-                                steps.append(StepResult(
-                                    type=StepResultType.FINAL_ANSWER,
-                                    content=result_str,
-                                    tokens_used=tokens,
-                                ))
-                                break
-                            except (ValueError, TypeError):
-                                pass
-                        continue
-                
-                # Accept final answer for native models or ReAct models with successful results
                 answer = self._parser.extract_final_answer(content)
+
+                # Create output message item
+                msg_item = create_message_item("assistant", answer)
+                msg_item.status = ItemStatus.COMPLETED
+                response.add_output_item(msg_item)
 
                 steps.append(StepResult(
                     type=StepResultType.FINAL_ANSWER,
@@ -813,297 +499,19 @@ class Agent:
 
                 break
 
-            # ---- Soul mode: accept conversational responses ----
-            # If a soul is loaded (chat mode with personality), accept the model's response
-            # as a final answer even if it doesn't follow ReAct format
-            # BUT: If tools are available, try ReAct parsing and synthesis first
-            if self.soul is not None and content and not native_tool_calls:
-                # First: Try ReAct parsing (soul prompt tells model to use ReAct format)
-                if self.tools.names() and not successful_results:
-                    parsed_calls = self._parser.parse(content)
-                    
-                    if parsed_calls:
-                        call = parsed_calls[0]
-                        tool_name = call.name
-                        tool_args = call.arguments
+            # ---- No tool call, no final answer ----
+            # Accept model's response as the final answer
+            # This is the model's decision, not a fallback synthesis
+            
+            # Create output message item
+            if content:
+                msg_item = create_message_item("assistant", content)
+                msg_item.status = ItemStatus.COMPLETED
+                response.add_output_item(msg_item)
 
-                        if self.debug:
-                            print(f"  Soul mode: parsed ReAct tool call: {tool_name}")
-
-                        result = self._execute_tool(tool_name, tool_args, prompt)
-                        tool_calls += 1
-
-                        self.memory.add("assistant", content)
-                        self.memory.add("user", f"Observation: {result}")
-
-                        if not str(result).startswith("Error"):
-                            successful_results.append(f"{tool_name}: {result}")
-
-                        steps.append(StepResult(
-                            type=StepResultType.TOOL_CALL,
-                            content=content,
-                            tool_call=call,
-                            tool_result=result,
-                            tokens_used=tokens,
-                        ))
-
-                        if self.debug:
-                            print(f"  Tool: {tool_name}({tool_args})")
-                            print(f"  Result: {str(result)[:200]}...")
-
-                        # For simple numeric results, accept as final answer
-                        result_str = str(result).strip()
-                        if result_str and not result_str.startswith("Error"):
-                            try:
-                                float(result_str)
-                                from .core.helpers import is_simple_answered_query
-                                if is_simple_answered_query(prompt, successful_results):
-                                    if self.debug:
-                                        print(f"  Accepting tool result as final answer: {result_str}")
-                                    steps.append(StepResult(
-                                        type=StepResultType.FINAL_ANSWER,
-                                        content=result_str,
-                                        tokens_used=tokens,
-                                    ))
-                                    self.memory.add("assistant", f"Final Answer: {result_str}")
-                                    break
-                            except (ValueError, TypeError):
-                                pass
-                        continue
-                
-                # Second: Check if we should try fallback synthesis (for math questions)
-                if self.tools.names() and not successful_results:
-                    from .core.helpers import extract_calc_expression
-                    expr = extract_calc_expression(prompt)
-                    
-                    if expr and "calculator" in self.tools.names():
-                        if self.debug:
-                            print(f"  Soul mode: trying calculator synthesis before accepting response")
-                        
-                        result = self._execute_tool("calculator", {"expression": expr}, prompt)
-                        tool_calls += 1
-                        
-                        if not str(result).startswith("Error"):
-                            successful_results.append(f"calculator: {result}")
-                            
-                            steps.append(StepResult(
-                                type=StepResultType.TOOL_CALL,
-                                content=f"[Auto-synthesized] calculator({expr})",
-                                tool_call=ToolCall(name="calculator", arguments={"expression": expr}),
-                                tool_result=result,
-                                tokens_used=tokens,
-                            ))
-                            
-                            # For simple numeric results, accept as final answer
-                            result_str = str(result).strip()
-                            try:
-                                float(result_str)
-                                if self.debug:
-                                    print(f"  Soul mode: using synthesized result as final answer: {result_str}")
-                                steps.append(StepResult(
-                                    type=StepResultType.FINAL_ANSWER,
-                                    content=result_str,
-                                    tokens_used=tokens,
-                                ))
-                                break
-                            except (ValueError, TypeError):
-                                pass
-                
-                # Third: Check if prompt explicitly asks for tool use (shell, read_file, etc.)
-                # Don't accept conversational response if the user asked for a tool operation
-                prompt_lower = prompt.lower()
-                tool_action_keywords = [
-                    'echo ', 'run shell', 'execute ', 'use shell', 'shell command',
-                    'read file', 'read the file', 'show file', 'display file',
-                    'write file', 'write to file', 'save to file',
-                    'list directory', 'list files', 'show directory',
-                    'what time', 'what date', 'current time', 'current date',
-                    'get time', 'get date', 'tell me the time', 'tell me the date',
-                ]
-                requires_tool = any(kw in prompt_lower for kw in tool_action_keywords)
-                
-                if requires_tool and self.tools.names() and not successful_results:
-                    if self.debug:
-                        print(f"  Soul mode: prompt requires tool use, not accepting conversational response")
-                    # Don't accept - let the loop continue or send a hint
-                    # Send a reminder to use tools
-                    if not hasattr(self, '_tool_reminder_sent'):
-                        self._tool_reminder_sent = True
-                        tool_hint = self._get_tool_hint(prompt)
-                        self.memory.add("assistant", content)
-                        self.memory.add("user", f"You must use a tool to answer this question.\n{tool_hint}")
-                        continue
-                    # If reminder was already sent, fall through to accept
-                
-                if self.debug:
-                    print(f"  Soul mode: accepting conversational response as final answer")
-                
-                steps.append(StepResult(
-                    type=StepResultType.FINAL_ANSWER,
-                    content=content,
-                    tokens_used=tokens,
-                ))
-                break
-
-            # ---- ReAct format reminder for small models ----
-            # If model didn't use ReAct format and we haven't succeeded yet, send a reminder
-            # BUT skip this if a soul is loaded - chat mode should allow natural conversation
-            if self._tool_support == ToolSupportLevel.REACT and not successful_results and self.soul is None:
-                if not hasattr(self, '_format_reminder_sent'):
-                    self._format_reminder_sent = True
-                    if self.debug:
-                        print(f"  Model didn't use ReAct format, sending reminder")
-                    
-                    self.memory.add("assistant", content)
-                    tool_names = self.tools.names()
-                    first_tool = self.tools.all()[0] if self.tools.all() else None
-                    arg_hint = "input"
-                    if first_tool and hasattr(first_tool, 'params') and first_tool.params:
-                        arg_hint = first_tool.params[0].name
-                    
-                    # Try to extract expression from prompt for better example
-                    from .core.helpers import extract_calc_expression
-                    expr_example = extract_calc_expression(prompt) or "8 * 7 - 5"
-                    
-                    reminder = (
-                        f"Answer this question: {prompt}\n\n"
-                        f"Use this EXACT format:\n"
-                        f"Action: {tool_names[0]}\n"
-                        f"Action Input: {{\"{arg_hint}\": \"{expr_example}\"}}"
-                    )
-                    self.memory.add("user", reminder)
-                    continue
-
-            # ---- ReAct: use tool result as final answer if model gives conversational response ----
-            # If we have successful tool results but model doesn't output "Final Answer:" format,
-            # use the last tool result as the final answer
-            # ONLY trigger if:
-            # 1. We have successful_results from this iteration
-            # 2. The model gave a CONVERSATIONAL response (not a tool call)
-            # 3. This is not the first iteration (model had a chance to process observation)
-            if (self._tool_support == ToolSupportLevel.REACT and 
-                successful_results and 
-                self.soul is None and
-                step_num > 0):  # Not first iteration - model has seen observation
-                
-                # Model gave a conversational response after tool execution
-                # Extract the tool result and use it as the final answer
-                from .core.helpers import strip_tool_prefix
-                
-                last_result = successful_results[-1]
-                result_value = strip_tool_prefix(last_result)
-                
-                # Only use if result has meaningful content
-                if result_value and len(result_value) > 0 and not result_value.startswith("Error"):
-                    if self.debug:
-                        print(f"  ReAct: using tool result as final answer: {result_value[:100]}...")
-                    
-                    steps.append(StepResult(
-                        type=StepResultType.FINAL_ANSWER,
-                        content=result_value,
-                        tokens_used=tokens,
-                    ))
-                    self.memory.add("assistant", f"Final Answer: {result_value}")
-                    break
-
-            # ---- ReAct fallback: synthesize tool call after reminder failed ----
-            # If reminder was sent but model still didn't output tool call, try to synthesize one
-            # BUT skip this if a soul is loaded - chat mode should allow natural conversation
-            if self._tool_support == ToolSupportLevel.REACT and not successful_results and hasattr(self, '_format_reminder_sent') and self.soul is None:
-                if self.debug:
-                    print(f"  ReAct fallback: attempting to synthesize tool call")
-                
-                from .core.helpers import extract_calc_expression
-                expr = extract_calc_expression(prompt)
-                
-                if expr and "calculator" in self.tools.names():
-                    if self.debug:
-                        print(f"  Auto-synthesizing calculator call: {expr}")
-                    
-                    result = self._execute_tool("calculator", {"expression": expr}, prompt)
-                    tool_calls += 1
-                    
-                    self.memory.add("assistant", content)
-                    self.memory.add("user", f"Observation: {result}")
-                    
-                    if not str(result).startswith("Error"):
-                        successful_results.append(f"calculator: {result}")
-                    
-                    steps.append(StepResult(
-                        type=StepResultType.TOOL_CALL,
-                        content=f"[Auto-synthesized] calculator({expr})",
-                        tool_call=ToolCall(name="calculator", arguments={"expression": expr}),
-                        tool_result=result,
-                        tokens_used=tokens,
-                    ))
-                    
-                    # For simple numeric results, accept as final answer
-                    result_str = str(result).strip()
-                    if result_str and not result_str.startswith("Error"):
-                        try:
-                            float(result_str)
-                            if self.debug:
-                                print(f"  Accepting synthesized result as final answer: {result_str}")
-                            steps.append(StepResult(
-                                type=StepResultType.FINAL_ANSWER,
-                                content=result_str,
-                                tokens_used=tokens,
-                            ))
-                            break
-                        except (ValueError, TypeError):
-                            pass
-                    continue
-
-            # ---- Native tool fallback: synthesize after empty retries exhausted ----
-            # If we've exhausted retries and still no tool call, synthesize one
-            if self._tool_support == ToolSupportLevel.NATIVE and not native_tool_calls and not successful_results and self.tools.names():
-                if self.debug:
-                    print(f"  Native fallback: synthesizing tool call after empty retries")
-                
-                from .core.helpers import extract_calc_expression
-                expr = extract_calc_expression(prompt)
-                
-                if expr and "calculator" in self.tools.names():
-                    if self.debug:
-                        print(f"  Auto-synthesizing calculator call: {expr}")
-                    
-                    result = self._execute_tool("calculator", {"expression": expr}, prompt)
-                    tool_calls += 1
-                    
-                    self.memory.add("assistant", content or "")
-                    self.memory.add("user", f"Observation: {result}")
-                    
-                    if not str(result).startswith("Error"):
-                        successful_results.append(f"calculator: {result}")
-                    
-                    steps.append(StepResult(
-                        type=StepResultType.TOOL_CALL,
-                        content=f"[Auto-synthesized] calculator({expr})",
-                        tool_call=ToolCall(name="calculator", arguments={"expression": expr}),
-                        tool_result=result,
-                        tokens_used=tokens,
-                    ))
-                    
-                    # For simple numeric results, accept as final answer
-                    result_str = str(result).strip()
-                    if result_str and not result_str.startswith("Error"):
-                        try:
-                            float(result_str)
-                            if self.debug:
-                                print(f"  Accepting synthesized result as final answer: {result_str}")
-                            steps.append(StepResult(
-                                type=StepResultType.FINAL_ANSWER,
-                                content=result_str,
-                                tokens_used=tokens,
-                            ))
-                            break
-                        except (ValueError, TypeError):
-                            pass
-                    continue
-
-            # No tool call or final answer - treat as response
             if self.debug:
                 print(f"  No tool calls detected, treating as final answer")
+
             steps.append(StepResult(
                 type=StepResultType.FINAL_ANSWER,
                 content=content,
@@ -1114,6 +522,7 @@ class Agent:
 
         else:
             # Max steps reached
+            response.mark_incomplete()
             steps.append(StepResult(
                 type=StepResultType.MAX_STEPS,
                 content="Maximum steps reached without final answer",
@@ -1121,12 +530,22 @@ class Agent:
 
         total_ms = (time.time() - start_time) * 1000
 
+        # Mark response as completed
+        if response.status == ResponseStatus.IN_PROGRESS:
+            response.mark_completed()
+
+        # Store response for previous_response_id support
+        self._response_history[response.id] = response
+
         # Get final answer
         final_answer = ""
         for step in reversed(steps):
             if step.type == StepResultType.FINAL_ANSWER:
                 final_answer = step.content or ""
                 break
+
+        # Update usage in response
+        response.usage["total_tokens"] = total_tokens
 
         return AgentRun(
             final_answer=final_answer,
@@ -1137,81 +556,43 @@ class Agent:
             success=bool(final_answer),
         )
 
-    def _get_tool_hint(self, prompt: str) -> str:
-        """Generate a tool hint for the prompt."""
-        available_tools = self.tools.names()
-        prompt_lower = prompt.lower()
-        
-        if "calculator" in available_tools and any(kw in prompt_lower for kw in 
-            ["times", "multiply", "plus", "minus", "divided", "calculate", "what is",
-             "how many", "hours", "apples", "left", " * ", " + ", " - ", " / "]):
-            # Try to extract math expression
-            import re
-            # Look for numbers and operators
-            numbers = re.findall(r'\d+', prompt)
-            if numbers:
-                return "Use the calculator tool with the appropriate mathematical expression."
-            return "Use the calculator tool to solve this math problem."
-        
-        if "shell" in available_tools and any(kw in prompt_lower for kw in 
-            ["echo", "print", "directory", "pwd", "folder"]):
-            return "Use the shell tool to execute the appropriate command."
-        
-        if "python_repl" in available_tools and any(kw in prompt_lower for kw in 
-            ["python", "code", "execute", "run"]):
-            return "Use the python_repl tool to execute Python code."
-        
-        # DateTime tool hints - help models pick the right one
-        if "get_time" in available_tools and any(kw in prompt_lower for kw in 
-            ["what time", "current time", "time is it", "what's the time"]):
-            return "Use the get_time tool to get the current time."
-        
-        if "get_date" in available_tools and any(kw in prompt_lower for kw in 
-            ["what date", "today's date", "what day", "current date"]):
-            return "Use the get_date tool to get the current date."
-        
-        if available_tools:
-            return f"Use the {available_tools[0]} tool to answer this question."
-        
-        return ""
+    def create_response(
+        self,
+        input_items: list = None,
+        previous_response_id: str | None = None,
+    ) -> Response:
+        """
+        Create a new Response following OpenResponses specification.
 
-    def _get_tool_example_hint(self, tool_name: str) -> str:
-        """Get a concrete ReAct example for a specific tool."""
-        examples = {
-            "shell": '''Example format:
-Thought: I need to run a shell command
-Action: shell
-Action Input: {"command": "echo Hello World"}''',
-            "read_file": '''Example format:
-Thought: I need to read a file
-Action: read_file
-Action Input: {"file_path": "/path/to/file"}''',
-            "write_file": '''Example format:
-Thought: I need to write to a file
-Action: write_file
-Action Input: {"file_path": "/path/to/file", "content": "text to write"}''',
-            "python_repl": '''Example format:
-Thought: I need to run Python code
-Action: python_repl
-Action Input: {"code": "print('Hello World')"}''',
-            "calculator": '''Example format:
-Thought: I need to calculate something
-Action: calculator
-Action Input: {"expression": "15 * 8"}''',
-            "get_time": '''Example format:
-Thought: I need to get the current time
-Action: get_time
-Action Input: {}''',
-            "get_date": '''Example format:
-Thought: I need to get the current date
-Action: get_date
-Action Input: {}''',
-            "list_directory": '''Example format:
-Thought: I need to list directory contents
-Action: list_directory
-Action Input: {"path": "/tmp"}''',
-        }
-        return examples.get(tool_name, f"Use Action: {tool_name} with appropriate Action Input JSON.")
+        This is the primary API for OpenResponses-compliant usage.
+
+        Args:
+            input_items: List of input items (messages, function call outputs)
+            previous_response_id: ID of previous response to continue from
+
+        Returns:
+            Response object with output items
+        """
+        response = Response(
+            model=self.model,
+            status=ResponseStatus.QUEUED,
+            tool_choice=self.tool_choice,
+            allowed_tools=self._allowed_tools or [],
+            previous_response_id=previous_response_id,
+        )
+
+        # Load previous response context if specified
+        if previous_response_id and previous_response_id in self._response_history:
+            prev_response = self._response_history[previous_response_id]
+            # The previous input and output become part of context
+            response.input = list(prev_response.input)
+            response.input.extend(prev_response.output)
+
+        # Add new input items
+        if input_items:
+            response.input.extend(input_items)
+
+        return response
 
     def _generate(self) -> dict:
         """Generate a response from the backend."""
@@ -1224,7 +605,7 @@ Action Input: {"path": "/tmp"}''',
                 content = msg.get('content', '')
                 tc = msg.get('tool_calls', [])
                 content_preview = content[:2048] if content else '(empty)'
-                print(f"  [MSG {i}] role={role}, content={content_preview!r}{' [has tool_calls]' if tc else ''}")
+                print(f"  [MSG {i}] role={role}, content={content_preview!r}{' as tool_calls]' if tc else ''}")
             print(f"  [DEBUG] Tools: {[t.name for t in self.tools.all()] if self.tools else None}")
 
         # Check if model needs thinking disabled (qwen3, deepseek-r1, etc.)
@@ -1241,10 +622,16 @@ Action Input: {"path": "/tmp"}''',
             if self.debug:
                 print(f"  [DEBUG] num_ctx: {self.num_ctx}")
 
+        # Determine if tools should be passed
+        # OpenResponses: tool_choice="none" means no tools
+        pass_tools = None
+        if self._tool_support == ToolSupport.NATIVE and self.tool_choice.type != ToolChoiceType.NONE:
+            pass_tools = self.tools.all()
+
         response = self.backend.generate(
             model=self.model,
             messages=messages,
-            tools=self.tools.all() if self._tool_support == ToolSupportLevel.NATIVE else None,
+            tools=pass_tools,
             temperature=self.model_config.default_temperature,
             max_tokens=self.model_config.default_max_tokens,
             **backend_kwargs,
@@ -1258,14 +645,17 @@ Action Input: {"path": "/tmp"}''',
         return response
 
     def _execute_tool(self, name: str, args: dict, user_prompt: str = "") -> Any:
-        """Execute a tool by name with arguments."""
-        # First try fuzzy matching from tool_parse
+        """
+        Execute a tool by name with arguments.
+
+        OpenResponses: Tool execution is straightforward - no synthesis.
+        Arguments must come from the model.
+        """
         from .core.tool_parse import _fuzzy_match_tool_name
         matched_name = _fuzzy_match_tool_name(name, self.tools.names())
         if matched_name:
             name = matched_name
         
-        # Get tool (with fuzzy matching)
         tool = self.tools.get_fuzzy(name)
 
         if tool is None:
@@ -1274,20 +664,13 @@ Action Input: {"path": "/tmp"}''',
         # Normalize arguments with tool-specific aliases
         expected_params = [p.name for p in tool.params]
         
-        from .core.helpers import normalize_args, synthesize_tool_args
+        from .core.helpers import normalize_args
         normalized_args = normalize_args(args, expected_params, tool_name=name)
-        
-        # Synthesize missing/incomplete arguments for small models
-        synthesized_args = synthesize_tool_args(name, normalized_args, user_prompt)
-        if synthesized_args.get("expression") != normalized_args.get("expression") and self.debug:
-            print(f"  [SYNTHESIZED] Expression: {synthesized_args.get('expression')}")
-        normalized_args = synthesized_args
 
         try:
             return tool.execute(**normalized_args)
 
         except TypeError as e:
-            # Missing required argument
             return f"Error: {e}"
 
         except Exception as e:
@@ -1316,44 +699,12 @@ Action Input: {"path": "/tmp"}''',
         self.tools.register_tool(tool)
         self._parser = ToolParser(self.tools.names())
 
+    def get_response(self, response_id: str) -> Response | None:
+        """Get a previous response by ID (for previous_response_id support)."""
+        return self._response_history.get(response_id)
+
     def __repr__(self) -> str:
-        return f"Agent(model={self.model}, tools={len(self.tools)}, support={self._tool_support.value})"
-    
-    def _looks_like_tool_schema(self, text: str) -> bool:
-        """Check if text looks like a tool schema dump instead of actual content."""
-        if not text:
-            return False
-        
-        text_lower = text.lower()
-        schema_indicators = [
-            '"type":', '"properties":', '"required":',
-            '"function"', '"parameters"', '"description"',
-            '"json_schema"', '```json', '```python',
-        ]
-        
-        # If multiple schema indicators are present, likely a schema dump
-        count = sum(1 for ind in schema_indicators if ind in text_lower)
-        return count >= 3
-    
-    def _synthesize(self, user_input: str, successful_results: list[str]) -> str:
-        """
-        Synthesize a final answer from successful tool results.
-        Called when we have enough results but the model hasn't given a final answer.
-        """
-        if not successful_results:
-            return "I was unable to complete the task."
-        
-        # For single result, use it directly
-        if len(successful_results) == 1:
-            result = successful_results[0]
-            # Strip tool prefix if present
-            if "→" in result:
-                result = result.split("→")[-1].strip()
-            return result
-        
-        # For multiple results, summarize
-        from .core.helpers import strip_tool_prefix
-        results_str = "\n".join(f"- {strip_tool_prefix(r)}" for r in successful_results)
-        
-        # Simple synthesis
-        return f"Based on the results:\n{results_str}"
+        return f"Agent(model={self.model}, tools={len(self.tools)}, support={self._tool_support.value}, tool_choice={self.tool_choice.type.value})"
+
+
+__all__ = ["Agent"]
