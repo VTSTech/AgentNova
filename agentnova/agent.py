@@ -704,9 +704,62 @@ class Agent:
             # ---- Soul mode: accept conversational responses ----
             # If a soul is loaded (chat mode with personality), accept the model's response
             # as a final answer even if it doesn't follow ReAct format
-            # BUT: If tools are available and this looks like a math/calc question, try synthesis first
+            # BUT: If tools are available, try ReAct parsing and synthesis first
             if self.soul is not None and content and not native_tool_calls:
-                # Check if we should try fallback synthesis first (for diagnostic tests with tools)
+                # First: Try ReAct parsing (soul prompt tells model to use ReAct format)
+                if self.tools.names() and not successful_results:
+                    parsed_calls = self._parser.parse(content)
+                    
+                    if parsed_calls:
+                        call = parsed_calls[0]
+                        tool_name = call.name
+                        tool_args = call.arguments
+
+                        if self.debug:
+                            print(f"  Soul mode: parsed ReAct tool call: {tool_name}")
+
+                        result = self._execute_tool(tool_name, tool_args, prompt)
+                        tool_calls += 1
+
+                        self.memory.add("assistant", content)
+                        self.memory.add("user", f"Observation: {result}")
+
+                        if not str(result).startswith("Error"):
+                            successful_results.append(f"{tool_name}: {result}")
+
+                        steps.append(StepResult(
+                            type=StepResultType.TOOL_CALL,
+                            content=content,
+                            tool_call=call,
+                            tool_result=result,
+                            tokens_used=tokens,
+                        ))
+
+                        if self.debug:
+                            print(f"  Tool: {tool_name}({tool_args})")
+                            print(f"  Result: {str(result)[:200]}...")
+
+                        # For simple numeric results, accept as final answer
+                        result_str = str(result).strip()
+                        if result_str and not result_str.startswith("Error"):
+                            try:
+                                float(result_str)
+                                from .core.helpers import is_simple_answered_query
+                                if is_simple_answered_query(prompt, successful_results):
+                                    if self.debug:
+                                        print(f"  Accepting tool result as final answer: {result_str}")
+                                    steps.append(StepResult(
+                                        type=StepResultType.FINAL_ANSWER,
+                                        content=result_str,
+                                        tokens_used=tokens,
+                                    ))
+                                    self.memory.add("assistant", f"Final Answer: {result_str}")
+                                    break
+                            except (ValueError, TypeError):
+                                pass
+                        continue
+                
+                # Second: Check if we should try fallback synthesis (for math questions)
                 if self.tools.names() and not successful_results:
                     from .core.helpers import extract_calc_expression
                     expr = extract_calc_expression(prompt)
@@ -743,6 +796,32 @@ class Agent:
                                 break
                             except (ValueError, TypeError):
                                 pass
+                
+                # Third: Check if prompt explicitly asks for tool use (shell, read_file, etc.)
+                # Don't accept conversational response if the user asked for a tool operation
+                prompt_lower = prompt.lower()
+                tool_action_keywords = [
+                    'echo ', 'run shell', 'execute ', 'use shell', 'shell command',
+                    'read file', 'read the file', 'show file', 'display file',
+                    'write file', 'write to file', 'save to file',
+                    'list directory', 'list files', 'show directory',
+                    'what time', 'what date', 'current time', 'current date',
+                    'get time', 'get date', 'tell me the time', 'tell me the date',
+                ]
+                requires_tool = any(kw in prompt_lower for kw in tool_action_keywords)
+                
+                if requires_tool and self.tools.names() and not successful_results:
+                    if self.debug:
+                        print(f"  Soul mode: prompt requires tool use, not accepting conversational response")
+                    # Don't accept - let the loop continue or send a hint
+                    # Send a reminder to use tools
+                    if not hasattr(self, '_tool_reminder_sent'):
+                        self._tool_reminder_sent = True
+                        tool_hint = self._get_tool_hint(prompt)
+                        self.memory.add("assistant", content)
+                        self.memory.add("user", f"You must use a tool to answer this question.\n{tool_hint}")
+                        continue
+                    # If reminder was already sent, fall through to accept
                 
                 if self.debug:
                     print(f"  Soul mode: accepting conversational response as final answer")
