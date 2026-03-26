@@ -331,6 +331,7 @@ def create_parser() -> argparse.ArgumentParser:
                            help="Context window size in tokens (Ollama default is 2048)")
     run_parser.add_argument("--timeout", type=int, default=None,
                            help="Request timeout in seconds (default: 120)")
+    run_parser.add_argument("--force-react", action="store_true", help="Force ReAct mode for tool calling")
     run_parser.add_argument("--acp", action="store_true", help="Enable ACP logging to Agent Control Panel")
     run_parser.add_argument("--acp-url", default=None, help="ACP server URL (default: from config)")
 
@@ -357,6 +358,7 @@ def create_parser() -> argparse.ArgumentParser:
     agent_parser.add_argument("--tools", default="calculator,shell,write_file", help="Comma-separated tool list")
     agent_parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None, help="Backend to use")
     agent_parser.add_argument("--debug", action="store_true", help="Enable debug output")
+    agent_parser.add_argument("--force-react", action="store_true", help="Force ReAct mode for tool calling")
     agent_parser.add_argument("--soul", default=None, help="Path to Soul Spec package (disabled by default)")
     agent_parser.add_argument("--soul-level", type=int, default=2, choices=[1, 2, 3],
                            help="Soul progressive disclosure level (1=quick, 2=full, 3=deep)")
@@ -393,6 +395,7 @@ def create_parser() -> argparse.ArgumentParser:
                            help="Context window size in tokens (Ollama default is 2048)")
     test_parser.add_argument("--timeout", type=int, default=None,
                            help="Request timeout in seconds (default: 120)")
+    test_parser.add_argument("--force-react", action="store_true", help="Force ReAct mode for tool calling")
 
     # Version command
     subparsers.add_parser("version", help="Show version information")
