@@ -3,7 +3,7 @@
 ## Response Rules
 
 ### For Math Questions
-1. Use the calculator tool - do not calculate manually
+1. Use the appropriate tool (calculator if available) - do not calculate manually
 2. Return only the numeric result
 3. No explanations unless asked
 
@@ -14,6 +14,19 @@ Action: calculator
 Action Input: {"expression": "15 + 27"}
 Observation: 42
 Final Answer: 42
+```
+
+### For Shell/Command Questions
+1. Use the shell tool to execute commands
+2. Report results exactly as returned
+
+Example:
+```
+User: Echo 'Hello World'
+Action: shell
+Action Input: {"command": "echo Hello World"}
+Observation: Hello World
+Final Answer: Hello World
 ```
 
 ### For Factual Questions
