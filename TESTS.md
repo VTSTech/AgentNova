@@ -20,14 +20,14 @@ agentnova test 01 -m gemma3:270m --force-react --soul nova-helper  # With soul p
 |:----:|-------|------:|-----:|:------------:|:----:|-------|
 | 🥇 | **`functiongemma:270m`** | **5/5 (100%)** | 23.7s | native | - | 🏆 Fastest perfect score! |
 | 🥈 | **`granite4:350m`** | **5/5 (100%)** | 44.5s | native | - | 🏆 Perfect with native tools |
-| 🥉 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 48.7s | native | - | 🏆 Perfect with native tools |
-| 4 | **`qwen2.5-coder:0.5b-instruct-q4_k_m`** | **5/5 (100%)** | 93.3s | react | - | 🏆 Perfect with ReAct |
+| 🥉 | **`qwen2.5-coder:0.5b-instruct-q4_k_m`** | **5/5 (100%)** | 52.2s | react | nova-helper | 🏆 **2x faster** with soul! |
+| 4 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 48.7s | native | - | 🏆 Perfect with native tools |
 | 5 | **`qwen2:0.5b`** | **5/5 (100%)** | 53.8s | none | nova-helper | 🏆 Fallback synthesis fix! |
-| 6 | **`qwen3:0.6b`** | **5/5 (100%)** | 102.3s | react | nova-helper | 🏆 **NEW!** Qwen3 family! |
-| 7 | **`gemma3:270m`** | **5/5 (100%)** | 106.5s | react | nova-helper | 🏆 Soul + synthesis fix! |
-| 8 | **`dolphin3.0-qwen2.5:0.5b`** | **5/5 (100%)** | 38.2s | none | nova-helper | 🏆 **+40%** with soul! |
-| 9 | `qwen:0.5b` | 5/5 (100%) | 221.7s | react | - | 🏆 +80% --force-react used |
-| 10 | **`qwen3.5:0.8b`** | **5/5 (100%)** | 331.8s | react | nova-helper | 🏆 **NEW!** Qwen3.5 family! |
+| 6 | **`dolphin3.0-qwen2.5:0.5b`** | **5/5 (100%)** | 38.2s | none | nova-helper | 🏆 **+40%** with soul! |
+| 7 | **`qwen:0.5b`** | **5/5 (100%)** | 96.0s | react | nova-helper | 🏆 **2.3x faster** with soul! |
+| 8 | **`qwen3:0.6b`** | **5/5 (100%)** | 102.3s | react | nova-helper | 🏆 Qwen3 family! |
+| 9 | **`gemma3:270m`** | **5/5 (100%)** | 106.5s | react | nova-helper | 🏆 Soul + synthesis fix! |
+| 10 | **`qwen3.5:0.8b`** | **5/5 (100%)** | 331.8s | react | nova-helper | 🏆 Qwen3.5 family! |
 
 ### R03.3 Bug Fixes
 
@@ -45,14 +45,19 @@ agentnova test 01 -m gemma3:270m --force-react --soul nova-helper  # With soul p
 | Model | Params | Without Soul | With nova-helper | Improvement |
 |-------|-------:|--------------|------------------|:-----------:|
 | `qwen2:0.5b` | 500M | ~2/5 (40%) | **5/5 (100%)** | **+60%** ✅ |
+| `qwen:0.5b` | 500M | 5/5 (221.7s) | **5/5 (96.0s)** | **2.3x faster** ⚡ |
+| `qwen2.5-coder:0.5b` | 494M | 5/5 (93.3s) | **5/5 (52.2s)** | **1.8x faster** ⚡ |
 | `qwen3:0.6b` | 600M | ~3/5 (60%) | **5/5 (100%)** | **+40%** ✅ |
 | `gemma3:270m` | 270M | 4/5 (80%) | **5/5 (100%)** | **+20%** ✅ |
 | `dolphin3.0-qwen2.5:0.5b` | 500M | 3/5 (60%) | **5/5 (100%)** | **+40%** ✅ |
 | `qwen3.5:0.8b` | 800M | ~3/5 (60%) | **5/5 (100%)** | **+40%** ✅ |
 
-**Key Insight:** A focused soul persona can transform a failing model into a perfect scorer! The nova-helper soul:
-- Reduced dolphin3.0's time from 143.8s → 38.2s (3.7x faster!)
-- Fixed Q5 (time calc) for both models
+**Key Insight:** Soul personas provide both accuracy AND speed improvements!
+
+The nova-helper soul:
+- Reduced `qwen:0.5b` time from 221.7s → 96.0s (2.3x faster!)
+- Reduced `qwen2.5-coder:0.5b` time from 93.3s → 52.2s (1.8x faster!)
+- Reduced `dolphin3.0` time from 143.8s → 38.2s (3.7x faster!)
 - Fixed Q2 (multi-step) for dolphin3.0
 - **NEW:** Fallback synthesis now works in soul mode, catching model errors
 
@@ -388,6 +393,8 @@ agentnova test 01 -m dolphin --soul nova-helper --soul-level 3
 | Model | Without Soul | With nova-helper |
 |-------|--------------|------------------|
 | qwen2:0.5b | ~2/5 (40%) | **5/5 (100%)** |
+| qwen:0.5b | 5/5 (221.7s) | **5/5 (96.0s)** 2.3x faster |
+| qwen2.5-coder:0.5b | 5/5 (93.3s) | **5/5 (52.2s)** 1.8x faster |
 | qwen3:0.6b | ~3/5 (60%) | **5/5 (100%)** |
 | gemma3:270m | 4/5 (80%) | **5/5 (100%)** |
 | dolphin3.0-qwen2.5:0.5b | 3/5 (60%) | **5/5 (100%)** |
