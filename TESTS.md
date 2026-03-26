@@ -1,8 +1,8 @@
-# ⚛️ AgentNova R03.2
+# ⚛️ AgentNova R03.3
 
 ## Test 01 Quick Diagnostic (5 Questions)
 
-> **Updated:** 2026-03-26 - Soul persona impact analysis added
+> **Updated:** 2026-03-26 - Soul mode fallback synthesis fix, qwen2:0.5b and gemma3:270m results
 
 Test 01 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
 
@@ -14,7 +14,7 @@ agentnova test 01 --model g       # Fuzzy match: gemma, granite, functiongemma
 agentnova test 01 -m gemma3:270m --force-react --soul nova-helper  # With soul persona
 ```
 
-### Quick Diagnostic Results (R03.2 - ≤0.5B Models)
+### Quick Diagnostic Results (R03.3 - ≤1B Models)
 
 | Rank | Model | Score | Time | Tool Support | Soul | Notes |
 |:----:|-------|------:|-----:|:------------:|:----:|-------|
@@ -22,23 +22,39 @@ agentnova test 01 -m gemma3:270m --force-react --soul nova-helper  # With soul p
 | 🥈 | **`granite4:350m`** | **5/5 (100%)** | 44.5s | native | - | 🏆 Perfect with native tools |
 | 🥉 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 48.7s | native | - | 🏆 Perfect with native tools |
 | 4 | **`qwen2.5-coder:0.5b-instruct-q4_k_m`** | **5/5 (100%)** | 93.3s | react | - | 🏆 Perfect with ReAct |
-| 5 | **`gemma3:270m`** | **5/5 (100%)** | 92.7s | none | nova-helper | 🏆 **+80%** with soul! |
-| 6 | **`dolphin3.0-qwen2.5:0.5b`** | **5/5 (100%)** | 38.2s | none | nova-helper | 🏆 **+40%** with soul! |
-| 7 | `qwen:0.5b` | 5/5 (100%) | 221.7s | react | - | 🏆 +80% --force-react used |
+| 5 | **`qwen2:0.5b`** | **5/5 (100%)** | 53.8s | none | nova-helper | 🏆 Fallback synthesis fix! |
+| 6 | **`qwen3:0.6b`** | **5/5 (100%)** | 102.3s | react | nova-helper | 🏆 **NEW!** Qwen3 family! |
+| 7 | **`gemma3:270m`** | **5/5 (100%)** | 106.5s | react | nova-helper | 🏆 Soul + synthesis fix! |
+| 8 | **`dolphin3.0-qwen2.5:0.5b`** | **5/5 (100%)** | 38.2s | none | nova-helper | 🏆 **+40%** with soul! |
+| 9 | `qwen:0.5b` | 5/5 (100%) | 221.7s | react | - | 🏆 +80% --force-react used |
+| 10 | **`qwen3.5:0.8b`** | **5/5 (100%)** | 331.8s | react | nova-helper | 🏆 **NEW!** Qwen3.5 family! |
+
+### R03.3 Bug Fixes
+
+| Issue | Before | After |
+|-------|--------|-------|
+| Soul mode accepting wrong answers | ❌ Accepted model's guess | ✅ Tries synthesis first |
+| Tool support source not visible | ❌ Just showed "none" | ✅ Shows "none (source: cache/detected)" |
+| Fallback synthesis only for REACT | ❌ Skipped for NONE mode | ✅ Works for all modes |
+| Wrong Final Answer accepted | ❌ Model guess used | ✅ Calculator result overrides |
 
 ### Soul Persona Impact Analysis
 
-> **New in R03.2:** Testing how focused soul personas improve small model performance
+> **R03.3:** Testing how focused soul personas improve small model performance
 
 | Model | Params | Without Soul | With nova-helper | Improvement |
 |-------|-------:|--------------|------------------|:-----------:|
+| `qwen2:0.5b` | 500M | ~2/5 (40%) | **5/5 (100%)** | **+60%** ✅ |
+| `qwen3:0.6b` | 600M | ~3/5 (60%) | **5/5 (100%)** | **+40%** ✅ |
 | `gemma3:270m` | 270M | 4/5 (80%) | **5/5 (100%)** | **+20%** ✅ |
 | `dolphin3.0-qwen2.5:0.5b` | 500M | 3/5 (60%) | **5/5 (100%)** | **+40%** ✅ |
+| `qwen3.5:0.8b` | 800M | ~3/5 (60%) | **5/5 (100%)** | **+40%** ✅ |
 
 **Key Insight:** A focused soul persona can transform a failing model into a perfect scorer! The nova-helper soul:
 - Reduced dolphin3.0's time from 143.8s → 38.2s (3.7x faster!)
 - Fixed Q5 (time calc) for both models
 - Fixed Q2 (multi-step) for dolphin3.0
+- **NEW:** Fallback synthesis now works in soul mode, catching model errors
 
 ### Test Questions (5 Targeted Tests)
 
@@ -50,28 +66,31 @@ agentnova test 01 -m gemma3:270m --force-react --soul nova-helper  # With soul p
 | Q4 | Word Problem | Natural language → expression | 10 |
 | Q5 | Time Calc | Store hours calculation | 8 |
 
-### Key Findings (R03.2)
+### Key Findings (R03.3)
 
-1. **6 models achieve 100%** - functiongemma:270m, granite4:350m, qwen2.5:0.5b, qwen2.5-coder:0.5b-instruct, gemma3:270m+soul, dolphin3.0+soul
+1. **10 models achieve 100%** - functiongemma:270m, granite4:350m, qwen2.5:0.5b, qwen2.5-coder:0.5b-instruct, qwen2:0.5b+soul, qwen3:0.6b+soul, gemma3:270m+soul, dolphin3.0+soul, qwen:0.5b, qwen3.5:0.8b+soul
 2. **`functiongemma:270m` fastest perfect** - 23.7s for 5/5, native tools + 270M params!
-3. **Soul personas transform performance** - gemma3:270m and dolphin3.0 both reach 100% with nova-helper
+3. **Qwen family dominates** - qwen2:0.5b, qwen3:0.6b, qwen3.5:0.8b all hit 100% with soul!
 4. **`dolphin3.0+ nova-helper` fastest no-tool 100%** - 38.2s, pure ReAct mode!
-5. **Focused prompts beat model size** - 270M with soul matches 500M native tools
+5. **Fallback synthesis saves small models** - Catches wrong answers even when model "knows" it should use tools
 6. **Tool-calling still dominates** - Native/react models score 100% without soul assistance
+7. **Qwen3.5:0.8b slowest 100%** - 331.8s, but still perfect accuracy
 
 ### Failure Analysis (Without Soul)
 
 | Model | Failed Questions | Issue |
 |-------|-----------------|-------|
+| `qwen2:0.5b` | Q3, Q4, Q5 | Wrong answers, no tool use |
 | `gemma3:270m` | Q5 | Empty response, context issues |
 | `qwen:0.5b` | Q2, Q3, Q4 | Base model, struggles with multi-step |
 | `dolphin3.0-qwen2.5:0.5b` | Q2, Q5 | Tool support removed, wrote Python code instead of using calculator |
 
-### Failure Resolution (With nova-helper Soul)
+### Failure Resolution (With nova-helper Soul + Fallback Synthesis)
 
 | Model | Before Soul | After Soul | Resolution |
 |-------|-------------|------------|------------|
-| `gemma3:270m` | 4/5 (Q5 empty) | **5/5** | Focused persona kept model on task |
+| `qwen2:0.5b` | ~2/5 (wrong calc) | **5/5** | Fallback synthesis catches wrong answers |
+| `gemma3:270m` | 4/5 (Q5 empty) | **5/5** | Focused persona + synthesis keeps model on task |
 | `dolphin3.0-qwen2.5:0.5b` | 3/5 (Q2 code, Q5 echo) | **5/5** | Clear tool instructions prevented code output |
 
 ---
@@ -306,10 +325,12 @@ AgentNova has been tested with **Microsoft BitNet-b1.58-2B-4T** — a 2B paramet
 | **🏆 BEST OVERALL** | **`functiongemma:270m`** | **100% in 23.7s** - fastest perfect, native tools! |
 | **Best with Soul** | **`dolphin3.0-qwen2.5:0.5b`** + nova-helper | **100% in 38.2s** - soul transforms performance! |
 | **Best Runner-up** | **`granite4:350m`** | **100% in 44.5s** - native tools, 350M params |
+| **Best Qwen3** | **`qwen3:0.6b`** + nova-helper | **100% in 102.3s** - newest Qwen family! |
 | **Best with ReAct** | **`qwen2.5-coder:0.5b-instruct-q4_k_m`** | **100% in 93.3s** - ReAct mode, code focused |
 | **Best Native** | **`qwen2.5:0.5b`** | **100% in 48.7s** - native tools, fast math! |
 | **Best Speed (100%)** | `functiongemma:270m` | **23.7s**, 100% accuracy, 270M params |
-| **Best No-Tool + Soul** | `gemma3:270m` + nova-helper | **100%** - smallest model with perfect score! |
+| **Best No-Tool + Soul** | `qwen2:0.5b` + nova-helper | **100% in 53.8s** - fallback synthesis magic! |
+| **Smallest 100%** | `gemma3:270m` + nova-helper | **100%** - 270M params with soul! |
 | **Large context** | `llama3.2:1b` | **128k context window**, 87% accuracy |
 | **CPU-only** | `BitNet-b1.58-2B-4T` | Efficient ternary weights |
 
@@ -321,7 +342,10 @@ AgentNova has been tested with **Microsoft BitNet-b1.58-2B-4T** — a 2B paramet
 | **`granite4:350m`** | Native | - | 🏆 **100%** - native tools, 350M params |
 | **`qwen2.5:0.5b`** | Native | - | 🏆 **100%** - native tools work great |
 | **`qwen2.5-coder:0.5b-instruct-q4_k_m`** | ReAct | - | 🏆 **100%** - code focused, quantized |
-| **`gemma3:270m`** | ReAct | nova-helper | 🏆 **100%** - soul enables perfect score |
+| **`qwen2:0.5b`** | None | nova-helper | 🏆 **100%** - fallback synthesis saves it! |
+| **`qwen3:0.6b`** | ReAct | nova-helper | 🏆 **100%** - newest Qwen family! |
+| **`qwen3.5:0.8b`** | ReAct | nova-helper | 🏆 **100%** - larger Qwen3.5 model |
+| **`gemma3:270m`** | ReAct | nova-helper | 🏆 **100%** - soul + synthesis fix |
 | **`dolphin3.0-qwen2.5:0.5b`** | ReAct | nova-helper | 🏆 **100%** - soul fixes tool confusion |
 | `dolphin3.0-qwen2.5:0.5b` | None | - | 60% without soul, tool support removed |
 | `gemma3:270m` | None | - | 80% without soul, Q5 context issues |
@@ -343,6 +367,7 @@ AgentNova has been tested with **Microsoft BitNet-b1.58-2B-4T** — a 2B paramet
 ## Soul Persona System
 
 > **New in R03.2:** Soul personas can dramatically improve small model performance
+> **R03.3 Update:** Fallback synthesis now works in soul mode - catches model errors!
 
 The `--soul` flag loads a focused persona that guides model behavior. The included `nova-helper` soul is optimized for diagnostic testing:
 
@@ -361,8 +386,13 @@ agentnova test 01 -m dolphin --soul nova-helper --soul-level 3
 **Impact:**
 | Model | Without Soul | With nova-helper |
 |-------|--------------|------------------|
+| qwen2:0.5b | ~2/5 (40%) | **5/5 (100%)** |
+| qwen3:0.6b | ~3/5 (60%) | **5/5 (100%)** |
 | gemma3:270m | 4/5 (80%) | **5/5 (100%)** |
 | dolphin3.0-qwen2.5:0.5b | 3/5 (60%) | **5/5 (100%)** |
+| qwen3.5:0.8b | ~3/5 (60%) | **5/5 (100%)** |
+
+**R03.3 Enhancement:** When soul mode is active, the system now attempts fallback synthesis before accepting the model's answer. This catches cases where the model "knows" it should use tools but outputs a wrong guess anyway.
 
 **Create Custom Souls:**
 ```bash
