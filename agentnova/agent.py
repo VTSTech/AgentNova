@@ -935,6 +935,38 @@ class Agent:
                     self.memory.add("user", reminder)
                     continue
 
+            # ---- ReAct: use tool result as final answer if model gives conversational response ----
+            # If we have successful tool results but model doesn't output "Final Answer:" format,
+            # use the last tool result as the final answer
+            # ONLY trigger if:
+            # 1. We have successful_results from this iteration
+            # 2. The model gave a CONVERSATIONAL response (not a tool call)
+            # 3. This is not the first iteration (model had a chance to process observation)
+            if (self._tool_support == ToolSupportLevel.REACT and 
+                successful_results and 
+                self.soul is None and
+                step_num > 0):  # Not first iteration - model has seen observation
+                
+                # Model gave a conversational response after tool execution
+                # Extract the tool result and use it as the final answer
+                from .core.helpers import strip_tool_prefix
+                
+                last_result = successful_results[-1]
+                result_value = strip_tool_prefix(last_result)
+                
+                # Only use if result has meaningful content
+                if result_value and len(result_value) > 0 and not result_value.startswith("Error"):
+                    if self.debug:
+                        print(f"  ReAct: using tool result as final answer: {result_value[:100]}...")
+                    
+                    steps.append(StepResult(
+                        type=StepResultType.FINAL_ANSWER,
+                        content=result_value,
+                        tokens_used=tokens,
+                    ))
+                    self.memory.add("assistant", f"Final Answer: {result_value}")
+                    break
+
             # ---- ReAct fallback: synthesize tool call after reminder failed ----
             # If reminder was sent but model still didn't output tool call, try to synthesize one
             # BUT skip this if a soul is loaded - chat mode should allow natural conversation
