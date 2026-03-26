@@ -19,6 +19,7 @@ import time
 from typing import Any, Generator, Optional
 
 from .core.models import AgentRun, StepResult, Tool, ToolParam, ToolCall
+from .core.types import StepResultType
 from .core.memory import Memory, MemoryConfig
 from .core.tool_parse import ToolParser
 from .core.openresponses import (
@@ -168,9 +169,9 @@ class Agent:
             # Custom system prompt provided
             self._custom_system_prompt = system_prompt
         elif soul is not None:
-            # Load soul and build system prompt
+            # Load soul and build system prompt with dynamic tools
             try:
-                from .soul import load_soul, build_system_prompt as build_soul_prompt
+                from .soul import load_soul, build_system_prompt_with_tools
                 self.soul = load_soul(soul, level=soul_level)
                 
                 # Filter tools based on soul.allowed_tools (additional filtering)
@@ -184,8 +185,16 @@ class Agent:
                         self.tools = self.tools.subset(list(filtered))
                         has_tools = len(self.tools) > 0
                 
-                # Build system prompt from soul
-                self._custom_system_prompt = build_soul_prompt(self.soul, level=soul_level)
+                # Build system prompt with dynamic tool injection
+                if has_tools:
+                    self._custom_system_prompt = build_system_prompt_with_tools(
+                        self.soul,
+                        self.tools.all(),
+                        level=soul_level,
+                    )
+                else:
+                    from .soul import build_system_prompt
+                    self._custom_system_prompt = build_system_prompt(self.soul, level=soul_level)
                 
                 if debug:
                     print(f"[Soul] Loaded: {self.soul.display_name} v{self.soul.version}")
@@ -203,11 +212,6 @@ class Agent:
                 self._custom_system_prompt = self._build_default_prompt(has_tools)
         else:
             self._custom_system_prompt = self._build_default_prompt(has_tools)
-
-        # Inject dynamic tool section if tools are available
-        if has_tools:
-            tool_section = self._build_tool_section()
-            self._custom_system_prompt = f"{self._custom_system_prompt}\n\n{tool_section}"
 
         # Initialize tool parser
         self._parser = ToolParser(self.tools.names())
@@ -248,50 +252,6 @@ Final Answer: <the answer>
 4. Never make up information"""
         else:
             return "You are a helpful AI assistant. Answer questions directly and accurately."
-
-    def _build_tool_section(self) -> str:
-        """Build the dynamic tool section for the system prompt."""
-        tools = self.tools.all()
-        if not tools:
-            return ""
-
-        lines = ["## Available Tools\n"]
-        lines.append("**FIRST: Check what tools are available to you right now. Only use tools from the available list.**\n")
-        lines.append("| Tool | When to use | Arguments |")
-        lines.append("|------|-------------|-----------|")
-
-        for tool in tools:
-            name = getattr(tool, 'name', str(tool))
-            desc = getattr(tool, 'description', '')
-            params = getattr(tool, 'params', [])
-            
-            # Build arguments example
-            if params:
-                param_pairs = []
-                for p in params:
-                    p_name = getattr(p, 'name', str(p))
-                    p_type = getattr(p, 'type', 'string')
-                    if p_type == 'string':
-                        param_pairs.append(f'"{p_name}": "..."')
-                    elif p_type in ('number', 'integer', 'float'):
-                        param_pairs.append(f'"{p_name}": 0')
-                    else:
-                        param_pairs.append(f'"{p_name}": ...')
-                args_example = "{" + ", ".join(param_pairs) + "}"
-            else:
-                args_example = "{}"
-
-            # Truncate description if too long for table
-            short_desc = desc.split('.')[0] if desc else "No description"
-            if len(short_desc) > 50:
-                short_desc = short_desc[:47] + "..."
-
-            lines.append(f"| `{name}` | {short_desc} | `{args_example}` |")
-
-        lines.append("")
-        lines.append("**CRITICAL RULE**: If a tool is NOT in the available tools list, do NOT try to use it. Respond directly instead.")
-
-        return "\n".join(lines)
 
     def run(self, prompt: str, stream: bool = False) -> AgentRun:
         """
@@ -702,8 +662,5 @@ Final Answer: <the answer>
     def __repr__(self) -> str:
         return f"Agent(model={self.model}, tools={len(self.tools)}, tool_choice={self.tool_choice.type.value})"
 
-
-# Import StepResultType for the AgentRun
-from .core.types import StepResultType
 
 __all__ = ["Agent"]

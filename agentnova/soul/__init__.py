@@ -55,6 +55,7 @@ from .loader import (
     SoulLoader,
     load_soul,
     build_system_prompt,
+    build_system_prompt_with_tools,
     get_soul_loader,
 )
 
@@ -93,5 +94,6 @@ __all__ = [
     "SoulLoader",
     "load_soul",
     "build_system_prompt",
+    "build_system_prompt_with_tools",
     "get_soul_loader",
 ]
