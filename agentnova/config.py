@@ -120,8 +120,8 @@ class Config:
 
     # Agent settings
     max_steps: int = field(default_factory=lambda: MAX_STEPS)
-    temperature: float = 0.7
-    max_tokens: int = 2048
+    temperature: float = 0.1
+    max_tokens: int = 8192
     num_ctx: int | None = field(default_factory=lambda: NUM_CTX if NUM_CTX > 0 else None)
 
     # Memory settings

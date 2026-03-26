@@ -28,9 +28,9 @@ class ModelFamilyConfig:
     supports_vision: bool = False
 
     # Generation defaults
-    default_temperature: float = 0.7
+    default_temperature: float = 0.1
     default_top_p: float = 0.9
-    default_max_tokens: int = 2048
+    default_max_tokens: int = 8192
 
     # Special behaviors
     needs_empty_system: bool = False  # Some models break with empty system

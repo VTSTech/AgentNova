@@ -109,6 +109,7 @@ After getting the result, provide the final answer as a number."""
             
             agent = Agent(
                 model=model,
+                temp=0.0,
                 tools=tool_registry,
                 backend=backend,
                 max_steps=5,

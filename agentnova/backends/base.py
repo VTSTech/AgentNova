@@ -57,8 +57,8 @@ class BaseBackend(ABC):
         model: str,
         messages: list[dict],
         tools: list[Tool] | None = None,
-        temperature: float = 0.7,
-        max_tokens: int = 2048,
+        temperature: float = 0.1,
+        max_tokens: int = 8192,
         **kwargs,
     ) -> dict:
         """
@@ -86,8 +86,8 @@ class BaseBackend(ABC):
         model: str,
         messages: list[dict],
         tools: list[Tool] | None = None,
-        temperature: float = 0.7,
-        max_tokens: int = 2048,
+        temperature: float = 0.1,
+        max_tokens: int = 8192,
         **kwargs,
     ) -> Generator[str, None, None]:
         """

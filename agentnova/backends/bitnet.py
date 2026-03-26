@@ -58,7 +58,7 @@ class BitNetBackend(BaseBackend):
         model: str,
         messages: list[dict],
         tools: list[Tool] | None = None,
-        temperature: float = 0.7,
+        temperature: float = 0.1,
         max_tokens: int = 2048,
         **kwargs,
     ) -> dict:
