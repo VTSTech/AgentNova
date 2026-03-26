@@ -166,83 +166,6 @@ def _extract_tool_from_json(obj: dict, debug: bool = False) -> tuple[str | None,
     return name, args
 
 
-def _parse_json_tool_call(text: str, debug: bool = False) -> tuple[str | None, dict | None]:
-    """
-    Fallback for models that output tool calls as JSON text instead of
-    using the native tool_calls API field.
-    
-    Returns (tool_name, tool_args) or (None, None) if not found.
-    """
-    if _looks_like_tool_schema_dump(text):
-        if debug:
-            print(f"    _parse_json_tool_call: skipping - looks like schema dump")
-        return None, None
-
-    # First, try to extract JSON from markdown code blocks
-    code_block_pattern = re.compile(r'```(?:json)?[^\n]*\n(.*?)```', re.DOTALL)
-    code_blocks = code_block_pattern.findall(text)
-    if debug and code_blocks:
-        print(f"    _parse_json_tool_call: found {len(code_blocks)} code blocks")
-    for block in code_blocks:
-        block = block.strip()
-        if debug:
-            print(f"    _parse_json_tool_call: checking block: {block[:60]}...")
-        if block.startswith('{'):
-            if debug:
-                print(f"    _parse_json_tool_call: found JSON code block")
-            json_str = _sanitize_model_json(block)
-            try:
-                obj = json.loads(json_str)
-                result = _extract_tool_from_json(obj, debug)
-                if result[0]:
-                    return result
-            except json.JSONDecodeError as e:
-                if debug:
-                    print(f"    _parse_json_tool_call: code block JSON parse error: {e}")
-                continue
-
-    # Fallback: Strip all markdown and find first JSON object
-    cleaned = re.sub(r"```(?:json|python)?", "", text).strip().rstrip("`").strip()
-    
-    start = cleaned.find("{")
-    if start == -1:
-        if debug:
-            print(f"    _parse_json_tool_call: no JSON object found")
-        return None, None
-    
-    # Find matching closing brace
-    depth = 0
-    end = -1
-    for i, ch in enumerate(cleaned[start:], start):
-        if ch == '{':
-            depth += 1
-        elif ch == '}':
-            depth -= 1
-            if depth == 0:
-                end = i
-                break
-    
-    if end == -1:
-        if debug:
-            print(f"    _parse_json_tool_call: no matching closing brace")
-        return None, None
-
-    json_str = cleaned[start:end + 1]
-    if debug:
-        print(f"    _parse_json_tool_call: extracted JSON: {json_str[:100]}...")
-
-    json_str = _sanitize_model_json(json_str)
-
-    try:
-        obj = json.loads(json_str)
-    except json.JSONDecodeError as e:
-        if debug:
-            print(f"    _parse_json_tool_call: JSON parse error: {e}")
-        return None, None
-
-    return _extract_tool_from_json(obj, debug)
-
-
 def _extract_python_code(text: str) -> str | None:
     """
     Extract Python code from markdown code blocks.
@@ -251,40 +174,6 @@ def _extract_python_code(text: str) -> str | None:
     if match:
         return match.group(1).strip()
     return None
-
-
-def _try_extract_tool_from_malformed(text: str, available_tools: list[str]) -> tuple[str | None, dict | None]:
-    """
-    Try to extract a tool call from malformed model output.
-    """
-    text_lower = text.lower()
-    
-    for tool_name in available_tools:
-        if tool_name.lower() in text_lower:
-            args = {}
-            
-            if tool_name == "python_repl":
-                code = _extract_python_code(text)
-                if code:
-                    return tool_name, {"code": code}
-                if "datetime" in text_lower or "strftime" in text_lower:
-                    return tool_name, {}
-            
-            if tool_name == "web-search":
-                query_match = re.search(r'"query":\s*"([^"]+)"', text)
-                if query_match:
-                    return tool_name, {"query": query_match.group(1)}
-                return tool_name, {}
-            
-            if tool_name == "calculator":
-                expr_match = re.search(r'"expression":\s*"([^"]+)"', text)
-                if expr_match:
-                    return tool_name, {"expression": expr_match.group(1)}
-                return tool_name, {}
-            
-            return tool_name, args
-    
-    return None, None
 
 
 def _fuzzy_match_tool_name(hallucinated_name: str, available_tool_names: list[str]) -> str | None:
@@ -508,12 +397,17 @@ class ToolParser:
         """
         Parse all tool calls from text.
 
-        Tries multiple formats in order:
-        1. Native JSON function calls
-        2. ReAct format
-        3. XML format
-        4. Embedded JSON in markdown
-        5. JSON anywhere in text (fallback)
+        OpenResponses: Only parses EXPLICIT tool call formats from the model.
+        No fallbacks that synthesize tool calls from content.
+
+        Supported formats:
+        1. Native JSON function calls (for models with native tool support)
+        2. ReAct format: Action: tool_name\nAction Input: {...}
+        3. XML format: <tool>name</tool><args>{...}</args>
+
+        IMPORTANT: The model must explicitly format tool calls. JSON in markdown
+        code blocks or elsewhere in text is NOT parsed as a tool call unless
+        the model uses explicit Action/Action Input format.
 
         Args:
             text: Model output text
@@ -526,20 +420,13 @@ class ToolParser:
         # Try native JSON first (for models with function calling)
         calls.extend(self._parse_native_json(text))
 
-        # Try ReAct format
+        # Try ReAct format (explicit Action/Action Input)
         calls.extend(self._parse_react(text))
 
-        # Try XML format
+        # Try XML format (explicit <tool> tags)
         calls.extend(self._parse_xml(text))
 
-        # Try embedded JSON in markdown
-        if not calls:
-            calls.extend(self._parse_markdown_json(text))
-
-        # FALLBACK: Try to find JSON anywhere in text
-        # This handles cases like: {"action": "calculator", "actionInput": {...}}
-        if not calls:
-            calls.extend(self._parse_json_anywhere(text))
+        # NO FALLBACKS - tool calls must come from the model explicitly
 
         return calls
 
@@ -641,64 +528,6 @@ class ToolParser:
 
         return calls
 
-    def _parse_markdown_json(self, text: str) -> list[ToolCall]:
-        """Parse JSON embedded in markdown code blocks."""
-        calls = []
-
-        # Find JSON code blocks
-        code_block_pattern = re.compile(r"```(?:json)?\s*([\s\S]*?)```", re.IGNORECASE)
-
-        for match in code_block_pattern.finditer(text):
-            json_text = match.group(1).strip()
-            try:
-                data = json.loads(json_text)
-                call = self._extract_tool_from_json(data)
-                if call:
-                    calls.append(call)
-            except json.JSONDecodeError:
-                continue
-
-        return calls
-
-    def _parse_json_anywhere(self, text: str) -> list[ToolCall]:
-        """
-        Find and parse JSON tool calls anywhere in text.
-        
-        This is a fallback for models that output JSON like:
-        {"action": "calculator", "actionInput": {"expression": "15 + 27"}}
-        
-        without using "Action:" prefix or markdown code blocks.
-        """
-        if _looks_like_tool_schema_dump(text):
-            return []
-        
-        calls = []
-        
-        # Use the existing _parse_json_tool_call function
-        name, args = _parse_json_tool_call(text)
-        
-        # Validate the result before creating a ToolCall
-        if name and isinstance(name, str) and len(name) > 0:
-            # Ensure args is a dict
-            if not isinstance(args, dict):
-                args = {}
-            
-            # Skip if name looks like code or an expression
-            if any(c in name for c in '()[]=<>{}'):
-                return []
-            
-            # Fuzzy match the tool name
-            matched_name = self._fuzzy_match_tool(name)
-            
-            calls.append(ToolCall(
-                name=matched_name,
-                arguments=args,
-                raw=text,
-                confidence=0.8,
-            ))
-        
-        return calls
-
     def _fuzzy_match_tool(self, name: str) -> str:
         """
         Fuzzy match tool name against known tools.
@@ -750,7 +579,6 @@ class ToolParser:
 __all__ = [
     "ToolCall",
     "ToolParser",
-    "_parse_json_tool_call",
     "_parse_react",
     "_fuzzy_match_tool_name",
     "_extract_python_code",
