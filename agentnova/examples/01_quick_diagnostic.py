@@ -44,6 +44,9 @@ def parse_args():
     parser.add_argument("--debug", action="store_true", help="Enable debug output")
     parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None)
     parser.add_argument("--force-react", action="store_true", help="Force ReAct mode for tool calling")
+    parser.add_argument("--soul", default=None, help="Path to Soul Spec package")
+    parser.add_argument("--soul-level", type=int, default=2, choices=[1, 2, 3],
+                       help="Soul progressive disclosure level (1=quick, 2=full, 3=deep)")
     return parser.parse_args()
 
 
@@ -79,7 +82,8 @@ def extract_number(text: str) -> str | None:
     return match.group(0) if match else None
 
 
-def run_diagnostic(model: str, backend, debug: bool = False, force_react: bool = False) -> dict:
+def run_diagnostic(model: str, backend, debug: bool = False, force_react: bool = False,
+                   soul: str = None, soul_level: int = 2) -> dict:
     """Run diagnostic tests for a model."""
     print(f"\n{'='*60}")
     print(f"🧪 Quick Diagnostic: {model}")
@@ -87,8 +91,11 @@ def run_diagnostic(model: str, backend, debug: bool = False, force_react: bool =
     
     results = {"model": model, "passed": 0, "total": len(TESTS), "time": 0, "tests": {}}
     
-    # System prompt that instructs the model to use the calculator
-    system_prompt = """You are a helpful assistant with access to a calculator tool.
+    # System prompt: use soul's prompt if provided, otherwise use default calculator prompt
+    if soul:
+        system_prompt = None  # Soul will provide the system prompt
+    else:
+        system_prompt = """You are a helpful assistant with access to a calculator tool.
 When asked to calculate something, ALWAYS use the calculator tool.
 Pass the mathematical expression to the calculator (e.g., "15 + 27" or "8 * 7 - 5").
 After getting the result, provide the final answer as a number."""
@@ -108,6 +115,8 @@ After getting the result, provide the final answer as a number."""
                 debug=debug,
                 force_react=force_react,
                 system_prompt=system_prompt,
+                soul=soul,
+                soul_level=soul_level,
             )
             
             t0 = time.time()
@@ -184,8 +193,11 @@ def main():
     print(f"   Model: {model}")
     if args.force_react:
         print(f"   Force ReAct: True")
+    if args.soul:
+        print(f"   Soul: {args.soul}")
     
-    result = run_diagnostic(model, backend, debug=args.debug, force_react=args.force_react)
+    result = run_diagnostic(model, backend, debug=args.debug, force_react=args.force_react,
+                           soul=args.soul, soul_level=args.soul_level)
     
     # Return granular results for test runner, exit_code for direct execution
     result["exit_code"] = 0 if result["passed"] == result["total"] else 1

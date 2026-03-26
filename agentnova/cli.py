@@ -396,6 +396,9 @@ def create_parser() -> argparse.ArgumentParser:
     test_parser.add_argument("--timeout", type=int, default=None,
                            help="Request timeout in seconds (default: 120)")
     test_parser.add_argument("--force-react", action="store_true", help="Force ReAct mode for tool calling")
+    test_parser.add_argument("--soul", default=None, help="Path to Soul Spec package (disabled by default)")
+    test_parser.add_argument("--soul-level", type=int, default=2, choices=[1, 2, 3],
+                           help="Soul progressive disclosure level (1=quick, 2=full, 3=deep)")
 
     # Version command
     subparsers.add_parser("version", help="Show version information")
@@ -490,8 +493,6 @@ def cmd_run(args: argparse.Namespace) -> int:
     )
 
     # Log to ACP
-    if acp:
-        acp.log_chat("user", args.prompt)
 
     result = agent.run(args.prompt)
     print(result.final_answer)
@@ -627,6 +628,7 @@ def cmd_agent(args: argparse.Namespace) -> int:
         tools=tools,
         backend=backend,
         debug=args.debug,
+        force_react=getattr(args, 'force_react', False),
         soul=getattr(args, 'soul', None),
         soul_level=getattr(args, 'soul_level', 2),
         num_ctx=getattr(args, 'num_ctx', None) or config.num_ctx,
@@ -1160,9 +1162,12 @@ def cmd_test(args: argparse.Namespace) -> int:
                 if args.backend:
                     test_argv.extend(["--backend", args.backend])
                 if getattr(args, 'force_react', False):
-                    test_argv.append("--force-react")                    
+                    test_argv.append("--force-react")
                 if getattr(args, 'use_modelfile_system', False):
                     test_argv.append("--use-mf-sys")
+                if getattr(args, 'soul', None):
+                    test_argv.extend(["--soul", args.soul])
+                    test_argv.extend(["--soul-level", str(getattr(args, 'soul_level', 2))])
                 
                 # Override sys.argv for the test module's argparse
                 old_argv = sys.argv
