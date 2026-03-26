@@ -4,6 +4,95 @@ All notable changes to AgentNova refactor-1 will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [R03.2] - 2026-03-26 1:13:48 AM
+
+### Soul-Enhanced Testing & Model Fuzzy Matching
+
+Major improvements to testing capabilities with soul persona integration for test commands and fuzzy model pattern matching.
+
+### Added
+
+#### Soul Support for Test Command
+- **`--soul` flag for test subcommand** - Load soul personas during test runs
+  - Usage: `agentnova test 01 -m gemma3:270m --force-react --soul nova-helper`
+- **`--soul-level` flag for test subcommand** - Control progressive disclosure (1-3)
+- **All test modules updated** to accept soul arguments (tests 00-11)
+- **Soul arguments passed to Agent** in test modules that create agents
+
+#### Model Fuzzy Matching
+- **`match_models()` function** in `model_discovery.py` - Pattern-based model discovery
+  - Prefix matching: `'qwen'` matches all qwen* models
+  - Contains matching: `'coder'` matches *coder* models
+  - Tag matching: `':0.5b'` matches all 0.5b quantized models
+- **`resolve_model_pattern()` function** - Resolve pattern with helpful output
+  - Shows all matching models when multiple match
+  - Returns list when `allow_multiple=True`
+- **Test command fuzzy matching** - `agentnova test 01 -m qwen` tests all qwen models
+
+#### LLM Diagnostic Soul (nova-helper)
+- **Redesigned nova-helper soul** for diagnostic testing
+  - Focused on answering accurately, following instructions, using tools
+  - Explicit ReAct format with calculator examples
+  - Concise response format (no filler)
+  - Updated SOUL.md, IDENTITY.md, STYLE.md, soul.json
+
+### Fixed
+
+#### Soul Module Import
+- **Fixed `___init___.py` filename** - Was triple underscores, renamed to `__init__.py`
+  - Soul module now imports correctly: `from agentnova.soul import load_soul`
+
+#### Fuzzy Matching Return Type
+- **Fixed `resolve_model_pattern()` return type** - Always returns list when `allow_multiple=True`
+  - Previously returned string when single model matched, causing character iteration bug
+  - Now checks `allow_multiple` before returning single match
+
+### Test Results (R03.2)
+
+#### Soul Persona Impact
+
+| Model | Params | Without Soul | With nova-helper | Improvement |
+|-------|-------:|--------------|------------------|:-----------:|
+| `gemma3:270m` | 270M | 4/5 (80%) | **5/5 (100%)** | **+20%** ✅ |
+| `dolphin3.0-qwen2.5:0.5b` | 500M | 3/5 (60%) | **5/5 (100%)** | **+40%** ✅ |
+| `qwen:0.5b` | 500M | 2/5 (40%) | **5/5 (100%)** +react | **+60%** ✅ |
+
+#### Quick Diagnostic Rankings (R03.2)
+
+| Rank | Model | Score | Time | Enhancement |
+|:----:|-------|------:|-----:|-------------|
+| 🥇 | `functiongemma:270m` | 5/5 (100%) | 23.7s | native |
+| 🥈 | `granite4:350m` | 5/5 (100%) | 44.5s | native |
+| 🥉 | `qwen2.5:0.5b` | 5/5 (100%) | 48.7s | native |
+| 4 | `dolphin3.0-qwen2.5:0.5b` | 5/5 (100%) | 38.2s | +soul |
+| 5 | `qwen2.5-coder:0.5b-instruct` | 5/5 (100%) | 93.3s | react |
+| 6 | `gemma3:270m` | 5/5 (100%) | 92.7s | +soul |
+| 7 | `qwen:0.5b` | 5/5 (100%) | 221.7s | +react |
+
+**🎉 7 models achieve 100% on Test 01!**
+
+### Key Insights
+
+1. **Soul personas transform performance** - Focused prompts can fix confused models
+2. **ReAct mode fixes base models** - `qwen:0.5b` jumps from 40% to 100% with `--force-react`
+3. **Prompt engineering beats model size** - 270M with soul matches 500M native
+4. **Dolphin3.0 + nova-helper fastest no-tool 100%** - 38.2s, pure ReAct mode
+
+### Usage
+
+```bash
+# Test with soul persona
+agentnova test 01 -m gemma3:270m --force-react --soul nova-helper
+
+# Test multiple models with fuzzy matching
+agentnova test 01 -m qwen --force-react
+
+# Test with soul and custom disclosure level
+agentnova test 01 -m dolphin --soul nova-helper --soul-level 3
+```
+
+---
+
 ## [R03.1] - 2026-03-25 3:42:28 PM
 
 ### Soul Spec v0.5 Integration
