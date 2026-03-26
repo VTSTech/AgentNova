@@ -24,7 +24,7 @@ agentnova test 01 -m gemma3:270m --force-react --soul nova-helper  # With soul p
 | 4 | **`qwen2.5-coder:0.5b-instruct-q4_k_m`** | **5/5 (100%)** | 93.3s | react | - | 🏆 Perfect with ReAct |
 | 5 | **`gemma3:270m`** | **5/5 (100%)** | 92.7s | none | nova-helper | 🏆 **+80%** with soul! |
 | 6 | **`dolphin3.0-qwen2.5:0.5b`** | **5/5 (100%)** | 38.2s | none | nova-helper | 🏆 **+40%** with soul! |
-| 7 | `qwen:0.5b` | 5/5 (100%) | 221.7s | react | - | --force-react used |
+| 7 | `qwen:0.5b` | 5/5 (100%) | 221.7s | react | - | 🏆 +80% --force-react used |
 
 ### Soul Persona Impact Analysis
 
