@@ -9,12 +9,13 @@ agentnova/
 │   ├── models.py             # Data models (Tool, ToolParam, StepResult, AgentRun)
 │   ├── memory.py             # Sliding window conversation memory
 │   ├── tool_parse.py         # ReAct/JSON tool call extraction
-│   ├── helpers.py            # Utilities (fuzzy match, expression extraction, security)
+│   ├── helpers.py            # Utilities (fuzzy match, argument normalization, security)
 │   ├── prompts.py            # Model-specific system prompts and few-shot examples
 │   ├── model_config.py       # Model configuration (temperature, max tokens)
 │   ├── model_family_config.py # Family-specific behavior (stop tokens, formats)
 │   ├── args_normal.py        # Argument normalization for small model hallucinations
-│   └── math_prompts.py       # Math-specific prompt templates
+│   ├── math_prompts.py       # Math-specific prompt templates
+│   └── openresponses.py      # OpenResponses specification types (NEW)
 │
 ├── tools/
 │   ├── registry.py           # Tool registry with decorator-based registration
@@ -81,10 +82,64 @@ The main Agent class implements the ReAct loop with three-tier tool support:
 
 Key features:
 - Auto-detection of tool support level
-- Tool call synthesis for struggling models
 - Soul Spec integration for persona/personality
 - Streaming support
 - Debug output
+- OpenResponses specification compliance
+
+### OpenResponses Specification (`core/openresponses.py`)
+
+AgentNova now implements the OpenResponses specification for multi-provider, interoperable LLM interfaces. Key concepts:
+
+**Items**: Atomic units of context with lifecycle states
+- `MessageItem`: Conversation turns (user/assistant/system)
+- `FunctionCallItem`: Tool invocations from the model
+- `FunctionCallOutputItem`: Tool execution results
+- `ReasoningItem`: Model's internal thought process
+
+**State Machines**: Objects have defined lifecycle states
+- `ResponseStatus`: queued → in_progress → completed/failed/incomplete
+- `ItemStatus`: in_progress → completed/failed/incomplete
+
+**tool_choice**: Control tool invocation behavior
+- `"auto"`: Model decides whether to call tools (default)
+- `"required"`: Model MUST call at least one tool
+- `"none"`: Model MUST NOT call tools
+- Specific tool name: Model must call that tool
+
+**allowed_tools**: Restrict which tools can be invoked
+- Subset of registered tools the model is permitted to use
+- Enforced at execution time
+
+```python
+from agentnova import Agent
+from agentnova.core.openresponses import ToolChoice
+
+# Force the model to use tools
+agent = Agent(model="llama3", tools=["calculator"], tool_choice="required")
+
+# Restrict available tools
+agent = Agent(model="llama3", tools=["calculator", "shell"], allowed_tools=["calculator"])
+
+# Disable all tool usage
+agent = Agent(model="llama3", tools=["calculator"], tool_choice="none")
+```
+
+**Previous Response ID**: Resume conversations without resending context
+```python
+result = agent.run("What is 15 * 8?")
+response_id = result.response_id  # Stored internally
+
+# Continue the conversation
+agent.run("And what about 20 * 5?", previous_response_id=response_id)
+```
+
+**No Fallbacks**: Following OpenResponses principles, all tool calls must come from the model itself. Removed:
+- Greeting short-circuit
+- Calculator synthesis for math prompts
+- Auto-execution of no-arg tools
+- Wrong datetime tool auto-correction
+- Empty response retry with hints
 
 ### Backends (`backends/`)
 
