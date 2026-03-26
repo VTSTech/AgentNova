@@ -32,6 +32,16 @@ from .model_family_config import (
     get_react_system_suffix, get_native_tool_hints,
     FAMILY_CONFIGS,
 )
+# OpenResponses types
+from .openresponses import (
+    Response, ResponseStatus, ItemStatus,
+    ToolChoice, ToolChoiceType,
+    MessageItem, FunctionCallItem, FunctionCallOutputItem,
+    OutputText, InputText,
+    RequestConfig, Error,
+    create_message_item, create_function_call_item, create_function_call_output,
+    create_function_call_output_item,
+)
 
 __all__ = [
     # Types
@@ -92,4 +102,21 @@ __all__ = [
     "get_react_system_suffix",
     "get_native_tool_hints",
     "FAMILY_CONFIGS",
+    # OpenResponses
+    "Response",
+    "ResponseStatus",
+    "ItemStatus",
+    "ToolChoice",
+    "ToolChoiceType",
+    "MessageItem",
+    "FunctionCallItem",
+    "FunctionCallOutputItem",
+    "OutputText",
+    "InputText",
+    "RequestConfig",
+    "Error",
+    "create_message_item",
+    "create_function_call_item",
+    "create_function_call_output",
+    "create_function_call_output_item",
 ]
