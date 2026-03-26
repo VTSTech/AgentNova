@@ -113,12 +113,17 @@ class ToolChoice:
             # Treat as specific tool name
             self.type = ToolChoiceType.SPECIFIC
             self.name = value
-        self.name = name
+        # Only override name if explicitly provided
+        if name is not None:
+            self.name = name
     
     @classmethod
     def specific(cls, tool_name: str) -> "ToolChoice":
         """Create a tool choice that forces a specific tool."""
-        return cls(type=ToolChoiceType.SPECIFIC, name=tool_name)
+        instance = cls.__new__(cls)
+        instance.type = ToolChoiceType.SPECIFIC
+        instance.name = tool_name
+        return instance
     
     def to_dict(self) -> dict:
         """Serialize to dict for API."""

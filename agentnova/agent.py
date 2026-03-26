@@ -415,7 +415,7 @@ Final Answer: <the answer>
                     # Create FunctionCallItem
                     fc_item = create_function_call_item(tool_name, tool_args, tool_call_id)
                     fc_item.status = ItemStatus.IN_PROGRESS
-                    response.add_output_item(fc_item)
+                    response.add_output_item(fc_item, debug=self.debug)
                     
                     if self.debug:
                         print(f"  [OpenResponses] FunctionCallItem created: id={fc_item.id}, call_id={fc_item.call_id}")
@@ -432,7 +432,7 @@ Final Answer: <the answer>
 
                     # Create FunctionCallOutputItem
                     fco_item = create_function_call_output(fc_item.call_id, str(result))
-                    response.add_output_item(fco_item)
+                    response.add_output_item(fco_item, debug=self.debug)
                     
                     if self.debug:
                         print(f"  [OpenResponses] FunctionCallOutputItem created: id={fco_item.id}, call_id={fco_item.call_id}")
@@ -483,7 +483,7 @@ Final Answer: <the answer>
                 # Create output message item
                 msg_item = create_message_item("assistant", answer)
                 msg_item.status = ItemStatus.COMPLETED
-                response.add_output_item(msg_item)
+                response.add_output_item(msg_item, debug=self.debug)
                 
                 if self.debug:
                     print(f"  [OpenResponses] MessageItem created: id={msg_item.id}, role={msg_item.role}")
@@ -508,7 +508,7 @@ Final Answer: <the answer>
             if content:
                 msg_item = create_message_item("assistant", content)
                 msg_item.status = ItemStatus.COMPLETED
-                response.add_output_item(msg_item)
+                response.add_output_item(msg_item, debug=self.debug)
 
             if self.debug:
                 print(f"  No tool calls detected, treating as final answer")
