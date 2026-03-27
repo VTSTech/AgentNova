@@ -24,7 +24,7 @@ import time
 from typing import Any, Generator, Optional
 
 from .core.models import AgentRun, StepResult, Tool, ToolParam, ToolCall
-from .core.types import StepResultType
+from .core.types import StepResultType, ApiMode
 from .core.memory import Memory, MemoryConfig
 from .core.tool_parse import ToolParser
 from .core.error_recovery import (
@@ -168,7 +168,7 @@ class Agent:
         else:
             self.tool_choice = ToolChoice(tool_choice)
 
-        if debug:
+        if debug and not self._is_comp_mode:
             print(f"[OpenResponses] tool_choice initialized: type={self.tool_choice.type.value}, name={self.tool_choice.name or 'N/A'}, tools={self.tool_choice.tools or 'N/A'}")
 
         # OpenResponses: allowed_tools
@@ -193,14 +193,14 @@ class Agent:
             allowed_set = set(self._allowed_tools)
             current_tools = set(self.tools.names())
             filtered = current_tools.intersection(allowed_set)
-            if debug:
+            if debug and not self._is_comp_mode:
                 print(f"[OpenResponses] allowed_tools filter: {current_tools} ∩ {allowed_set} = {filtered}")
             if filtered != current_tools:
-                if debug:
+                if debug and not self._is_comp_mode:
                     print(f"[OpenResponses] Tools filtered: {current_tools} -> {filtered}")
                 self.tools = self.tools.subset(list(filtered))
             else:
-                if debug:
+                if debug and not self._is_comp_mode:
                     print(f"[OpenResponses] No tools filtered out")
 
         # Initialize memory
@@ -236,7 +236,7 @@ class Agent:
                     current_tools = set(self.tools.names())
                     filtered = current_tools.intersection(allowed)
                     if filtered != current_tools:
-                        if debug:
+                        if debug and not self._is_comp_mode:
                             print(f"[Soul] Filtering tools: {current_tools} -> {filtered}")
                         self.tools = self.tools.subset(list(filtered))
                         has_tools = len(self.tools) > 0
@@ -253,18 +253,18 @@ class Agent:
                     from .soul import build_system_prompt
                     self._custom_system_prompt = build_system_prompt(self.soul, level=soul_level)
                 
-                if debug:
+                if debug and not self._is_comp_mode:
                     print(f"[Soul] Loaded: {self.soul.display_name} v{self.soul.version}")
             except ImportError:
-                if debug:
+                if debug and not self._is_comp_mode:
                     print("[Soul] Soul module not available, using default prompt")
                 self._custom_system_prompt = self._build_default_prompt(has_tools)
             except FileNotFoundError as e:
-                if debug:
+                if debug and not self._is_comp_mode:
                     print(f"[Soul] Soul package not found: {e}")
                 self._custom_system_prompt = self._build_default_prompt(has_tools)
             except Exception as e:
-                if debug:
+                if debug and not self._is_comp_mode:
                     print(f"[Soul] Error loading soul: {e}")
                 self._custom_system_prompt = self._build_default_prompt(has_tools)
         else:
@@ -292,6 +292,11 @@ class Agent:
             max_consecutive_failures=DEFAULT_MAX_CONSECUTIVE_FAILURES,
             max_total_failures=DEFAULT_MAX_TOTAL_FAILURES,
         )
+
+    @property
+    def _is_comp_mode(self) -> bool:
+        """Check if backend is using Chat-Completions (comp) API mode."""
+        return hasattr(self.backend, 'api_mode') and self.backend.api_mode == ApiMode.COMPLETIONS
 
     def _build_default_prompt(self, has_tools: bool) -> str:
         """Build a default system prompt when soul is not available."""
@@ -354,13 +359,13 @@ Final Answer: <the answer>
             allowed_tools=self._allowed_tools or [],
         )
         
-        if self.debug:
+        if self.debug and not self._is_comp_mode:
             print(f"\n[OpenResponses] Response created: id={response.id}")
             print(f"[OpenResponses] Response status: {response.status.value}")
         
         response.mark_in_progress()
         
-        if self.debug:
+        if self.debug and not self._is_comp_mode:
             print(f"[OpenResponses] Response status: {response.status.value}")
 
         # Add user prompt to memory
@@ -370,10 +375,10 @@ Final Answer: <the answer>
         user_item = create_message_item("user", prompt)
         response.input.append(user_item)
         
-        if self.debug:
+        if self.debug and not self._is_comp_mode:
             print(f"[OpenResponses] Input item added: id={user_item.id}, type={user_item.type}, role={user_item.role}")
 
-        if self.debug:
+        if self.debug and not self._is_comp_mode:
             print(f"\n[AgentNova] Model: {self.model}")
             print(f"[AgentNova] Backend: {self.backend.base_url}")
             print(f"[AgentNova] tool_choice: {self.tool_choice.type.value}")
@@ -392,14 +397,14 @@ Final Answer: <the answer>
         self._error_tracker.reset()
         
         for step_num in range(self.max_steps):
-            if self.debug:
+            if self.debug and not self._is_comp_mode:
                 print(f"[Step {step_num + 1}]")
 
             # Generate response from model
             try:
                 gen_response = self._generate()
             except Exception as e:
-                if self.debug:
+                if self.debug and not self._is_comp_mode:
                     print(f"  ERROR: {e}")
                 steps.append(StepResult(
                     type=StepResultType.ERROR,
@@ -413,7 +418,7 @@ Final Answer: <the answer>
             tokens = gen_response.get("usage", {}).get("total_tokens", 0)
             total_tokens += tokens
 
-            if self.debug:
+            if self.debug and not self._is_comp_mode:
                 print(f"  Content: {content[:200] if content else '(empty)'}...")
                 print(f"  Native tool calls: {native_tool_calls}")
 
@@ -435,12 +440,12 @@ Final Answer: <the answer>
                 if self.debug and parsed_calls:
                     print(f"  [OpenResponses] Tool calls detected: {len(parsed_calls)}")
                 for call in parsed_calls:
-                    if self.debug:
+                    if self.debug and not self._is_comp_mode:
                         print(f"  [OpenResponses] Parsed: name={call.name}, args={call.arguments}, final_answer={call.final_answer}")
                     
                     # OpenResponses: Capture ReasoningItem if thought is present
                     if hasattr(call, 'thought') and call.thought:
-                        if self.debug:
+                        if self.debug and not self._is_comp_mode:
                             print(f"  [OpenResponses] Captured thought for ReasoningItem: {call.thought[:50]}...")
                         reasoning_item = ReasoningItem(
                             content=[OutputText(text=call.thought)]
@@ -461,7 +466,7 @@ Final Answer: <the answer>
                 # If we asked for Final Answer but model tried to call tools again,
                 # intercept and force Final Answer extraction
                 if _expecting_final_answer and _last_successful_result is not None:
-                    if self.debug:
+                    if self.debug and not self._is_comp_mode:
                         print(f"  [OpenResponses] FINAL ANSWWER ENFORCEMENT: Model tried to call tools instead of Final Answer")
                         print(f"  [OpenResponses] Forcing Final Answer from last result: {_last_successful_result}")
                     
@@ -517,7 +522,7 @@ Final Answer: <the answer>
                     # OpenResponses: Check allowed_tools
                     if self._allowed_tools and tool_name not in self._allowed_tools:
                         error_msg = f"Tool '{tool_name}' not in allowed_tools: {self._allowed_tools}"
-                        if self.debug:
+                        if self.debug and not self._is_comp_mode:
                             print(f"  [OpenResponses] BLOCKED by allowed_tools: '{tool_name}' not in {self._allowed_tools}")
                         
                         if native_tool_calls:
@@ -538,7 +543,7 @@ Final Answer: <the answer>
                     fc_item.status = ItemStatus.IN_PROGRESS
                     response.add_output_item(fc_item, debug=self.debug)
                     
-                    if self.debug:
+                    if self.debug and not self._is_comp_mode:
                         print(f"  [OpenResponses] FunctionCallItem created: id={fc_item.id}, call_id={fc_item.call_id}")
                         print(f"  [OpenResponses] FunctionCallItem status: {fc_item.status.value}")
 
@@ -557,7 +562,7 @@ Final Answer: <the answer>
                         
                         # Check if we should terminate due to too many failures
                         if self._error_tracker.should_terminate():
-                            if self.debug:
+                            if self.debug and not self._is_comp_mode:
                                 print(f"  [ErrorRecovery] Terminating: total failures ({self._error_tracker.total_failures}) >= max ({self._error_tracker.max_total_failures})")
                             fc_item.status = ItemStatus.FAILED
                             response.mark_failed({"message": "Too many tool failures", "type": "error_recovery"})
@@ -566,14 +571,14 @@ Final Answer: <the answer>
                     # Update FunctionCallItem status
                     fc_item.status = ItemStatus.COMPLETED
                     
-                    if self.debug:
+                    if self.debug and not self._is_comp_mode:
                         print(f"  [OpenResponses] FunctionCallItem status: {fc_item.status.value}")
 
                     # Create FunctionCallOutputItem
                     fco_item = create_function_call_output(fc_item.call_id, str(result))
                     response.add_output_item(fco_item, debug=self.debug)
                     
-                    if self.debug:
+                    if self.debug and not self._is_comp_mode:
                         print(f"  [OpenResponses] FunctionCallOutputItem created: id={fco_item.id}, call_id={fco_item.call_id}")
 
                     # Add tool result to memory with enhanced guidance
@@ -613,13 +618,13 @@ Final Answer: <the answer>
                         tokens_used=tokens,
                     ))
 
-                    if self.debug:
+                    if self.debug and not self._is_comp_mode:
                         print(f"  Tool: {tool_name}({tool_args})")
                         print(f"  Result: {str(result)[:200]}...")
 
                 # Check if model provided final_answer along with tool call
                 if pending_final_answer:
-                    if self.debug:
+                    if self.debug and not self._is_comp_mode:
                         print(f"  [OpenResponses] Model provided final_answer with tool call")
                         print(f"  [OpenResponses] Using final_answer: {pending_final_answer[:100]}...")
                     
@@ -674,7 +679,7 @@ Final Answer: <the answer>
                     rejection_reason = f"tool_choice requires '{self.tool_choice.name}' but no tool was called"
                 
                 if needs_tool:
-                    if self.debug:
+                    if self.debug and not self._is_comp_mode:
                         print(f"  [OpenResponses] REJECTED: {rejection_reason}")
                         print(f"  [OpenResponses] Enforcing tool requirement...")
                     # Tell model to use tools
@@ -695,7 +700,7 @@ Final Answer: <the answer>
                 msg_item.status = ItemStatus.COMPLETED
                 response.add_output_item(msg_item, debug=self.debug)
                 
-                if self.debug:
+                if self.debug and not self._is_comp_mode:
                     print(f"  [OpenResponses] MessageItem created: id={msg_item.id}, role={msg_item.role}")
                     print(f"  [OpenResponses] MessageItem status: {msg_item.status.value}")
 
@@ -705,7 +710,7 @@ Final Answer: <the answer>
                     tokens_used=tokens,
                 ))
 
-                if self.debug:
+                if self.debug and not self._is_comp_mode:
                     print(f"  Final answer: {answer}")
 
                 break
@@ -724,7 +729,7 @@ Final Answer: <the answer>
                 rejection_reason = f"tool_choice requires '{self.tool_choice.name}' but no tool was called"
             
             if needs_tool:
-                if self.debug:
+                if self.debug and not self._is_comp_mode:
                     print(f"  [OpenResponses] REJECTED: {rejection_reason}")
                     print(f"  [OpenResponses] Enforcing tool requirement...")
                 # Tell model to use tools
@@ -739,7 +744,7 @@ Final Answer: <the answer>
             # If we were expecting Final Answer but model responded without "Final Answer:" format,
             # use the last successful result instead of accepting the model's potentially wrong answer
             if _expecting_final_answer and _last_successful_result is not None:
-                if self.debug:
+                if self.debug and not self._is_comp_mode:
                     print(f"  [OpenResponses] FINAL ANSWWER ENFORCEMENT: Model responded without Final Answer format")
                     print(f"  [OpenResponses] Using last successful result: {_last_successful_result}")
                 
@@ -782,7 +787,7 @@ Final Answer: <the answer>
                 msg_item.status = ItemStatus.COMPLETED
                 response.add_output_item(msg_item, debug=self.debug)
 
-            if self.debug:
+            if self.debug and not self._is_comp_mode:
                 print(f"  No tool calls detected, accepting as final answer")
 
             steps.append(StepResult(
@@ -796,7 +801,7 @@ Final Answer: <the answer>
         else:
             # Max steps reached
             response.mark_incomplete()
-            if self.debug:
+            if self.debug and not self._is_comp_mode:
                 print(f"\n[OpenResponses] Response status: {response.status.value} (max steps reached)")
             steps.append(StepResult(
                 type=StepResultType.MAX_STEPS,
@@ -809,7 +814,7 @@ Final Answer: <the answer>
         if response.status == ResponseStatus.IN_PROGRESS:
             response.mark_completed()
         
-        if self.debug:
+        if self.debug and not self._is_comp_mode:
             print(f"\n[OpenResponses] Response completed: id={response.id}")
             print(f"[OpenResponses] Final status: {response.status.value}")
             print(f"[OpenResponses] Output items: {len(response.output)}")
@@ -879,7 +884,7 @@ Final Answer: <the answer>
         """Generate a response from the backend."""
         messages = self.memory.get_messages()
 
-        if self.debug:
+        if self.debug and not self._is_comp_mode:
             print(f"  [DEBUG] Sending {len(messages)} messages")
             for i, msg in enumerate(messages):
                 role = msg.get('role', '?')
@@ -900,7 +905,7 @@ Final Answer: <the answer>
         backend_kwargs = {"think": think}
         if self.num_ctx is not None:
             backend_kwargs["num_ctx"] = self.num_ctx
-            if self.debug:
+            if self.debug and not self._is_comp_mode:
                 print(f"  [DEBUG] num_ctx: {self.num_ctx}")
 
         response = self.backend.generate(
@@ -912,7 +917,7 @@ Final Answer: <the answer>
             **backend_kwargs,
         )
 
-        if self.debug:
+        if self.debug and not self._is_comp_mode:
             print(f"  [DEBUG] Response keys: {list(response.keys())}")
             print(f"  [DEBUG] Content: {response.get('content', '')[:100]}...")
             print(f"  [DEBUG] Tool calls: {response.get('tool_calls', [])}")
