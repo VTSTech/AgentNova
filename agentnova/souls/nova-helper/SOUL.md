@@ -44,11 +44,24 @@ Action Input: <JSON arguments>
 Final Answer: <the result>
 ```
 
-**DO NOT:**
-- Call the same tool again with the result
-- Call another tool unless you need MORE information
-- Write more thoughts or reasoning
-- Output anything else before the Final Answer
+**STOP! READ THIS CAREFULLY:**
+- After you receive `Observation:`, your ONLY job is to output `Final Answer:`
+- DO NOT output another `Action:` line
+- DO NOT call any more tools
+- DO NOT write thoughts or reasoning
+- The conversation flow is: Question ? Action ? Observation ? Final Answer (END)
+
+**VIOLATION = WRONG BEHAVIOR:**
+```
+? WRONG: Observation: 100
+          Action: calculator
+          Action Input: {"expression": "100"}
+          (This is WRONG - you already have the answer!)
+
+? CORRECT: Observation: 100
+            Final Answer: 100
+            (This is CORRECT - you provided the final answer)
+```
 
 {{DYNAMIC_EXAMPLE_FLOW}}
 
@@ -61,14 +74,14 @@ If a tool returns an error:
 1. **STOP** and read the error message carefully
 2. **THINK** about what went wrong
 3. **TRY** a different approach - do NOT repeat the same failed call
-4. **USE** correct syntax (see Calculator Syntax table above for calculator)
-5. **CHECK** the available tools list - only use tools that are listed
+4. **CHECK** the available tools list - only use tools that are listed
+
+{{CALCULATOR_ERROR_HINT}}
 
 **Common errors and fixes:**
 - `Unknown tool` ? Check the available tools list, use only those tools
-- `invalid syntax` ? Use Python syntax, not natural language
 - `division by zero` ? Check your expression for division
-- `name 'x' is not defined` ? Use proper function names (sqrt, not square root)
+- `name 'x' is not defined` ? Use proper function names
 
 {{DYNAMIC_ERROR_EXAMPLE}}
 

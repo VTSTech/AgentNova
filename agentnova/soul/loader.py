@@ -586,9 +586,16 @@ def build_system_prompt_with_tools(
     if 'calculator' in tool_names:
         calculator_section = _build_calculator_syntax_section()
         result = result.replace('{{CALCULATOR_SYNTAX_SECTION}}', calculator_section)
+        # Also inject calculator-specific error hint
+        calculator_error_hint = '''4. **USE** correct syntax (see Calculator Syntax table above)
+
+**Calculator-specific errors:**
+- `invalid syntax` → Use Python syntax, not natural language (e.g., `2**10` not "2 to the power of 10")'''
+        result = result.replace('{{CALCULATOR_ERROR_HINT}}', calculator_error_hint)
     else:
-        # Remove the placeholder entirely if no calculator
+        # Remove the placeholders entirely if no calculator
         result = result.replace('{{CALCULATOR_SYNTAX_SECTION}}', '')
+        result = result.replace('{{CALCULATOR_ERROR_HINT}}', '')
     
     # OpenResponses Enhancement: Add tool_choice constraints to prompt
     if tool_choice is not None:
