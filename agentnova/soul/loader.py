@@ -474,17 +474,43 @@ class SoulLoader:
 _default_loader: Optional[SoulLoader] = None
 
 
-def get_soul_loader(strict: bool = False) -> SoulLoader:
-    """Get the default SoulLoader instance."""
+def get_soul_loader(strict: bool = False, clear_cache: bool = False) -> SoulLoader:
+    """Get the default SoulLoader instance.
+    
+    Args:
+        strict: If True, fail on validation errors
+        clear_cache: If True, clear the cache before returning
+    """
     global _default_loader
     if _default_loader is None:
         _default_loader = SoulLoader(strict=strict)
+    if clear_cache:
+        _default_loader._cache.clear()
     return _default_loader
 
 
-def load_soul(path: Union[str, Path], level: int = 2) -> SoulManifest:
-    """Convenience function to load a soul using the default loader."""
-    return get_soul_loader().load(path, level=level)
+def clear_soul_cache() -> None:
+    """Clear the soul loader cache. Call this after modifying soul files."""
+    global _default_loader
+    if _default_loader is not None:
+        _default_loader._cache.clear()
+
+
+def load_soul(path: Union[str, Path], level: int = 2, reload: bool = False) -> SoulManifest:
+    """Convenience function to load a soul using the default loader.
+    
+    Args:
+        path: Path to soul directory
+        level: Progressive disclosure level
+        reload: If True, bypass cache and reload from disk
+    """
+    loader = get_soul_loader()
+    if reload:
+        # Clear just this soul from cache
+        cache_key = f"{path}:{level}"
+        if cache_key in loader._cache:
+            del loader._cache[cache_key]
+    return loader.load(path, level=level)
 
 
 def build_system_prompt(manifest: SoulManifest, level: int = 2) -> str:
