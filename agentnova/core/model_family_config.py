@@ -243,6 +243,48 @@ A: Tokyo
 
 Keep answers brief. One word when possible.""",
     ),
+    
+    # DEEPSEEK-R1 - DeepSeek's reasoning models (thinking mode)
+    # These models have extended reasoning capabilities with think tokens
+    "deepseek-r1": ModelFamilyConfig(
+        family="deepseek-r1",
+        start_tokens={
+            "system": "<｜begin▁of▁sentence｜>",
+            "user": "<｜User｜>",
+            "assistant": "<｜Assistant｜>",
+        },
+        stop_tokens=["<｜end▁of▁sentence｜>"],
+        tool_format="native",
+        tool_call_start="",
+        tool_call_end="",
+        supports_native_tools=True,
+        system_prompt_style="separate",
+        preferred_temperature=0.6,
+        needs_think_directive=True,  # DeepSeek-R1 has thinking mode
+        prefers_few_shot=True,
+        few_shot_style="react",
+        reasoning_hints=["Think step by step", "Show your reasoning"],
+    ),
+    
+    # DEEPSEEK - DeepSeek's standard models (coder, v3, etc.)
+    "deepseek": ModelFamilyConfig(
+        family="deepseek",
+        start_tokens={
+            "system": "<｜begin▁of▁sentence｜>",
+            "user": "<｜User｜>",
+            "assistant": "<｜Assistant｜>",
+        },
+        stop_tokens=["<｜end▁of▁sentence｜>"],
+        tool_format="native",
+        tool_call_start="",
+        tool_call_end="",
+        supports_native_tools=True,
+        system_prompt_style="separate",
+        preferred_temperature=0.7,
+        needs_think_directive=False,  # Standard DeepSeek models don't have thinking mode
+        prefers_few_shot=True,
+        few_shot_style="react",
+    ),
 }
 
 
@@ -390,7 +432,7 @@ def detect_family(model_name: str) -> str | None:
         "phi3", "phi",
         "codellama",
         "command-r", "command",
-        "deepseek",
+        "deepseek-r1", "deepseek",  # deepseek-r1 must come before deepseek
         "dolphin",
     ]
     for f in families:
