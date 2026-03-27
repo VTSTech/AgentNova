@@ -499,3 +499,60 @@ class SkillRegistry:
     
     def __repr__(self) -> str:
         return f"SkillRegistry(skills={list(self._skills.keys())})"
+
+
+def _build_tool_section(tools: list) -> str:
+    """
+    Build the dynamic tool section for system prompt.
+    
+    This function creates a markdown table listing all available tools
+    with their descriptions and argument examples for use in the agent's
+    system prompt.
+    
+    Args:
+        tools: List of Tool objects from the tool registry
+        
+    Returns:
+        Formatted markdown string with tool reference table
+    """
+    if not tools:
+        return ""
+    
+    lines = ["### Tool Reference (only use if available)"]
+    lines.append("")
+    lines.append("| Tool | When to use | Arguments |")
+    lines.append("|------|-------------|-----------|")
+    
+    for tool in tools:
+        # Get tool name and description
+        name = getattr(tool, 'name', str(tool))
+        desc = getattr(tool, 'description', '')
+        params = getattr(tool, 'params', [])
+        
+        # Build arguments example
+        if params:
+            param_pairs = []
+            for p in params:
+                p_name = getattr(p, 'name', str(p))
+                p_type = getattr(p, 'type', 'string')
+                if p_type == 'string':
+                    param_pairs.append(f'"{p_name}": "..."')
+                elif p_type in ('number', 'integer', 'float'):
+                    param_pairs.append(f'"{p_name}": 0')
+                else:
+                    param_pairs.append(f'"{p_name}": ...')
+            args_example = "{" + ", ".join(param_pairs) + "}"
+        else:
+            args_example = "{}"
+        
+        # Truncate description if too long for table
+        if len(desc) > 80:
+            desc = desc[:77] + "..."
+        
+        lines.append(f"| {name} | {desc} | `{args_example}` |")
+    
+    # Add critical rule
+    lines.append("")
+    lines.append("**CRITICAL RULE**: Only use tools that are listed above. If a tool is not in this table, it is NOT available.")
+    
+    return "\n".join(lines)
