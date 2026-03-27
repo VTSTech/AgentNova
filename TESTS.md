@@ -2,7 +2,7 @@
 
 ## Test 01 Quick Diagnostic (5 Questions)
 
-> **Updated:** 2026-03-26 - Soul mode fallback synthesis fix, qwen2:0.5b and gemma3:270m results
+> **Updated:** 2026-03-27 - R03.3 bug fix for `--num-ctx`, Chat Completions (comp) mode testing
 
 Test 01 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
 
@@ -12,9 +12,11 @@ agentnova test 01 --model qwen2.5:0.5b
 agentnova test 01 --model qwen    # Fuzzy match: all qwen models
 agentnova test 01 --model g       # Fuzzy match: gemma, granite, functiongemma
 agentnova test 01 -m gemma3:270m --force-react --soul nova-helper  # With soul persona
+agentnova test 01 -m granite4:350m --api-mode comp  # Chat Completions API
+agentnova test 01 -m qwen:0.5b --num-ctx 8192       # Custom context window
 ```
 
-### Quick Diagnostic Results (R03.3 - ≤1B Models)
+### Quick Diagnostic Results (R03.2 - ≤1B Models)
 
 | Rank | Model | Score | Time | Tool Support | Soul | Notes |
 |:----:|-------|------:|-----:|:------------:|:----:|-------|
@@ -29,10 +31,22 @@ agentnova test 01 -m gemma3:270m --force-react --soul nova-helper  # With soul p
 | 9 | **`gemma3:270m`** | **5/5 (100%)** | 106.5s | react | nova-helper | 🏆 Soul + synthesis fix! |
 | 10 | **`qwen3.5:0.8b`** | **5/5 (100%)** | 331.8s | react | nova-helper | 🏆 Qwen3.5 family! |
 
+### Chat Completions Mode Results (R03.3 - comp API Mode)
+
+> Testing with `--api-mode comp` uses OpenAI-compatible Chat Completions API instead of OpenResponses API
+
+| Rank | Model | Score | Time | Soul | Q1 | Q2 | Q3 | Q4 | Q5 |
+|:----:|-------|------:|-----:|:----:|:--:|:--:|:--:|:--:|:--:|
+| 1 | **`granite4:350m`** | **4/5 (80%)** | 82.1s | nova-helper | ✅ | ❌ 49 | ✅ | ✅ | ✅ |
+| 2 | `gemma3:270m` | 3/5 (60%) | 260.6s | nova-helper | ✅ | ✅ | ✅ | ❌ 14 | ❌ |
+
 ### R03.3 Bug Fixes
 
 | Issue | Before | After |
 |-------|--------|-------|
+| `--num-ctx` ignored in test command | ❌ Reset to default 4096 | ✅ Properly applies from CLI |
+| Config cached before env vars set | ❌ Old config used | ✅ Config reloads after env var set |
+| Agent ignored config num_ctx | ❌ Hardcoded 4096 | ✅ Reads from config when not specified |
 | Soul mode accepting wrong answers | ❌ Accepted model's guess | ✅ Tries synthesis first |
 | Tool support source not visible | ❌ Just showed "none" | ✅ Shows "none (source: cache/detected)" |
 | Fallback synthesis only for REACT | ❌ Skipped for NONE mode | ✅ Works for all modes |
@@ -41,6 +55,7 @@ agentnova test 01 -m gemma3:270m --force-react --soul nova-helper  # With soul p
 ### Soul Persona Impact Analysis
 
 > **R03.3:** Testing how focused soul personas improve small model performance
+> **R03.3:** Chat Completions (comp) mode now available via `--api-mode comp`
 
 | Model | Params | Without Soul | With nova-helper | Improvement |
 |-------|-------:|--------------|------------------|:-----------:|
@@ -71,7 +86,7 @@ The nova-helper soul:
 | Q4 | Word Problem | Natural language → expression | 10 |
 | Q5 | Time Calc | Store hours calculation | 8 |
 
-### Key Findings (R03.3)
+### Key Findings (R03.2)
 
 1. **10 models achieve 100%** - functiongemma:270m, granite4:350m, qwen2.5:0.5b, qwen2.5-coder:0.5b-instruct, qwen2:0.5b+soul, qwen3:0.6b+soul, gemma3:270m+soul, dolphin3.0+soul, qwen:0.5b, qwen3.5:0.8b+soul
 2. **`functiongemma:270m` fastest perfect** - 23.7s for 5/5, native tools + 270M params!
@@ -80,6 +95,8 @@ The nova-helper soul:
 5. **Fallback synthesis saves small models** - Catches wrong answers even when model "knows" it should use tools
 6. **Tool-calling still dominates** - Native/react models score 100% without soul assistance
 7. **Qwen3.5:0.8b slowest 100%** - 331.8s, but still perfect accuracy
+8. **Chat Completions mode works** - `--api-mode comp` uses OpenAI-compatible API
+9. **granite4:350m leads in comp mode** - 80% with nova-helper soul
 
 ### Failure Analysis (Without Soul)
 
@@ -374,6 +391,7 @@ AgentNova has been tested with **Microsoft BitNet-b1.58-2B-4T** — a 2B paramet
 
 > **New in R03.2:** Soul personas can dramatically improve small model performance
 > **R03.3 Update:** Fallback synthesis now works in soul mode - catches model errors!
+> **R03.3 Update:** `--num-ctx` now properly applies to test command; Chat Completions mode available
 
 The `--soul` flag loads a focused persona that guides model behavior. The included `nova-helper` soul is optimized for diagnostic testing:
 
@@ -458,7 +476,7 @@ agentnova models --tool_support
 
 Example output:
 ```
-⚛️ AgentNova R02.6 Models
+⚛️ AgentNova R03.3 Models
   Model                                      Family       Context    Tool Support
   ──────────────────────────────────────────────────────────────────────────────
   gemma3:270m                                gemma3       32K        ○ none
