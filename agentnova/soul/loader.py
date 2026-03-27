@@ -964,3 +964,31 @@ Final Answer: result
     
     # No tools - return minimal examples
     return DEFAULT_TEMPLATE
+
+
+def _build_calculator_syntax_section() -> str:
+    """
+    Build the Calculator Syntax section for the system prompt.
+    
+    This section is only included when the calculator tool is available.
+    
+    Returns:
+        Calculator Syntax section string
+    """
+    return '''## Calculator Syntax (CRITICAL)
+
+The calculator uses **Python syntax**. Use these correct formats:
+
+| Natural Language | Correct Python Syntax |
+|------------------|----------------------|
+| "2 to the power of 10" | `2**10` |
+| "2 ^ 10" | `2**10` |
+| "square root of 144" | `sqrt(144)` or `144**0.5` |
+| "15 percent of 200" | `15/100*200` |
+| "15 times 8" | `15 * 8` |
+| "cube root of 27" | `27**(1/3)` |
+
+**WRONG**: `"2 to the power of 10"` (natural language will cause syntax error)
+**CORRECT**: `"2**10"` (Python syntax)
+
+'''
