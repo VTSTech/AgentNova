@@ -194,7 +194,7 @@ def main():
     
     # Convert 0.3.3 to R03.3 format for display
     parts = __version__.split('.')
-    display_version = f"R{int(parts[0]):02d}.{parts[1]}" if len(parts) >= 2 else __version__
+    display_version = f"R{int(parts[1]):02d}.{parts[2]}" if len(parts) >= 2 else __version__
     
     print(f"\n⚛️ AgentNova {display_version} [{__status__}] Quick Diagnostic (5 questions)")
     print(f"   Backend: {backend_name} ({backend.base_url})")

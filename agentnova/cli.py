@@ -237,7 +237,7 @@ def print_banner() -> None:
     from . import __version__, __status__
     # Convert 0.3.3 to R03.3 format for display
     parts = __version__.split('.')
-    display_version = f"R{int(parts[0]):02d}.{parts[1]}" if len(parts) >= 2 else __version__    
+    display_version = f"R{int(parts[1]):02d}.{parts[2]}" if len(parts) >= 2 else __version__    
     version_str = f"v{display_version} [{__status__}]"
     if _COLOR_ENABLED:
         # Replace ANSI-colored "Status: Alpha" with version
