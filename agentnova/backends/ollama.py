@@ -94,7 +94,7 @@ class OllamaBackend(BaseBackend):
         # Dispatch based on api_mode
         if self._api_mode == ApiMode.COMPLETIONS:
             if os.environ.get("AGENTNOVA_DEBUG"):
-                print(f"  [Ollama] Dispatching to Chat-Completions API (mode={self._api_mode.value})")
+                print(f"  [Ollama] Dispatching to OpenAI-compatible API (mode={self._api_mode.value})")
             return self.generate_completions(
                 model=model,
                 messages=messages,
@@ -251,7 +251,7 @@ class OllamaBackend(BaseBackend):
 
         # Debug output for request
         if os.environ.get("AGENTNOVA_DEBUG"):
-            print(f"  [Ollama-Comp] Request: tools={len(tools) if tools else 0}")
+            print(f"  [OpenAI-Comp] Request: tools={len(tools) if tools else 0}")
 
         # Make request
         start_time = time.time()
