@@ -274,9 +274,49 @@ Action Input: <JSON arguments>
 Action: calculator
 Action Input: {"expression": "15 * 8"}
 
-After receiving Observation, output:
-Final Answer: <the answer>
+## Calculator Syntax (CRITICAL)
+
+The calculator uses **Python syntax**. Use these correct formats:
+
+| Natural Language | Correct Python Syntax |
+|------------------|----------------------|
+| "2 to the power of 10" | `2**10` |
+| "square root of 144" | `sqrt(144)` or `144**0.5` |
+| "15 times 8" | `15 * 8` |
+
+## After Tool Result - MANDATORY
+
+**IMMEDIATELY after receiving an Observation, output:**
+
 ```
+Final Answer: <the result>
+```
+
+**DO NOT:**
+- Call the same tool again with the result
+- Call another tool unless you need MORE information
+
+## Error Recovery
+
+If a tool returns an error:
+1. STOP and read the error message
+2. THINK about what went wrong
+3. TRY a different approach - do NOT repeat the same failed call
+```
+
+### Enhanced Observation Format
+
+Tool results include contextual guidance to help small models understand the next action:
+
+```python
+# Success result - prompts for Final Answer
+observation_msg = f"Observation: {result}\n\nNow output: Final Answer: <the result>"
+
+# Error result - prompts for recovery with syntax hint
+observation_msg = f"Observation: {error}\n\nNote: Try a different approach. For calculator, use Python syntax (e.g., 2**10 for power)."
+```
+
+This guidance is critical for models under 1B parameters that may not understand the ReAct flow without explicit direction.
 
 ### No Fallbacks
 
@@ -288,6 +328,51 @@ Following OpenResponses principles, these were removed:
 - Empty response retry with hints
 
 The model MUST explicitly format tool calls.
+
+---
+
+## OpenResponses Compliance for Small Models
+
+Small models (under 1B parameters) require additional guidance to comply with the OpenResponses agentic loop. The following enhancements ensure reliable tool usage:
+
+### Soul Prompt Structure
+
+The nova-helper soul includes structured sections that guide small models:
+
+1. **Tool Reference Table** - Dynamic injection of available tools with argument examples
+2. **Tool Calling Format** - Explicit Action/Action Input format with examples
+3. **Calculator Syntax Table** - Maps natural language to Python syntax
+4. **After Tool Result** - MANDATORY Final Answer output rules
+5. **Error Recovery** - STOP/THINK/TRY pattern with common errors
+
+### Decision Point Guidance
+
+Each decision point in the agentic loop has explicit guidance:
+
+| Decision Point | Guidance |
+|----------------|----------|
+| Should I use a tool? | Tool Reference table with "When to use" |
+| How to format tool call? | Exact format with example |
+| What syntax for calculator? | Natural language → Python syntax table |
+| What to do after result? | MANDATORY Final Answer, with DO NOT rules |
+| What if tool errors? | Error Recovery section with recovery example |
+
+### Observation Enhancement
+
+The agent adds contextual hints to tool results:
+
+```python
+# In agent.py - Memory.add() for tool results
+if result_str.startswith("Error"):
+    observation_msg = f"Observation: {result_str}\n\nNote: Try a different approach..."
+else:
+    observation_msg = f"Observation: {result_str}\n\nNow output: Final Answer: <the result>"
+```
+
+This ensures the model always knows what action to take next, preventing common failure modes:
+- Re-calling the tool with the result
+- Outputting reasoning instead of Final Answer
+- Repeating the same failed expression
 
 ---
 

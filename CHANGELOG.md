@@ -4,6 +4,61 @@ All notable changes to AgentNova refactor-1 will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [R03.3] - 2026-03-26
+
+### OpenResponses Compliance Improvements
+
+Enhanced the nova-helper soul and agent prompting logic for improved OpenResponses specification compliance, particularly for small models (270M-500M parameters).
+
+### Added
+
+#### Soul Prompt Enhancements (nova-helper/SOUL.md)
+- **Strengthened Final Answer guidance** - Explicit "After Tool Result - MANDATORY" section
+  - Models must output `Final Answer: <result>` immediately after Observation
+  - Explicit DO NOT rules: no re-calling tools with results, no additional reasoning
+  - Complete example flow showing the exact pattern
+- **Python Syntax Examples table** - Calculator syntax reference
+  - Maps natural language to correct Python syntax
+  - Examples: `"2 to the power of 10"` → `2**10`, `"square root of 144"` → `sqrt(144)`
+  - Reduces syntax errors from natural language expressions
+- **Error Recovery section** - Guidance for handling tool errors
+  - STOP, THINK, TRY pattern for recovery
+  - Common errors and fixes table
+  - Example recovery flow showing incorrect → correct syntax
+
+#### Agent Observation Enhancement (agent.py)
+- **Contextual Observation guidance** - Tool results now include action hints
+  - Success: `Observation: {result}\n\nNow output: Final Answer: <the result>`
+  - Error: `Observation: {error}\n\nNote: Try a different approach. For calculator, use Python syntax...`
+  - Guides small models toward correct next action
+
+### OpenResponses Compliance Gaps Addressed
+
+| Gap | Solution | Status |
+|-----|----------|--------|
+| Model unaware of Final Answer timing | "After Tool Result - MANDATORY" section | ✅ Fixed |
+| Natural language syntax errors | Python Syntax Examples table | ✅ Fixed |
+| No error recovery guidance | Error Recovery section with examples | ✅ Fixed |
+| Observation doesn't guide next action | Contextual hints in Observation messages | ✅ Fixed |
+
+### Test Results (gemma3:270m)
+
+| Test | Before | After | Status |
+|------|--------|-------|--------|
+| "15 × 8" | ❌ Called calculator with result (120) | ✅ `Final Answer: 120` | **Fixed** |
+| "2^10" | ❌ Used natural language, repeated 5× | ✅ Used `2**10`, `Final Answer: 1024` | **Fixed** |
+
+### Key Insight
+Small models need explicit guidance at each decision point. The combination of:
+1. Clear syntax examples (prevents errors)
+2. Mandatory Final Answer format (prevents tool re-calling)
+3. Error recovery patterns (enables self-correction)
+4. Contextual Observation hints (guides next action)
+
+...transforms confused 270M models into reliable tool users.
+
+---
+
 ## [R03.2] - 2026-03-26 1:13:48 AM
 
 ### Soul-Enhanced Testing & Model Fuzzy Matching
