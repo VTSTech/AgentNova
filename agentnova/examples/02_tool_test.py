@@ -53,6 +53,8 @@ def parse_args():
     parser.add_argument("-m", "--model", default=None, help="Model to test")
     parser.add_argument("--debug", action="store_true", help="Enable debug output")
     parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None)
+    parser.add_argument("--api", choices=["resp", "comp"], default="resp", dest="api_mode",
+                       help="API mode: 'resp' (OpenResponses/native) or 'comp' (Chat-Completions)")
     parser.add_argument("--tools-only", action="store_true", help="Only run Phase 1 (direct tool tests)")
     parser.add_argument("--model-only", action="store_true", help="Only run Phase 2 (model tool calling)")
     parser.add_argument("--soul", default=None, help="Path to Soul Spec package (ignored for tool tests)")
@@ -901,7 +903,8 @@ def main():
     if not args.tools_only:
         model = args.model or config.default_model
         backend_name = args.backend or config.backend
-        backend = get_default_backend(backend_name)
+        api_mode = getattr(args, 'api_mode', 'resp')
+        backend = get_default_backend(backend_name, api_mode=api_mode)
         
         if not backend.is_running():
             print(f"\n❌ {backend_name.capitalize()} not running at {backend.base_url}")
@@ -910,6 +913,8 @@ def main():
             print(f"\n⚛️ AgentNova Model Tool Tests")
             print(f"   Backend: {backend_name} ({backend.base_url})")
             print(f"   Model: {model}")
+            if api_mode != 'resp':
+                print(f"   API Mode: {api_mode}")
             if args.soul:
                 print(f"   Soul: {args.soul}")
             

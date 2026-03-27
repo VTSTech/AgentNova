@@ -43,6 +43,8 @@ def parse_args():
     parser.add_argument("-m", "--model", default=None, help="Model to test")
     parser.add_argument("--debug", action="store_true", help="Enable debug output")
     parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None)
+    parser.add_argument("--api", choices=["resp", "comp"], default="resp", dest="api_mode",
+                       help="API mode: 'resp' (OpenResponses/native) or 'comp' (Chat-Completions)")
     parser.add_argument("--force-react", action="store_true", help="Force ReAct mode for tool calling")
     parser.add_argument("--soul", default=None, help="Path to Soul Spec package")
     parser.add_argument("--soul-level", type=int, default=2, choices=[1, 2, 3],
@@ -179,7 +181,8 @@ def main():
     
     # Get backend
     backend_name = args.backend or config.backend
-    backend = get_default_backend(backend_name)
+    api_mode = getattr(args, 'api_mode', 'resp')
+    backend = get_default_backend(backend_name, api_mode=api_mode)
     
     # Check if running
     if not backend.is_running():
@@ -192,6 +195,8 @@ def main():
     print(f"\n⚛️ AgentNova Quick Diagnostic (5 questions)")
     print(f"   Backend: {backend_name} ({backend.base_url})")
     print(f"   Model: {model}")
+    if api_mode != 'resp':
+        print(f"   API Mode: {api_mode}")
     if args.force_react:
         print(f"   Force ReAct: True")
     if args.soul:

@@ -1072,8 +1072,9 @@ def cmd_test(args: argparse.Namespace) -> int:
     # Check backend
     config = get_config()
     backend_name = args.backend or config.backend
+    api_mode = getattr(args, 'api_mode', 'resp')
     timeout = getattr(args, 'timeout', None)
-    backend = get_backend(backend_name, timeout=timeout)
+    backend = get_backend(backend_name, timeout=timeout, api_mode=api_mode)
     
     if not backend.is_running():
         print(f"{red('Error:')} {backend_name.capitalize()} not running at {backend.base_url}")
@@ -1174,6 +1175,8 @@ def cmd_test(args: argparse.Namespace) -> int:
                     test_argv.append("--debug")
                 if args.backend:
                     test_argv.extend(["--backend", args.backend])
+                if getattr(args, 'api_mode', 'resp') != 'resp':
+                    test_argv.extend(["--api", args.api_mode])
                 if getattr(args, 'force_react', False):
                     test_argv.append("--force-react")
                 if getattr(args, 'use_modelfile_system', False):

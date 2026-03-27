@@ -93,6 +93,8 @@ class OllamaBackend(BaseBackend):
         """
         # Dispatch based on api_mode
         if self._api_mode == ApiMode.COMPLETIONS:
+            if os.environ.get("AGENTNOVA_DEBUG"):
+                print(f"  [Ollama] Dispatching to Chat-Completions API (mode={self._api_mode.value})")
             return self.generate_completions(
                 model=model,
                 messages=messages,
