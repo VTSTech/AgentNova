@@ -4,6 +4,89 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [R03.4] - 2026-03-28
+
+### Critical Bug Fix: Ollama Native API Tool Call Arguments Format
+
+Fixed a critical bug where tool calls failed in OpenResponses mode (native `/api/chat` endpoint) due to incorrect arguments format. The OpenAI Chat-Completions API expects `tool_calls[].function.arguments` as a JSON string, but Ollama's native `/api/chat` expects it as an object.
+
+### Fixed
+
+#### Tool Call Arguments Format (`backends/ollama.py`)
+- **`_convert_messages_to_ollama_format()` method** - Converts message format for Ollama native API
+  - Parses JSON string arguments back to objects for `/api/chat` endpoint
+  - OpenAI format: `arguments: '{"expression": "15 + 27"}'` (string)
+  - Ollama format: `arguments: {"expression": "15 + 27"}` (object)
+- **Root cause**: Memory module stored arguments as JSON strings (OpenAI format), but Ollama's native endpoint couldn't parse them
+- **Error was**: `"Value looks like object, but can't find closing '}' symbol"`
+
+#### Debug Output Improvements (`agent.py`, `backends/ollama.py`)
+- **System prompt display truncated** - Shows `<5644 chars>` instead of full content
+- **Tool message display** - Shows `tool_call_id` for debugging
+- **Request body logging** - Shows message format being sent to Ollama
+
+### Impact
+
+| Model | Before Fix (resp) | After Fix (resp) | Delta |
+|-------|:-----------------:|:----------------:|:-----:|
+| `granite4:350m` | 0% | **100%** | **+100%** |
+| `qwen2.5:0.5b` | 0% | **100%** | **+100%** |
+| `qwen2.5-coder:0.5b` | 0% | 80% | **+80%** |
+| `qwen3.5:0.8b` | 0% | 80% | **+80%** |
+| `gemma3:270m` | 20% | 60% | **+40%** |
+| `dolphin3.0-qwen2.5:0.5b` | 0% | 60% | **+60%** |
+| `qwen2:0.5b` | 0% | 60% | **+60%** |
+| `qwen3:0.6b` | 0% | 60% | **+60%** |
+| `qwen:0.5b` | 0% | 60% | **+60%** |
+| `functiongemma:270m` | 0% | 20% | **+20%** |
+
+### OpenResponses Mode Test Results (10 models)
+
+| Rank | Model | Score | Time | Tool Mode | Notes |
+|:----:|-------|:-----:|:----:|:---------:|-------|
+| 🥇 | `granite4:350m` | 100% | 136s | native | 🏆 |
+| 🥇 | `qwen2.5:0.5b` | 100% | 130s | native | 🏆 Fastest! |
+| 🥉 | `qwen2.5-coder:0.5b` | 80% | 120s | native | |
+| 🥉 | `qwen3.5:0.8b` | 80% | 626s | native | Very slow |
+| 5 | `gemma3:270m` | 60% | 375s | native | |
+| 5 | `dolphin3.0-qwen2.5:0.5b` | 60% | 114s | native | |
+| 5 | `qwen2:0.5b` | 60% | 117s | native | |
+| 5 | `qwen3:0.6b` | 60% | 231s | native | |
+| 5 | `qwen:0.5b` | 60% | 177s | native | |
+| 10 | `functiongemma:270m` | 20% | 250s | native | |
+
+**Key Result**: ALL 10 models now have native tools working in OpenResponses mode!
+
+### Technical Details
+
+**Before Fix (broken)**:
+```json
+{
+  "tool_calls": [{
+    "id": "call_xxx",
+    "function": {
+      "name": "calculator",
+      "arguments": "{\"expression\": \"15 + 27\"}"
+    }
+  }]
+}
+```
+
+**After Fix (working)**:
+```json
+{
+  "tool_calls": [{
+    "id": "call_xxx",
+    "function": {
+      "name": "calculator",
+      "arguments": {"expression": "15 + 27"}
+    }
+  }]
+}
+```
+
+---
+
 ## [R03.3] - 2026-03-27 12:32:38 PM
 
 ### Specification Compliance Gap Fixes
