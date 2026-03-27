@@ -442,7 +442,7 @@ Final Answer: <the answer>
             # Check for tool calls in model output (ReAct, JSON, or XML format)
             elif content:
                 parsed_calls = self._parser.parse(content)
-                if self.debug and parsed_calls:
+                if self.debug and parsed_calls and not self._is_comp_mode:
                     print(f"  [OpenResponses] Tool calls detected: {len(parsed_calls)}")
                 for call in parsed_calls:
                     if self.debug and not self._is_comp_mode:
