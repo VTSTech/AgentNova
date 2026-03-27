@@ -900,7 +900,11 @@ Final Answer: <the answer>
                 role = msg.get('role', '?')
                 content = msg.get('content', '')
                 tc = msg.get('tool_calls', [])
-                content_preview = content[:2048] if content else '(empty)'
+                # Show just length for system prompts, content for others
+                if role == 'system':
+                    content_preview = f"<{len(content)} chars>"
+                else:
+                    content_preview = content[:200] if content else '(empty)'
                 print(f"  [MSG {i}] role={role}, content={content_preview!r}{' as tool_calls]' if tc else ']'}")
             print(f"  [DEBUG] Tools: {[t.name for t in self.tools.all()] if self.tools else None}")
 
