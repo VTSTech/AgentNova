@@ -248,12 +248,12 @@ Test 07 uses the 15-test benchmark with debug output showing tool support detect
 
 ## Tool Support Quick Reference
 
-| Tool Support | Description | Prompt Strategy | Best Score |
-|--------------|-------------|-----------------|:----------:|
-| `native` | Ollama API tool-calling | Standard prompt + tools via API | **100%** |
-| `react` | Text-based ReAct parsing | Standard prompt + ReAct suffix | **80%** |
-| `fallback` | Auto-fallback when rejected | ReAct mode after error | **40%** |
-| `none` | No tool support | Pure reasoning prompt | **40%** |
+| Tool Support | Description | Prompt Strategy | Best Score | Best Model |
+|--------------|-------------|-----------------|:----------:|------------|
+| `native` | Ollama API tool-calling | Standard prompt + tools via API | **100%** | granite4:350m, qwen2.5:0.5b |
+| `react` | Text-based ReAct parsing | Standard prompt + ReAct suffix | **80%** | qwen2.5-coder:0.5b |
+| `fallback` | Auto-fallback when rejected | ReAct mode after error | **40%** | gemma3:270m, functiongemma:270m |
+| `none` | No tool support | Pure reasoning prompt | **40%** | dolphin3.0-qwen2.5:0.5b |
 
 ---
 
