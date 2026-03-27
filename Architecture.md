@@ -2,9 +2,9 @@
 
 AgentNova is a modular agent framework designed for local LLMs with tool-calling capabilities. It implements the OpenResponses specification for multi-provider, interoperable LLM interfaces.
 
-**Specification Compliance**: ~97% overall (R03.3)
+**Specification Compliance**: ~97% overall (R03.4)
 - OpenResponses API: 97%
-- Chat Completions API: 95%
+- Chat Completions API: 96%
 - Soul Spec v0.5: 98%
 - ACP v1.0.5: 97%
 - AgentSkills: 96%
@@ -527,6 +527,7 @@ Additional parameters supported in Chat-Completions mode:
 | `frequency_penalty` | float | Frequency penalty (-2.0 to 2.0) |
 | `response_format` | dict | Response format (e.g., `{"type": "json_object"}`) |
 | `top_p` | float | Top-p sampling (0.0 to 1.0) |
+| `think` | bool \| None | For thinking models (qwen3, deepseek-r1): None=auto, False=disable thinking |
 
 ```python
 # JSON mode with additional parameters
@@ -540,6 +541,28 @@ result = backend.generate_completions(
     presence_penalty=0.1
 )
 ```
+
+### Thinking Models Support (R03.4)
+
+For models with extended thinking capabilities (qwen3, deepseek-r1), the `think` parameter controls thinking mode:
+
+```python
+# Disable thinking for faster responses (still uses ReAct prompting)
+result = backend.generate_completions(
+    model="qwen3:0.6b",
+    messages=[{"role": "user", "content": "Calculate 2+2"}],
+    think=False  # Disable thinking mode
+)
+
+# Enable thinking (default for thinking models)
+result = backend.generate_completions(
+    model="deepseek-r1:1.5b",
+    messages=[{"role": "user", "content": "Explain quantum computing"}],
+    think=True  # Enable extended thinking
+)
+```
+
+**Note**: The Agent class automatically handles `think=False` for models that need the `/no_think` directive (qwen3, deepseek-r1) based on model family detection. This ensures optimal performance for tool-calling workflows.
 
 ---
 

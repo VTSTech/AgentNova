@@ -348,15 +348,14 @@ class OllamaBackend(BaseBackend):
         if tools:
             body["tools"] = [t.to_openai_schema() for t in tools]
 
-        # Add think parameter for thinking models
+        # Add think parameter for thinking models (qwen3, deepseek-r1)
+        # Ollama's OpenAI-compatible endpoint supports this in the request body
         if think is not None:
-            # Note: OpenAI-compatible endpoint may not support 'think' natively
-            # This is Ollama-specific, might need to be in extra body
-            pass
+            body["think"] = think
 
         # Debug output for request
         if os.environ.get("AGENTNOVA_DEBUG"):
-            print(f"  [OpenAI-Comp] Request: tools={len(tools) if tools else 0}")
+            print(f"  [OpenAI-Comp] Request: tools={len(tools) if tools else 0}, think={think}")
 
         # Make request
         start_time = time.time()
@@ -463,6 +462,7 @@ class OllamaBackend(BaseBackend):
         tools: list[Tool] | None = None,
         temperature: float = 0.7,
         max_tokens: int = 2048,
+        think: bool | None = None,
         stop: str | list[str] | None = None,
         presence_penalty: float | None = None,
         frequency_penalty: float | None = None,
@@ -486,6 +486,7 @@ class OllamaBackend(BaseBackend):
             tools: List of Tool objects for native tool calling
             temperature: Sampling temperature
             max_tokens: Maximum tokens to generate
+            think: For thinking models (qwen3, deepseek-r1): None=auto, False=disable thinking
             stop: Stop sequences (string or list of strings)
             presence_penalty: Presence penalty (-2.0 to 2.0)
             frequency_penalty: Frequency penalty (-2.0 to 2.0)
@@ -525,8 +526,12 @@ class OllamaBackend(BaseBackend):
         if tools:
             body["tools"] = [t.to_openai_schema() for t in tools]
 
+        # Add think parameter for thinking models (qwen3, deepseek-r1)
+        if think is not None:
+            body["think"] = think
+
         if os.environ.get("AGENTNOVA_DEBUG"):
-            print(f"  [OpenAI-Comp-Stream] Request: tools={len(tools) if tools else 0}")
+            print(f"  [OpenAI-Comp-Stream] Request: tools={len(tools) if tools else 0}, think={think}")
 
         try:
             req = urllib.request.Request(

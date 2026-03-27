@@ -37,6 +37,7 @@ Inspired by the architecture of OpenClaw, rebuilt from scratch for local-first o
 - **Soul Spec v0.5** — Persona packages with progressive disclosure
 - **ACP v1.0.5 integration** — Agent Control Panel for monitoring and control
 - **AgentSkills spec** — Skill loading with SPDX license validation
+- **Thinking models support** — Automatic handling of qwen3, deepseek-r1 thinking mode
 
 ## Installation
 
