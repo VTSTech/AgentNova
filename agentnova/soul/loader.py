@@ -573,6 +573,14 @@ def build_system_prompt_with_tools(
         # No existing tool reference, append tools
         result = f"{base_prompt}\n\n{tool_section}"
     
+    # Inject dynamic examples based on available tools
+    dynamic_examples = _build_dynamic_examples(tools)
+    
+    # Replace placeholder markers with dynamic examples
+    result = result.replace('{{DYNAMIC_EXAMPLE}}', dynamic_examples['example'])
+    result = result.replace('{{DYNAMIC_EXAMPLE_FLOW}}', dynamic_examples['example_flow'])
+    result = result.replace('{{DYNAMIC_ERROR_EXAMPLE}}', dynamic_examples['error_example'])
+    
     # OpenResponses Enhancement: Add tool_choice constraints to prompt
     if tool_choice is not None:
         tool_choice_context = _build_tool_choice_context(tool_choice)
@@ -690,3 +698,260 @@ def _build_tool_section(tools: list) -> str:
     lines.append("**CRITICAL RULE**: If a tool is NOT in the available tools list, do NOT try to use it. Respond directly instead.")
     
     return "\n".join(lines)
+
+
+def _build_dynamic_examples(tools: list) -> dict:
+    """
+    Build dynamic examples based on available tools.
+    
+    Returns a dict with:
+        - example: Single tool call example
+        - example_flow: Complete flow example
+        - error_example: Error recovery example
+    
+    Args:
+        tools: List of Tool objects available
+    
+    Returns:
+        Dict with example strings keyed by placeholder name
+    """
+    # Define example templates for different tool types
+    EXAMPLE_TEMPLATES = {
+        'calculator': {
+            'example': '''**Example** - User asks "What is 15 times 8?":
+```
+Action: calculator
+Action Input: {"expression": "15 * 8"}
+```''',
+            'example_flow': '''**Example flow:**
+```
+User: What is 15 times 8?
+Action: calculator
+Action Input: {"expression": "15 * 8"}
+Observation: 120
+Final Answer: 120
+```''',
+            'error_example': '''**Example recovery:**
+```
+Action: calculator
+Action Input: {"expression": "2 to the power of 10"}
+Observation: Error evaluating expression: invalid syntax
+Action: calculator
+Action Input: {"expression": "2**10"}
+Observation: 1024
+Final Answer: 1024
+```''',
+        },
+        'shell': {
+            'example': '''**Example** - User asks "What is the current directory?":
+```
+Action: shell
+Action Input: {"command": "pwd"}
+```''',
+            'example_flow': '''**Example flow:**
+```
+User: What is the current directory?
+Action: shell
+Action Input: {"command": "pwd"}
+Observation: /home/user
+Final Answer: /home/user
+```''',
+            'error_example': '''**Example recovery:**
+```
+Action: shell
+Action Input: {"command": "lss"}
+Observation: Error: lss: command not found
+Action: shell
+Action Input: {"command": "ls"}
+Observation: file1.txt file2.txt
+Final Answer: file1.txt file2.txt
+```''',
+        },
+        'read_file': {
+            'example': '''**Example** - User asks "What is in config.json?":
+```
+Action: read_file
+Action Input: {"file_path": "config.json"}
+```''',
+            'example_flow': '''**Example flow:**
+```
+User: What is in config.json?
+Action: read_file
+Action Input: {"file_path": "config.json"}
+Observation: {"setting": "value"}
+Final Answer: The config.json contains {"setting": "value"}
+```''',
+            'error_example': '''**Example recovery:**
+```
+Action: read_file
+Action Input: {"file_path": "missing.txt"}
+Observation: Error: File not found
+Action: read_file
+Action Input: {"file_path": "existing.txt"}
+Observation: Hello World
+Final Answer: Hello World
+```''',
+        },
+        'get_time': {
+            'example': '''**Example** - User asks "What time is it?":
+```
+Action: get_time
+Action Input: {}
+```''',
+            'example_flow': '''**Example flow:**
+```
+User: What time is it?
+Action: get_time
+Action Input: {}
+Observation: 14:30:00
+Final Answer: 14:30:00
+```''',
+            'error_example': '''**Example recovery:**
+```
+Action: get_time
+Action Input: {"timezone": "InvalidZone"}
+Observation: Error: Unknown timezone
+Action: get_time
+Action Input: {}
+Observation: 14:30:00
+Final Answer: 14:30:00
+```''',
+        },
+        'get_date': {
+            'example': '''**Example** - User asks "What is today's date?":
+```
+Action: get_date
+Action Input: {}
+```''',
+            'example_flow': '''**Example flow:**
+```
+User: What is today's date?
+Action: get_date
+Action Input: {}
+Observation: 2024-01-15
+Final Answer: 2024-01-15
+```''',
+            'error_example': '''**Example:**
+```
+Action: get_date
+Action Input: {}
+Observation: 2024-01-15
+Final Answer: 2024-01-15
+```''',
+        },
+        'list_directory': {
+            'example': '''**Example** - User asks "What files are in /tmp?":
+```
+Action: list_directory
+Action Input: {"path": "/tmp"}
+```''',
+            'example_flow': '''**Example flow:**
+```
+User: What files are in /tmp?
+Action: list_directory
+Action Input: {"path": "/tmp"}
+Observation: file1.txt, file2.txt
+Final Answer: /tmp contains file1.txt and file2.txt
+```''',
+            'error_example': '''**Example recovery:**
+```
+Action: list_directory
+Action Input: {"path": "/nonexistent"}
+Observation: Error: Directory not found
+Action: list_directory
+Action Input: {"path": "/tmp"}
+Observation: file1.txt
+Final Answer: file1.txt
+```''',
+        },
+        'write_file': {
+            'example': '''**Example** - User asks "Create a test file":
+```
+Action: write_file
+Action Input: {"file_path": "test.txt", "content": "Hello World"}
+```''',
+            'example_flow': '''**Example flow:**
+```
+User: Create a test file
+Action: write_file
+Action Input: {"file_path": "test.txt", "content": "Hello World"}
+Observation: File written successfully
+Final Answer: Created test.txt with content "Hello World"
+```''',
+            'error_example': '''**Example recovery:**
+```
+Action: write_file
+Action Input: {"file_path": "/readonly/test.txt", "content": "test"}
+Observation: Error: Permission denied
+Action: write_file
+Action Input: {"file_path": "test.txt", "content": "test"}
+Observation: File written successfully
+Final Answer: Created test.txt
+```''',
+        },
+        'python_repl': {
+            'example': '''**Example** - User asks "Calculate 2^10 in Python":
+```
+Action: python_repl
+Action Input: {"code": "print(2**10)"}
+```''',
+            'example_flow': '''**Example flow:**
+```
+User: Calculate 2^10 in Python
+Action: python_repl
+Action Input: {"code": "print(2**10)"}
+Observation: 1024
+Final Answer: 1024
+```''',
+            'error_example': '''**Example recovery:**
+```
+Action: python_repl
+Action Input: {"code": "print(undefined_var)"}
+Observation: Error: name 'undefined_var' is not defined
+Action: python_repl
+Action Input: {"code": "print(2**10)"}
+Observation: 1024
+Final Answer: 1024
+```''',
+        },
+    }
+    
+    # Default fallback for unknown tools
+    DEFAULT_TEMPLATE = {
+        'example': '''**Example**:
+```
+Action: <tool_name>
+Action Input: {"arg": "value"}
+```''',
+        'example_flow': '''**Example flow:**
+```
+Action: <tool_name>
+Action Input: {"arg": "value"}
+Observation: result
+Final Answer: result
+```''',
+        'error_example': '''**Example:**
+```
+Action: <tool_name>
+Action Input: {"arg": "correct_value"}
+Observation: result
+Final Answer: result
+```''',
+    }
+    
+    # Find the first tool we have a template for
+    for tool in tools:
+        tool_name = getattr(tool, 'name', '')
+        if tool_name in EXAMPLE_TEMPLATES:
+            return EXAMPLE_TEMPLATES[tool_name]
+    
+    # Fallback: use first available tool with default template
+    if tools:
+        first_tool = getattr(tools[0], 'name', 'tool')
+        result = {}
+        for key, template in DEFAULT_TEMPLATE.items():
+            result[key] = template.replace('<tool_name>', first_tool)
+        return result
+    
+    # No tools - return minimal examples
+    return DEFAULT_TEMPLATE

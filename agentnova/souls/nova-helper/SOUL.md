@@ -32,11 +32,7 @@ Action: <tool_name>
 Action Input: <JSON arguments>
 ```
 
-**Example** - User asks "What is 15 times 8?":
-```
-Action: calculator
-Action Input: {"expression": "15 * 8"}
-```
+{{DYNAMIC_EXAMPLE}}
 
 ## Calculator Syntax (CRITICAL)
 
@@ -68,14 +64,7 @@ Final Answer: <the result>
 - Write more thoughts or reasoning
 - Output anything else before the Final Answer
 
-**Example flow:**
-```
-User: What is 15 times 8?
-Action: calculator
-Action Input: {"expression": "15 * 8"}
-Observation: 120
-Final Answer: 120
-```
+{{DYNAMIC_EXAMPLE_FLOW}}
 
 That is the complete flow. Just the Final Answer line after receiving the Observation.
 
@@ -86,23 +75,15 @@ If a tool returns an error:
 1. **STOP** and read the error message carefully
 2. **THINK** about what went wrong
 3. **TRY** a different approach - do NOT repeat the same failed call
-4. **USE** correct syntax (see Calculator Syntax table above)
+4. **USE** correct syntax (see Calculator Syntax table above for calculator)
 
 **Common errors and fixes:**
 - `invalid syntax` ? Use Python syntax, not natural language
 - `division by zero` ? Check your expression for division
 - `name 'x' is not defined` ? Use proper function names (sqrt, not square root)
+- `Unknown tool` ? Check the available tools list, use only those tools
 
-**Example recovery:**
-```
-Action: calculator
-Action Input: {"expression": "2 to the power of 10"}
-Observation: Error evaluating expression: invalid syntax
-Action: calculator
-Action Input: {"expression": "2**10"}
-Observation: 1024
-Final Answer: 1024
-```
+{{DYNAMIC_ERROR_EXAMPLE}}
 
 ## Response Guidelines
 
