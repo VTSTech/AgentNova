@@ -1128,6 +1128,9 @@ def cmd_test(args: argparse.Namespace) -> int:
     if getattr(args, 'num_ctx', None):
         os.environ["AGENTNOVA_NUM_CTX"] = str(args.num_ctx)
     
+    # Reload config to pick up new env vars
+    config = get_config(reload=True)
+    
     # Resolve model pattern to actual model(s)
     model_pattern = args.model
     if model_pattern:
