@@ -436,45 +436,6 @@ Final Answer: <the answer>
 
             # Execute tool calls if found
             if tool_calls_found:
-                # OpenResponses Enhancement: Final Answer Enforcement
-                # If we asked for Final Answer but model tried to call tools again,
-                # intercept and force Final Answer extraction
-                if _expecting_final_answer and _last_successful_result is not None:
-                    if self.debug:
-                        print(f"  [OpenResponses] FINAL ANSWWER ENFORCEMENT: Model tried to call tools instead of Final Answer")
-                        print(f"  [OpenResponses] Forcing Final Answer from last result: {_last_successful_result}")
-                    
-                    # Force Final Answer
-                    final_answer = _last_successful_result
-                    msg_item = create_message_item("assistant", final_answer)
-                    msg_item.status = ItemStatus.COMPLETED
-                    response.add_output_item(msg_item, debug=self.debug)
-                    
-                    steps.append(StepResult(
-                        type=StepResultType.FINAL_ANSWER,
-                        content=final_answer,
-                        tokens_used=tokens,
-                    ))
-                    
-                    # Mark response as completed
-                    if response.status == ResponseStatus.IN_PROGRESS:
-                        response.mark_completed()
-                    
-                    # Store response for previous_response_id support
-                    self._response_history[response.id] = response
-                    response.usage["total_tokens"] = total_tokens
-                    
-                    total_ms = (time.time() - start_time) * 1000
-                    
-                    return AgentRun(
-                        final_answer=final_answer,
-                        steps=steps,
-                        total_tokens=total_tokens,
-                        total_ms=total_ms,
-                        tool_calls=tool_calls,
-                        success=True,
-                    )
-                
                 # Track if any tool call has a final_answer
                 pending_final_answer = None
                 
@@ -685,6 +646,44 @@ Final Answer: <the answer>
                 else:
                     self.memory.add("user", "You must use at least one tool. Use the Action/Action Input format to call a tool.")
                 continue
+            
+            # OpenResponses Enhancement: Final Answer Enforcement
+            # If we were expecting Final Answer but model responded without "Final Answer:" format,
+            # use the last successful result instead of accepting the model's potentially wrong answer
+            if _expecting_final_answer and _last_successful_result is not None:
+                if self.debug:
+                    print(f"  [OpenResponses] FINAL ANSWWER ENFORCEMENT: Model responded without Final Answer format")
+                    print(f"  [OpenResponses] Using last successful result: {_last_successful_result}")
+                
+                final_answer = _last_successful_result
+                msg_item = create_message_item("assistant", final_answer)
+                msg_item.status = ItemStatus.COMPLETED
+                response.add_output_item(msg_item, debug=self.debug)
+                
+                steps.append(StepResult(
+                    type=StepResultType.FINAL_ANSWER,
+                    content=final_answer,
+                    tokens_used=tokens,
+                ))
+                
+                # Mark response as completed
+                if response.status == ResponseStatus.IN_PROGRESS:
+                    response.mark_completed()
+                
+                # Store response for previous_response_id support
+                self._response_history[response.id] = response
+                response.usage["total_tokens"] = total_tokens
+                
+                total_ms = (time.time() - start_time) * 1000
+                
+                return AgentRun(
+                    final_answer=final_answer,
+                    steps=steps,
+                    total_tokens=total_tokens,
+                    total_ms=total_ms,
+                    tool_calls=tool_calls,
+                    success=True,
+                )
             
             # Accept model's response as the final answer
             # This is the model's decision (OpenResponses: model decides in 'auto' mode)
