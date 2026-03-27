@@ -581,6 +581,15 @@ def build_system_prompt_with_tools(
     result = result.replace('{{DYNAMIC_EXAMPLE_FLOW}}', dynamic_examples['example_flow'])
     result = result.replace('{{DYNAMIC_ERROR_EXAMPLE}}', dynamic_examples['error_example'])
     
+    # Inject Calculator Syntax section only if calculator tool is available
+    tool_names = [getattr(t, 'name', '') for t in tools]
+    if 'calculator' in tool_names:
+        calculator_section = _build_calculator_syntax_section()
+        result = result.replace('{{CALCULATOR_SYNTAX_SECTION}}', calculator_section)
+    else:
+        # Remove the placeholder entirely if no calculator
+        result = result.replace('{{CALCULATOR_SYNTAX_SECTION}}', '')
+    
     # OpenResponses Enhancement: Add tool_choice constraints to prompt
     if tool_choice is not None:
         tool_choice_context = _build_tool_choice_context(tool_choice)

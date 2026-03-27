@@ -34,21 +34,7 @@ Action Input: <JSON arguments>
 
 {{DYNAMIC_EXAMPLE}}
 
-## Calculator Syntax (CRITICAL)
-
-The calculator uses **Python syntax**. Use these correct formats:
-
-| Natural Language | Correct Python Syntax |
-|------------------|----------------------|
-| "2 to the power of 10" | `2**10` |
-| "2 ^ 10" | `2**10` |
-| "square root of 144" | `sqrt(144)` or `144**0.5` |
-| "15 percent of 200" | `15/100*200` |
-| "15 times 8" | `15 * 8` |
-| "cube root of 27" | `27**(1/3)` |
-
-**WRONG**: `"2 to the power of 10"` (natural language will cause syntax error)
-**CORRECT**: `"2**10"` (Python syntax)
+{{CALCULATOR_SYNTAX_SECTION}}
 
 ## After Tool Result - MANDATORY
 
@@ -76,12 +62,13 @@ If a tool returns an error:
 2. **THINK** about what went wrong
 3. **TRY** a different approach - do NOT repeat the same failed call
 4. **USE** correct syntax (see Calculator Syntax table above for calculator)
+5. **CHECK** the available tools list - only use tools that are listed
 
 **Common errors and fixes:**
+- `Unknown tool` ? Check the available tools list, use only those tools
 - `invalid syntax` ? Use Python syntax, not natural language
 - `division by zero` ? Check your expression for division
 - `name 'x' is not defined` ? Use proper function names (sqrt, not square root)
-- `Unknown tool` ? Check the available tools list, use only those tools
 
 {{DYNAMIC_ERROR_EXAMPLE}}
 

@@ -26,6 +26,14 @@ Enhanced the nova-helper soul and agent prompting logic for improved OpenRespons
   - Common errors and fixes table
   - Example recovery flow showing incorrect → correct syntax
 
+#### Dynamic Examples (soul/loader.py)
+- **Dynamic example injection** - Examples now match available tools
+  - `{{DYNAMIC_EXAMPLE}}` placeholder replaced with tool-specific example
+  - `{{DYNAMIC_EXAMPLE_FLOW}}` placeholder replaced with complete flow example
+  - `{{DYNAMIC_ERROR_EXAMPLE}}` placeholder replaced with error recovery example
+  - Templates for calculator, shell, read_file, write_file, get_time, get_date, etc.
+  - Fixes issue where models would copy calculator examples even when only shell was available
+
 #### Agent Observation Enhancement (agent.py)
 - **Contextual Observation guidance** - Tool results now include action hints
   - Success: `Observation: {result}\n\nNow output: Final Answer: <the result>`
