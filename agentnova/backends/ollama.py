@@ -211,10 +211,6 @@ class OllamaBackend(BaseBackend):
         temperature: float = 0.7,
         max_tokens: int = 2048,
         think: bool | None = None,
-        stop: list[str] | str | None = None,
-        response_format: dict | None = None,
-        presence_penalty: float | None = None,
-        frequency_penalty: float | None = None,
         **kwargs,
     ) -> dict:
         """Generate a response using OpenAI Chat-Completions compatible API.
@@ -229,10 +225,6 @@ class OllamaBackend(BaseBackend):
             temperature: Sampling temperature
             max_tokens: Maximum tokens to generate
             think: For thinking models (qwen3, deepseek-r1): None=auto, False=disable thinking
-            stop: Stop sequences (string or list of strings)
-            response_format: Response format specification (e.g., {"type": "json_object"})
-            presence_penalty: Presence penalty (-2.0 to 2.0)
-            frequency_penalty: Frequency penalty (-2.0 to 2.0)
             **kwargs: Additional options passed to Ollama
         """
         import urllib.request
@@ -254,22 +246,6 @@ class OllamaBackend(BaseBackend):
         if tools:
             body["tools"] = [t.to_openai_schema() for t in tools]
 
-        # Add stop sequences (OpenAI spec compliance)
-        if stop:
-            body["stop"] = stop if isinstance(stop, list) else [stop]
-
-        # Add response_format (OpenAI spec compliance)
-        if response_format:
-            body["response_format"] = response_format
-
-        # Add presence_penalty (OpenAI spec compliance)
-        if presence_penalty is not None:
-            body["presence_penalty"] = presence_penalty
-
-        # Add frequency_penalty (OpenAI spec compliance)
-        if frequency_penalty is not None:
-            body["frequency_penalty"] = frequency_penalty
-
         # Add think parameter for thinking models
         if think is not None:
             # Note: OpenAI-compatible endpoint may not support 'think' natively
@@ -278,7 +254,7 @@ class OllamaBackend(BaseBackend):
 
         # Debug output for request
         if os.environ.get("AGENTNOVA_DEBUG"):
-            print(f"  [OpenAI-Comp] Request: tools={len(tools) if tools else 0}, stop={stop}, response_format={response_format}")
+            print(f"  [OpenAI-Comp] Request: tools={len(tools) if tools else 0}")
 
         # Make request
         start_time = time.time()
@@ -356,109 +332,6 @@ class OllamaBackend(BaseBackend):
             "latency_ms": latency_ms,
             "raw": result,
         }
-
-    def generate_completions_stream(
-        self,
-        model: str,
-        messages: list[dict],
-        tools: list[Tool] | None = None,
-        temperature: float = 0.7,
-        max_tokens: int = 2048,
-        stop: list[str] | str | None = None,
-        response_format: dict | None = None,
-        **kwargs,
-    ) -> Generator[dict, None, None]:
-        """Stream generated text using OpenAI Chat-Completions compatible API.
-        
-        Uses Ollama's /v1/chat/completions endpoint with streaming enabled.
-        Yields SSE-style chunks following OpenAI's streaming format.
-        
-        Args:
-            model: Model name
-            messages: Chat messages
-            tools: List of Tool objects for native tool calling
-            temperature: Sampling temperature
-            max_tokens: Maximum tokens to generate
-            stop: Stop sequences (string or list of strings)
-            response_format: Response format specification
-            **kwargs: Additional options passed to Ollama
-            
-        Yields:
-            dict: Parsed SSE chunks with 'delta' content and 'finish_reason'
-        """
-        import urllib.request
-        import urllib.error
-
-        url = f"{self.base_url}/v1/chat/completions"
-
-        # Build request body in OpenAI format
-        body = {
-            "model": model,
-            "messages": messages,
-            "stream": True,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        }
-
-        if tools:
-            body["tools"] = [t.to_openai_schema() for t in tools]
-
-        if stop:
-            body["stop"] = stop if isinstance(stop, list) else [stop]
-
-        if response_format:
-            body["response_format"] = response_format
-
-        # Debug output
-        if os.environ.get("AGENTNOVA_DEBUG"):
-            print(f"  [OpenAI-Comp-Stream] Starting stream: model={model}")
-
-        try:
-            req = urllib.request.Request(
-                url,
-                data=json.dumps(body).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-
-            with urllib.request.urlopen(req, timeout=self.config.timeout) as response:
-                for line in response:
-                    if not line:
-                        continue
-
-                    line_str = line.decode("utf-8").strip()
-
-                    # SSE format: "data: {...}"
-                    if line_str.startswith("data: "):
-                        data_str = line_str[6:]  # Remove "data: " prefix
-
-                        # Check for stream end
-                        if data_str == "[DONE]":
-                            break
-
-                        try:
-                            chunk = json.loads(data_str)
-
-                            # Parse OpenAI streaming format
-                            # {"choices": [{"delta": {"content": "..."}, "finish_reason": null}]}
-                            choices = chunk.get("choices", [])
-                            if choices:
-                                delta = choices[0].get("delta", {})
-                                finish_reason = choices[0].get("finish_reason")
-
-                                yield {
-                                    "delta": delta,
-                                    "finish_reason": finish_reason,
-                                    "raw": chunk,
-                                }
-
-                        except json.JSONDecodeError:
-                            continue
-
-        except urllib.error.HTTPError as e:
-            raise RuntimeError(f"Ollama HTTP error {e.code}")
-        except urllib.error.URLError as e:
-            raise RuntimeError(f"Ollama connection error: {e.reason}")
 
     def generate_stream(
         self,

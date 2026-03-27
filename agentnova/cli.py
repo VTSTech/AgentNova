@@ -336,10 +336,6 @@ def create_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--force-react", action="store_true", help="Force ReAct mode for tool calling")
     run_parser.add_argument("--acp", action="store_true", help="Enable ACP logging to Agent Control Panel")
     run_parser.add_argument("--acp-url", default=None, help="ACP server URL (default: from config)")
-    run_parser.add_argument("--continue", action="store_true", dest="continue_last",
-                           help="Continue from last response (OpenResponses spec)")
-    run_parser.add_argument("--response-id", default=None, dest="response_id",
-                           help="Continue from specific response ID (OpenResponses spec)")
 
     # Chat command
     chat_parser = subparsers.add_parser("chat", help="Interactive chat mode")
@@ -471,53 +467,6 @@ def _init_acp(args: argparse.Namespace, config, agent_name: str = "AgentNova") -
         return None, False
 
 
-def _get_response_history_file() -> Path:
-    """Get the response history file path."""
-    cache_dir = _get_cache_dir()
-    return cache_dir / "response_history.json"
-
-
-def _load_response_history() -> dict:
-    """Load response history from disk."""
-    history_file = _get_response_history_file()
-    if history_file.exists():
-        try:
-            with open(history_file, "r") as f:
-                data = json.load(f)
-                if isinstance(data, dict):
-                    return data
-        except (json.JSONDecodeError, IOError):
-            pass
-    return {}
-
-
-def _save_response_history(history: dict) -> None:
-    """Save response history to disk."""
-    history_file = _get_response_history_file()
-    try:
-        with open(history_file, "w") as f:
-            json.dump(history, f, indent=2)
-    except IOError as e:
-        print(f"{yellow('Warning:')} Could not save response history: {e}")
-
-
-def _get_last_response_id(history: dict, model: str) -> str | None:
-    """Get the last response ID for a model."""
-    model_history = history.get(model, {})
-    return model_history.get("last_response_id")
-
-
-def _store_response(history: dict, model: str, response_id: str, prompt: str, answer: str) -> None:
-    """Store a response in history."""
-    if model not in history:
-        history[model] = {}
-    history[model]["last_response_id"] = response_id
-    history[model]["last_prompt"] = prompt[:500]  # Truncate for storage
-    history[model]["last_answer"] = answer[:1000]
-    history[model]["last_timestamp"] = time.time()
-    _save_response_history(history)
-
-
 def cmd_run(args: argparse.Namespace) -> int:
     """Execute the run command."""
     config = get_config()
@@ -541,23 +490,6 @@ def cmd_run(args: argparse.Namespace) -> int:
     else:
         tools = None
 
-    # Load response history for previous_response_id support
-    response_history = _load_response_history()
-    previous_response_id = None
-
-    # Handle --continue and --response-id flags
-    if getattr(args, 'continue_last', False):
-        previous_response_id = _get_last_response_id(response_history, model)
-        if previous_response_id:
-            if args.debug:
-                print(f"[OpenResponses] Continuing from response: {previous_response_id}")
-        else:
-            print(f"{yellow('Warning:')} No previous response found for model '{model}'")
-    elif getattr(args, 'response_id', None):
-        previous_response_id = args.response_id
-        if args.debug:
-            print(f"[OpenResponses] Using response ID: {previous_response_id}")
-
     agent = Agent(
         model=model,
         tools=tools,
@@ -570,26 +502,9 @@ def cmd_run(args: argparse.Namespace) -> int:
     )
 
     # Log to ACP
-    if acp:
-        acp.log_chat("user", args.prompt)
 
-    # Run agent with previous_response_id if specified
-    if previous_response_id:
-        # Use create_response for OpenResponses compliance
-        from .core.openresponses import create_message_item
-        input_items = [create_message_item("user", args.prompt)]
-        response = agent.create_response(input_items, previous_response_id=previous_response_id)
-        # Now run the agent with the response context
-        result = agent.run(args.prompt)
-        response_id = response.id
-    else:
-        result = agent.run(args.prompt)
-        response_id = result.response_id if hasattr(result, 'response_id') else f"resp_{int(time.time())}"
-
+    result = agent.run(args.prompt)
     print(result.final_answer)
-
-    # Store response for future --continue
-    _store_response(response_history, model, response_id, args.prompt, result.final_answer)
 
     # Log result to ACP
     if acp:
@@ -599,7 +514,6 @@ def cmd_run(args: argparse.Namespace) -> int:
     if args.verbose:
         print(f"\n⏱️ Completed in {result.total_ms:.0f}ms")
         print(f"📊 Tokens: {result.total_tokens}, Steps: {result.iterations}")
-        print(f"📝 Response ID: {response_id}")
 
     return 0
 
