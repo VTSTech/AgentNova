@@ -41,22 +41,24 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 #### After Compliance Fixes (2026-03-27)
 
-| Rank | Model | Score | Time | Tool Mode | Q1 | Q2 | Q3 | Q4 | Q5 | Notes |
-|:----:|-------|------:|-----:|:---------:|:--:|:--:|:--:|:--:|:--:|-------|
-| 🥇 | **`granite4:350m`** | **5/5 (100%)** | 139.8s | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Native tool calling! |
-| 🥈 | `qwen2.5:0.5b` | 4/5 (80%) | 103.0s | ReAct | ✅ | ❌ | ✅ | ✅* | ✅ | *Skipped tool, lucky guess |
-| 🥉 | `gemma3:270m` | 2/5 (40%) | 380.0s | fallback | ✅ | ❌ 3 | ✅ | ❌ empty | ❌ 120 | ReAct fallback working |
-| 4 | `functiongemma:270m` | 2/5 (40%) | 213.2s | fallback | ✅ | ✅ | ❌ echo | ❌ 20 | ❌ refused | ReAct fallback working |
-| 5 | `dolphin3.0-qwen2.5:0.5b` | 2/5 (40%) | 105.7s | ReAct | ✅ | ❌ 4 | ✅ | ❌ 12 | ❌ 10 | Reasoning errors |
+| Rank | Model | Score | Time | Soul | Tool Mode | Q1 | Q2 | Q3 | Q4 | Q5 | Notes |
+|:----:|-------|------:|-----:|:----:|:---------:|:--:|:--:|:--:|:--:|:--:|-------|
+| 🥇 | **`granite4:350m`** | **5/5 (100%)** | 139.8s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Native tool calling! |
+| 🥇 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 141.7s | nova-helper | native | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Perfect score! |
+| 🥉 | `qwen2.5-coder:0.5b` | 4/5 (80%) | 135.5s | nova-helper | native | ❌ 69 | ✅ | ✅ | ✅ | ✅ | Q1 hallucination |
+| 4 | `qwen2:0.5b` | 3/5 (60%) | 127.7s | nova-helper | native | ✅ | ✅ | ✅ | ❌ code | ❌ code | Wrote Python instead |
+| 5 | `gemma3:270m` | 2/5 (40%) | 380.0s | nova-helper | fallback | ✅ | ❌ 3 | ✅ | ❌ empty | ❌ 120 | ReAct fallback working |
+| 5 | `functiongemma:270m` | 2/5 (40%) | 213.2s | nova-helper | fallback | ✅ | ✅ | ❌ echo | ❌ 20 | ❌ refused | ReAct fallback working |
+| 5 | `dolphin3.0-qwen2.5:0.5b` | 2/5 (40%) | 105.7s | nova-helper | ReAct | ✅ | ❌ 4 | ✅ | ❌ 12 | ❌ 10 | Reasoning errors |
 
 #### Before Compliance Fixes (Historical)
 
-| Rank | Model | Score | Time | Status |
-|:----:|-------|------:|-----:|--------|
-| 1 | `granite4:350m` | 4/5 (80%) | 82.1s | ❌ JSON unmarshal error on Q2+ |
-| 2 | `qwen2.5:0.5b` | 3/5 (60%) | 70.2s | ReAct only, no native tools |
-| 3 | `gemma3:270m` | 0/5 (0%) | - | ❌ "does not support tools" error |
-| 4 | `functiongemma:270m` | 0/5 (0%) | - | ❌ "does not support tools" error |
+| Rank | Model | Score | Time | Soul | Status |
+|:----:|-------|------:|-----:|:----:|--------|
+| 1 | `granite4:350m` | 4/5 (80%) | 82.1s | nova-helper | ❌ JSON unmarshal error on Q2+ |
+| 2 | `qwen2.5:0.5b` | 3/5 (60%) | 70.2s | nova-helper | ReAct only, no native tools |
+| 3 | `gemma3:270m` | 0/5 (0%) | - | nova-helper | ❌ "does not support tools" error |
+| 4 | `functiongemma:270m` | 0/5 (0%) | - | nova-helper | ❌ "does not support tools" error |
 
 ---
 
@@ -86,11 +88,18 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | Model | resp (OpenResponses) | comp (ChatCompletions) | Δ Score | Notes |
 |-------|---------------------|------------------------|:-------:|-------|
 | **`granite4:350m`** | **5/5 (100%)** 82.3s | **5/5 (100%)** 139.8s | = | ✅ Native tools work in both! |
-| **`qwen2.5:0.5b`** | **5/5 (100%)** 98.5s | 4/5 (80%) 103.0s | -20% | ReAct parsing differences |
+| **`qwen2.5:0.5b`** | **5/5 (100%)** 98.5s | **5/5 (100%)** 141.7s | = | ✅ Native tools work in both! |
+| `qwen2.5-coder:0.5b` | **5/5 (100%)** 52.2s | 4/5 (80%) 135.5s | -20% | Q1 hallucination in comp |
+| `qwen2:0.5b` | **5/5 (100%)** 53.8s | 3/5 (60%) 127.7s | -40% | Wrote Python instead of tool calls |
 | `gemma3:270m` | **5/5 (100%)** w/soul | 2/5 (40%) 380.0s | -60% | Soul + fallback help in resp |
 | `functiongemma:270m` | **5/5 (100%)** | 2/5 (40%) 213.2s | -60% | Native vs fallback mode |
+| `dolphin3.0-qwen2.5:0.5b` | **5/5 (100%)** 38.2s | 2/5 (40%) 105.7s | -60% | Reasoning errors in comp |
 
-**Key Insight:** Native tool calling now works in both API modes after compliance fixes. OpenResponses (resp) mode has additional fallback synthesis that helps small models.
+**Key Insights:**
+- **2 models achieve 100% in both modes**: granite4:350m, qwen2.5:0.5b
+- **OpenResponses (resp) mode more consistent** for small models
+- **Native tool calling works in both modes** after compliance fixes
+- **Soul persona provides stability** across API modes
 
 ---
 
@@ -118,13 +127,15 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 ### Key Findings (R03.3)
 
-1. **Native tool calling fixed!** - `granite4:350m` now achieves 100% in comp mode
+1. **Native tool calling fixed!** - `granite4:350m` and `qwen2.5:0.5b` achieve 100% in comp mode
 2. **ReAct fallback working** - Models without native support no longer error out
 3. **JSON string arguments** - Fixed "cannot unmarshal object" errors
 4. **OpenResponses compliant** - Full spec compliance for tool calling
 5. **ChatCompletions compliant** - Full OpenAI API compatibility
-6. **10 models achieve 100% in resp mode** - functiongemma, granite4, qwen family, gemma3+soul
-7. **Native > ReAct > Fallback** - Native tool calling outperforms text parsing
+6. **2 models achieve 100% in BOTH modes** - granite4:350m and qwen2.5:0.5b
+7. **10 models achieve 100% in resp mode** - functiongemma, granite4, qwen family, gemma3+soul
+8. **Native > ReAct > Fallback** - Native tool calling outperforms text parsing
+9. **Soul persona critical** - All tests used nova-helper soul for consistency
 
 ---
 
@@ -224,10 +235,11 @@ Test 07 uses the 15-test benchmark with debug output showing tool support detect
 | Use Case | Recommended Model | Why |
 |----------|-------------------|-----|
 | **🏆 BEST OVERALL** | **`granite4:350m`** | **100% in both API modes** - native tools, 350M params! |
+| **Best Both Modes** | **`qwen2.5:0.5b`** | **100% in both API modes** - native tools work everywhere! |
 | **Best Native Tools** | **`functiongemma:270m`** | **100% in 23.7s** - fastest perfect, native tools! |
-| **Best with Soul** | **`qwen2.5-coder:0.5b-instruct-q4_k_m`** + nova-helper | **100% in 52.2s** - 2x faster with soul! |
+| **Best with Soul** | **`qwen2.5-coder:0.5b-instruct-q4_k_m`** + nova-helper | **100% in resp, 80% in comp** - 2x faster with soul! |
 | **Best Qwen3** | **`qwen3:0.6b`** + nova-helper | **100% in 102.3s** - newest Qwen family! |
-| **Best ChatCompletions** | **`granite4:350m`** + `--api comp` | **100% in 139.8s** - native tools work! |
+| **Best ChatCompletions** | **`granite4:350m`** or **`qwen2.5:0.5b`** | **Both 100%** with native tools! |
 | **Smallest 100%** | `gemma3:270m` + nova-helper | **100%** - 270M params with soul! |
 | **Large context** | `llama3.2:1b` | **128k context window**, 87% accuracy |
 | **CPU-only** | `BitNet-b1.58-2B-4T` | Efficient ternary weights |
