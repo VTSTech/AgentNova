@@ -138,16 +138,31 @@ def _extract_tool_from_json(obj: dict, debug: bool = False) -> tuple[str | None,
     args = obj.get("arguments") or obj.get("parameters") or obj.get("args") or obj.get("actionInput") or {}
 
     # Handle JSON-wrapped ReAct format: {"Action": "tool_name", "Action Input": {...}}
-    # This is what dolphin3.0-qwen2.5:0.5b produces
-    if not name:
-        # Check for ReAct-style keys with various capitalizations
+    # or {"action": "tool_name", "action_input": {...}}
+    # This is what dolphin3.0-qwen2.5:0.5b and qwen2.5-coder:0.5b produce
+    for key in obj.keys():
+        key_lower = key.lower()
+        # Check for action key (if not already found)
+        if key_lower == "action" and isinstance(obj[key], str) and not name:
+            name = obj[key]
+        # Check for action_input key (various formats)
+        elif key_lower in ("action input", "actioninput", "action_input"):
+            potential_args = obj[key]
+            if isinstance(potential_args, dict):
+                args = potential_args
+            elif potential_args:
+                args = {"input": potential_args}
+
+    # If we found action but no args, also check for action_input as nested key
+    if name and not args:
         for key in obj.keys():
-            if key.lower() == "action" and isinstance(obj[key], str):
-                name = obj[key]
-            elif key.lower() in ("action input", "actioninput", "action_input"):
-                args = obj[key]
-                if not isinstance(args, dict):
-                    args = {"input": args} if args else {}
+            if key.lower() in ("action input", "actioninput", "action_input"):
+                potential_args = obj[key]
+                if isinstance(potential_args, dict):
+                    args = potential_args
+                elif potential_args:
+                    args = {"input": potential_args}
+                break
 
     # Handle bare argument objects
     if not name:
