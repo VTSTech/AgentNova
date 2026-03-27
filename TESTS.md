@@ -69,7 +69,18 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 > Testing with `--api resp` (default) uses Ollama's native OpenResponses API (`/api/chat`)
 
-Pending...
+#### Current Testing (2026-03-27)
+
+| Rank | Model | Score | Time | Soul | Tool Mode | Q1 | Q2 | Q3 | Q4 | Q5 | Notes |
+|:----:|-------|------:|-----:|:----:|:---------:|:--:|:--:|:--:|:--:|:--:|-------|
+| 1 | `gemma3:270m` | 1/5 (20%) | 372.7s | nova-helper | ? | ❌ 405 | ❌ 3 | ✅ | ❌ empty | ❌ 100 | Hallucinations, only Q3 correct |
+| 2 | `functiongemma:270m` | 0/5 (0%) | 111.4s | nova-helper | ? | ❌ empty | ❌ empty | ❌ empty | ❌ empty | ❌ refused | Empty responses Q1-Q4, refused Q5 |
+| - | *pending...* | - | - | - | - | - | - | - | - | - | |
+
+**Observations:**
+- `functiongemma:270m` returns empty responses for Q1-Q4, refusal for Q5
+- `gemma3:270m` shows hallucinations (405, 3, 100) - worse than comp mode (20% vs 40%)
+- Both 270M models struggling in resp mode
 
 ---
 
