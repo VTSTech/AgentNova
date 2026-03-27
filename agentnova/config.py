@@ -122,7 +122,7 @@ class Config:
     max_steps: int = field(default_factory=lambda: MAX_STEPS)
     temperature: float = 0.1
     max_tokens: int = 8192
-    num_ctx: int | None = field(default_factory=lambda: NUM_CTX if NUM_CTX > 0 else None)
+    num_ctx: int | None = field(default_factory=lambda: _get_num_ctx())
 
     # Memory settings
     memory_max_messages: int = 50
@@ -170,14 +170,25 @@ class Config:
             return cls()
 
 
+def _get_num_ctx() -> int | None:
+    """Get num_ctx from environment (reads fresh each time)."""
+    val = os.environ.get("OLLAMA_NUM_CTX") or os.environ.get("AGENTNOVA_NUM_CTX") or "0"
+    num = int(val) if val else 0
+    return num if num > 0 else None
+
+
 # Global config instance
 _config: Config | None = None
 
 
-def get_config() -> Config:
-    """Get the global configuration."""
+def get_config(reload: bool = False) -> Config:
+    """Get the global configuration.
+    
+    Args:
+        reload: If True, re-read from environment variables
+    """
     global _config
-    if _config is None:
+    if _config is None or reload:
         _config = Config.from_env()
     return _config
 
