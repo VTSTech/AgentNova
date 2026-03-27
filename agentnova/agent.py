@@ -510,6 +510,45 @@ Final Answer: <the answer>
                         print(f"  Tool: {tool_name}({tool_args})")
                         print(f"  Result: {str(result)[:200]}...")
 
+                # Check if model provided final_answer along with tool call
+                if pending_final_answer:
+                    if self.debug:
+                        print(f"  [OpenResponses] Model provided final_answer with tool call")
+                        print(f"  [OpenResponses] Using final_answer: {pending_final_answer[:100]}...")
+                    
+                    # Create output message item
+                    msg_item = create_message_item("assistant", pending_final_answer)
+                    msg_item.status = ItemStatus.COMPLETED
+                    response.add_output_item(msg_item, debug=self.debug)
+                    
+                    steps.append(StepResult(
+                        type=StepResultType.FINAL_ANSWER,
+                        content=pending_final_answer,
+                        tokens_used=tokens,
+                    ))
+                    
+                    # Mark response as completed
+                    if response.status == ResponseStatus.IN_PROGRESS:
+                        response.mark_completed()
+                    
+                    # Get final answer
+                    final_answer = pending_final_answer
+                    
+                    # Store response for previous_response_id support
+                    self._response_history[response.id] = response
+                    response.usage["total_tokens"] = total_tokens
+                    
+                    total_ms = (time.time() - start_time) * 1000
+                    
+                    return AgentRun(
+                        final_answer=final_answer,
+                        steps=steps,
+                        total_tokens=total_tokens,
+                        total_ms=total_ms,
+                        tool_calls=tool_calls,
+                        success=True,
+                    )
+
                 # Continue the agentic loop
                 continue
 
