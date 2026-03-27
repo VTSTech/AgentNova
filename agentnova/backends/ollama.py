@@ -13,7 +13,7 @@ import time
 from typing import Any, Generator, Optional
 
 from .base import BaseBackend, BackendConfig
-from ..core.types import BackendType, ToolSupportLevel
+from ..core.types import BackendType, ToolSupportLevel, ApiMode
 from ..core.models import Tool, ToolParam
 from ..config import OLLAMA_BASE_URL
 
@@ -32,6 +32,7 @@ class OllamaBackend(BaseBackend):
         host: str | None = None,
         port: int | None = None,
         config: BackendConfig | None = None,
+        api_mode: ApiMode | str = ApiMode.RESPONSES,
     ):
         # Determine base URL - priority: base_url > host/port > env > default
         if base_url:
@@ -45,6 +46,11 @@ class OllamaBackend(BaseBackend):
             super().__init__(config)
         else:
             super().__init__(BackendConfig())
+        
+        # Set API mode (resp = OpenResponses/native, comp = Chat-Completions)
+        if isinstance(api_mode, str):
+            api_mode = ApiMode(api_mode.lower())
+        self._api_mode = api_mode
 
     @property
     def backend_type(self) -> BackendType:
@@ -53,6 +59,16 @@ class OllamaBackend(BaseBackend):
     @property
     def base_url(self) -> str:
         return self._base_url
+    
+    @property
+    def api_mode(self) -> ApiMode:
+        return self._api_mode
+    
+    @api_mode.setter
+    def api_mode(self, value: ApiMode | str) -> None:
+        if isinstance(value, str):
+            value = ApiMode(value.lower())
+        self._api_mode = value
 
     def generate(
         self,
@@ -75,6 +91,19 @@ class OllamaBackend(BaseBackend):
             think: For thinking models (qwen3, deepseek-r1): None=auto, False=disable thinking
             **kwargs: Additional options passed to Ollama
         """
+        # Dispatch based on api_mode
+        if self._api_mode == ApiMode.COMPLETIONS:
+            return self.generate_completions(
+                model=model,
+                messages=messages,
+                tools=tools,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                think=think,
+                **kwargs,
+            )
+        
+        # Native Ollama /api/chat endpoint
         import urllib.request
         import urllib.error
 
@@ -164,6 +193,136 @@ class OllamaBackend(BaseBackend):
                 "prompt_tokens": result.get("prompt_eval_count", 0),
                 "completion_tokens": result.get("eval_count", 0),
                 "total_tokens": result.get("prompt_eval_count", 0) + result.get("eval_count", 0),
+            },
+            "latency_ms": latency_ms,
+            "raw": result,
+        }
+
+    def generate_completions(
+        self,
+        model: str,
+        messages: list[dict],
+        tools: list[Tool] | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 2048,
+        think: bool | None = None,
+        **kwargs,
+    ) -> dict:
+        """Generate a response using OpenAI Chat-Completions compatible API.
+        
+        Uses Ollama's /v1/chat/completions endpoint which is compatible with
+        OpenAI's Chat Completions API format.
+        
+        Args:
+            model: Model name
+            messages: Chat messages
+            tools: List of Tool objects for native tool calling
+            temperature: Sampling temperature
+            max_tokens: Maximum tokens to generate
+            think: For thinking models (qwen3, deepseek-r1): None=auto, False=disable thinking
+            **kwargs: Additional options passed to Ollama
+        """
+        import urllib.request
+        import urllib.error
+
+        # OpenAI-compatible endpoint
+        url = f"{self.base_url}/v1/chat/completions"
+
+        # Build request body in OpenAI format
+        body = {
+            "model": model,
+            "messages": messages,
+            "stream": False,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+
+        # Add tools in OpenAI format
+        if tools:
+            body["tools"] = [t.to_openai_schema() for t in tools]
+
+        # Add think parameter for thinking models
+        if think is not None:
+            # Note: OpenAI-compatible endpoint may not support 'think' natively
+            # This is Ollama-specific, might need to be in extra body
+            pass
+
+        # Debug output for request
+        if os.environ.get("AGENTNOVA_DEBUG"):
+            print(f"  [Ollama-Comp] Request: tools={len(tools) if tools else 0}")
+
+        # Make request
+        start_time = time.time()
+
+        try:
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(body).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+
+            with urllib.request.urlopen(req, timeout=self.config.timeout) as response:
+                result = json.loads(response.read().decode("utf-8"))
+
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode("utf-8") if e.fp else ""
+            raise RuntimeError(f"Ollama HTTP error {e.code}: {error_body}")
+
+        except urllib.error.URLError as e:
+            raise RuntimeError(f"Ollama connection error: {e.reason}")
+
+        latency_ms = (time.time() - start_time) * 1000
+
+        # Parse OpenAI-format response
+        # Response structure: {"choices": [{"message": {"content": ..., "tool_calls": [...]}}]}
+        choices = result.get("choices", [])
+        if not choices:
+            return {
+                "content": "",
+                "tool_calls": [],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+                "latency_ms": latency_ms,
+                "raw": result,
+            }
+
+        choice = choices[0]
+        message = choice.get("message", {})
+        content = message.get("content", "")
+        tool_calls = message.get("tool_calls", [])
+
+        # Debug output
+        if os.environ.get("AGENTNOVA_DEBUG"):
+            print(f"  [Ollama-Comp] Content: {content[:1024] if content else '(empty)'}")
+            print(f"  [Ollama-Comp] Tool calls: {tool_calls}")
+
+        # Parse tool calls from OpenAI format
+        # OpenAI format: {"id": "...", "type": "function", "function": {"name": "...", "arguments": "{...}"}}
+        parsed_tool_calls = []
+        for tc in tool_calls:
+            func = tc.get("function", {})
+            args = func.get("arguments", "{}")
+            # OpenAI returns arguments as JSON string, parse it
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except json.JSONDecodeError:
+                    args = {}
+            parsed_tool_calls.append({
+                "id": tc.get("id", ""),
+                "name": func.get("name", ""),
+                "arguments": args,
+            })
+
+        usage = result.get("usage", {})
+
+        return {
+            "content": content,
+            "tool_calls": parsed_tool_calls,
+            "usage": {
+                "prompt_tokens": usage.get("prompt_tokens", 0),
+                "completion_tokens": usage.get("completion_tokens", 0),
+                "total_tokens": usage.get("total_tokens", 0),
             },
             "latency_ms": latency_ms,
             "raw": result,

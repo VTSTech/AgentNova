@@ -59,6 +59,20 @@ class BackendType(Enum):
     CUSTOM = "custom"
 
 
+class ApiMode(Enum):
+    """API mode for backend communication.
+    
+    - RESPONSES: OpenResponses-style API (Ollama native /api/chat)
+    - COMPLETIONS: OpenAI Chat-Completions compatible API (/v1/chat/completions)
+    
+    Ollama supports both endpoints:
+    - /api/chat - Native Ollama format (default)
+    - /v1/chat/completions - OpenAI-compatible format
+    """
+    RESPONSES = "resp"      # OpenResponses / Ollama native format
+    COMPLETIONS = "comp"    # OpenAI Chat-Completions compatible format
+
+
 # Type aliases for clarity
 ModelName = str
 ToolName = str

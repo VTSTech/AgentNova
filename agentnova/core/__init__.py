@@ -5,7 +5,7 @@ This module contains the core types, models, and utilities
 that form the foundation of the AgentNova framework.
 """
 
-from .types import StepResultType, ToolSupportLevel, BackendType
+from .types import StepResultType, ToolSupportLevel, BackendType, ApiMode
 from .models import StepResult, AgentRun, Tool, ToolParam
 from .memory import Memory, MemoryConfig
 from .tool_parse import ToolParser, ToolCall
@@ -62,6 +62,7 @@ __all__ = [
     "StepResultType",
     "ToolSupportLevel",
     "BackendType",
+    "ApiMode",
     # Models
     "StepResult",
     "AgentRun",

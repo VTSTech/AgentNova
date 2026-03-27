@@ -321,6 +321,8 @@ def create_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("-m", "--model", default=None, help="Model to use")
     run_parser.add_argument("--tools", default="calculator", help="Comma-separated tool list")
     run_parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None, help="Backend to use")
+    run_parser.add_argument("--api", choices=["resp", "comp"], default="resp", dest="api_mode",
+                           help="API mode: 'resp' (OpenResponses/native) or 'comp' (Chat-Completions)")
     run_parser.add_argument("--stream", action="store_true", help="Stream output")
     run_parser.add_argument("--debug", action="store_true", help="Enable debug output")
     run_parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
@@ -340,6 +342,8 @@ def create_parser() -> argparse.ArgumentParser:
     chat_parser.add_argument("-m", "--model", default=None, help="Model to use")
     chat_parser.add_argument("--tools", default="", help="Comma-separated tool list")
     chat_parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None, help="Backend to use")
+    chat_parser.add_argument("--api", choices=["resp", "comp"], default="resp", dest="api_mode",
+                           help="API mode: 'resp' (OpenResponses/native) or 'comp' (Chat-Completions)")
     chat_parser.add_argument("--debug", action="store_true", help="Enable debug output")
     chat_parser.add_argument("--force-react", action="store_true", help="Force ReAct mode")
     chat_parser.add_argument("--soul", default=None, help="Path to Soul Spec package (disabled by default)")
@@ -357,6 +361,8 @@ def create_parser() -> argparse.ArgumentParser:
     agent_parser.add_argument("-m", "--model", default=None, help="Model to use")
     agent_parser.add_argument("--tools", default="calculator,shell,write_file", help="Comma-separated tool list")
     agent_parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None, help="Backend to use")
+    agent_parser.add_argument("--api", choices=["resp", "comp"], default="resp", dest="api_mode",
+                           help="API mode: 'resp' (OpenResponses/native) or 'comp' (Chat-Completions)")
     agent_parser.add_argument("--debug", action="store_true", help="Enable debug output")
     agent_parser.add_argument("--force-react", action="store_true", help="Force ReAct mode for tool calling")
     agent_parser.add_argument("--soul", default=None, help="Path to Soul Spec package (disabled by default)")
@@ -385,6 +391,8 @@ def create_parser() -> argparse.ArgumentParser:
     test_parser.add_argument("-m", "--model", default=None, 
                              help="Model to test (supports patterns: 'qwen', 'g', ':0.5b')")
     test_parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None, help="Backend to use")
+    test_parser.add_argument("--api", choices=["resp", "comp"], default="resp", dest="api_mode",
+                           help="API mode: 'resp' (OpenResponses/native) or 'comp' (Chat-Completions)")
     test_parser.add_argument("--debug", action="store_true", help="Enable debug output")
     test_parser.add_argument("--list", action="store_true", help="List available tests")
     test_parser.add_argument("--acp", action="store_true", help="Enable ACP logging to Agent Control Panel")
@@ -464,6 +472,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     config = get_config()
     model = args.model or config.default_model
     backend_name = args.backend or config.backend
+    api_mode = getattr(args, 'api_mode', 'resp')
 
     # Initialize ACP if requested
     acp, should_stop = _init_acp(args, config, "AgentNova-Run")
@@ -471,7 +480,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         return 1
 
     timeout = getattr(args, 'timeout', None)
-    backend = get_backend(backend_name, timeout=timeout)
+    backend = get_backend(backend_name, timeout=timeout, api_mode=api_mode)
 
     # Build tools
     if args.tools:
@@ -514,6 +523,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
     config = get_config()
     model = args.model or config.default_model
     backend_name = args.backend or config.backend
+    api_mode = getattr(args, 'api_mode', 'resp')
 
     # Initialize ACP if requested
     acp, should_stop = _init_acp(args, config, "AgentNova-Chat")
@@ -521,7 +531,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
         return 1
 
     timeout = getattr(args, 'timeout', None)
-    backend = get_backend(backend_name, timeout=timeout)
+    backend = get_backend(backend_name, timeout=timeout, api_mode=api_mode)
 
     if args.tools:
         all_tools = make_builtin_registry()
@@ -544,6 +554,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
     print_banner()
     print(f"{bright_magenta('Chat Mode')} — {cyan(model)}")
     print(f"{dim('Backend:')} {backend_name} ({dim(backend.base_url)})")
+    print(f"{dim('API Mode:')} {yellow(api_mode)}")
     if agent.soul:
         print(f"{dim('Soul:')} {green(agent.soul.display_name)} v{agent.soul.version}")
     if agent.num_ctx:
@@ -607,6 +618,7 @@ def cmd_agent(args: argparse.Namespace) -> int:
     config = get_config()
     model = args.model or config.default_model
     backend_name = args.backend or config.backend
+    api_mode = getattr(args, 'api_mode', 'resp')
 
     # Initialize ACP if requested
     acp, should_stop = _init_acp(args, config, "AgentNova-Agent")
@@ -614,7 +626,7 @@ def cmd_agent(args: argparse.Namespace) -> int:
         return 1
 
     timeout = getattr(args, 'timeout', None)
-    backend = get_backend(backend_name, timeout=timeout)
+    backend = get_backend(backend_name, timeout=timeout, api_mode=api_mode)
 
     if args.tools:
         all_tools = make_builtin_registry()
@@ -639,6 +651,7 @@ def cmd_agent(args: argparse.Namespace) -> int:
     print_banner()
     print(f"{bright_magenta('Agent Mode')} — {cyan(model)}")
     print(f"{dim('Backend:')} {backend_name} ({dim(backend.base_url)})")
+    print(f"{dim('API Mode:')} {yellow(api_mode)}")
     if agent.soul:
         print(f"{dim('Soul:')} {green(agent.soul.display_name)} v{agent.soul.version}")
     if agent.num_ctx:

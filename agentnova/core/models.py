@@ -46,7 +46,7 @@ class Tool:
     category: str = "general"
 
     def to_json_schema(self) -> dict:
-        """Convert to JSON Schema format for function calling."""
+        """Convert to JSON Schema format for function calling (Ollama native format)."""
         properties = {}
         required = []
 
@@ -67,6 +67,16 @@ class Tool:
                 },
             },
         }
+    
+    def to_openai_schema(self) -> dict:
+        """Convert to OpenAI Chat-Completions tool format.
+        
+        This is the format expected by OpenAI's /v1/chat/completions endpoint
+        and Ollama's OpenAI-compatible endpoint.
+        
+        The format is identical to Ollama's native format, so we delegate.
+        """
+        return self.to_json_schema()
 
     def execute(self, **kwargs) -> Any:
         """Execute the tool with given arguments."""
