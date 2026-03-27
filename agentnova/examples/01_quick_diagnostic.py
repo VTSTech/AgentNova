@@ -103,7 +103,7 @@ Pass the mathematical expression to the calculator (e.g., "15 + 27" or "8 * 7 - 
 After getting the result, provide the final answer as a number."""
     
     for i, (test_name, prompt, tools, expected) in enumerate(TESTS):
-        print(f"  {test_name}...", end=" ", flush=True)
+        print(f"  {test_name}...", end="\n", flush=True)
         
         try:
             # Build tools
