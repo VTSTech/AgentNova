@@ -73,14 +73,16 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 | Rank | Model | Score | Time | Soul | Tool Mode | Q1 | Q2 | Q3 | Q4 | Q5 | Notes |
 |:----:|-------|------:|-----:|:----:|:---------:|:--:|:--:|:--:|:--:|:--:|-------|
-| 🥇 | **`granite4:350m`** | **5/5 (100%)** | 134.3s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Native tools working! |
+| 🥇 | **`granite4:350m`** | **5/5 (100%)** | 136.3s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Native tools working! |
 | 🥈 | `gemma3:270m` | 3/5 (60%) | 374.7s | nova-helper | native | ✅ | ✅ | ✅ | ❌ empty | ❌ 120 | Q4 empty, Q5 reasoning error |
+| 🥈 | `dolphin3.0-qwen2.5:0.5b` | 3/5 (60%) | 114.3s | nova-helper | native | ✅ | ❌ 4 | ✅ | ✅ | ❌ 6 | Q2 reasoning error, Q5 wrong |
 | 🥉 | `functiongemma:270m` | 1/5 (20%) | 250.1s | nova-helper | native | ❌ 120 | ✅ | ❌ 4.00 | ❌ 20 | ❌ refused | Reasoning errors, Q5 refusal |
 | - | *pending...* | - | - | - | - | - | - | - | - | - | |
 
 **Observations:**
 - `granite4:350m`: **0% → 100%** after fixing tool_call arguments format for Ollama native API
 - `gemma3:270m`: **20% → 60%** after fix - native tools now working
+- `dolphin3.0-qwen2.5:0.5b`: **60%** - native tools working, reasoning errors on Q2/Q5
 - `functiongemma:270m`: **0% → 20%** after fix - was returning empty/refused, now reasoning
 
 ---
