@@ -20,6 +20,7 @@ class ToolCall:
     arguments: dict[str, Any]
     raw: str = ""  # Original text that was parsed
     confidence: float = 1.0  # Confidence of parsing (for fuzzy matches)
+    final_answer: str | None = None  # Final answer if present in same content
 
 
 # ------------------------------------------------------------------ #
@@ -487,6 +488,7 @@ class ToolParser:
                 arguments=args or {},
                 raw=f"Action: {name}\nAction Input: {args}",
                 confidence=0.9 if name in self.tool_names else 0.7,
+                final_answer=final,  # Include final answer if present
             )]
         
         return []

@@ -413,15 +413,19 @@ Final Answer: <the answer>
                     print(f"  [OpenResponses] ReAct format tool calls detected: {len(parsed_calls)}")
                 for call in parsed_calls:
                     if self.debug:
-                        print(f"  [OpenResponses] Parsed: name={call.name}, args={call.arguments}")
+                        print(f"  [OpenResponses] Parsed: name={call.name}, args={call.arguments}, final_answer={call.final_answer}")
                     tool_calls_found.append({
                         "name": call.name,
                         "arguments": call.arguments,
                         "id": "",
+                        "final_answer": call.final_answer,  # May be None
                     })
 
             # Execute tool calls if found
             if tool_calls_found:
+                # Track if any tool call has a final_answer
+                pending_final_answer = None
+                
                 # For native calls, use special memory format
                 if native_tool_calls:
                     self.memory.add_tool_call("assistant", content, native_tool_calls)
@@ -432,6 +436,10 @@ Final Answer: <the answer>
                     tool_name = tc["name"]
                     tool_args = tc["arguments"]
                     tool_call_id = tc.get("id", "") or ""
+                    
+                    # Check if this tool call also has a final_answer
+                    if tc.get("final_answer"):
+                        pending_final_answer = tc["final_answer"]
 
                     # OpenResponses: Check allowed_tools
                     if self._allowed_tools and tool_name not in self._allowed_tools:
