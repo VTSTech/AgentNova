@@ -19,6 +19,20 @@ Usage:
 Written by VTSTech — https://www.vts-tech.org — https://github.com/VTSTech/AgentNova
 """
 
-from .loader import SkillLoader, Skill, SkillRegistry
+from .loader import (
+    SkillLoader,
+    Skill,
+    SkillRegistry,
+    SPDX_LICENSES,
+    validate_spdx_license,
+    parse_compatibility,
+)
 
-__all__ = ["SkillLoader", "Skill", "SkillRegistry"]
+__all__ = [
+    "SkillLoader",
+    "Skill",
+    "SkillRegistry",
+    "SPDX_LICENSES",
+    "validate_spdx_license",
+    "parse_compatibility",
+]
