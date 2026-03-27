@@ -918,10 +918,14 @@ Final Answer: <the answer>
             if self.debug:
                 print(f"  [DEBUG] num_ctx: {self.num_ctx}")
 
+        # Pass tools for native tool calling (OpenResponses/ChatCompletions compliant)
+        # ReAct parsing remains as fallback for models without native support
+        tools_for_backend = self.tools.all() if self.tools and len(self.tools) > 0 else None
+
         response = self.backend.generate(
             model=self.model,
             messages=messages,
-            tools=None,  # We use ReAct prompting, not native tool definitions
+            tools=tools_for_backend,  # Native tool calling support
             temperature=self.model_config.default_temperature,
             max_tokens=self.model_config.default_max_tokens,
             **backend_kwargs,
@@ -930,7 +934,7 @@ Final Answer: <the answer>
         if self.debug:
             print(f"  [DEBUG] Response keys: {list(response.keys())}")
             print(f"  [DEBUG] Content: {response.get('content', '')[:100]}...")
-            print(f"  [DEBUG] Tool calls: {response.get('tool_calls', [])}")
+            print(f"  [DEBUG] Native tool calls: {response.get('tool_calls', [])}")
 
         return response
 
