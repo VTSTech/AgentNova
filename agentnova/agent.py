@@ -236,7 +236,7 @@ class Agent:
                     current_tools = set(self.tools.names())
                     filtered = current_tools.intersection(allowed)
                     if filtered != current_tools:
-                        if debug and not self._is_comp_mode:
+                        if debug:
                             print(f"[Soul] Filtering tools: {current_tools} -> {filtered}")
                         self.tools = self.tools.subset(list(filtered))
                         has_tools = len(self.tools) > 0
@@ -253,18 +253,18 @@ class Agent:
                     from .soul import build_system_prompt
                     self._custom_system_prompt = build_system_prompt(self.soul, level=soul_level)
                 
-                if debug and not self._is_comp_mode:
+                if debug:
                     print(f"[Soul] Loaded: {self.soul.display_name} v{self.soul.version}")
             except ImportError:
-                if debug and not self._is_comp_mode:
+                if debug:
                     print("[Soul] Soul module not available, using default prompt")
                 self._custom_system_prompt = self._build_default_prompt(has_tools)
             except FileNotFoundError as e:
-                if debug and not self._is_comp_mode:
+                if debug:
                     print(f"[Soul] Soul package not found: {e}")
                 self._custom_system_prompt = self._build_default_prompt(has_tools)
             except Exception as e:
-                if debug and not self._is_comp_mode:
+                if debug:
                     print(f"[Soul] Error loading soul: {e}")
                 self._custom_system_prompt = self._build_default_prompt(has_tools)
         else:
@@ -383,7 +383,7 @@ Final Answer: <the answer>
         if self.debug and not self._is_comp_mode:
             print(f"[OpenResponses] Input item added: id={user_item.id}, type={user_item.type}, role={user_item.role}")
 
-        if self.debug and not self._is_comp_mode:
+        if self.debug:
             print(f"\n[AgentNova] Model: {self.model}")
             print(f"[AgentNova] Backend: {self.backend.base_url}")
             print(f"[AgentNova] tool_choice: {self.tool_choice.type.value}")
@@ -402,14 +402,14 @@ Final Answer: <the answer>
         self._error_tracker.reset()
         
         for step_num in range(self.max_steps):
-            if self.debug and not self._is_comp_mode:
+            if self.debug:
                 print(f"[Step {step_num + 1}]")
 
             # Generate response from model
             try:
                 gen_response = self._generate()
             except Exception as e:
-                if self.debug and not self._is_comp_mode:
+                if self.debug:
                     print(f"  ERROR: {e}")
                 steps.append(StepResult(
                     type=StepResultType.ERROR,
@@ -423,7 +423,7 @@ Final Answer: <the answer>
             tokens = gen_response.get("usage", {}).get("total_tokens", 0)
             total_tokens += tokens
 
-            if self.debug and not self._is_comp_mode:
+            if self.debug:
                 print(f"  Content: {content[:200] if content else '(empty)'}...")
                 print(f"  Native tool calls: {native_tool_calls}")
 
@@ -567,7 +567,7 @@ Final Answer: <the answer>
                         
                         # Check if we should terminate due to too many failures
                         if self._error_tracker.should_terminate():
-                            if self.debug and not self._is_comp_mode:
+                            if self.debug:
                                 print(f"  [ErrorRecovery] Terminating: total failures ({self._error_tracker.total_failures}) >= max ({self._error_tracker.max_total_failures})")
                             fc_item.status = ItemStatus.FAILED
                             response.mark_failed({"message": "Too many tool failures", "type": "error_recovery"})
@@ -623,7 +623,7 @@ Final Answer: <the answer>
                         tokens_used=tokens,
                     ))
 
-                    if self.debug and not self._is_comp_mode:
+                    if self.debug:
                         print(f"  Tool: {tool_name}({tool_args})")
                         print(f"  Result: {str(result)[:200]}...")
 
@@ -792,7 +792,7 @@ Final Answer: <the answer>
                 msg_item.status = ItemStatus.COMPLETED
                 response.add_output_item(msg_item, debug=not self._is_comp_mode and self.debug)
 
-            if self.debug and not self._is_comp_mode:
+            if self.debug:
                 print(f"  No tool calls detected, accepting as final answer")
 
             steps.append(StepResult(
@@ -889,7 +889,7 @@ Final Answer: <the answer>
         """Generate a response from the backend."""
         messages = self.memory.get_messages()
 
-        if self.debug and not self._is_comp_mode:
+        if self.debug:
             print(f"  [DEBUG] Sending {len(messages)} messages")
             for i, msg in enumerate(messages):
                 role = msg.get('role', '?')
@@ -910,7 +910,7 @@ Final Answer: <the answer>
         backend_kwargs = {"think": think}
         if self.num_ctx is not None:
             backend_kwargs["num_ctx"] = self.num_ctx
-            if self.debug and not self._is_comp_mode:
+            if self.debug:
                 print(f"  [DEBUG] num_ctx: {self.num_ctx}")
 
         response = self.backend.generate(
@@ -922,7 +922,7 @@ Final Answer: <the answer>
             **backend_kwargs,
         )
 
-        if self.debug and not self._is_comp_mode:
+        if self.debug:
             print(f"  [DEBUG] Response keys: {list(response.keys())}")
             print(f"  [DEBUG] Content: {response.get('content', '')[:100]}...")
             print(f"  [DEBUG] Tool calls: {response.get('tool_calls', [])}")
