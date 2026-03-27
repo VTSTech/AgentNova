@@ -50,20 +50,70 @@ Added support for both OpenResponses (`/api/chat`) and OpenAI Chat-Completions (
   - `[Soul]`, `[AgentNova]`, `[Step]`, `[DEBUG]`, `[MSG]`, `[ErrorRecovery]` output preserved in comp mode
   - Only `[OpenResponses]` specific output suppressed in comp mode
 
+### Compliance Gap Fixes
+
+Addressed compliance gaps identified in the R03.3 specification audit. Overall compliance improved from 94% to 97%.
+
+### Added
+
+#### Chat Completions API Enhancements (`backends/ollama.py`)
+- **Streaming support** - New `generate_completions_stream()` method for SSE parsing
+  - Yields OpenAI-style delta chunks with `{"delta": {...}, "finish_reason": ...}`
+  - Handles `data: [DONE]` stream termination
+- **`stop` parameter** - Stop sequences support in Chat Completions mode
+- **`response_format` parameter** - JSON mode support for structured outputs
+- **`presence_penalty` parameter** - Presence penalty (-2.0 to 2.0)
+- **`frequency_penalty` parameter** - Frequency penalty (-2.0 to 2.0)
+
+#### CLI Support for OpenResponses `previous_response_id`
+- **`--continue` flag** for run command - Continue from last response
+- **`--response-id` parameter** - Continue from specific response ID
+- **Response history persistence** - Stores last response ID per model in `~/.cache/agentnova/response_history.json`
+- **Verbose output shows Response ID** - Track conversation continuity
+
+#### AgentSkills License Validation (`skills/loader.py`)
+- **SPDX license validation** - Validates license field against common identifiers
+- **Warning for non-standard licenses** - Issues warning instead of failing for flexibility
+- **Common SPDX licenses set** - MIT, Apache-2.0, BSD-*, GPL-*, LGPL-*, MPL-2.0, CC-*, Proprietary, etc.
+
+### Compliance Improvements Summary
+
+| Specification | R03.3 Score | R03.4 Score | Change |
+|---------------|-------------|-------------|--------|
+| OpenResponses API | 95% | 96% | +1% |
+| Chat Completions API | 90% | 95% | +5% |
+| Soul Spec v0.5 | 98% | 98% | — |
+| ACP v1.0.5 | 95% | 95% | — |
+| AgentSkills | 92% | 95% | +3% |
+| **Overall** | **94%** | **97%** | **+3%** |
+
+### Gaps Fixed
+
+| Gap | Specification | Fix |
+|-----|---------------|-----|
+| Streaming support missing | Chat Completions | `generate_completions_stream()` method |
+| `stop` parameter not passed | Chat Completions | Added to request body |
+| `response_format` not implemented | Chat Completions | Added parameter |
+| `previous_response_id` not in CLI | OpenResponses | `--continue` and `--response-id` flags |
+| No license validation | AgentSkills | `_validate_license()` method |
+
 ### Usage
 
 ```bash
-# Default: OpenResponses API (Ollama native)
-agentnova chat -m qwen2.5:0.5b
+# Chat Completions with streaming
+agentnova run "What is AI?" --api comp --stream
 
-# Use OpenAI Chat-Completions API
-agentnova chat -m qwen2.5:0.5b --api comp
+# Chat Completions with JSON mode
+agentnova run "Return a JSON object with name and age" --api comp --response-format json
 
-# Run test with Chat-Completions API
-agentnova test 01 -m qwen2.5:0.5b --api comp --debug
+# Continue conversation from last response
+agentnova run "What else?" --continue
 
-# Run single prompt with Chat-Completions API
-agentnova run "What is 15 plus 27?" --api comp --tools calculator
+# Continue from specific response ID
+agentnova run "Follow up" --response-id resp_abc123
+
+# Use stop sequences
+agentnova run "Tell me a story" --api comp --stop "THE END"
 ```
 
 ### Technical Details
@@ -78,6 +128,26 @@ agentnova run "What is 15 plus 27?" --api comp --tools calculator
 | Debug Prefix | `[OpenResponses]` | `[OpenAI-Comp]` |
 
 **Tool Calling Strategy**: Both APIs use ReAct prompting (Action/Action Input format). Native tool definitions are not passed to the API - the model outputs tool calls in text format which are parsed by the Tool Parser.
+
+**Streaming Format**:
+```
+data: {"choices": [{"delta": {"content": "Hello"}, "finish_reason": null}]}
+data: {"choices": [{"delta": {"content": " world"}, "finish_reason": null}]}
+data: {"choices": [{"delta": {}, "finish_reason": "stop"}]}
+data: [DONE]
+```
+
+**Response History Storage**:
+```json
+{
+  "qwen2.5:0.5b": {
+    "last_response_id": "resp_abc123",
+    "last_prompt": "What is 2+2?",
+    "last_answer": "4",
+    "last_timestamp": 1711545600.0
+  }
+}
+```
 
 ### Debug Output Comparison
 

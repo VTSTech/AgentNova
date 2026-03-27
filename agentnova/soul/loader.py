@@ -1,1001 +1,501 @@
 """
-⚛️ AgentNova — Soul Loader
+⚛️ AgentNova R02 - Skills Loader
 
-Load and parse ClawSouls Soul Spec v0.5 packages.
+Implements the Agent Skills specification for loading SKILL.md files.
+See: https://agentskills.io/
 
-Written by VTSTech — https://www.vts-tech.org
+Written by VTSTech — https://www.vts-tech.org — https://github.com/VTSTech/AgentNova
 """
 
-from __future__ import annotations
-
-import json
+import os
+import re
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Union
-
-from .types import (
-    SoulManifest, Author, Compatibility, SoulFiles, SoulExamples,
-    Disclosure, RecommendedSkill, HardwareConstraints, PhysicalSafety,
-    Safety, Sensor, Actuator, Environment, InteractionMode,
-    Mobility, ContactPolicy, parse_legacy_skills,
-)
+from typing import Optional, Dict, List, Any
 
 
-class SoulLoader:
+# Common SPDX license identifiers (subset for validation)
+COMMON_SPDX_LICENSES = {
+    # Permissive licenses
+    "MIT", "Apache-2.0", "Apache-2.0-only", "Apache-2.0-or-later",
+    "BSD-2-Clause", "BSD-3-Clause", "BSD-3-Clause-Clear",
+    "ISC", "0BSD", "Unlicense",
+    # Creative Commons
+    "CC0-1.0", "CC-BY-4.0", "CC-BY-SA-4.0", "CC-BY-NC-4.0",
+    # Copyleft licenses
+    "GPL-2.0", "GPL-2.0-only", "GPL-2.0-or-later",
+    "GPL-3.0", "GPL-3.0-only", "GPL-3.0-or-later",
+    "LGPL-2.1", "LGPL-3.0", "LGPL-3.0-only",
+    "MPL-2.0", "EPL-2.0",
+    # Proprietary
+    "Proprietary", "Commercial",
+    # Other common
+    "WTFPL", "Zlib", "PostgreSQL",
+}
+
+
+@dataclass
+class Skill:
     """
-    Load and parse Soul Spec packages.
+    Represents a loaded skill following the Agent Skills specification.
     
-    Supports:
-    - soul.json manifest parsing
-    - Progressive disclosure (Level 1-3)
-    - Persona file loading (SOUL.md, IDENTITY.md, etc.)
-    - Legacy v0.3 format backward compatibility
-    
-    Example:
-        loader = SoulLoader()
-        soul = loader.load("/path/to/soul/package")
-        print(soul.get_summary())
-        system_prompt = loader.build_system_prompt(soul, level=2)
+    Attributes:
+        name: Skill identifier (1-64 chars, lowercase, hyphens only)
+        description: What the skill does and when to use it (1-1024 chars)
+        instructions: The Markdown body after frontmatter
+        path: Path to the skill directory
+        license: Optional license information (SPDX identifier recommended)
+        compatibility: Optional environment requirements
+        metadata: Optional additional metadata
+        allowed_tools: Optional list of pre-approved tools
     """
+    name: str
+    description: str
+    instructions: str
+    path: Path
+    license: Optional[str] = None
+    compatibility: Optional[str] = None
+    metadata: Dict[str, str] = field(default_factory=dict)
+    allowed_tools: List[str] = field(default_factory=list)
     
-    def __init__(self, strict: bool = False):
-        """
-        Initialize the loader.
-        
-        Args:
-            strict: If True, fail on validation errors. If False, warn only.
-        """
-        self.strict = strict
-        self._cache: dict[str, SoulManifest] = {}
+    def __post_init__(self):
+        """Validate skill fields after initialization."""
+        self._validate_name()
+        self._validate_description()
+        self._validate_license()
     
-    def _resolve_soul_path(self, path: Path) -> Optional[Path]:
+    def _validate_name(self):
+        """Validate the name field follows Agent Skills spec."""
+        if not self.name:
+            raise ValueError("Skill name is required")
+        if len(self.name) > 64:
+            raise ValueError(f"Skill name too long: {len(self.name)} chars (max 64)")
+        if not re.match(r'^[a-z0-9]+(-[a-z0-9]+)*$', self.name):
+            raise ValueError(
+                f"Invalid skill name '{self.name}': must be lowercase, "
+                "alphanumeric with hyphens, no leading/trailing/consecutive hyphens"
+            )
+    
+    def _validate_description(self):
+        """Validate the description field follows Agent Skills spec."""
+        if not self.description:
+            raise ValueError("Skill description is required")
+        if len(self.description) > 1024:
+            raise ValueError(f"Skill description too long: {len(self.description)} chars (max 1024)")
+    
+    def _validate_license(self):
+        """Validate the license field if present.
+        
+        Validates against common SPDX license identifiers. Issues a warning
+        for non-standard licenses rather than failing, to allow flexibility.
         """
-        Resolve a soul path by searching in multiple locations.
+        if self.license is None:
+            return  # No license specified, that's okay
         
-        Search order:
-        1. Absolute path (as-is)
-        2. Relative to current working directory
-        3. Relative to agentnova package directory (souls/)
-        4. As a built-in soul name (e.g., "nova-helper" -> souls/nova-helper)
+        # Check if it's a recognized SPDX identifier
+        if self.license in COMMON_SPDX_LICENSES:
+            return  # Valid SPDX license
         
-        Returns:
-            Resolved Path or None if not found
-        """
-        # 1. If absolute path, check if it exists
-        if path.is_absolute():
-            if path.exists():
-                return path
-            return None
+        # Check for common patterns that are likely valid
+        # (e.g., "MIT License", "Apache 2.0", custom licenses)
+        license_lower = self.license.lower()
         
-        # 2. Try relative to current working directory
-        cwd_path = Path.cwd() / path
-        if cwd_path.exists():
-            return cwd_path
+        # Allow licenses that contain common keywords
+        common_keywords = ["mit", "apache", "bsd", "gpl", "lgpl", "mpl", 
+                          "creative commons", "cc0", "cc-by", "proprietary",
+                          "commercial", "custom", "private"]
         
-        # 3. Try relative to agentnova package directory
-        try:
-            import agentnova
-            if agentnova.__file__ is not None:
-                package_dir = Path(agentnova.__file__).parent
-                package_path = package_dir / "souls" / path
-                if package_path.exists():
-                    return package_path
-                # Also try without souls/ prefix if path looks like a soul name
-                if "/" not in str(path) and "\\" not in str(path):
-                    package_path = package_dir / "souls" / path
-                    if package_path.exists():
-                        return package_path
-            else:
-                # Fallback: try importlib.resources for namespace packages (Windows pip install)
-                try:
-                    import importlib.resources as resources
-                    if hasattr(resources, 'files'):
-                        package_path = resources.files('agentnova') / 'souls' / path
-                        if package_path.is_dir():
-                            return Path(str(package_path))
-                except (ImportError, TypeError, AttributeError):
-                    pass
-        except (ImportError, TypeError):
-            pass
+        for keyword in common_keywords:
+            if keyword in license_lower:
+                return  # Likely valid license
         
-        # 4. Try as soul name in package souls directory
-        try:
-            import agentnova
-            if agentnova.__file__ is not None:
-                package_dir = Path(agentnova.__file__).parent
-                # Check if it's a simple name (no path separators)
-                soul_name = str(path).replace("/", "").replace("\\", "")
-                if soul_name == str(path):
-                    # It's a simple name, look for it in souls/
-                    soul_path = package_dir / "souls" / soul_name
-                    if soul_path.exists():
-                        return soul_path
-                    # Also try with .json extension
-                    json_path = package_dir / "souls" / soul_name / "soul.json"
-                    if json_path.exists():
-                        return soul_path
-            else:
-                # Fallback: try importlib.resources for namespace packages (Windows pip install)
-                try:
-                    import importlib.resources as resources
-                    soul_name = str(path).replace("/", "").replace("\\", "")
-                    if soul_name == str(path) and hasattr(resources, 'files'):
-                        soul_path = resources.files('agentnova') / 'souls' / soul_name
-                        if soul_path.is_dir():
-                            return Path(str(soul_path))
-                except (ImportError, TypeError, AttributeError):
-                    pass
-        except (ImportError, ValueError, TypeError):
-            pass
-        
-        # 5. Final check - does the original path exist?
-        if path.exists():
-            return path
-        
+        # Non-standard license - this is a warning, not an error
+        # The skill still loads, but may indicate a typo
+        import warnings
+        warnings.warn(
+            f"Skill '{self.name}' has non-standard license '{self.license}'. "
+            f"Consider using a standard SPDX identifier. "
+            f"Common licenses: MIT, Apache-2.0, BSD-3-Clause, GPL-3.0, Proprietary"
+        )
+    
+    @property
+    def scripts_dir(self) -> Optional[Path]:
+        """Path to scripts directory if it exists."""
+        scripts = self.path / "scripts"
+        return scripts if scripts.is_dir() else None
+    
+    @property
+    def references_dir(self) -> Optional[Path]:
+        """Path to references directory if it exists."""
+        refs = self.path / "references"
+        return refs if refs.is_dir() else None
+    
+    @property
+    def assets_dir(self) -> Optional[Path]:
+        """Path to assets directory if it exists."""
+        assets = self.path / "assets"
+        return assets if assets.is_dir() else None
+    
+    def get_script(self, script_name: str) -> Optional[Path]:
+        """Get path to a specific script file."""
+        if self.scripts_dir:
+            script = self.scripts_dir / script_name
+            return script if script.exists() else None
         return None
     
-    def load(self, path: Union[str, Path], level: int = 2) -> SoulManifest:
+    def get_reference(self, ref_name: str) -> Optional[Path]:
+        """Get path to a specific reference file."""
+        if self.references_dir:
+            ref = self.references_dir / ref_name
+            return ref if ref.exists() else None
+        return None
+    
+    def get_asset(self, asset_name: str) -> Optional[Path]:
+        """Get path to a specific asset file."""
+        if self.assets_dir:
+            asset = self.assets_dir / asset_name
+            return asset if asset.exists() else None
+        return None
+    
+    def to_system_prompt(self) -> str:
+        """Convert skill instructions to a system prompt addition."""
+        return f"\n\n---\n## Skill: {self.name}\n\n{self.instructions}"
+    
+    def __repr__(self) -> str:
+        return f"Skill(name={self.name!r}, description={self.description[:50]}...)"
+
+
+class SkillLoader:
+    """
+    Loads skills from directories containing SKILL.md files.
+    
+    Follows the Agent Skills specification:
+    - SKILL.md with YAML frontmatter (name, description required)
+    - Optional scripts/, references/, assets/ directories
+    
+    Usage:
+        loader = SkillLoader("/path/to/skills")
+        skill = loader.load("my-skill")
+        skills = loader.list_skills()  # Get all available skills
+    """
+    
+    def __init__(self, skills_dir: Optional[str] = None):
         """
-        Load a soul package from a directory or soul.json file.
+        Initialize the skill loader.
         
         Args:
-            path: Path to soul directory or soul.json file
-            level: Progressive disclosure level (1-3)
-                1 = Quick Scan (soul.json only)
-                2 = Full Read (soul.json + SOUL.md + IDENTITY.md)
-                3 = Deep Dive (all files including STYLE.md, examples)
-        
-        Returns:
-            SoulManifest with loaded content
+            skills_dir: Directory containing skill folders. 
+                       If None, uses 'skills' in same directory as this file.
         """
-        path = Path(path)
-        
-        # Try to resolve the path in multiple locations
-        resolved_path = self._resolve_soul_path(path)
-        if resolved_path is None:
-            raise ValueError(f"Not a valid soul path: {path}")
-        
-        path = resolved_path
-        
-        # Determine soul directory and manifest path
-        if path.is_file() and path.name == "soul.json":
-            soul_dir = path.parent
-            manifest_path = path
-        elif path.is_dir():
-            soul_dir = path
-            manifest_path = path / "soul.json"
+        if skills_dir:
+            self.skills_dir = Path(skills_dir)
         else:
-            raise ValueError(f"Not a valid soul path: {path}")
+            self.skills_dir = Path(__file__).parent
         
-        if not manifest_path.exists():
-            raise FileNotFoundError(f"No soul.json found at: {manifest_path}")
-        
-        # Check cache
-        cache_key = f"{soul_dir}:{level}"
-        if cache_key in self._cache:
-            return self._cache[cache_key]
-        
-        # Parse manifest
-        with open(manifest_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        
-        manifest = self._parse_manifest(data, soul_dir)
-        
-        # Validate
-        issues = manifest.validate()
-        if issues and self.strict:
-            raise ValueError(f"Validation errors: {issues}")
-        
-        # Load persona files based on disclosure level
-        if level >= 2:
-            self._load_level_2(manifest, soul_dir)
-        if level >= 3:
-            self._load_level_3(manifest, soul_dir)
-        
-        # Cache and return
-        self._cache[cache_key] = manifest
-        return manifest
+        self._cache: Dict[str, Skill] = {}
     
-    def _parse_manifest(self, data: dict, soul_dir: Path) -> SoulManifest:
-        """Parse soul.json into SoulManifest."""
-        
-        # Parse author
-        author_data = data.get("author", {})
-        author = Author(
-            name=author_data.get("name", "Unknown"),
-            github=author_data.get("github"),
-            email=author_data.get("email"),
-        )
-        
-        # Parse compatibility
-        compat_data = data.get("compatibility", {})
-        compatibility = Compatibility(
-            openclaw=compat_data.get("openclaw"),
-            models=compat_data.get("models", []),
-            frameworks=compat_data.get("frameworks", []),
-            min_token_context=compat_data.get("minTokenContext"),
-        )
-        
-        # Parse recommended skills (support both formats)
-        skills_data = data.get("recommendedSkills", [])
-        if not skills_data and "skills" in data:
-            # Legacy format
-            skills_data = parse_legacy_skills(data["skills"])
-            skills_data = [
-                {"name": s.name, "required": s.required}
-                for s in skills_data
-            ]
-        
-        recommended_skills = []
-        for sk in skills_data:
-            if isinstance(sk, str):
-                recommended_skills.append(RecommendedSkill(name=sk))
-            else:
-                recommended_skills.append(RecommendedSkill(
-                    name=sk.get("name", ""),
-                    version=sk.get("version"),
-                    required=sk.get("required", False),
-                ))
-        
-        # Parse files
-        files_data = data.get("files", {})
-        files = SoulFiles(
-            soul=files_data.get("soul", "SOUL.md"),
-            identity=files_data.get("identity"),
-            agents=files_data.get("agents"),
-            heartbeat=files_data.get("heartbeat"),
-            style=files_data.get("style"),
-            user_template=files_data.get("userTemplate"),
-            avatar=files_data.get("avatar"),
-        )
-        
-        # Parse examples
-        examples = None
-        if "examples" in data:
-            ex_data = data["examples"]
-            examples = SoulExamples(
-                good=ex_data.get("good"),
-                bad=ex_data.get("bad"),
-            )
-        
-        # Parse disclosure
-        disclosure = None
-        if "disclosure" in data:
-            disc_data = data["disclosure"]
-            disclosure = Disclosure(
-                summary=disc_data.get("summary"),
-            )
-        
-        # Parse hardware constraints (embodied agents)
-        hardware = None
-        if "hardwareConstraints" in data:
-            hw_data = data["hardwareConstraints"]
-            hardware = HardwareConstraints(
-                has_display=hw_data.get("hasDisplay", False),
-                has_speaker=hw_data.get("hasSpeaker", False),
-                has_microphone=hw_data.get("hasMicrophone", False),
-                has_camera=hw_data.get("hasCamera", False),
-                mobility=Mobility(hw_data.get("mobility", "stationary")),
-                manipulator=hw_data.get("manipulator", False),
-            )
-        
-        # Parse safety
-        safety = None
-        if "safety" in data:
-            safety_data = data["safety"]
-            physical = None
-            if "physical" in safety_data:
-                phys_data = safety_data["physical"]
-                physical = PhysicalSafety(
-                    contact_policy=ContactPolicy(phys_data.get("contactPolicy", "no-contact")),
-                    emergency_protocol=phys_data.get("emergencyProtocol", "stop"),
-                    operating_zone=phys_data.get("operatingZone", "indoor"),
-                    max_speed=phys_data.get("maxSpeed"),
-                )
-            safety = Safety(physical=physical)
-        
-        # Parse sensors
-        sensors = []
-        for name, sensor_data in data.get("sensors", {}).items():
-            if isinstance(sensor_data, bool):
-                sensors.append(Sensor(name=name))
-            else:
-                sensors.append(Sensor(
-                    name=name,
-                    type=sensor_data.get("type"),
-                    range=sensor_data.get("range"),
-                    fov=sensor_data.get("fov"),
-                    resolution=sensor_data.get("resolution"),
-                    fps=sensor_data.get("fps"),
-                    channels=sensor_data.get("channels"),
-                ))
-        
-        # Parse actuators
-        actuators = []
-        for name, act_data in data.get("actuators", {}).items():
-            actuators.append(Actuator(
-                name=name,
-                type=act_data.get("type"),
-                max_speed=act_data.get("maxSpeed"),
-                payload=act_data.get("payload"),
-                reach=act_data.get("reach"),
-                force=act_data.get("force"),
-                dof=act_data.get("dof"),
-                resolution=act_data.get("resolution"),
-            ))
-        
-        # Build manifest
-        return SoulManifest(
-            spec_version=data.get("specVersion", "0.5"),
-            name=data.get("name", "unknown"),
-            display_name=data.get("displayName", "Unknown"),
-            version=data.get("version", "1.0.0"),
-            description=data.get("description", ""),
-            author=author,
-            license=data.get("license", "MIT"),
-            tags=data.get("tags", []),
-            category=data.get("category", "general"),
-            compatibility=compatibility,
-            allowed_tools=data.get("allowedTools", []),
-            recommended_skills=recommended_skills,
-            files=files,
-            examples=examples,
-            disclosure=disclosure,
-            deprecated=data.get("deprecated", False),
-            superseded_by=data.get("supersededBy"),
-            repository=data.get("repository"),
-            environment=Environment(data.get("environment", "virtual")),
-            interaction_mode=InteractionMode(data.get("interactionMode", "text")),
-            hardware_constraints=hardware,
-            safety=safety,
-            sensors=sensors,
-            actuators=actuators,
-        )
-    
-    def _load_level_2(self, manifest: SoulManifest, soul_dir: Path) -> None:
-        """Load Level 2 files: SOUL.md + IDENTITY.md."""
-        # Load SOUL.md (required)
-        soul_path = soul_dir / manifest.files.soul
-        if soul_path.exists():
-            manifest.soul_content = soul_path.read_text(encoding="utf-8")
-        
-        # Load IDENTITY.md (optional)
-        if manifest.files.identity:
-            identity_path = soul_dir / manifest.files.identity
-            if identity_path.exists():
-                manifest.identity_content = identity_path.read_text(encoding="utf-8")
-    
-    def _load_level_3(self, manifest: SoulManifest, soul_dir: Path) -> None:
-        """Load Level 3 files: AGENTS.md, STYLE.md, HEARTBEAT.md, examples."""
-        # Load AGENTS.md
-        if manifest.files.agents:
-            agents_path = soul_dir / manifest.files.agents
-            if agents_path.exists():
-                manifest.agents_content = agents_path.read_text(encoding="utf-8")
-        
-        # Load STYLE.md
-        if manifest.files.style:
-            style_path = soul_dir / manifest.files.style
-            if style_path.exists():
-                manifest.style_content = style_path.read_text(encoding="utf-8")
-        
-        # Load HEARTBEAT.md
-        if manifest.files.heartbeat:
-            heartbeat_path = soul_dir / manifest.files.heartbeat
-            if heartbeat_path.exists():
-                manifest.heartbeat_content = heartbeat_path.read_text(encoding="utf-8")
-    
-    def build_system_prompt(
-        self,
-        manifest: SoulManifest,
-        level: int = 2,
-        include_identity: bool = True,
-    ) -> str:
+    def _parse_frontmatter(self, content: str) -> tuple[Dict[str, Any], str]:
         """
-        Build a system prompt from the soul manifest.
-        
-        Args:
-            manifest: Loaded soul manifest
-            level: Progressive disclosure level
-            include_identity: Whether to include IDENTITY.md content
+        Parse YAML frontmatter from SKILL.md content.
         
         Returns:
-            System prompt string
+            Tuple of (frontmatter_dict, body_content)
         """
-        parts = []
+        # Check for frontmatter
+        if not content.startswith("---"):
+            raise ValueError("SKILL.md must start with YAML frontmatter (---)")
         
-        # Level 1: Basic info
-        parts.append(f"# {manifest.display_name}")
-        parts.append(f"\n{manifest.description}")
+        # Find the closing ---
+        end_match = re.search(r'\n---\s*\n', content[3:])
+        if not end_match:
+            raise ValueError("SKILL.md frontmatter not closed (missing ---)")
         
-        if manifest.disclosure and manifest.disclosure.summary:
-            parts.append(f"\n{manifest.disclosure.summary}")
+        frontmatter_text = content[3:end_match.start() + 3]
+        body = content[end_match.end() + 3:]
         
-        # Level 2: Core persona
-        if level >= 2:
-            if manifest.soul_content:
-                parts.append(f"\n\n## Persona\n\n{manifest.soul_content}")
-            
-            if include_identity and manifest.identity_content:
-                parts.append(f"\n\n## Identity\n\n{manifest.identity_content}")
-        
-        # Level 3: Extended behavior
-        if level >= 3:
-            if manifest.style_content:
-                parts.append(f"\n\n## Style Guidelines\n\n{manifest.style_content}")
-            
-            if manifest.agents_content:
-                parts.append(f"\n\n## Agent Behavior\n\n{manifest.agents_content}")
-            
-            if manifest.heartbeat_content:
-                parts.append(f"\n\n## Heartbeat\n\n{manifest.heartbeat_content}")
-        
-        # Add constraints for embodied agents
-        if manifest.environment != Environment.VIRTUAL:
-            parts.append(f"\n\n## Environment")
-            parts.append(f"\nYou are an **{manifest.environment.value}** agent.")
-            
-            if manifest.interaction_mode != InteractionMode.TEXT:
-                parts.append(f"\nPrimary interaction mode: {manifest.interaction_mode.value}")
-            
-            if manifest.hardware_constraints:
-                hc = manifest.hardware_constraints
-                capabilities = []
-                if hc.has_display:
-                    capabilities.append("display")
-                if hc.has_speaker:
-                    capabilities.append("speaker")
-                if hc.has_microphone:
-                    capabilities.append("microphone")
-                if hc.has_camera:
-                    capabilities.append("camera")
-                if capabilities:
-                    parts.append(f"\nHardware: {', '.join(capabilities)}")
-            
-            if manifest.safety and manifest.safety.physical:
-                ps = manifest.safety.physical
-                parts.append(f"\nSafety: {ps.contact_policy.value} contact policy")
-        
-        return "\n".join(parts)
-    
-    def get_allowed_tools(self, manifest: SoulManifest) -> list[str]:
-        """Get the list of allowed tools for this soul."""
-        return manifest.allowed_tools
-    
-    def get_required_skills(self, manifest: SoulManifest) -> list[str]:
-        """Get the list of required skill names."""
-        return [s.name for s in manifest.recommended_skills if s.required]
-    
-    def get_optional_skills(self, manifest: SoulManifest) -> list[str]:
-        """Get the list of optional skill names."""
-        return [s.name for s in manifest.recommended_skills if not s.required]
+        # Parse YAML frontmatter (simple parser for the spec format)
+        frontmatter: Dict[str, Any] = {}
+        current_key = None
+        current_value: Any = None
 
+        for line in frontmatter_text.split('\n'):
+            stripped = line.strip()
 
-# Singleton instance for convenience
-_default_loader: Optional[SoulLoader] = None
+            if not stripped:
+                continue
 
+            # Check for key: value
+            if ':' in line and not line.startswith(' '):
+                # Save previous key
+                if current_key:
+                    frontmatter[current_key] = current_value
 
-def get_soul_loader(strict: bool = False, clear_cache: bool = False) -> SoulLoader:
-    """Get the default SoulLoader instance.
-    
-    Args:
-        strict: If True, fail on validation errors
-        clear_cache: If True, clear the cache before returning
-    """
-    global _default_loader
-    if _default_loader is None:
-        _default_loader = SoulLoader(strict=strict)
-    if clear_cache:
-        _default_loader._cache.clear()
-    return _default_loader
+                key, _, value = line.partition(':')
+                current_key = key.strip()
+                value = value.strip()
 
-
-def clear_soul_cache() -> None:
-    """Clear the soul loader cache. Call this after modifying soul files."""
-    global _default_loader
-    if _default_loader is not None:
-        _default_loader._cache.clear()
-
-
-def load_soul(path: Union[str, Path], level: int = 2, reload: bool = False) -> SoulManifest:
-    """Convenience function to load a soul using the default loader.
-    
-    Args:
-        path: Path to soul directory
-        level: Progressive disclosure level
-        reload: If True, bypass cache and reload from disk
-    """
-    loader = get_soul_loader()
-    if reload:
-        # Clear just this soul from cache
-        cache_key = f"{path}:{level}"
-        if cache_key in loader._cache:
-            del loader._cache[cache_key]
-    return loader.load(path, level=level)
-
-
-def build_system_prompt(manifest: SoulManifest, level: int = 2) -> str:
-    """Convenience function to build system prompt."""
-    return get_soul_loader().build_system_prompt(manifest, level=level)
-
-
-def build_system_prompt_with_tools(
-    manifest: SoulManifest,
-    tools: list,
-    level: int = 3,
-    tool_choice: Optional[object] = None,
-) -> str:
-    """
-    Build a system prompt with dynamic tool injection.
-    
-    This replaces the static tool reference in the soul with the actual
-    available tools at runtime.
-    
-    OpenResponses Enhancement: Communicates tool_choice constraints to the model,
-    enabling the model to understand and comply with tool invocation requirements.
-    
-    Args:
-        manifest: Loaded soul manifest
-        tools: List of Tool objects available
-        level: Progressive disclosure level
-        tool_choice: Optional ToolChoice object to communicate constraints
-    
-    Returns:
-        System prompt with tools injected
-    """
-    import re
-    
-    # Get base prompt
-    base_prompt = build_system_prompt(manifest, level=level)
-    
-    # Build dynamic tool section
-    tool_section = _build_tool_section(tools)
-    
-    # Pattern to match the static tool section in SOUL.md
-    # Matches (with ## or ###):
-    # 1. Tool Reference header (with optional parenthetical text)
-    # 2. Table header: | Tool | When to use | Arguments |
-    # 3. Separator row: |------|-------------|-----------|
-    # 4. One or more data rows (3-column table)
-    # 5. Blank line
-    # 6. **CRITICAL RULE** line
-    pattern = (
-        r'##{1,3} Tool Reference[^\n]*\n+'
-        r'\| Tool \| When to use \| Arguments \|\n'
-        r'\|[-| ]+\|\n'
-        r'(?:\|[^|]*\|[^|]*\|[^|]*\|[^\n]*\n)+'
-        r'\n'
-        r'\*\*CRITICAL RULE\*\*[^\n]*'
-    )
-    
-    if re.search(pattern, base_prompt):
-        result = re.sub(pattern, tool_section.rstrip(), base_prompt)
-    else:
-        # No existing tool reference, append tools
-        result = f"{base_prompt}\n\n{tool_section}"
-    
-    # Inject dynamic examples based on available tools
-    dynamic_examples = _build_dynamic_examples(tools)
-    
-    # Replace placeholder markers with dynamic examples
-    result = result.replace('{{DYNAMIC_EXAMPLE}}', dynamic_examples['example'])
-    result = result.replace('{{DYNAMIC_EXAMPLE_FLOW}}', dynamic_examples['example_flow'])
-    result = result.replace('{{DYNAMIC_ERROR_EXAMPLE}}', dynamic_examples['error_example'])
-    
-    # Inject Calculator Syntax section only if calculator tool is available
-    tool_names = [getattr(t, 'name', '') for t in tools]
-    if 'calculator' in tool_names:
-        calculator_section = _build_calculator_syntax_section()
-        result = result.replace('{{CALCULATOR_SYNTAX_SECTION}}', calculator_section)
-        # Also inject calculator-specific error hint
-        calculator_error_hint = '''4. **USE** correct syntax (see Calculator Syntax table above)
-
-**Calculator-specific errors:**
-- `invalid syntax` → Use Python syntax, not natural language (e.g., `2**10` not "2 to the power of 10")'''
-        result = result.replace('{{CALCULATOR_ERROR_HINT}}', calculator_error_hint)
-    else:
-        # Remove the placeholders entirely if no calculator
-        result = result.replace('{{CALCULATOR_SYNTAX_SECTION}}', '')
-        result = result.replace('{{CALCULATOR_ERROR_HINT}}', '')
-    
-    # OpenResponses Enhancement: Add tool_choice constraints to prompt
-    if tool_choice is not None:
-        tool_choice_context = _build_tool_choice_context(tool_choice)
-        if tool_choice_context:
-            result = f"{result}\n\n{tool_choice_context}"
-    
-    return result
-
-
-def _build_tool_choice_context(tool_choice: object) -> str:
-    """
-    Build context string for tool_choice constraints.
-    
-    OpenResponses specifies that tool_choice controls tool invocation behavior.
-    This function communicates these constraints to the model so it can comply.
-    
-    Args:
-        tool_choice: ToolChoice object with type, name, and tools attributes
-    
-    Returns:
-        Context string to append to system prompt, or empty string if not needed
-    """
-    # Import from openresponses module (correct location)
-    from ..core.openresponses import ToolChoiceType
-    
-    # Get the tool_choice type
-    tc_type = getattr(tool_choice, 'type', None)
-    if tc_type is None:
-        return ""
-    
-    # Handle both enum and string values
-    if hasattr(tc_type, 'value'):
-        tc_value = tc_type.value
-    else:
-        tc_value = str(tc_type)
-    
-    # Build context based on mode
-    if tc_value == "required":
-        return (
-            "## Tool Requirement (MANDATORY)\n\n"
-            "**You MUST call at least one tool before providing a Final Answer.**\n"
-            "Direct responses without tool calls are NOT allowed.\n\n"
-            "Use the Action/Action Input format to call a tool, then provide Final Answer."
-        )
-    elif tc_value == "none":
-        return (
-            "## Tool Restriction\n\n"
-            "**Tools are currently DISABLED.**\n"
-            "Answer the user's question directly without using any tools.\n"
-            "Do NOT output Action/Action Input lines."
-        )
-    elif tc_value == "function":
-        # Specific tool required
-        tool_name = getattr(tool_choice, 'name', 'the specified tool')
-        return (
-            f"## Tool Requirement (MANDATORY)\n\n"
-            f"**You MUST use the `{tool_name}` tool.**\n\n"
-            f"Use the Action/Action Input format to call `{tool_name}`, then provide Final Answer."
-        )
-    elif tc_value == "allowed_tools":
-        # Restricted to specific tools
-        allowed = getattr(tool_choice, 'tools', [])
-        if allowed:
-            tool_list = ", ".join(f"`{t}`" for t in allowed)
-            return (
-                f"## Tool Restriction\n\n"
-                f"**You may only use these tools:** {tool_list}\n\n"
-                "Do NOT try to use any other tools. If none of these tools can help, respond directly."
-            )
-    
-    # Default: "auto" mode - no additional context needed
-    return ""
-
-
-def _build_tool_section(tools: list) -> str:
-    """Build the dynamic tool section for system prompt."""
-    if not tools:
-        return ""
-    
-    lines = ["### Tool Reference (only use if available)"]
-    lines.append("")
-    lines.append("| Tool | When to use | Arguments |")
-    lines.append("|------|-------------|-----------|")
-    
-    for tool in tools:
-        # Get tool name and description
-        name = getattr(tool, 'name', str(tool))
-        desc = getattr(tool, 'description', '')
-        params = getattr(tool, 'params', [])
-        
-        # Build arguments example
-        if params:
-            param_pairs = []
-            for p in params:
-                p_name = getattr(p, 'name', str(p))
-                p_type = getattr(p, 'type', 'string')
-                if p_type == 'string':
-                    param_pairs.append(f'"{p_name}": "..."')
-                elif p_type in ('number', 'integer', 'float'):
-                    param_pairs.append(f'"{p_name}": 0')
+                # Handle different value types
+                if value.startswith('"') and value.endswith('"'):
+                    current_value = value[1:-1]
+                elif value.startswith("'") and value.endswith("'"):
+                    current_value = value[1:-1]
+                elif value == '':
+                    current_value = None
                 else:
-                    param_pairs.append(f'"{p_name}": ...')
-            args_example = "{" + ", ".join(param_pairs) + "}"
-        else:
-            args_example = "{}"
+                    current_value = value
+            elif line.startswith('  ') and current_key:
+                # Multiline value (like metadata)
+                if current_key not in frontmatter:
+                    frontmatter[current_key] = {}
+                
+                if ':' in line:
+                    sub_key, _, sub_value = line.strip().partition(':')
+                    sub_value = sub_value.strip()
+                    if sub_value.startswith('"') and sub_value.endswith('"'):
+                        sub_value = sub_value[1:-1]
+                    frontmatter[current_key][sub_key] = sub_value
         
-        # Build "when to use" from description
-        short_desc = desc.split('.')[0] if desc else "No description"
-        if len(short_desc) > 40:
-            short_desc = short_desc[:37] + "..."
+        # Save last key
+        if current_key and current_key not in frontmatter:
+            frontmatter[current_key] = current_value
         
-        lines.append(f"| `{name}` | {short_desc} | `{args_example}` |")
+        return frontmatter, body
     
-    lines.append("")
-    lines.append("**CRITICAL RULE**: If a tool is NOT in the available tools list, do NOT try to use it. Respond directly instead.")
+    def load(self, skill_name: str, use_cache: bool = True) -> Skill:
+        """
+        Load a skill by name.
+        
+        Args:
+            skill_name: Name of the skill (directory name)
+            use_cache: Whether to use cached skill if available
+            
+        Returns:
+            Skill object
+            
+        Raises:
+            FileNotFoundError: If skill directory or SKILL.md doesn't exist
+            ValueError: If SKILL.md is invalid
+        """
+        if use_cache and skill_name in self._cache:
+            return self._cache[skill_name]
+        
+        skill_path = self.skills_dir / skill_name
+        if not skill_path.is_dir():
+            raise FileNotFoundError(f"Skill directory not found: {skill_path}")
+        
+        skill_md_path = skill_path / "SKILL.md"
+        if not skill_md_path.exists():
+            raise FileNotFoundError(f"SKILL.md not found: {skill_md_path}")
+        
+        # Read and parse SKILL.md
+        content = skill_md_path.read_text(encoding='utf-8')
+        frontmatter, instructions = self._parse_frontmatter(content)
+        
+        # Extract required fields
+        name = frontmatter.get('name', skill_name)
+        description = frontmatter.get('description', '')
+        
+        if not description:
+            raise ValueError(f"Skill '{skill_name}' missing required 'description' field")
+        
+        # Create Skill object
+        skill = Skill(
+            name=name,
+            description=description,
+            instructions=instructions.strip(),
+            path=skill_path,
+            license=frontmatter.get('license'),
+            compatibility=frontmatter.get('compatibility'),
+            metadata=frontmatter.get('metadata', {}),
+            allowed_tools=frontmatter.get('allowed-tools', '').split() if frontmatter.get('allowed-tools') else []
+        )
+        
+        # Validate name matches directory
+        if skill.name != skill_name:
+            print(f"⚠️ Warning: Skill name '{skill.name}' doesn't match directory '{skill_name}'")
+        
+        self._cache[skill_name] = skill
+        return skill
     
-    return "\n".join(lines)
+    def list_skills(self) -> List[str]:
+        """
+        List all available skill names.
+        
+        Returns:
+            List of skill names (directory names containing SKILL.md)
+        """
+        skills = []
+        if not self.skills_dir.is_dir():
+            return skills
+        
+        for item in self.skills_dir.iterdir():
+            if item.is_dir() and (item / "SKILL.md").exists():
+                skills.append(item.name)
+        
+        return sorted(skills)
+    
+    def load_all(self) -> Dict[str, Skill]:
+        """
+        Load all available skills.
+        
+        Returns:
+            Dict mapping skill names to Skill objects
+        """
+        skills = {}
+        for name in self.list_skills():
+            try:
+                skills[name] = self.load(name)
+            except Exception as e:
+                print(f"⚠️ Failed to load skill '{name}': {e}")
+        
+        return skills
+    
+    def get_skill_descriptions(self) -> Dict[str, str]:
+        """
+        Get name and description for all skills without loading full instructions.
+        Reads only the YAML frontmatter from each SKILL.md for efficiency.
+
+        Returns:
+            Dict mapping skill names to their descriptions
+        """
+        descriptions = {}
+        for name in self.list_skills():
+            skill_md = self.skills_dir / name / "SKILL.md"
+            if not skill_md.exists():
+                continue
+            # Return from cache if already loaded
+            if name in self._cache:
+                descriptions[name] = self._cache[name].description
+                continue
+            try:
+                content = skill_md.read_text(encoding='utf-8')
+                frontmatter, _ = self._parse_frontmatter(content)
+                descriptions[name] = frontmatter.get('description', 'No description')
+            except Exception:
+                pass
+        return descriptions
 
 
-def _build_dynamic_examples(tools: list) -> dict:
+class SkillRegistry:
     """
-    Build dynamic examples based on available tools.
+    Registry for managing active skills in an agent session.
     
-    Returns a dict with:
-        - example: Single tool call example
-        - example_flow: Complete flow example
-        - error_example: Error recovery example
-    
-    Args:
-        tools: List of Tool objects available
-    
-    Returns:
-        Dict with example strings keyed by placeholder name
+    Usage:
+        registry = SkillRegistry()
+        registry.add(skill)
+        
+        # Get combined system prompt
+        prompt = registry.get_combined_instructions()
+        
+        # Check if skill is active
+        if registry.has("calculator"):
+            ...
     """
-    # Define example templates for different tool types
-    EXAMPLE_TEMPLATES = {
-        'calculator': {
-            'example': '''**Example** - User asks "What is 15 times 8?":
-```
-Action: calculator
-Action Input: {"expression": "15 * 8"}
-```''',
-            'example_flow': '''**Example flow:**
-```
-User: What is 15 times 8?
-Action: calculator
-Action Input: {"expression": "15 * 8"}
-Observation: 120
-Final Answer: 120
-```''',
-            'error_example': '''**Example recovery:**
-```
-Action: calculator
-Action Input: {"expression": "2 to the power of 10"}
-Observation: Error evaluating expression: invalid syntax
-Action: calculator
-Action Input: {"expression": "2**10"}
-Observation: 1024
-Final Answer: 1024
-```''',
-        },
-        'shell': {
-            'example': '''**Example** - User asks "What is the current directory?":
-```
-Action: shell
-Action Input: {"command": "pwd"}
-```''',
-            'example_flow': '''**Example flow:**
-```
-User: What is the current directory?
-Action: shell
-Action Input: {"command": "pwd"}
-Observation: /home/user
-Final Answer: /home/user
-```''',
-            'error_example': '''**Example recovery:**
-```
-Action: shell
-Action Input: {"command": "lss"}
-Observation: Error: lss: command not found
-Action: shell
-Action Input: {"command": "ls"}
-Observation: file1.txt file2.txt
-Final Answer: file1.txt file2.txt
-```''',
-        },
-        'read_file': {
-            'example': '''**Example** - User asks "What is in config.json?":
-```
-Action: read_file
-Action Input: {"file_path": "config.json"}
-```''',
-            'example_flow': '''**Example flow:**
-```
-User: What is in config.json?
-Action: read_file
-Action Input: {"file_path": "config.json"}
-Observation: {"setting": "value"}
-Final Answer: The config.json contains {"setting": "value"}
-```''',
-            'error_example': '''**Example recovery:**
-```
-Action: read_file
-Action Input: {"file_path": "missing.txt"}
-Observation: Error: File not found
-Action: read_file
-Action Input: {"file_path": "existing.txt"}
-Observation: Hello World
-Final Answer: Hello World
-```''',
-        },
-        'get_time': {
-            'example': '''**Example** - User asks "What time is it?":
-```
-Action: get_time
-Action Input: {}
-```''',
-            'example_flow': '''**Example flow:**
-```
-User: What time is it?
-Action: get_time
-Action Input: {}
-Observation: 14:30:00
-Final Answer: 14:30:00
-```''',
-            'error_example': '''**Example recovery:**
-```
-Action: get_time
-Action Input: {"timezone": "InvalidZone"}
-Observation: Error: Unknown timezone
-Action: get_time
-Action Input: {}
-Observation: 14:30:00
-Final Answer: 14:30:00
-```''',
-        },
-        'get_date': {
-            'example': '''**Example** - User asks "What is today's date?":
-```
-Action: get_date
-Action Input: {}
-```''',
-            'example_flow': '''**Example flow:**
-```
-User: What is today's date?
-Action: get_date
-Action Input: {}
-Observation: 2024-01-15
-Final Answer: 2024-01-15
-```''',
-            'error_example': '''**Example:**
-```
-Action: get_date
-Action Input: {}
-Observation: 2024-01-15
-Final Answer: 2024-01-15
-```''',
-        },
-        'list_directory': {
-            'example': '''**Example** - User asks "What files are in /tmp?":
-```
-Action: list_directory
-Action Input: {"path": "/tmp"}
-```''',
-            'example_flow': '''**Example flow:**
-```
-User: What files are in /tmp?
-Action: list_directory
-Action Input: {"path": "/tmp"}
-Observation: file1.txt, file2.txt
-Final Answer: /tmp contains file1.txt and file2.txt
-```''',
-            'error_example': '''**Example recovery:**
-```
-Action: list_directory
-Action Input: {"path": "/nonexistent"}
-Observation: Error: Directory not found
-Action: list_directory
-Action Input: {"path": "/tmp"}
-Observation: file1.txt
-Final Answer: file1.txt
-```''',
-        },
-        'write_file': {
-            'example': '''**Example** - User asks "Create a test file":
-```
-Action: write_file
-Action Input: {"file_path": "test.txt", "content": "Hello World"}
-```''',
-            'example_flow': '''**Example flow:**
-```
-User: Create a test file
-Action: write_file
-Action Input: {"file_path": "test.txt", "content": "Hello World"}
-Observation: File written successfully
-Final Answer: Created test.txt with content "Hello World"
-```''',
-            'error_example': '''**Example recovery:**
-```
-Action: write_file
-Action Input: {"file_path": "/readonly/test.txt", "content": "test"}
-Observation: Error: Permission denied
-Action: write_file
-Action Input: {"file_path": "test.txt", "content": "test"}
-Observation: File written successfully
-Final Answer: Created test.txt
-```''',
-        },
-        'python_repl': {
-            'example': '''**Example** - User asks "Calculate 2^10 in Python":
-```
-Action: python_repl
-Action Input: {"code": "print(2**10)"}
-```''',
-            'example_flow': '''**Example flow:**
-```
-User: Calculate 2^10 in Python
-Action: python_repl
-Action Input: {"code": "print(2**10)"}
-Observation: 1024
-Final Answer: 1024
-```''',
-            'error_example': '''**Example recovery:**
-```
-Action: python_repl
-Action Input: {"code": "print(undefined_var)"}
-Observation: Error: name 'undefined_var' is not defined
-Action: python_repl
-Action Input: {"code": "print(2**10)"}
-Observation: 1024
-Final Answer: 1024
-```''',
-        },
-    }
     
-    # Default fallback for unknown tools
-    DEFAULT_TEMPLATE = {
-        'example': '''**Example**:
-```
-Action: <tool_name>
-Action Input: {"arg": "value"}
-```''',
-        'example_flow': '''**Example flow:**
-```
-Action: <tool_name>
-Action Input: {"arg": "value"}
-Observation: result
-Final Answer: result
-```''',
-        'error_example': '''**Example:**
-```
-Action: <tool_name>
-Action Input: {"arg": "correct_value"}
-Observation: result
-Final Answer: result
-```''',
-    }
+    def __init__(self):
+        self._skills: Dict[str, Skill] = {}
     
-    # Find the first tool we have a template for
-    for tool in tools:
-        tool_name = getattr(tool, 'name', '')
-        if tool_name in EXAMPLE_TEMPLATES:
-            return EXAMPLE_TEMPLATES[tool_name]
+    def add(self, skill: Skill) -> None:
+        """Add a skill to the registry."""
+        self._skills[skill.name] = skill
     
-    # Fallback: use first available tool with default template
-    if tools:
-        first_tool = getattr(tools[0], 'name', 'tool')
-        result = {}
-        for key, template in DEFAULT_TEMPLATE.items():
-            result[key] = template.replace('<tool_name>', first_tool)
-        return result
+    def remove(self, skill_name: str) -> bool:
+        """Remove a skill from the registry. Returns True if removed."""
+        if skill_name in self._skills:
+            del self._skills[skill_name]
+            return True
+        return False
     
-    # No tools - return minimal examples
-    return DEFAULT_TEMPLATE
-
-
-def _build_calculator_syntax_section() -> str:
-    """
-    Build the Calculator Syntax section for the system prompt.
+    def get(self, skill_name: str) -> Optional[Skill]:
+        """Get a skill by name."""
+        return self._skills.get(skill_name)
     
-    This section is only included when the calculator tool is available.
+    def has(self, skill_name: str) -> bool:
+        """Check if a skill is in the registry."""
+        return skill_name in self._skills
     
-    Returns:
-        Calculator Syntax section string
-    """
-    return '''## Calculator Syntax (CRITICAL)
-
-The calculator uses **Python syntax**. Use these correct formats:
-
-| Natural Language | Correct Python Syntax |
-|------------------|----------------------|
-| "2 to the power of 10" | `2**10` |
-| "2 ^ 10" | `2**10` |
-| "square root of 144" | `sqrt(144)` or `144**0.5` |
-| "15 percent of 200" | `15/100*200` |
-| "15 times 8" | `15 * 8` |
-| "cube root of 27" | `27**(1/3)` |
-
-**WRONG**: `"2 to the power of 10"` (natural language will cause syntax error)
-**CORRECT**: `"2**10"` (Python syntax)
-
-'''
+    def list(self) -> List[str]:
+        """List all active skill names."""
+        return list(self._skills.keys())
+    
+    def get_combined_instructions(self) -> str:
+        """Get all skill instructions combined into one string."""
+        if not self._skills:
+            return ""
+        
+        parts = []
+        for skill in self._skills.values():
+            parts.append(f"## Skill: {skill.name}\n\n{skill.instructions}")
+        
+        return "\n\n---\n\n".join(parts)
+    
+    def to_system_prompt_addition(self) -> str:
+        """Get skills as a system prompt addition."""
+        combined = self.get_combined_instructions()
+        if combined:
+            skill_names = ", ".join(self.list())
+            return (
+                f"\n\n"
+                f"# ⚡ ACTIVE SKILLS\n\n"
+                f"You have access to the following skills: {skill_names}\n"
+                f"These skills provide specialized knowledge and instructions. "
+                f"READ AND FOLLOW the skill instructions below when they are relevant to the user's request.\n\n"
+                f"{combined}\n\n"
+                f"# Instructions for using skills:\n"
+                f"1. When the user's request matches a skill's purpose, follow that skill's instructions.\n"
+                f"2. Skills may reference scripts, references, or assets - these are available in the skill directory.\n"
+                f"3. Use your available tools (shell, write_file, etc.) to execute the skill's instructions.\n"
+            )
+        return ""
+    
+    def get_resource_path(self, skill_name: str, resource_type: str, resource_name: str) -> Optional[Path]:
+        """
+        Get path to a specific resource within a skill.
+        
+        Args:
+            skill_name: Name of the skill
+            resource_type: Type of resource ('scripts', 'references', 'assets')
+            resource_name: Name of the resource file
+            
+        Returns:
+            Path to the resource or None if not found
+        """
+        skill = self._skills.get(skill_name)
+        if not skill:
+            return None
+        
+        resource_map = {
+            'scripts': skill.scripts_dir,
+            'references': skill.references_dir,
+            'assets': skill.assets_dir,
+        }
+        
+        resource_dir = resource_map.get(resource_type)
+        if resource_dir:
+            resource_path = resource_dir / resource_name
+            return resource_path if resource_path.exists() else None
+        return None
+    
+    def get_skill_info(self) -> str:
+        """Get a formatted string with all skill information for the agent."""
+        if not self._skills:
+            return "No active skills."
+        
+        lines = ["Active Skills:"]
+        for name, skill in self._skills.items():
+            lines.append(f"  - {name}: {skill.description}")
+            if skill.scripts_dir:
+                scripts = list(skill.scripts_dir.glob("*.py"))
+                if scripts:
+                    lines.append(f"    Scripts: {', '.join(s.name for s in scripts)}")
+            if skill.references_dir:
+                refs = list(skill.references_dir.glob("*.md"))
+                if refs:
+                    lines.append(f"    References: {', '.join(r.name for r in refs)}")
+        return "\n".join(lines)
+    
+    def __len__(self) -> int:
+        return len(self._skills)
+    
+    def __repr__(self) -> str:
+        return f"SkillRegistry(skills={list(self._skills.keys())})"
