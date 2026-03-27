@@ -295,8 +295,8 @@ class OllamaBackend(BaseBackend):
 
         # Debug output
         if os.environ.get("AGENTNOVA_DEBUG"):
-            print(f"  [Ollama-Comp] Content: {content[:1024] if content else '(empty)'}")
-            print(f"  [Ollama-Comp] Tool calls: {tool_calls}")
+            print(f"  [OpenAI-Comp] Content: {content[:1024] if content else '(empty)'}")
+            print(f"  [OpenAI-Comp] Tool calls: {tool_calls}")
 
         # Parse tool calls from OpenAI format
         # OpenAI format: {"id": "...", "type": "function", "function": {"name": "...", "arguments": "{...}"}}
