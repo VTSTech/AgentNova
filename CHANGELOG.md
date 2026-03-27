@@ -66,6 +66,13 @@ Resolved minor gaps identified in the AgentNova R03.3 Specification Compliance A
 #### AgentSkills Module Exports (`skills/__init__.py`)
 - Added exports: `SPDX_LICENSES`, `validate_spdx_license`, `parse_compatibility`
 
+### Fixed
+
+#### `--num-ctx` CLI Option for Test Command
+- **Fixed `--num-ctx` not being passed to Agent in test subcommand** - The `--num-ctx` flag was being set as an environment variable but the config was cached before the env var was set
+- **Added `reload` parameter to `get_config()`** - Allows forcing config reload from environment
+- **Agent now reads `num_ctx` from config/env when not explicitly passed** - Falls back to `AGENTNOVA_NUM_CTX` or `OLLAMA_NUM_CTX` environment variables before defaulting to 4096
+
 ### Compliance Summary
 
 | Specification | R03.3 Score | R03.4 Score | Improvement |
