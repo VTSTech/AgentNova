@@ -556,3 +556,448 @@ def _build_tool_section(tools: list) -> str:
     lines.append("**CRITICAL RULE**: Only use tools that are listed above. If a tool is not in this table, it is NOT available.")
     
     return "\n".join(lines)
+
+
+def _build_dynamic_examples(tools: list) -> dict:
+    """
+    Build dynamic examples based on available tools.
+    
+    Returns dict with 'example' and 'example_flow' keys.
+    """
+    # Find a tool to use for examples
+    example_tool = None
+    for tool in tools:
+        name = getattr(tool, 'name', '')
+        if name in ('calculator', 'shell', 'python_repl'):
+            example_tool = tool
+            break
+    
+    if not example_tool:
+        # Generic example if no preferred tool
+        return {
+            'example': """Example:
+Question: What is 2 + 2?
+Action: calculator
+Action Input: {"expression": "2 + 2"}
+Observation: 4
+Final Answer: 4""",
+            'example_flow': """Example Flow:
+Question: What is 10 * 5?
+Action: calculator
+Action Input: {"expression": "10 * 5"}
+Observation: 50
+Final Answer: 50"""
+        }
+    
+    tool_name = getattr(example_tool, 'name', 'calculator')
+    
+    if tool_name == 'calculator':
+        return {
+            'example': """Example:
+Question: What is 25 * 4?
+Action: calculator
+Action Input: {"expression": "25 * 4"}
+Observation: 100
+Final Answer: 100""",
+            'example_flow': """Example Flow:
+Question: Calculate 15 + 27
+Action: calculator
+Action Input: {"expression": "15 + 27"}
+Observation: 42
+Final Answer: 42"""
+        }
+    elif tool_name == 'shell':
+        return {
+            'example': """Example:
+Question: What is the current directory?
+Action: shell
+Action Input: {"command": "pwd"}
+Observation: /home/user
+Final Answer: The current directory is /home/user""",
+            'example_flow': """Example Flow:
+Question: List files in /tmp
+Action: shell
+Action Input: {"command": "ls /tmp"}
+Observation: file1.txt file2.log
+Final Answer: The files in /tmp are: file1.txt and file2.log"""
+        }
+    else:
+        return {
+            'example': f"""Example:
+Question: Run a simple calculation
+Action: {tool_name}
+Action Input: {{}}
+Observation: result
+Final Answer: The result is ready""",
+            'example_flow': f"""Example Flow:
+Question: Use the {tool_name} tool
+Action: {tool_name}
+Action Input: {{}}
+Observation: output
+Final Answer: Done"""
+        }
+
+
+# ============================================================================
+# Soul Spec Loader - For loading Soul v0.5 persona packages
+# ============================================================================
+
+import json
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .types import SoulManifest
+
+
+class SoulLoader:
+    """
+    Loader for Soul Spec v0.5 persona packages.
+    
+    A soul package is a directory containing:
+    - soul.json: Manifest file with metadata
+    - SOUL.md: Main persona prompt (required)
+    - IDENTITY.md: Identity information (optional)
+    - STYLE.md: Style guidelines (optional)
+    - Other optional files
+    
+    Usage:
+        loader = SoulLoader()
+        soul = loader.load("/path/to/soul/package")
+        prompt = build_system_prompt(soul)
+    """
+    
+    def __init__(self, souls_dir: Optional[str] = None):
+        """
+        Initialize the soul loader.
+        
+        Args:
+            souls_dir: Directory containing soul packages.
+                      If None, uses 'souls' in same directory as this file.
+        """
+        if souls_dir:
+            self.souls_dir = Path(souls_dir)
+        else:
+            self.souls_dir = Path(__file__).parent.parent / "souls"
+        
+        self._cache: Dict[str, 'SoulManifest'] = {}
+    
+    def load(self, soul_path: str) -> 'SoulManifest':
+        """
+        Load a soul package from a path.
+        
+        Args:
+            soul_path: Path to soul package directory or soul.json file
+            
+        Returns:
+            SoulManifest object
+            
+        Raises:
+            FileNotFoundError: If soul package doesn't exist
+            ValueError: If soul.json is invalid
+        """
+        path = Path(soul_path)
+        
+        # Handle path to soul.json vs directory
+        if path.is_file() and path.name == 'soul.json':
+            soul_dir = path.parent
+        elif path.is_dir():
+            soul_dir = path
+            path = soul_dir / 'soul.json'
+        else:
+            raise FileNotFoundError(f"Soul package not found: {soul_path}")
+        
+        if not path.exists():
+            raise FileNotFoundError(f"soul.json not found: {path}")
+        
+        # Check cache
+        cache_key = str(soul_dir.resolve())
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+        
+        # Load and parse soul.json
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in soul.json: {e}")
+        
+        # Import types here to avoid circular imports
+        from .types import (
+            SoulManifest, Author, Compatibility, SoulFiles,
+            SoulExamples, Disclosure, RecommendedSkill,
+            Environment, InteractionMode, HardwareConstraints,
+            Safety, PhysicalSafety, Sensor, Actuator,
+        )
+        
+        # Parse author
+        author_data = data.get('author', {})
+        author = Author(
+            name=author_data.get('name', 'Unknown'),
+            github=author_data.get('github'),
+            email=author_data.get('email'),
+        )
+        
+        # Parse compatibility
+        compat_data = data.get('compatibility', {})
+        compatibility = Compatibility(
+            openclaw=compat_data.get('openclaw'),
+            models=compat_data.get('models', []),
+            frameworks=compat_data.get('frameworks', []),
+            min_token_context=compat_data.get('minTokenContext'),
+        )
+        
+        # Parse files
+        files_data = data.get('files', {})
+        files = SoulFiles(
+            soul=files_data.get('soul', 'SOUL.md'),
+            identity=files_data.get('identity'),
+            agents=files_data.get('agents'),
+            heartbeat=files_data.get('heartbeat'),
+            style=files_data.get('style'),
+            user_template=files_data.get('userTemplate'),
+            avatar=files_data.get('avatar'),
+        )
+        
+        # Parse examples
+        examples = None
+        if 'examples' in data:
+            ex_data = data['examples']
+            examples = SoulExamples(
+                good=ex_data.get('good'),
+                bad=ex_data.get('bad'),
+            )
+        
+        # Parse disclosure
+        disclosure = None
+        if 'disclosure' in data:
+            disc_data = data['disclosure']
+            disclosure = Disclosure(
+                summary=disc_data.get('summary'),
+            )
+        
+        # Parse recommended skills
+        skills = []
+        for skill_data in data.get('recommendedSkills', []):
+            if isinstance(skill_data, str):
+                skills.append(RecommendedSkill(name=skill_data))
+            else:
+                skills.append(RecommendedSkill(
+                    name=skill_data.get('name', ''),
+                    version=skill_data.get('version'),
+                    required=skill_data.get('required', False),
+                ))
+        
+        # Parse environment (embodied agent)
+        env = Environment(data.get('environment', 'virtual'))
+        interaction = InteractionMode(data.get('interactionMode', 'text'))
+        
+        # Parse hardware constraints
+        hardware = None
+        if 'hardwareConstraints' in data:
+            hw_data = data['hardwareConstraints']
+            hardware = HardwareConstraints(
+                has_display=hw_data.get('hasDisplay', False),
+                has_speaker=hw_data.get('hasSpeaker', False),
+                has_microphone=hw_data.get('hasMicrophone', False),
+                has_camera=hw_data.get('hasCamera', False),
+            )
+        
+        # Parse safety
+        safety = None
+        if 'safety' in data:
+            safety_data = data['safety']
+            physical = None
+            if 'physical' in safety_data:
+                phys_data = safety_data['physical']
+                physical = PhysicalSafety(
+                    contact_policy=phys_data.get('contactPolicy', 'no-contact'),
+                    emergency_protocol=phys_data.get('emergencyProtocol', 'stop'),
+                    operating_zone=phys_data.get('operatingZone', 'indoor'),
+                    max_speed=phys_data.get('maxSpeed'),
+                )
+            safety = Safety(physical=physical)
+        
+        # Parse sensors and actuators
+        sensors = [Sensor(**s) for s in data.get('sensors', [])]
+        actuators = [Actuator(**a) for a in data.get('actuators', [])]
+        
+        # Create manifest
+        manifest = SoulManifest(
+            spec_version=data.get('specVersion', '0.5'),
+            name=data.get('name', 'unknown'),
+            display_name=data.get('displayName', 'Unknown'),
+            version=data.get('version', '0.0.0'),
+            description=data.get('description', ''),
+            author=author,
+            license=data.get('license', 'MIT'),
+            tags=data.get('tags', []),
+            category=data.get('category', 'general'),
+            compatibility=compatibility,
+            allowed_tools=data.get('allowedTools', []),
+            recommended_skills=skills,
+            files=files,
+            examples=examples,
+            disclosure=disclosure,
+            deprecated=data.get('deprecated', False),
+            superseded_by=data.get('supersededBy'),
+            repository=data.get('repository'),
+            environment=env,
+            interaction_mode=interaction,
+            hardware_constraints=hardware,
+            safety=safety,
+            sensors=sensors,
+            actuators=actuators,
+        )
+        
+        # Load content files
+        def load_content(filename: Optional[str]) -> Optional[str]:
+            if not filename:
+                return None
+            content_path = soul_dir / filename
+            if content_path.exists():
+                return content_path.read_text(encoding='utf-8')
+            return None
+        
+        manifest.soul_content = load_content(files.soul)
+        manifest.identity_content = load_content(files.identity)
+        manifest.agents_content = load_content(files.agents)
+        manifest.style_content = load_content(files.style)
+        manifest.heartbeat_content = load_content(files.heartbeat)
+        
+        # Cache and return
+        self._cache[cache_key] = manifest
+        return manifest
+    
+    def list_souls(self) -> List[str]:
+        """List available soul packages."""
+        souls = []
+        if not self.souls_dir.is_dir():
+            return souls
+        
+        for item in self.souls_dir.iterdir():
+            if item.is_dir() and (item / 'soul.json').exists():
+                souls.append(item.name)
+        
+        return sorted(souls)
+    
+    def get_default_soul(self) -> Optional['SoulManifest']:
+        """Get the default soul (nova-helper if available)."""
+        if 'nova-helper' in self.list_souls():
+            return self.load(str(self.souls_dir / 'nova-helper'))
+        return None
+
+
+# Singleton loader instance
+_soul_loader: Optional[SoulLoader] = None
+
+
+def get_soul_loader() -> SoulLoader:
+    """Get the singleton SoulLoader instance."""
+    global _soul_loader
+    if _soul_loader is None:
+        _soul_loader = SoulLoader()
+    return _soul_loader
+
+
+def load_soul(soul_path: str) -> 'SoulManifest':
+    """
+    Load a soul package from a path.
+    
+    Args:
+        soul_path: Path to soul package directory or soul.json file
+        
+    Returns:
+        SoulManifest object
+    """
+    return get_soul_loader().load(soul_path)
+
+
+def build_system_prompt(soul: 'SoulManifest', level: int = 3) -> str:
+    """
+    Build a system prompt from a soul manifest.
+    
+    Args:
+        soul: SoulManifest object
+        level: Disclosure level (1-3)
+              1 = Summary only
+              2 = Summary + identity
+              3 = Full persona (default)
+    
+    Returns:
+        System prompt string
+    """
+    parts = []
+    
+    # Level 1: Summary only
+    if level >= 1:
+        if soul.disclosure and soul.disclosure.summary:
+            parts.append(f"## Summary\n\n{soul.disclosure.summary}")
+        else:
+            parts.append(f"## Summary\n\n{soul.description}")
+    
+    # Level 2: Add identity
+    if level >= 2 and soul.identity_content:
+        parts.append(f"## Identity\n\n{soul.identity_content}")
+    
+    # Level 3: Full persona
+    if level >= 3:
+        if soul.soul_content:
+            parts.append(soul.soul_content)
+        
+        if soul.style_content:
+            parts.append(f"## Style\n\n{soul.style_content}")
+    
+    return "\n\n".join(parts)
+
+
+def build_system_prompt_with_tools(soul: 'SoulManifest', tools: list, level: int = 3) -> str:
+    """
+    Build a system prompt from a soul manifest with dynamic tool injection.
+    
+    Args:
+        soul: SoulManifest object
+        tools: List of Tool objects
+        level: Disclosure level (1-3)
+    
+    Returns:
+        System prompt string with tool section
+    """
+    base_prompt = build_system_prompt(soul, level)
+    
+    if not tools:
+        return base_prompt
+    
+    # Build tool section
+    tool_section = _build_tool_section(tools)
+    
+    # Pattern to match the static tool section in SOUL.md
+    # Matches (with ## or ###):
+    # 1. Tool Reference header (with optional parenthetical text)
+    # 2. Table header: | Tool | When to use | Arguments |
+    # 3. Separator row: |------|-------------|-----------|
+    # 4. One or more data rows (3-column table)
+    # 5. Blank line
+    # 6. **CRITICAL RULE** line
+    pattern = (
+        r'##{1,3} Tool Reference[^\n]*\n+'
+        r'\| Tool \| When to use \| Arguments \|\n'
+        r'\|[-| ]+\|\n'
+        r'(?:\|[^|]*\|[^|]*\|[^|]*\|[^\n]*\n)+'
+        r'\n'
+        r'\*\*CRITICAL RULE\*\*[^\n]*'
+    )
+    
+    if re.search(pattern, base_prompt):
+        result = re.sub(pattern, tool_section.rstrip(), base_prompt)
+    else:
+        # No existing tool reference, append tools
+        result = f"{base_prompt}\n\n{tool_section}"
+    
+    # Inject dynamic examples based on available tools
+    dynamic_examples = _build_dynamic_examples(tools)
+    
+    # Replace placeholder markers with dynamic examples
+    result = result.replace('{{DYNAMIC_EXAMPLE}}', dynamic_examples['example'])
+    result = result.replace('{{DYNAMIC_EXAMPLE_FLOW}}', dynamic_examples['example_flow'])
+    
+    return result
