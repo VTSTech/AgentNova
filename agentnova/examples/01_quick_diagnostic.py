@@ -192,7 +192,7 @@ def main():
             print("   Or set OLLAMA_BASE_URL to your remote server")
         return {"passed": 0, "total": 1, "time": 0, "exit_code": 1}
     
-    print(f"\n⚛️ AgentNova v{__version__} [{__status__}] Quick Diagnostic (5 questions)")
+    print(f"\n⚛️ AgentNova R{__version__} [{__status__}] Quick Diagnostic (5 questions)")
     print(f"   Backend: {backend_name} ({backend.base_url})")
     print(f"   Model: {model}")
     api_mode_display = {
