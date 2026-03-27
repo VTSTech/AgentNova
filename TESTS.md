@@ -2,7 +2,7 @@
 
 ## Test 01 Quick Diagnostic (5 Questions)
 
-> **Updated:** 2026-03-27 - R03.3 bug fix for `--num-ctx`, Chat Completions (comp) mode testing
+> **Updated:** 2026-03-27 - R03.3 API mode comparison (resp vs comp), bug fix for `--num-ctx`
 
 Test 01 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
 
@@ -38,7 +38,20 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192       # Custom context window
 | Rank | Model | Score | Time | Soul | Q1 | Q2 | Q3 | Q4 | Q5 |
 |:----:|-------|------:|-----:|:----:|:--:|:--:|:--:|:--:|:--:|
 | 1 | **`granite4:350m`** | **4/5 (80%)** | 82.1s | nova-helper | ✅ | ❌ 49 | ✅ | ✅ | ✅ |
-| 2 | `gemma3:270m` | 3/5 (60%) | 260.6s | nova-helper | ✅ | ✅ | ✅ | ❌ 14 | ❌ |
+| 2 | `qwen2.5:0.5b` | 3/5 (60%) | 70.2s | nova-helper | ✅ | ❌ 43 | ✅ | ✅ | ❌ 4 |
+| 3 | `gemma3:270m` | 3/5 (60%) | 260.6s | nova-helper | ✅ | ✅ | ✅ | ❌ 14 | ❌ |
+
+### API Mode Comparison (R03.3 - resp vs comp)
+
+> Comparing OpenResponses (resp) vs ChatCompletions (comp) API modes with nova-helper soul
+
+| Model | resp (OpenResponses) | comp (ChatCompletions) | Δ Score | Δ Time |
+|-------|---------------------|------------------------|:-------:|:------:|
+| **`granite4:350m`** | **5/5 (100%)** 82.3s | 4/5 (80%) 82.1s | -20% | = |
+| **`qwen2.5:0.5b`** | **5/5 (100%)** 98.5s | 3/5 (60%) 70.2s | -40% | -28% |
+| `gemma3:270m` | 3/5 (60%) 271.6s | 3/5 (60%) 260.6s | = | -4% |
+
+**Key Insight:** OpenResponses (resp) mode outperforms ChatCompletions (comp) mode for tool-calling tasks. The `resp` mode provides better structured tool call handling.
 
 ### R03.3 Bug Fixes
 
@@ -86,7 +99,7 @@ The nova-helper soul:
 | Q4 | Word Problem | Natural language → expression | 10 |
 | Q5 | Time Calc | Store hours calculation | 8 |
 
-### Key Findings (R03.2)
+### Key Findings (R03.3)
 
 1. **10 models achieve 100%** - functiongemma:270m, granite4:350m, qwen2.5:0.5b, qwen2.5-coder:0.5b-instruct, qwen2:0.5b+soul, qwen3:0.6b+soul, gemma3:270m+soul, dolphin3.0+soul, qwen:0.5b, qwen3.5:0.8b+soul
 2. **`functiongemma:270m` fastest perfect** - 23.7s for 5/5, native tools + 270M params!
@@ -95,8 +108,8 @@ The nova-helper soul:
 5. **Fallback synthesis saves small models** - Catches wrong answers even when model "knows" it should use tools
 6. **Tool-calling still dominates** - Native/react models score 100% without soul assistance
 7. **Qwen3.5:0.8b slowest 100%** - 331.8s, but still perfect accuracy
-8. **Chat Completions mode works** - `--api-mode comp` uses OpenAI-compatible API
-9. **granite4:350m leads in comp mode** - 80% with nova-helper soul
+8. **OpenResponses (resp) beats ChatCompletions (comp)** - Better tool-calling performance
+9. **granite4:350m most consistent** - 100% resp, 80% comp, similar times
 
 ### Failure Analysis (Without Soul)
 
