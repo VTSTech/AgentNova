@@ -2059,3 +2059,152 @@ class ACPPlugin:
 
         self._log(f"A2A: Broadcast {action} to {len(results)} agent(s)")
         return results
+
+    # ------------------------------------------------------------------ #
+    #  Batch Context Manager (v1.0.6)                                     #
+    # ------------------------------------------------------------------ #
+
+    def batch_context(
+        self,
+        description: str = "Batch operation",
+        auto_complete: bool = True,
+    ):
+        """
+        Context manager for batch operations.
+
+        This provides a convenient way to group multiple activities
+        into a single batch with automatic completion.
+
+        Parameters
+        ----------
+        description : str
+            Description for the batch operation
+        auto_complete : bool
+            Whether to automatically complete all activities on exit (default: True)
+
+        Yields
+        ------
+        BatchHelper
+            A helper object for adding activities to the batch
+
+        Example
+        -------
+        >>> with acp.batch_context("Read multiple config files") as batch:
+        ...     batch.add_read("/etc/config1.yaml")
+        ...     batch.add_read("/etc/config2.yaml")
+        ...     batch.add_read("/etc/config3.yaml")
+        >>> # All activities are automatically started and completed
+        """
+        return _BatchContext(self, description, auto_complete)
+
+
+class _BatchContext:
+    """
+    Internal batch context manager for grouping activities.
+
+    Collects activities and submits them as a batch when the context exits.
+    """
+
+    def __init__(self, acp: "ACPPlugin", description: str, auto_complete: bool):
+        self._acp = acp
+        self._description = description
+        self._auto_complete = auto_complete
+        self._activities: list[dict] = []
+        self._results: list[dict] = []
+        self._activity_ids: list[str] = []
+
+    def add(self, action: str, target: str, details: str = "", **kwargs) -> None:
+        """
+        Add an activity to the batch.
+
+        Parameters
+        ----------
+        action : str
+            Action type (READ, WRITE, EDIT, BASH, etc.)
+        target : str
+            Target for the action (file path, command, etc.)
+        details : str
+            Optional details about the activity
+        **kwargs
+            Additional fields (content_size, priority, etc.)
+        """
+        self._activities.append({
+            "action": action,
+            "target": target,
+            "details": details,
+            **kwargs
+        })
+
+    def add_read(self, path: str, content_size: int = 0) -> None:
+        """Add a READ activity for a file."""
+        self.add("READ", path, f"Read file: {path}", content_size=content_size)
+
+    def add_write(self, path: str, content_size: int = 0) -> None:
+        """Add a WRITE activity for a file."""
+        self.add("WRITE", path, f"Write file: {path}", content_size=content_size)
+
+    def add_edit(self, path: str, content_size: int = 0) -> None:
+        """Add an EDIT activity for a file."""
+        self.add("EDIT", path, f"Edit file: {path}", content_size=content_size)
+
+    def add_bash(self, command: str) -> None:
+        """Add a BASH activity for a command."""
+        self.add("BASH", command[:100], f"Execute: {command[:200]}")
+
+    def add_search(self, query: str) -> None:
+        """Add a SEARCH activity for a web search."""
+        self.add("SEARCH", query[:100], f"Search: {query[:200]}")
+
+    def add_api(self, url: str, method: str = "GET") -> None:
+        """Add an API activity for an HTTP request."""
+        self.add("API", url[:100], f"{method} {url[:200]}")
+
+    @property
+    def activity_ids(self) -> list[str]:
+        """Get the list of activity IDs (available after entering context)."""
+        return self._activity_ids
+
+    @property
+    def results(self) -> list[dict]:
+        """Get the batch results (available after exiting context)."""
+        return self._results
+
+    def __enter__(self):
+        """Start all activities in the batch."""
+        if not self._acp.enabled or not self._activities:
+            return self
+
+        # Start all activities in batch
+        result = self._acp.batch_start(self._activities)
+        self._results = result.get("results", [])
+        self._activity_ids = [
+            r.get("activity_id") for r in self._results if r.get("activity_id")
+        ]
+
+        # Track activities
+        for aid in self._activity_ids:
+            if aid:
+                self._acp._activity_stack.append(aid)
+
+        self._acp._log(f"Batch started: {len(self._activity_ids)} activities for '{self._description}'")
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Complete all activities in the batch."""
+        if not self._acp.enabled or not self._activity_ids:
+            return False
+
+        if self._auto_complete:
+            # Complete all activities
+            completions = []
+            for aid in self._activity_ids:
+                result = "Completed" if exc_type is None else f"Error: {exc_val}"
+                completions.append({
+                    "activity_id": aid,
+                    "result": result,
+                })
+
+            self._acp.batch_complete(completions)
+            self._acp._log(f"Batch completed: {len(self._activity_ids)} activities")
+
+        return False  # Don't suppress exceptions
