@@ -298,6 +298,11 @@ class Agent:
         """Check if backend is using Chat-Completions (comp) API mode."""
         return hasattr(self.backend, 'api_mode') and self.backend.api_mode == ApiMode.COMPLETIONS
 
+    def _log_openresponses(self, msg: str) -> None:
+        """Log OpenResponses debug message only when not in comp mode."""
+        if self.debug and not self._is_comp_mode:
+            print(msg)
+
     def _build_default_prompt(self, has_tools: bool) -> str:
         """Build a default system prompt when soul is not available."""
         if has_tools:
