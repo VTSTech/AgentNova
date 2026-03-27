@@ -76,16 +76,19 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | 🥇 | **`granite4:350m`** | **5/5 (100%)** | 136.3s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Native tools working! |
 | 🥇 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 130.2s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Perfect score! |
 | 🥉 | `qwen2.5-coder:0.5b` | 4/5 (80%) | 120.3s | nova-helper | native | ✅ | ✅ | ✅ | ❌ 5 | ✅ | Q4 reasoning error |
-| 4 | `gemma3:270m` | 3/5 (60%) | 374.7s | nova-helper | native | ✅ | ✅ | ✅ | ❌ empty | ❌ 120 | Q4 empty, Q5 reasoning error |
-| 4 | `dolphin3.0-qwen2.5:0.5b` | 3/5 (60%) | 114.3s | nova-helper | native | ✅ | ❌ 4 | ✅ | ✅ | ❌ 6 | Q2 reasoning error, Q5 wrong |
-| 6 | `functiongemma:270m` | 1/5 (20%) | 250.1s | nova-helper | native | ❌ 120 | ✅ | ❌ 4.00 | ❌ 20 | ❌ refused | Reasoning errors, Q5 refusal |
+| 🥉 | `qwen3.5:0.8b` | 4/5 (80%) | 625.8s | nova-helper | native | ❌ empty | ✅ | ✅ | ✅ | ✅ | Q1 empty, very slow |
+| 5 | `gemma3:270m` | 3/5 (60%) | 374.7s | nova-helper | native | ✅ | ✅ | ✅ | ❌ empty | ❌ 120 | Q4 empty, Q5 reasoning error |
+| 5 | `dolphin3.0-qwen2.5:0.5b` | 3/5 (60%) | 114.3s | nova-helper | native | ✅ | ❌ 4 | ✅ | ✅ | ❌ 6 | Q2 reasoning error, Q5 wrong |
+| 5 | `qwen2:0.5b` | 3/5 (60%) | 116.8s | nova-helper | native | ✅ | ✅ | ✅ | ❌ code | ❌ 30 | Writes Python instead of calculator |
+| 8 | `functiongemma:270m` | 1/5 (20%) | 250.1s | nova-helper | native | ❌ 120 | ✅ | ❌ 4.00 | ❌ 20 | ❌ refused | Reasoning errors, Q5 refusal |
 | - | *pending...* | - | - | - | - | - | - | - | - | - | |
 
 **Observations:**
 - `granite4:350m` & `qwen2.5:0.5b`: **100%** - both achieve perfect scores with native tools
-- `qwen2.5-coder:0.5b`: **80%** - strong performer, only Q4 wrong
-- `gemma3:270m`: **20% → 60%** after fix - native tools now working
-- `dolphin3.0-qwen2.5:0.5b`: **60%** - native tools working, reasoning errors on Q2/Q5
+- `qwen2.5-coder:0.5b`, `qwen3.5:0.8b`: **80%** - strong performers
+- `qwen3.5:0.8b`: Very slow (625s) compared to others (~120s), Q1 empty response
+- `gemma3:270m`, `dolphin3.0-qwen2.5:0.5b`, `qwen2:0.5b`: **60%** - native tools working, reasoning errors
+- `qwen2:0.5b`: Writes Python code instead of using calculator tool
 - `functiongemma:270m`: **0% → 20%** after fix - was returning empty/refused, now reasoning
 
 ---
