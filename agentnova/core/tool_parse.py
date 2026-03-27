@@ -132,10 +132,22 @@ def _extract_tool_from_json(obj: dict, debug: bool = False) -> tuple[str | None,
         if debug:
             print(f"    _extract_tool_from_json: obj is not a dict, got {type(obj).__name__}")
         return None, None
-    
+
     # Try standard keys first
     name = obj.get("name") or obj.get("function") or obj.get("tool") or obj.get("action")
     args = obj.get("arguments") or obj.get("parameters") or obj.get("args") or obj.get("actionInput") or {}
+
+    # Handle JSON-wrapped ReAct format: {"Action": "tool_name", "Action Input": {...}}
+    # This is what dolphin3.0-qwen2.5:0.5b produces
+    if not name:
+        # Check for ReAct-style keys with various capitalizations
+        for key in obj.keys():
+            if key.lower() == "action" and isinstance(obj[key], str):
+                name = obj[key]
+            elif key.lower() in ("action input", "actioninput", "action_input"):
+                args = obj[key]
+                if not isinstance(args, dict):
+                    args = {"input": args} if args else {}
 
     # Handle bare argument objects
     if not name:
@@ -432,10 +444,36 @@ class ToolParser:
         return calls
 
     def _parse_native_json(self, text: str) -> list[ToolCall]:
-        """Parse native JSON function calling format."""
+        """Parse native JSON function calling format.
+
+        Handles:
+        - Raw JSON objects/arrays
+        - JSON in markdown code blocks (```json ... ```)
+        - JSON-wrapped ReAct format: {"Action": "tool", "Action Input": {...}}
+        """
         calls = []
 
-        # Look for tool_calls style JSON
+        # Check for Final Answer in the text (may appear alongside JSON tool call)
+        final_answer = None
+        fa_match = _FINAL_RE.search(text)
+        if fa_match:
+            final_answer = fa_match.group(1).strip()
+
+        # First, try to extract JSON from markdown code blocks
+        json_from_codeblock = self._extract_json_from_codeblock(text)
+        if json_from_codeblock:
+            for json_str in json_from_codeblock:
+                try:
+                    data = json.loads(json_str)
+                    call = self._extract_tool_from_json(data)
+                    if call:
+                        # Attach final_answer if present
+                        call.final_answer = final_answer
+                        calls.append(call)
+                except json.JSONDecodeError:
+                    continue
+
+        # Also try parsing entire text as JSON array/object
         try:
             # Try parsing entire text as JSON array
             if text.strip().startswith("["):
@@ -443,6 +481,7 @@ class ToolParser:
                 for item in items:
                     call = self._extract_tool_from_json(item)
                     if call:
+                        call.final_answer = final_answer
                         calls.append(call)
 
             # Try parsing as single JSON object
@@ -450,11 +489,30 @@ class ToolParser:
                 data = json.loads(text)
                 call = self._extract_tool_from_json(data)
                 if call:
+                    call.final_answer = final_answer
                     calls.append(call)
         except json.JSONDecodeError:
             pass
 
         return calls
+
+    def _extract_json_from_codeblock(self, text: str) -> list[str]:
+        """Extract JSON strings from markdown code blocks."""
+        json_strings = []
+
+        # Pattern for markdown code blocks with optional language specifier
+        codeblock_pattern = re.compile(
+            r'```(?:json)?\s*\n(.*?)```',
+            re.DOTALL | re.IGNORECASE
+        )
+
+        for match in codeblock_pattern.finditer(text):
+            content = match.group(1).strip()
+            # Check if it looks like JSON
+            if content.startswith('{') or content.startswith('['):
+                json_strings.append(content)
+
+        return json_strings
 
     def _extract_tool_from_json(self, data: dict) -> ToolCall | None:
         """Extract ToolCall from JSON object."""
