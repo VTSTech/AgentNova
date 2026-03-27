@@ -256,15 +256,15 @@ class Agent:
                 if debug and not self._is_comp_mode:
                     print(f"[Soul] Loaded: {self.soul.display_name} v{self.soul.version}")
             except ImportError:
-                if debug and not self._is_comp_mode:
+                if debug:
                     print("[Soul] Soul module not available, using default prompt")
                 self._custom_system_prompt = self._build_default_prompt(has_tools)
             except FileNotFoundError as e:
-                if debug and not self._is_comp_mode:
+                if debug:
                     print(f"[Soul] Soul package not found: {e}")
                 self._custom_system_prompt = self._build_default_prompt(has_tools)
             except Exception as e:
-                if debug and not self._is_comp_mode:
+                if debug:
                     print(f"[Soul] Error loading soul: {e}")
                 self._custom_system_prompt = self._build_default_prompt(has_tools)
         else:
@@ -383,7 +383,7 @@ Final Answer: <the answer>
         if self.debug and not self._is_comp_mode:
             print(f"[OpenResponses] Input item added: id={user_item.id}, type={user_item.type}, role={user_item.role}")
 
-        if self.debug and not self._is_comp_mode:
+        if self.debug:
             print(f"\n[AgentNova] Model: {self.model}")
             print(f"[AgentNova] Backend: {self.backend.base_url}")
             print(f"[AgentNova] tool_choice: {self.tool_choice.type.value}")
@@ -402,7 +402,7 @@ Final Answer: <the answer>
         self._error_tracker.reset()
         
         for step_num in range(self.max_steps):
-            if self.debug and not self._is_comp_mode:
+            if self.debug:
                 print(f"[Step {step_num + 1}]")
 
             # Generate response from model
@@ -423,7 +423,7 @@ Final Answer: <the answer>
             tokens = gen_response.get("usage", {}).get("total_tokens", 0)
             total_tokens += tokens
 
-            if self.debug and not self._is_comp_mode:
+            if self.debug:
                 print(f"  Content: {content[:200] if content else '(empty)'}...")
                 print(f"  Native tool calls: {native_tool_calls}")
 
@@ -456,7 +456,7 @@ Final Answer: <the answer>
                             content=[OutputText(text=call.thought)]
                         )
                         reasoning_item.status = ItemStatus.COMPLETED
-                        response.add_output_item(reasoning_item, debug=self.debug)
+                        response.add_output_item(reasoning_item, debug=not self._is_comp_mode and self.debug)
                     
                     tool_calls_found.append({
                         "name": call.name,
@@ -479,7 +479,7 @@ Final Answer: <the answer>
                     final_answer = _last_successful_result
                     msg_item = create_message_item("assistant", final_answer)
                     msg_item.status = ItemStatus.COMPLETED
-                    response.add_output_item(msg_item, debug=self.debug)
+                    response.add_output_item(msg_item, debug=not self._is_comp_mode and self.debug)
                     
                     steps.append(StepResult(
                         type=StepResultType.FINAL_ANSWER,
@@ -546,7 +546,7 @@ Final Answer: <the answer>
                     # Create FunctionCallItem
                     fc_item = create_function_call_item(tool_name, tool_args, tool_call_id)
                     fc_item.status = ItemStatus.IN_PROGRESS
-                    response.add_output_item(fc_item, debug=self.debug)
+                    response.add_output_item(fc_item, debug=not self._is_comp_mode and self.debug)
                     
                     if self.debug and not self._is_comp_mode:
                         print(f"  [OpenResponses] FunctionCallItem created: id={fc_item.id}, call_id={fc_item.call_id}")
@@ -581,7 +581,7 @@ Final Answer: <the answer>
 
                     # Create FunctionCallOutputItem
                     fco_item = create_function_call_output(fc_item.call_id, str(result))
-                    response.add_output_item(fco_item, debug=self.debug)
+                    response.add_output_item(fco_item, debug=not self._is_comp_mode and self.debug)
                     
                     if self.debug and not self._is_comp_mode:
                         print(f"  [OpenResponses] FunctionCallOutputItem created: id={fco_item.id}, call_id={fco_item.call_id}")
@@ -636,7 +636,7 @@ Final Answer: <the answer>
                     # Create output message item
                     msg_item = create_message_item("assistant", pending_final_answer)
                     msg_item.status = ItemStatus.COMPLETED
-                    response.add_output_item(msg_item, debug=self.debug)
+                    response.add_output_item(msg_item, debug=not self._is_comp_mode and self.debug)
                     
                     steps.append(StepResult(
                         type=StepResultType.FINAL_ANSWER,
@@ -703,7 +703,7 @@ Final Answer: <the answer>
                 # Create output message item
                 msg_item = create_message_item("assistant", answer)
                 msg_item.status = ItemStatus.COMPLETED
-                response.add_output_item(msg_item, debug=self.debug)
+                response.add_output_item(msg_item, debug=not self._is_comp_mode and self.debug)
                 
                 if self.debug and not self._is_comp_mode:
                     print(f"  [OpenResponses] MessageItem created: id={msg_item.id}, role={msg_item.role}")
@@ -756,7 +756,7 @@ Final Answer: <the answer>
                 final_answer = _last_successful_result
                 msg_item = create_message_item("assistant", final_answer)
                 msg_item.status = ItemStatus.COMPLETED
-                response.add_output_item(msg_item, debug=self.debug)
+                response.add_output_item(msg_item, debug=not self._is_comp_mode and self.debug)
                 
                 steps.append(StepResult(
                     type=StepResultType.FINAL_ANSWER,
@@ -790,9 +790,9 @@ Final Answer: <the answer>
             if content:
                 msg_item = create_message_item("assistant", content)
                 msg_item.status = ItemStatus.COMPLETED
-                response.add_output_item(msg_item, debug=self.debug)
+                response.add_output_item(msg_item, debug=not self._is_comp_mode and self.debug)
 
-            if self.debug and not self._is_comp_mode:
+            if self.debug:
                 print(f"  No tool calls detected, accepting as final answer")
 
             steps.append(StepResult(
