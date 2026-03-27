@@ -73,6 +73,48 @@ class OllamaBackend(BaseBackend):
             value = ApiMode(value.lower())
         self._api_mode = value
 
+    def _convert_messages_to_ollama_format(self, messages: list[dict]) -> list[dict]:
+        """
+        Convert messages to Ollama native format.
+        
+        Key difference from OpenAI format:
+        - OpenAI: tool_calls[].function.arguments is a JSON STRING
+        - Ollama: tool_calls[].function.arguments should be an OBJECT
+        
+        This method parses the JSON string arguments back to objects for
+        Ollama's native /api/chat endpoint.
+        """
+        converted = []
+        for msg in messages:
+            converted_msg = dict(msg)  # Copy the message
+            
+            # Convert tool_calls if present
+            if "tool_calls" in msg and msg["tool_calls"]:
+                ollama_tool_calls = []
+                for tc in msg["tool_calls"]:
+                    ollama_tc = dict(tc)
+                    if "function" in tc:
+                        func = tc["function"]
+                        args = func.get("arguments", "{}")
+                        
+                        # Parse JSON string to object for Ollama
+                        if isinstance(args, str):
+                            try:
+                                args = json.loads(args)
+                            except json.JSONDecodeError:
+                                args = {}
+                        
+                        ollama_tc["function"] = {
+                            "name": func.get("name", ""),
+                            "arguments": args
+                        }
+                    ollama_tool_calls.append(ollama_tc)
+                converted_msg["tool_calls"] = ollama_tool_calls
+            
+            converted.append(converted_msg)
+        
+        return converted
+
     def generate(
         self,
         model: str,
@@ -114,10 +156,14 @@ class OllamaBackend(BaseBackend):
 
         url = f"{self.base_url}/api/chat"
 
+        # Convert messages to Ollama native format
+        # Key difference: Ollama expects tool_call arguments as OBJECT, not JSON string
+        ollama_messages = self._convert_messages_to_ollama_format(messages)
+
         # Build request body
         body = {
             "model": model,
-            "messages": messages,
+            "messages": ollama_messages,
             "stream": False,
             "keep_alive": "1m",  # Keep model loaded briefly but clear KV cache between requests
             "options": {
