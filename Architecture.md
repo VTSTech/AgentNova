@@ -494,6 +494,53 @@ backend = get_backend("ollama", api_mode=ApiMode.COMPLETIONS)
 
 Both modes use ReAct prompting - tool definitions are not passed to the API. The model outputs tool calls in text format, which are parsed by the Tool Parser.
 
+### Chat-Completions Streaming (R03.3)
+
+The Chat-Completions mode supports SSE (Server-Sent Events) streaming for real-time output:
+
+```python
+from agentnova.backends import get_backend
+from agentnova.core.types import ApiMode
+
+backend = get_backend("ollama", api_mode=ApiMode.COMPLETIONS)
+
+# Stream response chunks
+for chunk in backend.generate_completions_stream(
+    model="qwen2.5:0.5b",
+    messages=[{"role": "user", "content": "Hello!"}],
+    stream=True
+):
+    if chunk.get("delta"):
+        print(chunk["delta"], end="", flush=True)
+    if chunk.get("finish_reason"):
+        print(f"\nFinished: {chunk['finish_reason']}")
+```
+
+### Chat-Completions Parameters (R03.3)
+
+Additional parameters supported in Chat-Completions mode:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `stop` | str \| list | Stop sequences (e.g., `["\n", "Observation:"]`) |
+| `presence_penalty` | float | Presence penalty (-2.0 to 2.0) |
+| `frequency_penalty` | float | Frequency penalty (-2.0 to 2.0) |
+| `response_format` | dict | Response format (e.g., `{"type": "json_object"}`) |
+| `top_p` | float | Top-p sampling (0.0 to 1.0) |
+
+```python
+# JSON mode with additional parameters
+result = backend.generate_completions(
+    model="qwen2.5:0.5b",
+    messages=[{"role": "user", "content": "Return JSON"}],
+    response_format={"type": "json_object"},
+    temperature=0.7,
+    top_p=0.9,
+    stop=["\n\n"],
+    presence_penalty=0.1
+)
+```
+
 ---
 
 ## OpenResponses Compliance for Small Models
@@ -541,6 +588,63 @@ This ensures the model always knows what action to take next, preventing common 
 
 ---
 
+## ACP Integration (`acp_plugin.py`)
+
+AgentNova implements ACP (Agent Control Panel) v1.0.5 for monitoring, control, and activity logging.
+
+### Features
+
+- **Status reporting** — Report agent status (idle, working, paused, stopping)
+- **Activity logging** — Log READ, WRITE, EDIT, BASH, SEARCH, API activities
+- **STOP flag handling** — Graceful shutdown when requested
+- **A2A messaging** — Agent-to-Agent JSON-RPC 2.0 support
+
+### Batch Context Manager (R03.3)
+
+Group multiple activities into an atomic batch operation:
+
+```python
+from agentnova.acp_plugin import ACPPlugin
+
+acp = ACPPlugin(agent_name="CodeAssistant", base_url="http://localhost:8766")
+
+# Batch multiple activities
+with acp.batch_context("Read and analyze multiple files") as batch:
+    batch.add_read("/src/main.py")
+    batch.add_read("/src/utils.py")
+    batch.add_read("/src/config.py")
+# All activities automatically started and completed as a group
+
+# Mixed activity batch
+with acp.batch_context("Refactor operation") as batch:
+    batch.add_read("/src/old_module.py")
+    batch.add_write("/src/new_module.py")
+    batch.add_bash("pytest tests/")
+```
+
+### Activity Types
+
+| Activity | Method | Description |
+|----------|--------|-------------|
+| READ | `add_read(path)` | File read operation |
+| WRITE | `add_write(path)` | File write operation |
+| EDIT | `add_edit(path)` | File edit operation |
+| BASH | `add_bash(command)` | Shell command execution |
+| SEARCH | `add_search(query)` | Search operation |
+| API | `add_api(url, method)` | API call |
+
+### CLI Usage
+
+```bash
+# Enable ACP logging
+agentnova chat --acp
+
+# With custom ACP server
+agentnova agent --acp --acp-url https://tunnel.example.com
+```
+
+---
+
 ## CLI Commands
 
 | Command | Description |
@@ -563,10 +667,14 @@ This ensures the model always knows what action to take next, preventing common 
 | `--tools` | run, chat, agent | Comma-separated tool list |
 | `--backend` | all | Backend (ollama, bitnet) |
 | `--api` | run, chat, agent, test | API mode: `resp` (OpenResponses) or `comp` (Chat-Completions) |
+| `--response-format` | run, chat, agent | Response format: `text` or `json` (Chat-Completions mode) |
+| `--truncation` | run, chat, agent | Truncation behavior: `auto` or `disabled` |
 | `--soul` | run, chat, agent | Path to Soul Spec package |
 | `--soul-level` | run, chat, agent | Progressive disclosure (1-3) |
 | `--num-ctx` | run, chat, agent, test | Context window size (default: 4096) |
 | `--timeout` | run, chat, agent, test | Request timeout (seconds) |
+| `--acp` | run, chat, agent, test | Enable ACP logging |
+| `--acp-url` | run, chat, agent, test | ACP server URL |
 | `--debug` | run, chat, agent, test | Enable debug output |
 
 ---
