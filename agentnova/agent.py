@@ -119,7 +119,7 @@ class Agent:
             system_prompt: Custom system prompt (overrides soul)
             soul: Path to Soul Spec package (default: "nova-helper")
             soul_level: Progressive disclosure level for soul (1-3)
-            num_ctx: Context window size in tokens (Ollama default is 2048)
+            num_ctx: Context window size in tokens (default: 4096)
             tool_choice: Control tool invocation ("auto", "required", "none", or specific tool name)
             allowed_tools: List of tools the model is allowed to invoke (subset of tools)
             **kwargs: Additional configuration
@@ -127,7 +127,8 @@ class Agent:
         self.model = model
         self.max_steps = max_steps
         self.debug = debug
-        self.num_ctx = num_ctx
+        # Default to larger context window for tool-calling prompts
+        self.num_ctx = num_ctx if num_ctx is not None else 4096
 
         # Initialize backend
         if backend is None:
