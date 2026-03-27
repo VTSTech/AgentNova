@@ -144,6 +144,18 @@ class OllamaBackend(BaseBackend):
         # Debug output for request
         if os.environ.get("AGENTNOVA_DEBUG"):
             print(f"  [Ollama] Request: tools={len(tools) if tools else 0}, think={think}")
+            # Show messages being sent (truncated for readability)
+            for i, msg in enumerate(body.get("messages", [])):
+                role = msg.get("role", "?")
+                if role == "system":
+                    print(f"  [Ollama.Body] msg[{i}]: role={role}, content=<{len(msg.get('content', ''))} chars>")
+                elif role == "tool":
+                    print(f"  [Ollama.Body] msg[{i}]: role={role}, tool_call_id={msg.get('tool_call_id', 'MISSING')!r}, content={msg.get('content', '')[:50]!r}")
+                elif "tool_calls" in msg:
+                    tc = msg.get("tool_calls", [])
+                    print(f"  [Ollama.Body] msg[{i}]: role={role}, tool_calls={tc}")
+                else:
+                    print(f"  [Ollama.Body] msg[{i}]: role={role}, content={msg.get('content', '')[:100]!r}")
 
         # Make request
         start_time = time.time()
