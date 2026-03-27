@@ -520,15 +520,15 @@ def build_system_prompt_with_tools(
     tool_section = _build_tool_section(tools)
     
     # Pattern to match the static tool section in SOUL.md
-    # Matches:
-    # 1. ### Tool Reference header (with optional parenthetical text)
+    # Matches (with ## or ###):
+    # 1. Tool Reference header (with optional parenthetical text)
     # 2. Table header: | Tool | When to use | Arguments |
     # 3. Separator row: |------|-------------|-----------|
     # 4. One or more data rows (3-column table)
     # 5. Blank line
     # 6. **CRITICAL RULE** line
     pattern = (
-        r'### Tool Reference[^\n]*\n+'
+        r'##{1,3} Tool Reference[^\n]*\n+'
         r'\| Tool \| When to use \| Arguments \|\n'
         r'\|[-| ]+\|\n'
         r'(?:\|[^|]*\|[^|]*\|[^|]*\|[^\n]*\n)+'
