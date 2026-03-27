@@ -45,6 +45,7 @@ from .core.openresponses import (
 )
 from .tools import ToolRegistry, make_builtin_registry
 from .backends import BaseBackend, get_default_backend
+from .config import get_config
 
 
 class Agent:
@@ -134,8 +135,12 @@ class Agent:
         self.model = model
         self.max_steps = max_steps
         self.debug = debug
-        # Default to larger context window for tool-calling prompts
-        self.num_ctx = num_ctx if num_ctx is not None else 4096
+        # Get num_ctx from: explicit param > config/env > default 4096
+        if num_ctx is not None:
+            self.num_ctx = num_ctx
+        else:
+            config = get_config()
+            self.num_ctx = config.num_ctx if config.num_ctx else 4096
 
         # Initialize backend
         if backend is None:
