@@ -1,4 +1,4 @@
-# ⚛️ AgentNova R03.2
+# ⚛️ AgentNova R03.3
 
 **Status: Alpha**
 
@@ -29,10 +29,14 @@ Inspired by the architecture of OpenClaw, rebuilt from scratch for local-first o
 
 - **Zero dependencies** — Uses Python stdlib only (urllib for HTTP)
 - **Ollama + BitNet backends** — Switch with `--backend` flag
+- **Dual API support** — OpenResponses (`--api resp`) and Chat-Completions (`--api comp`)
 - **Three-tier tool support** — Native, ReAct, or none (auto-detected)
 - **Small model optimized** — Fuzzy matching, argument normalization
 - **Built-in security** — Path validation, command blocklist, SSRF protection
 - **Multi-agent orchestration** — Router, pipeline, and parallel modes
+- **Soul Spec v0.5** — Persona packages with progressive disclosure
+- **ACP v1.0.5 integration** — Agent Control Panel for monitoring and control
+- **AgentSkills spec** — Skill loading with SPDX license validation
 
 ## Installation
 
@@ -59,6 +63,9 @@ agentnova chat -m qwen2.5:0.5b --tools calculator,shell
 
 # Autonomous agent mode
 agentnova agent -m qwen2.5:7b --tools calculator,shell,write_file
+
+# Use Chat-Completions API (OpenAI-compatible)
+agentnova chat -m qwen2.5:0.5b --api comp
 
 # List available models
 agentnova models
@@ -87,6 +94,37 @@ agent = Agent(
 result = agent.run("What is 15 * 8?")
 print(result.final_answer)
 print(f"Completed in {result.total_ms:.0f}ms")
+```
+
+### Chat-Completions Streaming
+
+```python
+from agentnova.backends import get_backend
+from agentnova.core.types import ApiMode
+
+# Use Chat-Completions mode with streaming
+backend = get_backend("ollama", api_mode=ApiMode.COMPLETIONS)
+
+for chunk in backend.generate_completions_stream(
+    model="qwen2.5:0.5b",
+    messages=[{"role": "user", "content": "Hello!"}],
+    response_format={"type": "json_object"}
+):
+    print(chunk["delta"], end="", flush=True)
+```
+
+### Skill License Validation
+
+```python
+from agentnova.skills import validate_spdx_license, parse_compatibility
+
+# Validate SPDX license identifier
+valid, msg = validate_spdx_license("MIT")  # (True, "Valid SPDX identifier: MIT")
+valid, msg = validate_spdx_license("Custom")  # (False, "Unknown license...")
+
+# Parse compatibility requirements
+compat = parse_compatibility("python>=3.8, ollama")
+# Returns: {"python": ">=3.8", "runtimes": ["ollama"], "frameworks": []}
 ```
 
 ### Multi-Agent Orchestration
@@ -183,6 +221,20 @@ Check current configuration:
 agentnova config
 agentnova config --urls  # Show only URLs
 ```
+
+### CLI Options (run, chat, agent)
+
+| Option | Description |
+|--------|-------------|
+| `--api resp\|comp` | API mode: OpenResponses (default) or Chat-Completions |
+| `--response-format text\|json` | Response format (Chat-Completions mode) |
+| `--truncation auto\|disabled` | Truncation behavior for long responses |
+| `--soul <path>` | Load Soul Spec persona package |
+| `--soul-level 1-3` | Progressive disclosure level |
+| `--num-ctx <tokens>` | Context window size (default: 4096) |
+| `--timeout <seconds>` | Request timeout (default: 120) |
+| `--acp` | Enable ACP (Agent Control Panel) logging |
+| `--acp-url <url>` | ACP server URL |
 
 ## LocalClaw Redirect
 

@@ -2,6 +2,13 @@
 
 AgentNova is a modular agent framework designed for local LLMs with tool-calling capabilities. It implements the OpenResponses specification for multi-provider, interoperable LLM interfaces.
 
+**Specification Compliance**: ~97% overall (R03.3)
+- OpenResponses API: 97%
+- Chat Completions API: 95%
+- Soul Spec v0.5: 98%
+- ACP v1.0.5: 97%
+- AgentSkills: 96%
+
 ```
 agentnova/
 ├── core/
@@ -26,6 +33,9 @@ agentnova/
 │
 ├── skills/
 │   ├── loader.py             # Skill loader (Agent Skills spec)
+│   │                         # - SPDX license validation
+│   │                         # - Compatibility parsing
+│   │                         # - Environment compatibility checks
 │   └── ...                   # Various skills (web-search, datetime, etc.)
 │
 ├── soul/
@@ -43,6 +53,9 @@ agentnova/
 │
 ├── agent.py                  # Main Agent class (OpenResponses agentic loop)
 ├── agent_mode.py             # Autonomous agent mode (state machine)
+├── acp_plugin.py             # ACP v1.0.5 integration
+│                             # - Status reporting, activity logging
+│                             # - Batch context manager for atomic operations
 ├── orchestrator.py           # Multi-agent orchestration
 └── cli.py                    # Command-line interface
 ```
@@ -190,6 +203,82 @@ clear_soul_cache()
 
 # Force reload from disk
 soul = load_soul("nova-helper", reload=True)
+```
+
+---
+
+## AgentSkills System (`skills/loader.py`)
+
+The skills loader implements the AgentSkills specification with SPDX license validation and compatibility checking.
+
+### SPDX License Validation
+
+Validates license identifiers against the SPDX license list:
+
+```python
+from agentnova.skills import validate_spdx_license, SPDX_LICENSES
+
+# Validate a license
+valid, msg = validate_spdx_license("MIT")
+# Returns: (True, "Valid SPDX identifier: MIT")
+
+valid, msg = validate_spdx_license("Apache-2.0 WITH LLVM-exception")
+# Returns: (True, "Valid SPDX identifier with exception: Apache-2.0 WITH LLVM-exception")
+
+valid, msg = validate_spdx_license("Proprietary")
+# Returns: (False, "Unknown license identifier: Proprietary")
+
+# Common SPDX licenses included
+print(SPDX_LICENSES)
+# {'MIT', 'Apache-2.0', 'GPL-3.0', 'BSD-3-Clause', 'ISC', 'MPL-2.0', ...}
+```
+
+### Compatibility Parsing
+
+Parses skill compatibility requirements into structured data:
+
+```python
+from agentnova.skills import parse_compatibility
+
+# Python version requirement
+compat = parse_compatibility("python>=3.8")
+# Returns: {"python": ">=3.8", "runtimes": [], "frameworks": []}
+
+# Multiple requirements
+compat = parse_compatibility("python>=3.8, ollama, agentnova>=1.0")
+# Returns: {"python": ">=3.8", "runtimes": ["ollama"], "frameworks": ["agentnova>=1.0"]}
+```
+
+### Skill Compatibility Checking
+
+Check if a skill is compatible with the current environment:
+
+```python
+from agentnova.skills import Skill
+
+skill = Skill(
+    name="web-search",
+    license="MIT",
+    compatibility="python>=3.8, ollama"
+)
+
+# Check compatibility
+is_compatible, warnings = skill.check_compatibility(
+    runtime="ollama",
+    python_version="3.10"
+)
+
+if is_compatible:
+    print("Skill is compatible!")
+else:
+    for warning in warnings:
+        print(f"Warning: {warning}")
+
+# Check if license is valid SPDX
+if skill.license_valid:
+    print(f"License: {skill.license}")
+else:
+    print(f"License warning: {skill.license_warning}")
 ```
 
 ---
