@@ -27,6 +27,13 @@ from .core.models import AgentRun, StepResult, Tool, ToolParam, ToolCall
 from .core.types import StepResultType
 from .core.memory import Memory, MemoryConfig
 from .core.tool_parse import ToolParser
+from .core.error_recovery import (
+    ErrorRecoveryTracker,
+    build_enhanced_observation,
+    is_error_result,
+    DEFAULT_MAX_CONSECUTIVE_FAILURES,
+    DEFAULT_MAX_TOTAL_FAILURES,
+)
 from .core.openresponses import (
     Response, ResponseStatus, ItemStatus,
     ToolChoice, ToolChoiceType,
@@ -279,6 +286,12 @@ class Agent:
 
         # Response history for previous_response_id support
         self._response_history: dict[str, Response] = {}
+        
+        # Error recovery state tracking
+        self._error_tracker = ErrorRecoveryTracker(
+            max_consecutive_failures=DEFAULT_MAX_CONSECUTIVE_FAILURES,
+            max_total_failures=DEFAULT_MAX_TOTAL_FAILURES,
+        )
 
     def _build_default_prompt(self, has_tools: bool) -> str:
         """Build a default system prompt when soul is not available."""
@@ -374,6 +387,9 @@ Final Answer: <the answer>
         # Track when we're expecting a Final Answer (after successful tool use)
         _expecting_final_answer = False
         _last_successful_result = None
+        
+        # Reset error tracker for new run
+        self._error_tracker.reset()
         
         for step_num in range(self.max_steps):
             if self.debug:
@@ -528,6 +544,24 @@ Final Answer: <the answer>
 
                     result = self._execute_tool(tool_name, tool_args, prompt)
                     tool_calls += 1
+                    
+                    # Track success/failure for error recovery
+                    is_error = is_error_result(str(result))
+                    if is_error:
+                        self._error_tracker.record_failure(
+                            tool_name=tool_name,
+                            error_message=str(result),
+                            step=step_num,
+                            arguments=tool_args
+                        )
+                        
+                        # Check if we should terminate due to too many failures
+                        if self._error_tracker.should_terminate():
+                            if self.debug:
+                                print(f"  [ErrorRecovery] Terminating: total failures ({self._error_tracker.total_failures}) >= max ({self._error_tracker.max_total_failures})")
+                            fc_item.status = ItemStatus.FAILED
+                            response.mark_failed({"message": "Too many tool failures", "type": "error_recovery"})
+                            break
 
                     # Update FunctionCallItem status
                     fc_item.status = ItemStatus.COMPLETED
@@ -542,8 +576,7 @@ Final Answer: <the answer>
                     if self.debug:
                         print(f"  [OpenResponses] FunctionCallOutputItem created: id={fco_item.id}, call_id={fco_item.call_id}")
 
-                    # Add tool result to memory
-                    # Enhanced: Add guidance to help small models understand next action
+                    # Add tool result to memory with enhanced guidance
                     if native_tool_calls:
                         self.memory.add_tool_result(
                             tool_call_id=fc_item.call_id,
@@ -551,19 +584,22 @@ Final Answer: <the answer>
                             content=str(result),
                         )
                     else:
-                        result_str = str(result)
-                        # Add contextual guidance based on result type
-                        if result_str.startswith("Error"):
-                            # Error result - prompt for recovery with syntax hint
-                            observation_msg = f"Observation: {result_str}\n\nNote: Try a different approach. For calculator, use Python syntax (e.g., 2**10 for power, sqrt(144) for roots)."
-                            # Reset expecting_final_answer on error
+                        # Use error recovery module for enhanced observation
+                        observation_msg = build_enhanced_observation(
+                            tool_name=tool_name,
+                            result=str(result),
+                            tracker=self._error_tracker,
+                            available_tools=self.tools.names(),
+                            is_error=is_error
+                        )
+                        
+                        # Update expecting_final_answer flag
+                        if is_error:
                             _expecting_final_answer = False
                         else:
-                            # Success result - prompt for Final Answer
-                            observation_msg = f"Observation: {result_str}\n\nNow output: Final Answer: <the result>"
-                            # Set flag that we're expecting Final Answer
                             _expecting_final_answer = True
-                            _last_successful_result = result_str
+                            _last_successful_result = str(result)
+                        
                         self.memory.add("user", observation_msg)
 
                     if not str(result).startswith("Error"):

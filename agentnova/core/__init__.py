@@ -41,6 +41,18 @@ from .openresponses import (
     create_message_item, create_function_call_item, create_function_call_output,
     create_function_call_output_item,
 )
+# Error Recovery
+from .error_recovery import (
+    ErrorRecoveryTracker,
+    ToolFailureRecord,
+    build_enhanced_observation,
+    is_error_result,
+    extract_error_type,
+    TOOL_ERROR_HINTS,
+    TOOL_ALTERNATIVES,
+    DEFAULT_MAX_CONSECUTIVE_FAILURES,
+    DEFAULT_MAX_TOTAL_FAILURES,
+)
 
 __all__ = [
     # Types
@@ -115,4 +127,14 @@ __all__ = [
     "create_function_call_item",
     "create_function_call_output",
     "create_function_call_output_item",
+    # Error Recovery
+    "ErrorRecoveryTracker",
+    "ToolFailureRecord",
+    "build_enhanced_observation",
+    "is_error_result",
+    "extract_error_type",
+    "TOOL_ERROR_HINTS",
+    "TOOL_ALTERNATIVES",
+    "DEFAULT_MAX_CONSECUTIVE_FAILURES",
+    "DEFAULT_MAX_TOTAL_FAILURES",
 ]
