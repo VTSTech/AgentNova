@@ -370,6 +370,11 @@ Final Answer: <the answer>
         # OpenResponses: Agentic Loop
         # The model decides whether to call tools or respond directly.
         # No synthesis or fallback mechanisms are used.
+        
+        # Track when we're expecting a Final Answer (after successful tool use)
+        _expecting_final_answer = False
+        _last_successful_result = None
+        
         for step_num in range(self.max_steps):
             if self.debug:
                 print(f"[Step {step_num + 1}]")
@@ -436,6 +441,45 @@ Final Answer: <the answer>
 
             # Execute tool calls if found
             if tool_calls_found:
+                # OpenResponses Enhancement: Final Answer Enforcement
+                # If we asked for Final Answer but model tried to call tools again,
+                # intercept and force Final Answer extraction
+                if _expecting_final_answer and _last_successful_result is not None:
+                    if self.debug:
+                        print(f"  [OpenResponses] FINAL ANSWWER ENFORCEMENT: Model tried to call tools instead of Final Answer")
+                        print(f"  [OpenResponses] Forcing Final Answer from last result: {_last_successful_result}")
+                    
+                    # Force Final Answer
+                    final_answer = _last_successful_result
+                    msg_item = create_message_item("assistant", final_answer)
+                    msg_item.status = ItemStatus.COMPLETED
+                    response.add_output_item(msg_item, debug=self.debug)
+                    
+                    steps.append(StepResult(
+                        type=StepResultType.FINAL_ANSWER,
+                        content=final_answer,
+                        tokens_used=tokens,
+                    ))
+                    
+                    # Mark response as completed
+                    if response.status == ResponseStatus.IN_PROGRESS:
+                        response.mark_completed()
+                    
+                    # Store response for previous_response_id support
+                    self._response_history[response.id] = response
+                    response.usage["total_tokens"] = total_tokens
+                    
+                    total_ms = (time.time() - start_time) * 1000
+                    
+                    return AgentRun(
+                        final_answer=final_answer,
+                        steps=steps,
+                        total_tokens=total_tokens,
+                        total_ms=total_ms,
+                        tool_calls=tool_calls,
+                        success=True,
+                    )
+                
                 # Track if any tool call has a final_answer
                 pending_final_answer = None
                 
@@ -512,9 +556,14 @@ Final Answer: <the answer>
                         if result_str.startswith("Error"):
                             # Error result - prompt for recovery with syntax hint
                             observation_msg = f"Observation: {result_str}\n\nNote: Try a different approach. For calculator, use Python syntax (e.g., 2**10 for power, sqrt(144) for roots)."
+                            # Reset expecting_final_answer on error
+                            _expecting_final_answer = False
                         else:
                             # Success result - prompt for Final Answer
                             observation_msg = f"Observation: {result_str}\n\nNow output: Final Answer: <the result>"
+                            # Set flag that we're expecting Final Answer
+                            _expecting_final_answer = True
+                            _last_successful_result = result_str
                         self.memory.add("user", observation_msg)
 
                     if not str(result).startswith("Error"):
@@ -601,6 +650,9 @@ Final Answer: <the answer>
                     continue
                 
                 answer = self._parser.extract_final_answer(content)
+                
+                # Reset the expecting_final_answer flag
+                _expecting_final_answer = False
 
                 # Create output message item
                 msg_item = create_message_item("assistant", answer)
