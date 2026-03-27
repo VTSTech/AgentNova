@@ -522,6 +522,7 @@ def build_system_prompt_with_tools(
     manifest: SoulManifest,
     tools: list,
     level: int = 3,
+    tool_choice: Optional[object] = None,
 ) -> str:
     """
     Build a system prompt with dynamic tool injection.
@@ -529,10 +530,14 @@ def build_system_prompt_with_tools(
     This replaces the static tool reference in the soul with the actual
     available tools at runtime.
     
+    OpenResponses Enhancement: Communicates tool_choice constraints to the model,
+    enabling the model to understand and comply with tool invocation requirements.
+    
     Args:
         manifest: Loaded soul manifest
         tools: List of Tool objects available
         level: Progressive disclosure level
+        tool_choice: Optional ToolChoice object to communicate constraints
     
     Returns:
         System prompt with tools injected
@@ -564,10 +569,82 @@ def build_system_prompt_with_tools(
     
     if re.search(pattern, base_prompt):
         result = re.sub(pattern, tool_section.rstrip(), base_prompt)
-        return result
     else:
         # No existing tool reference, append tools
-        return f"{base_prompt}\n\n{tool_section}"
+        result = f"{base_prompt}\n\n{tool_section}"
+    
+    # OpenResponses Enhancement: Add tool_choice constraints to prompt
+    if tool_choice is not None:
+        tool_choice_context = _build_tool_choice_context(tool_choice)
+        if tool_choice_context:
+            result = f"{result}\n\n{tool_choice_context}"
+    
+    return result
+
+
+def _build_tool_choice_context(tool_choice: object) -> str:
+    """
+    Build context string for tool_choice constraints.
+    
+    OpenResponses specifies that tool_choice controls tool invocation behavior.
+    This function communicates these constraints to the model so it can comply.
+    
+    Args:
+        tool_choice: ToolChoice object with type, name, and tools attributes
+    
+    Returns:
+        Context string to append to system prompt, or empty string if not needed
+    """
+    # Import from openresponses module (correct location)
+    from ..core.openresponses import ToolChoiceType
+    
+    # Get the tool_choice type
+    tc_type = getattr(tool_choice, 'type', None)
+    if tc_type is None:
+        return ""
+    
+    # Handle both enum and string values
+    if hasattr(tc_type, 'value'):
+        tc_value = tc_type.value
+    else:
+        tc_value = str(tc_type)
+    
+    # Build context based on mode
+    if tc_value == "required":
+        return (
+            "## Tool Requirement (MANDATORY)\n\n"
+            "**You MUST call at least one tool before providing a Final Answer.**\n"
+            "Direct responses without tool calls are NOT allowed.\n\n"
+            "Use the Action/Action Input format to call a tool, then provide Final Answer."
+        )
+    elif tc_value == "none":
+        return (
+            "## Tool Restriction\n\n"
+            "**Tools are currently DISABLED.**\n"
+            "Answer the user's question directly without using any tools.\n"
+            "Do NOT output Action/Action Input lines."
+        )
+    elif tc_value == "function":
+        # Specific tool required
+        tool_name = getattr(tool_choice, 'name', 'the specified tool')
+        return (
+            f"## Tool Requirement (MANDATORY)\n\n"
+            f"**You MUST use the `{tool_name}` tool.**\n\n"
+            f"Use the Action/Action Input format to call `{tool_name}`, then provide Final Answer."
+        )
+    elif tc_value == "allowed_tools":
+        # Restricted to specific tools
+        allowed = getattr(tool_choice, 'tools', [])
+        if allowed:
+            tool_list = ", ".join(f"`{t}`" for t in allowed)
+            return (
+                f"## Tool Restriction\n\n"
+                f"**You may only use these tools:** {tool_list}\n\n"
+                "Do NOT try to use any other tools. If none of these tools can help, respond directly."
+            )
+    
+    # Default: "auto" mode - no additional context needed
+    return ""
 
 
 def _build_tool_section(tools: list) -> str:

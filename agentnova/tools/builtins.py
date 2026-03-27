@@ -509,15 +509,20 @@ def make_builtin_registry() -> ToolRegistry:
     registry.register_tool(Tool(
         name="calculator",
         description=(
-            "Evaluate mathematical expressions. "
-            "Supports +, -, *, /, **, %, sqrt, floor, ceil, factorial, "
-            "sin, cos, tan, asin, acos, atan, log, log10, log2, exp, "
-            "degrees, radians, pi, e"
+            "Evaluate mathematical expressions using PYTHON SYNTAX. "
+            "CRITICAL: Use ** for power (NOT ^ or 'to the power of'), sqrt() for roots. "
+            "Correct examples: '15 * 8', '2**10' (for 2^10), 'sqrt(144)', '144**0.5'. "
+            "WRONG: '2 to the power of 10' (causes syntax error). "
+            "Supports: +, -, *, /, **, %, sqrt, floor, ceil, factorial, "
+            "sin, cos, tan, log, log10, exp, pi, e"
         ),
         params=[ToolParam(
             name="expression",
             type="string",
-            description="Mathematical expression to evaluate, e.g. '15 * 8' or 'sqrt(144)'",
+            description=(
+                "Python math expression. Use ** for power, sqrt() for roots. "
+                "Examples: '15 * 8', '2**10', 'sqrt(144)', '144**0.5'"
+            ),
         )],
         handler=calculator,
         category="math",

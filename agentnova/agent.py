@@ -30,7 +30,7 @@ from .core.tool_parse import ToolParser
 from .core.openresponses import (
     Response, ResponseStatus, ItemStatus,
     ToolChoice, ToolChoiceType,
-    MessageItem, FunctionCallItem, FunctionCallOutputItem,
+    MessageItem, FunctionCallItem, FunctionCallOutputItem, ReasoningItem,
     OutputText, InputText,
     RequestConfig, Error,
     create_message_item, create_function_call_item, create_function_call_output,
@@ -240,6 +240,7 @@ class Agent:
                         self.soul,
                         self.tools.all(),
                         level=soul_level,
+                        tool_choice=self.tool_choice,  # OpenResponses: communicate constraints
                     )
                 else:
                     from .soul import build_system_prompt
@@ -415,6 +416,17 @@ Final Answer: <the answer>
                 for call in parsed_calls:
                     if self.debug:
                         print(f"  [OpenResponses] Parsed: name={call.name}, args={call.arguments}, final_answer={call.final_answer}")
+                    
+                    # OpenResponses: Capture ReasoningItem if thought is present
+                    if hasattr(call, 'thought') and call.thought:
+                        if self.debug:
+                            print(f"  [OpenResponses] Captured thought for ReasoningItem: {call.thought[:50]}...")
+                        reasoning_item = ReasoningItem(
+                            content=[OutputText(text=call.thought)]
+                        )
+                        reasoning_item.status = ItemStatus.COMPLETED
+                        response.add_output_item(reasoning_item, debug=self.debug)
+                    
                     tool_calls_found.append({
                         "name": call.name,
                         "arguments": call.arguments,
@@ -487,6 +499,7 @@ Final Answer: <the answer>
                         print(f"  [OpenResponses] FunctionCallOutputItem created: id={fco_item.id}, call_id={fco_item.call_id}")
 
                     # Add tool result to memory
+                    # Enhanced: Add guidance to help small models understand next action
                     if native_tool_calls:
                         self.memory.add_tool_result(
                             tool_call_id=fc_item.call_id,
@@ -494,7 +507,15 @@ Final Answer: <the answer>
                             content=str(result),
                         )
                     else:
-                        self.memory.add("user", f"Observation: {result}")
+                        result_str = str(result)
+                        # Add contextual guidance based on result type
+                        if result_str.startswith("Error"):
+                            # Error result - prompt for recovery with syntax hint
+                            observation_msg = f"Observation: {result_str}\n\nNote: Try a different approach. For calculator, use Python syntax (e.g., 2**10 for power, sqrt(144) for roots)."
+                        else:
+                            # Success result - prompt for Final Answer
+                            observation_msg = f"Observation: {result_str}\n\nNow output: Final Answer: <the result>"
+                        self.memory.add("user", observation_msg)
 
                     if not str(result).startswith("Error"):
                         successful_results.append(f"{tool_name}: {result}")

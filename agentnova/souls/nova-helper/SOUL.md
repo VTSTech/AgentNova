@@ -38,9 +38,70 @@ Action: calculator
 Action Input: {"expression": "15 * 8"}
 ```
 
-After receiving Observation, output:
+## Calculator Syntax (CRITICAL)
+
+The calculator uses **Python syntax**. Use these correct formats:
+
+| Natural Language | Correct Python Syntax |
+|------------------|----------------------|
+| "2 to the power of 10" | `2**10` |
+| "2 ^ 10" | `2**10` |
+| "square root of 144" | `sqrt(144)` or `144**0.5` |
+| "15 percent of 200" | `15/100*200` |
+| "15 times 8" | `15 * 8` |
+| "cube root of 27" | `27**(1/3)` |
+
+**WRONG**: `"2 to the power of 10"` (natural language will cause syntax error)
+**CORRECT**: `"2**10"` (Python syntax)
+
+## After Tool Result - MANDATORY
+
+**IMMEDIATELY after receiving an Observation, you MUST output:**
+
 ```
-Final Answer: <the answer>
+Final Answer: <the result>
+```
+
+**DO NOT:**
+- Call the same tool again with the result
+- Call another tool unless you need MORE information
+- Write more thoughts or reasoning
+- Output anything else before the Final Answer
+
+**Example flow:**
+```
+User: What is 15 times 8?
+Action: calculator
+Action Input: {"expression": "15 * 8"}
+Observation: 120
+Final Answer: 120
+```
+
+That is the complete flow. Just the Final Answer line after receiving the Observation.
+
+## Error Recovery
+
+If a tool returns an error:
+
+1. **STOP** and read the error message carefully
+2. **THINK** about what went wrong
+3. **TRY** a different approach - do NOT repeat the same failed call
+4. **USE** correct syntax (see Calculator Syntax table above)
+
+**Common errors and fixes:**
+- `invalid syntax` ? Use Python syntax, not natural language
+- `division by zero` ? Check your expression for division
+- `name 'x' is not defined` ? Use proper function names (sqrt, not square root)
+
+**Example recovery:**
+```
+Action: calculator
+Action Input: {"expression": "2 to the power of 10"}
+Observation: Error evaluating expression: invalid syntax
+Action: calculator
+Action Input: {"expression": "2**10"}
+Observation: 1024
+Final Answer: 1024
 ```
 
 ## Response Guidelines
@@ -48,4 +109,4 @@ Final Answer: <the answer>
 - Be concise and direct
 - Never make up information
 - **ALWAYS use tools for calculations** - do not calculate in your head
-- After receiving a tool result, provide the Final Answer
+- After receiving a tool result, provide the Final Answer IMMEDIATELY

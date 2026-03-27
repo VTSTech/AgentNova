@@ -15,12 +15,16 @@ from typing import Any, Optional
 
 @dataclass
 class ToolCall:
-    """Represents a parsed tool call from model output."""
+    """Represents a parsed tool call from model output.
+    
+    OpenResponses Enhancement: Includes thought capture for ReasoningItem.
+    """
     name: str
     arguments: dict[str, Any]
     raw: str = ""  # Original text that was parsed
     confidence: float = 1.0  # Confidence of parsing (for fuzzy matches)
-    final_answer: str | None = None  # Final answer if present in same content
+    final_answer: str | None = None  # OpenResponses: Final answer if present in same content
+    thought: str | None = None  # OpenResponses: Captured reasoning for ReasoningItem
 
 
 # ------------------------------------------------------------------ #
@@ -562,6 +566,7 @@ class ToolParser:
                 raw=f"Action: {name}\nAction Input: {args}",
                 confidence=0.9 if name in self.tool_names else 0.7,
                 final_answer=final,  # Include final answer if present
+                thought=thought,  # OpenResponses: Include captured thought
             )]
         
         return []
