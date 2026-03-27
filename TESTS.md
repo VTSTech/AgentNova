@@ -69,18 +69,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 > Testing with `--api resp` (default) uses Ollama's native OpenResponses API (`/api/chat`)
 
-| Rank | Model | Score | Time | Tool Support | Soul | Notes |
-|:----:|-------|------:|-----:|:------------:|:----:|-------|
-| 🥇 | **`functiongemma:270m`** | **5/5 (100%)** | 23.7s | native | - | 🏆 Fastest perfect score! |
-| 🥈 | **`granite4:350m`** | **5/5 (100%)** | 44.5s | native | - | 🏆 Perfect with native tools |
-| 🥉 | **`qwen2.5-coder:0.5b-instruct-q4_k_m`** | **5/5 (100%)** | 52.2s | react | nova-helper | 🏆 **2x faster** with soul! |
-| 4 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 48.7s | native | - | 🏆 Perfect with native tools |
-| 5 | **`qwen2:0.5b`** | **5/5 (100%)** | 53.8s | none | nova-helper | 🏆 Fallback synthesis fix! |
-| 6 | **`dolphin3.0-qwen2.5:0.5b`** | **5/5 (100%)** | 38.2s | none | nova-helper | 🏆 **+40%** with soul! |
-| 7 | **`qwen:0.5b`** | **5/5 (100%)** | 96.0s | react | nova-helper | 🏆 **2.3x faster** with soul! |
-| 8 | **`qwen3:0.6b`** | **5/5 (100%)** | 102.3s | react | nova-helper | 🏆 Qwen3 family! |
-| 9 | **`gemma3:270m`** | **5/5 (100%)** | 106.5s | react | nova-helper | 🏆 Soul + synthesis fix! |
-| 10 | **`qwen3.5:0.8b`** | **5/5 (100%)** | 331.8s | react | nova-helper | 🏆 Qwen3.5 family! |
+Pending...
 
 ---
 
@@ -88,26 +77,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 > Comparing OpenResponses (resp) vs ChatCompletions (comp) API modes
 
-| Model | resp (OpenResponses) | comp (ChatCompletions) | Δ Score | Notes |
-|-------|---------------------|------------------------|:-------:|-------|
-| **`granite4:350m`** | **5/5 (100%)** 82.3s | **5/5 (100%)** 139.8s | = | ✅ Native tools work in both! |
-| **`qwen2.5:0.5b`** | **5/5 (100%)** 98.5s | **5/5 (100%)** 141.7s | = | ✅ Native tools work in both! |
-| `qwen2.5-coder:0.5b` | **5/5 (100%)** 52.2s | 4/5 (80%) 135.5s | -20% | Q1 hallucination in comp |
-| `qwen2:0.5b` | **5/5 (100%)** 53.8s | 3/5 (60%) 127.7s | -40% | Wrote Python instead of tool calls |
-| `qwen3:0.6b` | **5/5 (100%)** 102.3s | 3/5 (60%) 476.9s | -40% | Q1/Q2 timeouts in comp |
-| `gemma3:270m` | **5/5 (100%)** w/soul | 2/5 (40%) 380.0s | -60% | Soul + fallback help in resp |
-| `functiongemma:270m` | **5/5 (100%)** | 2/5 (40%) 213.2s | -60% | Native vs fallback mode |
-| `dolphin3.0-qwen2.5:0.5b` | **5/5 (100%)** 38.2s | 2/5 (40%) 105.7s | -60% | Reasoning errors in comp |
-| `qwen:0.5b` | **5/5 (100%)** 96.0s | 1/5 (20%) 226.3s | -80% | Explanation text instead of tools |
-| `qwen3.5:0.8b` | **5/5 (100%)** 331.8s | 0/5 (0%) 295.3s | -100% | ⚠️ Memory limit - needs re-test |
-
-**Key Insights:**
-- **2 models achieve 100% in both modes**: granite4:350m, qwen2.5:0.5b
-- **OpenResponses (resp) mode more consistent** for small models
-- **Native tool calling works in both modes** after compliance fixes
-- **Soul persona provides stability** across API modes
-- **qwen family shows largest gap**: resp significantly outperforms comp
-- **Timeouts common in comp mode**: Models struggle with native tool format
+Pending...
 
 ---
 
