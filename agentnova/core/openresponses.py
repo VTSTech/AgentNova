@@ -1,14 +1,38 @@
 """
 ⚛️ AgentNova — OpenResponses Types
 Implements the OpenResponses specification for multi-provider, interoperable LLM interfaces.
-Based on: https://github.com/openresponses/openresponses
+Specification: https://www.openresponses.org/specification
 
 Key Concepts:
-- Items: Atomic units of context (message, function_call, reasoning)
-- State Machines: Items have states (in_progress, completed, failed, incomplete)
-- tool_choice: Control tool invocation behavior
-- allowed_tools: Restrict which tools can be invoked
-- Streaming Events: Semantic delta events and state transitions
+1. Items: Atomic units of context
+   - message: A conversation turn (user or assistant)
+   - function_call: A tool invocation request
+   - function_call_output: The result of a tool execution
+   - reasoning: Model's internal thought process (optional)
+
+2. State Machines: Objects have lifecycle states
+   - Response: queued → in_progress → completed/failed/incomplete/cancelled
+   - Items: in_progress → completed/failed/incomplete
+
+3. tool_choice: Control tool invocation behavior
+   - "auto": Model may call tools or respond directly (default)
+   - "required": Model MUST call at least one tool
+   - "none": Model MUST NOT call any tools
+   - {"type": "function", "name": "tool"}: Force specific tool
+   - {"type": "allowed_tools", "tools": [...]}: Restrict to tool list
+
+4. allowed_tools: Hard constraint on which tools can be invoked
+   - Server MUST reject/suppress calls to tools not in this list
+
+5. Agentic Loop:
+   - Model samples from input
+   - If tool call: execute tool, return observation, continue
+   - If no tool call: return final output items
+
+6. Streaming Events: Semantic delta events for state transitions
+   - response.queued, response.in_progress, response.completed
+   - response.output_item.added, response.output_item.done
+   - response.output_text.delta, response.output_text.done
 
 Written by VTSTech — https://www.vts-tech.org
 """
@@ -75,31 +99,43 @@ class ToolChoiceType(Enum):
     REQUIRED: Model MUST call at least one tool
     NONE: Model MUST NOT call any tools
     SPECIFIC: Model must call a specific tool
+    ALLOWED_TOOLS: Model can only use tools from a specific list
     """
     AUTO = "auto"
     REQUIRED = "required"
     NONE = "none"
-    SPECIFIC = "specific"
+    SPECIFIC = "function"  # Per spec: {"type": "function", "name": "fn_name"}
+    ALLOWED_TOOLS = "allowed_tools"  # Per spec: {"type": "allowed_tools", "tools": [...]}
 
 
 @dataclass
 class ToolChoice:
     """
-    Tool choice configuration.
+    Tool choice configuration per OpenResponses spec.
+    
+    Modes:
+        "auto" (default): Model may call tools or respond directly
+        "required": Model MUST call at least one tool
+        "none": Model MUST NOT call any tools
+        {"type": "function", "name": "fn_name"}: Force specific tool
+        {"type": "allowed_tools", "tools": [...]}: Restrict to tool list
     
     Examples:
         ToolChoice("auto")  # Default
         ToolChoice("required")  # Must call at least one tool
         ToolChoice("none")  # No tools allowed
         ToolChoice.specific("calculator")  # Must call calculator
+        ToolChoice.allowed_tools(["calculator", "shell"])  # Only these tools
     """
     type: ToolChoiceType = ToolChoiceType.AUTO
     name: str | None = None  # For SPECIFIC type
+    tools: list[str] | None = None  # For ALLOWED_TOOLS type
     
     def __init__(
         self, 
         value: str | ToolChoiceType = "auto",
-        name: str | None = None
+        name: str | None = None,
+        tools: list[str] | None = None,
     ):
         if isinstance(value, ToolChoiceType):
             self.type = value
@@ -109,6 +145,10 @@ class ToolChoice:
             self.type = ToolChoiceType.REQUIRED
         elif value == "none":
             self.type = ToolChoiceType.NONE
+        elif value == "function":
+            self.type = ToolChoiceType.SPECIFIC
+        elif value == "allowed_tools":
+            self.type = ToolChoiceType.ALLOWED_TOOLS
         else:
             # Treat as specific tool name
             self.type = ToolChoiceType.SPECIFIC
@@ -116,6 +156,8 @@ class ToolChoice:
         # Only override name if explicitly provided
         if name is not None:
             self.name = name
+        if tools is not None:
+            self.tools = tools
     
     @classmethod
     def specific(cls, tool_name: str) -> "ToolChoice":
@@ -123,6 +165,16 @@ class ToolChoice:
         instance = cls.__new__(cls)
         instance.type = ToolChoiceType.SPECIFIC
         instance.name = tool_name
+        instance.tools = None
+        return instance
+    
+    @classmethod
+    def allowed_tools(cls, tool_names: list[str]) -> "ToolChoice":
+        """Create a tool choice that restricts to a list of tools."""
+        instance = cls.__new__(cls)
+        instance.type = ToolChoiceType.ALLOWED_TOOLS
+        instance.name = None
+        instance.tools = tool_names
         return instance
     
     def to_dict(self) -> dict:
@@ -131,6 +183,11 @@ class ToolChoice:
             return {
                 "type": "function",
                 "name": self.name
+            }
+        if self.type == ToolChoiceType.ALLOWED_TOOLS:
+            return {
+                "type": "allowed_tools",
+                "tools": [{"type": "function", "name": t} for t in (self.tools or [])]
             }
         return {"type": self.type.value}
 
@@ -232,8 +289,15 @@ class FunctionCallItem:
     """
     Function call item - represents a tool invocation.
     
-    For externally-hosted tools, the developer executes the tool
-    and returns the result in a follow-up request.
+    For developer-hosted tools (OpenResponses):
+    - The developer executes the tool
+    - Returns the result in a follow-up request via FunctionCallOutputItem
+    
+    Status transitions:
+    - in_progress: Tool is being invoked
+    - completed: Tool executed successfully
+    - failed: Tool execution failed (error field contains details)
+    - incomplete: Token budget exhausted
     """
     id: str = field(default_factory=lambda: _generate_id("fc"))
     type: Literal["function_call"] = "function_call"
@@ -241,13 +305,14 @@ class FunctionCallItem:
     call_id: str = ""  # Unique identifier for the call
     arguments: str = "{}"  # JSON string
     status: ItemStatus = ItemStatus.COMPLETED
+    error: dict | None = None  # Error details if status is FAILED
     
     def __post_init__(self):
         if not self.call_id:
             self.call_id = f"call_{uuid.uuid4().hex[:12]}"
     
     def to_dict(self) -> dict:
-        return {
+        result = {
             "id": self.id,
             "type": self.type,
             "name": self.name,
@@ -255,6 +320,9 @@ class FunctionCallItem:
             "arguments": self.arguments,
             "status": self.status.value
         }
+        if self.error:
+            result["error"] = self.error
+        return result
 
 
 @dataclass
@@ -262,12 +330,19 @@ class FunctionCallOutputItem:
     """
     Function call output - the result of a tool execution.
     
-    This is provided as input when returning tool results.
+    For developer-hosted tools (OpenResponses):
+    - This is provided as input when returning tool results
+    - The call_id must match the function_call's call_id
+    - The output field contains the tool result (or error message)
+    
+    Status transitions:
+    - completed: Tool executed and result available
+    - failed: Tool execution failed (output contains error message)
     """
     id: str = field(default_factory=lambda: _generate_id("fco"))
     type: Literal["function_call_output"] = "function_call_output"
     call_id: str = ""  # Must match the function_call's call_id
-    output: str = ""  # Result of the tool call
+    output: str = ""  # Result of the tool call (or error message if failed)
     status: ItemStatus = ItemStatus.COMPLETED
     
     def to_dict(self) -> dict:

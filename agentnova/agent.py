@@ -1,14 +1,19 @@
 """
 ⚛️ AgentNova — Agent
-Main agent class implementing the ReAct loop with OpenResponses specification.
+Main agent class implementing the OpenResponses Agentic Loop specification.
 
-Implements OpenResponses patterns:
-- Items: Atomic units of context (message, function_call, reasoning)
-- State Machines: Items have states (in_progress, completed, failed)
-- tool_choice: Control tool invocation behavior
+OpenResponses Compliance (https://www.openresponses.org/specification):
+- Items: Atomic units of context (message, function_call, function_call_output)
+- State Machines: Items and Response have lifecycle states
+- tool_choice: Control tool invocation (auto, required, none, specific, allowed_tools)
 - allowed_tools: Restrict which tools can be invoked
+- Agentic Loop: Model samples → tool call → execute → observation → repeat
 
-All models use the nova-helper soul for consistent behavior.
+Tool Calling Strategy:
+- Uses ReAct prompting (Action/Action Input format) for all models
+- No distinction between "native" and "react" modes
+- Model must explicitly format tool calls, no fallbacks/synthesis
+- Tool execution is developer-hosted (outside the model provider)
 
 Written by VTSTech — https://www.vts-tech.org
 """
@@ -37,31 +42,51 @@ from .backends import BaseBackend, get_default_backend
 
 class Agent:
     """
-    AgentNova Agent - ReAct loop implementation with OpenResponses compliance.
+    AgentNova Agent - OpenResponses Agentic Loop Implementation.
+    
+    This class implements the core agentic loop as defined by OpenResponses:
+    
+        1. Model samples from input
+        2. If tool call: execute tool, return observation, continue
+        3. If no tool call: return final output items
     
     OpenResponses Features:
-    - tool_choice: Control tool invocation (auto, required, none, specific tool)
-    - allowed_tools: Restrict which tools can be invoked
-    - Response state machine: queued → in_progress → completed/failed
-    - Items: Atomic units of context with lifecycle states
+        - tool_choice: Control tool invocation behavior
+          - "auto" (default): Model may call tools or respond directly
+          - "required": Model MUST call at least one tool
+          - "none": Model MUST NOT call any tools
+          - {"type": "function", "name": "tool"}: Force specific tool
+          - {"type": "allowed_tools", "tools": [...]}: Restrict to tool list
+        - allowed_tools: Hard constraint on which tools can be invoked
+        - Response state machine: queued → in_progress → completed/failed/incomplete
+        - Items: Atomic units of context with lifecycle states
     
-    All models use the nova-helper soul for consistent tool-calling behavior.
-    The model must explicitly format tool calls using ReAct format:
+    Tool Calling:
+        All models use ReAct prompting (Action/Action Input format).
+        The model must explicitly format tool calls - no fallback synthesis.
+        
+        Format:
+            Action: tool_name
+            Action Input: {"arg": "value"}
     
-        Thought: <reasoning>
-        Action: <tool_name>
-        Action Input: {"arg": "value"}
-
     Example:
-        agent = Agent(model="qwen2.5:0.5b", tools=["calculator", "shell"])
+        # Basic usage
+        agent = Agent(model="qwen2.5:0.5b", tools=["calculator"])
         result = agent.run("What is 15 * 8?")
         print(result.final_answer)
         
-        # With tool_choice
+        # Force tool usage
         agent = Agent(model="llama3", tools=["calculator"], tool_choice="required")
         
-        # With allowed_tools
-        agent = Agent(model="llama3", tools=["calculator", "shell"], allowed_tools=["calculator"])
+        # Restrict tools
+        agent = Agent(
+            model="llama3", 
+            tools=["calculator", "shell"],
+            allowed_tools=["calculator"]  # shell is blocked
+        )
+        
+        # Force specific tool
+        agent = Agent(model="llama3", tools=["calculator"], tool_choice=ToolChoice.specific("calculator"))
     """
 
     def __init__(
@@ -77,7 +102,7 @@ class Agent:
         soul_level: int = 3,
         num_ctx: int | None = None,
         # OpenResponses parameters
-        tool_choice: str | ToolChoice = "required",
+        tool_choice: str | ToolChoice = "auto",  # Default per OpenResponses spec
         allowed_tools: list[str] | None = None,
         **kwargs,
     ):
@@ -136,13 +161,28 @@ class Agent:
             self.tool_choice = ToolChoice(tool_choice)
 
         if debug:
-            print(f"[OpenResponses] tool_choice initialized: type={self.tool_choice.type.value}, name={self.tool_choice.name or 'N/A'}")
+            print(f"[OpenResponses] tool_choice initialized: type={self.tool_choice.type.value}, name={self.tool_choice.name or 'N/A'}, tools={self.tool_choice.tools or 'N/A'}")
 
         # OpenResponses: allowed_tools
+        # Combine explicit allowed_tools with tool_choice.allowed_tools if present
+        effective_allowed = set(allowed_tools) if allowed_tools else None
+        
+        # If tool_choice is ALLOWED_TOOLS mode, merge with allowed_tools
+        if self.tool_choice.type == ToolChoiceType.ALLOWED_TOOLS and self.tool_choice.tools:
+            if effective_allowed is None:
+                effective_allowed = set(self.tool_choice.tools)
+            else:
+                effective_allowed = effective_allowed.intersection(set(self.tool_choice.tools))
+        
+        # If tool_choice is SPECIFIC mode, only that tool is allowed
+        if self.tool_choice.type == ToolChoiceType.SPECIFIC and self.tool_choice.name:
+            effective_allowed = {self.tool_choice.name}
+        
+        self._allowed_tools = list(effective_allowed) if effective_allowed else None
+        
         # Filter the tools registry to only include allowed tools
-        self._allowed_tools = allowed_tools
-        if allowed_tools is not None and len(allowed_tools) > 0:
-            allowed_set = set(allowed_tools)
+        if self._allowed_tools is not None and len(self._allowed_tools) > 0:
+            allowed_set = set(self._allowed_tools)
             current_tools = set(self.tools.names())
             filtered = current_tools.intersection(allowed_set)
             if debug:
@@ -468,14 +508,27 @@ Final Answer: <the answer>
             # ---- Check for Final Answer ----
             # The model explicitly signals completion with "Final Answer:"
             if self._parser.is_final_answer(content):
-                # OpenResponses: Check tool_choice="required" enforcement
+                # OpenResponses: Check tool_choice enforcement
+                needs_tool = False
+                rejection_reason = ""
+                
                 if self.tool_choice.type == ToolChoiceType.REQUIRED and tool_calls == 0:
+                    needs_tool = True
+                    rejection_reason = "tool_choice='required' but no tool was called"
+                elif self.tool_choice.type == ToolChoiceType.SPECIFIC and tool_calls == 0:
+                    needs_tool = True
+                    rejection_reason = f"tool_choice requires '{self.tool_choice.name}' but no tool was called"
+                
+                if needs_tool:
                     if self.debug:
-                        print(f"  [OpenResponses] REJECTED: tool_choice='required' but tool_calls={tool_calls}")
+                        print(f"  [OpenResponses] REJECTED: {rejection_reason}")
                         print(f"  [OpenResponses] Enforcing tool requirement...")
                     # Tell model to use tools
                     self.memory.add("assistant", content)
-                    self.memory.add("user", "You must use at least one tool before providing a final answer. Use the Action/Action Input format to call a tool.")
+                    if self.tool_choice.type == ToolChoiceType.SPECIFIC:
+                        self.memory.add("user", f"You must use the '{self.tool_choice.name}' tool before providing a final answer. Use the Action/Action Input format.")
+                    else:
+                        self.memory.add("user", "You must use at least one tool before providing a final answer. Use the Action/Action Input format to call a tool.")
                     continue
                 
                 answer = self._parser.extract_final_answer(content)
@@ -501,8 +554,32 @@ Final Answer: <the answer>
                 break
 
             # ---- No tool call, no final answer ----
+            # Model responded directly without explicit final answer format
+            # Check tool_choice enforcement before accepting
+            needs_tool = False
+            rejection_reason = ""
+            
+            if self.tool_choice.type == ToolChoiceType.REQUIRED and tool_calls == 0:
+                needs_tool = True
+                rejection_reason = "tool_choice='required' but no tool was called"
+            elif self.tool_choice.type == ToolChoiceType.SPECIFIC and tool_calls == 0:
+                needs_tool = True
+                rejection_reason = f"tool_choice requires '{self.tool_choice.name}' but no tool was called"
+            
+            if needs_tool:
+                if self.debug:
+                    print(f"  [OpenResponses] REJECTED: {rejection_reason}")
+                    print(f"  [OpenResponses] Enforcing tool requirement...")
+                # Tell model to use tools
+                self.memory.add("assistant", content)
+                if self.tool_choice.type == ToolChoiceType.SPECIFIC:
+                    self.memory.add("user", f"You must use the '{self.tool_choice.name}' tool. Use the Action/Action Input format.")
+                else:
+                    self.memory.add("user", "You must use at least one tool. Use the Action/Action Input format to call a tool.")
+                continue
+            
             # Accept model's response as the final answer
-            # This is the model's decision, not a fallback synthesis
+            # This is the model's decision (OpenResponses: model decides in 'auto' mode)
             
             # Create output message item
             if content:
@@ -511,7 +588,7 @@ Final Answer: <the answer>
                 response.add_output_item(msg_item, debug=self.debug)
 
             if self.debug:
-                print(f"  No tool calls detected, treating as final answer")
+                print(f"  No tool calls detected, accepting as final answer")
 
             steps.append(StepResult(
                 type=StepResultType.FINAL_ANSWER,
