@@ -74,22 +74,22 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | Rank | Model | Score | Time | Soul | Tool Mode | Q1 | Q2 | Q3 | Q4 | Q5 | Notes |
 |:----:|-------|------:|-----:|:----:|:---------:|:--:|:--:|:--:|:--:|:--:|-------|
 | 🥇 | **`granite4:350m`** | **5/5 (100%)** | 136.3s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Native tools working! |
-| 🥇 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 130.2s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Perfect score! |
+| 🥇 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 130.2s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Perfect score! Fastest! |
 | 🥉 | `qwen2.5-coder:0.5b` | 4/5 (80%) | 120.3s | nova-helper | native | ✅ | ✅ | ✅ | ❌ 5 | ✅ | Q4 reasoning error |
 | 🥉 | `qwen3.5:0.8b` | 4/5 (80%) | 625.8s | nova-helper | native | ❌ empty | ✅ | ✅ | ✅ | ✅ | Q1 empty, very slow |
 | 5 | `gemma3:270m` | 3/5 (60%) | 374.7s | nova-helper | native | ✅ | ✅ | ✅ | ❌ empty | ❌ 120 | Q4 empty, Q5 reasoning error |
 | 5 | `dolphin3.0-qwen2.5:0.5b` | 3/5 (60%) | 114.3s | nova-helper | native | ✅ | ❌ 4 | ✅ | ✅ | ❌ 6 | Q2 reasoning error, Q5 wrong |
 | 5 | `qwen2:0.5b` | 3/5 (60%) | 116.8s | nova-helper | native | ✅ | ✅ | ✅ | ❌ code | ❌ 30 | Writes Python instead of calculator |
-| 8 | `functiongemma:270m` | 1/5 (20%) | 250.1s | nova-helper | native | ❌ 120 | ✅ | ❌ 4.00 | ❌ 20 | ❌ refused | Reasoning errors, Q5 refusal |
-| - | *pending...* | - | - | - | - | - | - | - | - | - | |
+| 5 | `qwen3:0.6b` | 3/5 (60%) | 231.3s | nova-helper | native | ❌ empty | ❌ 49 | ✅ | ✅ | ✅ | Q1 empty, Q2 reasoning error |
+| 5 | `qwen:0.5b` | 3/5 (60%) | 176.6s | nova-helper | native | ✅ | ✅ | ❌ 42.5 | ❌ 16 | ✅ | Q3/Q4 reasoning errors |
+| 10 | `functiongemma:270m` | 1/5 (20%) | 250.1s | nova-helper | native | ❌ 120 | ✅ | ❌ 4.00 | ❌ 20 | ❌ refused | Reasoning errors, Q5 refusal |
 
-**Observations:**
-- `granite4:350m` & `qwen2.5:0.5b`: **100%** - both achieve perfect scores with native tools
-- `qwen2.5-coder:0.5b`, `qwen3.5:0.8b`: **80%** - strong performers
-- `qwen3.5:0.8b`: Very slow (625s) compared to others (~120s), Q1 empty response
-- `gemma3:270m`, `dolphin3.0-qwen2.5:0.5b`, `qwen2:0.5b`: **60%** - native tools working, reasoning errors
-- `qwen2:0.5b`: Writes Python code instead of using calculator tool
-- `functiongemma:270m`: **0% → 20%** after fix - was returning empty/refused, now reasoning
+**Summary:**
+- **2 models achieve 100%**: `granite4:350m` and `qwen2.5:0.5b`
+- **2 models at 80%**: `qwen2.5-coder:0.5b`, `qwen3.5:0.8b`
+- **5 models at 60%**: `gemma3:270m`, `dolphin3.0-qwen2.5:0.5b`, `qwen2:0.5b`, `qwen3:0.6b`, `qwen:0.5b`
+- **1 model at 20%**: `functiongemma:270m`
+- **ALL 10 models have native tools working** after the R03.4 fix!
 
 ---
 
