@@ -238,6 +238,112 @@ GENERIC_ERROR_HINTS = {
 
 
 # ============================================================================
+# Tool Name Suggestions (OpenResponses Strict Compliance)
+# ============================================================================
+
+# When model hallucinates a tool name, suggest the correct tool
+# This provides guidance WITHOUT auto-correcting (strict spec compliance)
+TOOL_NAME_SUGGESTIONS = {
+    # Shell commands -> list_directory
+    "ls": "list_directory",
+    "dir": "list_directory",
+    "list": "list_directory",
+    
+    # Shell commands -> shell (if available)
+    "cat": "shell (cat file) or read_file",
+    "rm": "shell",
+    "mkdir": "shell",
+    "cp": "shell",
+    "mv": "shell",
+    "grep": "shell",
+    "find": "shell",
+    "pwd": "shell",
+    "cd": "shell",
+    "echo": "shell",
+    
+    # File operations
+    "read": "read_file",
+    "write": "write_file",
+    "load": "read_file",
+    "save": "write_file",
+    "open": "read_file",
+    
+    # Calculator/math
+    "calc": "calculator",
+    "math": "calculator",
+    "calculate": "calculator",
+    "compute": "calculator",
+    "evaluate": "calculator",
+    
+    # Python
+    "python": "python_repl",
+    "repl": "python_repl",
+    "exec": "python_repl",
+    "run": "python_repl or shell",
+    "execute": "python_repl or shell",
+    
+    # DateTime
+    "date": "get_date",
+    "time": "get_time",
+    "datetime": "get_time or get_date",
+    "now": "get_time",
+    "today": "get_date",
+    
+    # Web
+    "search": "web-search",
+    "web": "web-search or http_get",
+    "fetch": "http_get",
+    "request": "http_get",
+    
+    # JSON
+    "parse": "parse_json",
+    "json": "parse_json",
+    
+    # Text
+    "count": "count_words or count_chars",
+    "words": "count_words",
+    "chars": "count_chars",
+}
+
+
+def get_tool_suggestion(hallucinated_name: str, available_tools: list[str]) -> str | None:
+    """
+    Get a suggested tool name for a hallucinated tool name.
+    
+    OpenResponses Strict Compliance:
+    This does NOT auto-correct the tool name. It only provides a hint
+    for the model to correct itself on the next iteration.
+    
+    Args:
+        hallucinated_name: The tool name the model used
+        available_tools: List of actually available tool names
+        
+    Returns:
+        Suggested tool name if found, None otherwise
+    """
+    name_lower = hallucinated_name.lower().replace("-", "_").replace(" ", "_")
+    
+    # Direct lookup
+    if name_lower in TOOL_NAME_SUGGESTIONS:
+        suggestion = TOOL_NAME_SUGGESTIONS[name_lower]
+        # If suggestion contains available tool, return it
+        for avail in available_tools:
+            if avail in suggestion:
+                return avail
+        return suggestion
+    
+    # Partial match in suggestions
+    for key, suggestion in TOOL_NAME_SUGGESTIONS.items():
+        if key in name_lower or name_lower in key:
+            for avail in available_tools:
+                if avail in suggestion:
+                    return avail
+            return suggestion
+    
+    return None
+
+
+# ============================================================================
 # Tool Alternatives Mapping
 # ============================================================================
 
@@ -599,12 +705,20 @@ def extract_error_type(error_message: str) -> str:
 
 
 __all__ = [
+    # Classes
     "ErrorRecoveryTracker",
     "ToolFailureRecord",
+    
+    # Functions
     "build_enhanced_observation",
     "is_error_result",
     "extract_error_type",
+    "get_tool_suggestion",
+    
+    # Constants
     "TOOL_ERROR_HINTS",
+    "GENERIC_ERROR_HINTS",
+    "TOOL_NAME_SUGGESTIONS",
     "TOOL_ALTERNATIVES",
     "DEFAULT_MAX_CONSECUTIVE_FAILURES",
     "DEFAULT_MAX_TOTAL_FAILURES",

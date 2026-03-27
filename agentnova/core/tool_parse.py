@@ -347,11 +347,10 @@ def _parse_react(text: str, tool_names: list[str] | None = None) -> tuple[str | 
         # Strip any trailing backticks or quotes from tool name
         tool_name = tool_name.strip('`"\'')
         
-        # Fuzzy match tool name
-        if tool_names and tool_name not in tool_names:
-            matched = _fuzzy_match_tool_name(tool_name, tool_names)
-            if matched:
-                tool_name = matched
+        # OpenResponses: NO FUZZY MATCHING
+        # Tool names must match exactly per spec requirement:
+        # "allowed_tools: Hard constraint - Server MUST reject/suppress calls to tools not in this list"
+        # Error recovery module will provide hints to guide the model.
         
         # Extract just the JSON object from raw_args (handle extra text after)
         json_start = raw_args.find('{')
@@ -534,19 +533,14 @@ class ToolParser:
         return json_strings
 
     def _extract_tool_from_json(self, data: dict) -> ToolCall | None:
-        """Extract ToolCall from JSON object."""
+        """Extract ToolCall from JSON object.
+        
+        OpenResponses: NO FUZZY MATCHING - tool names must match exactly.
+        """
         name, args = _extract_tool_from_json(data)
         if name:
-            # Normalize name with fuzzy matching
-            name = self._fuzzy_match_tool(name)
-            
-            # If fuzzy matching didn't find a match and we have tool names,
-            # try to use the fuzzy matching with the available tools
-            if name not in self.tool_names and self.tool_names:
-                matched = _fuzzy_match_tool_name(name, list(self.tool_names))
-                if matched:
-                    name = matched
-
+            # OpenResponses: Return tool name exactly as specified by model
+            # No fuzzy matching - spec requires exact tool name matching
             return ToolCall(
                 name=name,
                 arguments=args if isinstance(args, dict) else {},
@@ -590,7 +584,7 @@ class ToolParser:
 
         for i, tool_match in enumerate(tools):
             name = tool_match.group(1).strip()
-            name = self._fuzzy_match_tool(name)
+            # OpenResponses: NO FUZZY MATCHING - tool names must match exactly
 
             args = {}
             if i < len(args_matches):
@@ -610,13 +604,17 @@ class ToolParser:
 
     def _fuzzy_match_tool(self, name: str) -> str:
         """
-        Fuzzy match tool name against known tools.
-        Helps with small models that hallucinate tool names.
+        DEPRECATED: Fuzzy matching removed for OpenResponses strict compliance.
+        
+        OpenResponses Spec Requirement:
+        "allowed_tools: Hard constraint on which tools can be invoked.
+        Server MUST reject/suppress calls to tools not in this list."
+        
+        This method now returns the name unchanged.
+        Error recovery module provides hints to guide the model instead.
         """
-        if not self.tool_names:
-            return name
-
-        return _fuzzy_match_tool_name(name, list(self.tool_names)) or name
+        # OpenResponses: No fuzzy matching - return name exactly as provided
+        return name
 
     def has_tool_call(self, text: str) -> bool:
         """Check if text contains a tool call."""
