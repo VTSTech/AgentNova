@@ -195,8 +195,7 @@ def main():
     print(f"\n⚛️ AgentNova Quick Diagnostic (5 questions)")
     print(f"   Backend: {backend_name} ({backend.base_url})")
     print(f"   Model: {model}")
-    if api_mode != 'resp':
-        print(f"   API Mode: {api_mode}")
+    print(f"   API Mode: {api_mode}")
     if args.force_react:
         print(f"   Force ReAct: True")
     if args.soul:
@@ -212,4 +211,3 @@ def main():
 
 if __name__ == "__main__":
     result = main()
-    sys.exit(result.get("exit_code", 0))
