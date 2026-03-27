@@ -211,6 +211,12 @@ class OllamaBackend(BaseBackend):
         temperature: float = 0.7,
         max_tokens: int = 2048,
         think: bool | None = None,
+        # OpenAI Chat Completions additional parameters
+        stop: str | list[str] | None = None,
+        presence_penalty: float | None = None,
+        frequency_penalty: float | None = None,
+        response_format: dict | None = None,
+        top_p: float | None = None,
         **kwargs,
     ) -> dict:
         """Generate a response using OpenAI Chat-Completions compatible API.
@@ -225,6 +231,11 @@ class OllamaBackend(BaseBackend):
             temperature: Sampling temperature
             max_tokens: Maximum tokens to generate
             think: For thinking models (qwen3, deepseek-r1): None=auto, False=disable thinking
+            stop: Stop sequences (string or list of strings)
+            presence_penalty: Presence penalty (-2.0 to 2.0)
+            frequency_penalty: Frequency penalty (-2.0 to 2.0)
+            response_format: Response format (e.g., {"type": "json_object"})
+            top_p: Top-p sampling (0.0 to 1.0)
             **kwargs: Additional options passed to Ollama
         """
         import urllib.request
@@ -241,6 +252,18 @@ class OllamaBackend(BaseBackend):
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
+        
+        # Add optional OpenAI parameters
+        if stop is not None:
+            body["stop"] = stop if isinstance(stop, list) else [stop]
+        if presence_penalty is not None:
+            body["presence_penalty"] = presence_penalty
+        if frequency_penalty is not None:
+            body["frequency_penalty"] = frequency_penalty
+        if response_format is not None:
+            body["response_format"] = response_format
+        if top_p is not None:
+            body["top_p"] = top_p
 
         # Add tools in OpenAI format
         if tools:
@@ -332,6 +355,133 @@ class OllamaBackend(BaseBackend):
             "latency_ms": latency_ms,
             "raw": result,
         }
+
+    def generate_completions_stream(
+        self,
+        model: str,
+        messages: list[dict],
+        tools: list[Tool] | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 2048,
+        stop: str | list[str] | None = None,
+        presence_penalty: float | None = None,
+        frequency_penalty: float | None = None,
+        response_format: dict | None = None,
+        top_p: float | None = None,
+        **kwargs,
+    ) -> Generator[dict, None, None]:
+        """Stream generated text using OpenAI Chat-Completions compatible API with SSE.
+        
+        Uses Server-Sent Events (SSE) to stream responses from Ollama's 
+        /v1/chat/completions endpoint.
+        
+        Yields dict chunks with:
+            - "delta": text delta from the model
+            - "finish_reason": None or "stop" when complete
+            - "tool_calls": incremental tool call data (if any)
+        
+        Args:
+            model: Model name
+            messages: Chat messages
+            tools: List of Tool objects for native tool calling
+            temperature: Sampling temperature
+            max_tokens: Maximum tokens to generate
+            stop: Stop sequences (string or list of strings)
+            presence_penalty: Presence penalty (-2.0 to 2.0)
+            frequency_penalty: Frequency penalty (-2.0 to 2.0)
+            response_format: Response format (e.g., {"type": "json_object"})
+            top_p: Top-p sampling (0.0 to 1.0)
+            **kwargs: Additional options
+            
+        Yields:
+            Dict with "delta", "finish_reason", and optionally "tool_calls"
+        """
+        import urllib.request
+        import urllib.error
+
+        url = f"{self.base_url}/v1/chat/completions"
+
+        # Build request body
+        body = {
+            "model": model,
+            "messages": messages,
+            "stream": True,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        
+        # Add optional OpenAI parameters
+        if stop is not None:
+            body["stop"] = stop if isinstance(stop, list) else [stop]
+        if presence_penalty is not None:
+            body["presence_penalty"] = presence_penalty
+        if frequency_penalty is not None:
+            body["frequency_penalty"] = frequency_penalty
+        if response_format is not None:
+            body["response_format"] = response_format
+        if top_p is not None:
+            body["top_p"] = top_p
+
+        if tools:
+            body["tools"] = [t.to_openai_schema() for t in tools]
+
+        if os.environ.get("AGENTNOVA_DEBUG"):
+            print(f"  [OpenAI-Comp-Stream] Request: tools={len(tools) if tools else 0}")
+
+        try:
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(body).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+
+            with urllib.request.urlopen(req, timeout=self.config.timeout) as response:
+                buffer = ""
+                for line in response:
+                    line = line.decode("utf-8")
+                    
+                    # SSE format: "data: {...}\n\n"
+                    if line.startswith("data: "):
+                        data_str = line[6:].strip()
+                        
+                        # Check for end of stream
+                        if data_str == "[DONE]":
+                            break
+                        
+                        try:
+                            chunk = json.loads(data_str)
+                        except json.JSONDecodeError:
+                            continue
+                        
+                        choices = chunk.get("choices", [])
+                        if not choices:
+                            continue
+                        
+                        delta = choices[0].get("delta", {})
+                        finish_reason = choices[0].get("finish_reason")
+                        
+                        # Extract text content from delta
+                        text_delta = delta.get("content", "")
+                        
+                        # Extract tool calls if present
+                        tool_calls_delta = delta.get("tool_calls", None)
+                        
+                        yield {
+                            "delta": text_delta,
+                            "finish_reason": finish_reason,
+                            "tool_calls": tool_calls_delta,
+                        }
+                        
+                        if finish_reason:
+                            break
+
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode("utf-8") if e.fp else ""
+            raise RuntimeError(f"Ollama HTTP error {e.code}: {error_body}")
+
+        except urllib.error.URLError as e:
+            raise RuntimeError(f"Ollama connection error: {e.reason}")
 
     def generate_stream(
         self,

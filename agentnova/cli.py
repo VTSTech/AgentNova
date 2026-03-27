@@ -336,6 +336,10 @@ def create_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--force-react", action="store_true", help="Force ReAct mode for tool calling")
     run_parser.add_argument("--acp", action="store_true", help="Enable ACP logging to Agent Control Panel")
     run_parser.add_argument("--acp-url", default=None, help="ACP server URL (default: from config)")
+    run_parser.add_argument("--response-format", choices=["text", "json"], default="text", dest="response_format",
+                           help="Response format: 'text' (default) or 'json' (structured output)")
+    run_parser.add_argument("--truncation", choices=["auto", "disabled"], default="auto",
+                           help="Truncation behavior for context overflow (default: auto)")
 
     # Chat command
     chat_parser = subparsers.add_parser("chat", help="Interactive chat mode")
@@ -355,6 +359,10 @@ def create_parser() -> argparse.ArgumentParser:
                            help="Request timeout in seconds (default: 120)")
     chat_parser.add_argument("--acp", action="store_true", help="Enable ACP logging to Agent Control Panel")
     chat_parser.add_argument("--acp-url", default=None, help="ACP server URL (default: from config)")
+    chat_parser.add_argument("--response-format", choices=["text", "json"], default="text", dest="response_format",
+                           help="Response format: 'text' (default) or 'json' (structured output)")
+    chat_parser.add_argument("--truncation", choices=["auto", "disabled"], default="auto",
+                           help="Truncation behavior for context overflow (default: auto)")
 
     # Agent command
     agent_parser = subparsers.add_parser("agent", help="Autonomous agent mode")
@@ -374,6 +382,10 @@ def create_parser() -> argparse.ArgumentParser:
                            help="Request timeout in seconds (default: 120)")
     agent_parser.add_argument("--acp", action="store_true", help="Enable ACP logging to Agent Control Panel")
     agent_parser.add_argument("--acp-url", default=None, help="ACP server URL (default: from config)")
+    agent_parser.add_argument("--response-format", choices=["text", "json"], default="text", dest="response_format",
+                           help="Response format: 'text' (default) or 'json' (structured output)")
+    agent_parser.add_argument("--truncation", choices=["auto", "disabled"], default="auto",
+                           help="Truncation behavior for context overflow (default: auto)")
 
     # Models command
     models_parser = subparsers.add_parser("models", help="List available models")
