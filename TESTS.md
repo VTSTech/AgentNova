@@ -73,14 +73,30 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 | Rank | Model | Score | Time | Soul | Tool Mode | Q1 | Q2 | Q3 | Q4 | Q5 | Notes |
 |:----:|-------|------:|-----:|:----:|:---------:|:--:|:--:|:--:|:--:|:--:|-------|
-| 1 | `gemma3:270m` | 1/5 (20%) | 372.7s | nova-helper | ? | ❌ 405 | ❌ 3 | ✅ | ❌ empty | ❌ 100 | Hallucinations, only Q3 correct |
-| 2 | `functiongemma:270m` | 0/5 (0%) | 111.4s | nova-helper | ? | ❌ empty | ❌ empty | ❌ empty | ❌ empty | ❌ refused | Empty responses Q1-Q4, refused Q5 |
+| 🥇 | **`granite4:350m`** | **5/5 (100%)** | 134.3s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Native tools working! |
+| 🥈 | `gemma3:270m` | 3/5 (60%) | 374.7s | nova-helper | native | ✅ | ✅ | ✅ | ❌ empty | ❌ 120 | Q4 empty, Q5 reasoning error |
+| 🥉 | `functiongemma:270m` | 1/5 (20%) | 250.1s | nova-helper | native | ❌ 120 | ✅ | ❌ 4.00 | ❌ 20 | ❌ refused | Reasoning errors, Q5 refusal |
 | - | *pending...* | - | - | - | - | - | - | - | - | - | |
 
 **Observations:**
-- `functiongemma:270m` returns empty responses for Q1-Q4, refusal for Q5
-- `gemma3:270m` shows hallucinations (405, 3, 100) - worse than comp mode (20% vs 40%)
-- Both 270M models struggling in resp mode
+- `granite4:350m`: **0% → 100%** after fixing tool_call arguments format for Ollama native API
+- `gemma3:270m`: **20% → 60%** after fix - native tools now working
+- `functiongemma:270m`: **0% → 20%** after fix - was returning empty/refused, now reasoning
+
+---
+
+### 🐛 R03.4 Bug Fix: Ollama Native API Arguments Format (2026-03-27)
+
+**Critical fix for resp mode (native `/api/chat` endpoint):**
+
+| Issue | Before | After |
+|-------|--------|-------|
+| `tool_calls[].function.arguments` format | JSON **string**: `'{"expression": "..."}'` | **Object**: `{"expression": "..."}` |
+| `granite4:350m` resp mode | ❌ HTTP 400 parse error | ✅ **100% (5/5)** |
+
+**Root cause:** OpenAI ChatCompletions API expects `arguments` as a JSON string, but Ollama's native `/api/chat` expects it as an object. The code was sending OpenAI format to both endpoints.
+
+**Fix:** Added `_convert_messages_to_ollama_format()` to parse JSON string arguments back to objects for the native endpoint.
 
 ---
 
