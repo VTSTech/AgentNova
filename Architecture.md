@@ -5,7 +5,7 @@ AgentNova is a modular agent framework designed for local LLMs with tool-calling
 ```
 agentnova/
 ├── core/
-│   ├── types.py              # Enum types (StepResultType, BackendType)
+│   ├── types.py              # Enum types (StepResultType, BackendType, ApiMode)
 │   ├── models.py             # Data models (Tool, ToolParam, StepResult, AgentRun)
 │   ├── memory.py             # Sliding window conversation memory
 │   ├── tool_parse.py         # ReAct/JSON tool call extraction (see Tool Parser section)
@@ -21,7 +21,7 @@ agentnova/
 │
 ├── backends/
 │   ├── base.py               # Abstract BaseBackend class
-│   ├── ollama.py             # Ollama backend (ReAct prompting)
+│   ├── ollama.py             # Ollama backend (dual API: OpenResponses + Chat-Completions)
 │   └── bitnet.py             # BitNet backend
 │
 ├── skills/
@@ -331,6 +331,82 @@ The model MUST explicitly format tool calls.
 
 ---
 
+## Dual API Support
+
+AgentNova supports both OpenResponses and OpenAI Chat-Completions API endpoints through Ollama. This allows flexibility for different integration scenarios.
+
+### API Modes
+
+| Mode | Flag | Endpoint | Description |
+|------|------|----------|-------------|
+| **OpenResponses** | `--api resp` | `/api/chat` | Ollama native API (default) |
+| **Chat-Completions** | `--api comp` | `/v1/chat/completions` | OpenAI-compatible API |
+
+### When to Use Each Mode
+
+**OpenResponses (`--api resp`)**:
+- Default mode for Ollama-native deployments
+- Full OpenResponses specification compliance
+- Detailed item tracking with `[OpenResponses]` debug output
+- Recommended for AgentNova-specific applications
+
+**Chat-Completions (`--api comp`)**:
+- OpenAI-compatible endpoint for cross-platform tools
+- Cleaner debug output without OpenResponses internals
+- Useful when integrating with OpenAI-compatible clients
+- Required when using middleware that expects `/v1/chat/completions`
+
+### Debug Output by Mode
+
+**OpenResponses mode** shows internal state tracking:
+```
+[OpenResponses] tool_choice initialized: type=auto
+[OpenResponses] Response created: id=resp_...
+[OpenResponses] Response status: in_progress
+[OpenResponses] Tool calls detected: 1
+[OpenResponses] Parsed: name=calculator, args={'expression': '15 + 27'}
+```
+
+**Chat-Completions mode** shows API transport only:
+```
+[Ollama] Dispatching to OpenAI-compatible API (mode=comp)
+[OpenAI-Comp] Request: tools=0
+[OpenAI-Comp] Content: Action: calculator...
+[OpenAI-Comp] Tool calls: []
+```
+
+### Usage
+
+```bash
+# Default: OpenResponses API
+agentnova chat -m qwen2.5:0.5b
+
+# Chat-Completions API
+agentnova chat -m qwen2.5:0.5b --api comp
+
+# With debug output
+agentnova test 01 --api comp --debug
+```
+
+### Implementation Details
+
+The `OllamaBackend` class handles both APIs:
+
+```python
+from agentnova.backends import get_backend
+from agentnova.core.types import ApiMode
+
+# OpenResponses mode (default)
+backend = get_backend("ollama", api_mode=ApiMode.RESPONSES)
+
+# Chat-Completions mode
+backend = get_backend("ollama", api_mode=ApiMode.COMPLETIONS)
+```
+
+Both modes use ReAct prompting - tool definitions are not passed to the API. The model outputs tool calls in text format, which are parsed by the Tool Parser.
+
+---
+
 ## OpenResponses Compliance for Small Models
 
 Small models (under 1B parameters) require additional guidance to comply with the OpenResponses agentic loop. The following enhancements ensure reliable tool usage:
@@ -397,6 +473,7 @@ This ensures the model always knows what action to take next, preventing common 
 | `-m, --model` | run, chat, agent, test | Model to use |
 | `--tools` | run, chat, agent | Comma-separated tool list |
 | `--backend` | all | Backend (ollama, bitnet) |
+| `--api` | run, chat, agent, test | API mode: `resp` (OpenResponses) or `comp` (Chat-Completions) |
 | `--soul` | run, chat, agent | Path to Soul Spec package |
 | `--soul-level` | run, chat, agent | Progressive disclosure (1-3) |
 | `--num-ctx` | run, chat, agent, test | Context window size (default: 4096) |

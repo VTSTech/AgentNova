@@ -4,7 +4,111 @@ All notable changes to AgentNova refactor-1 will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [R03.3] - 2026-03-26
+## [R03.3] - 2026-03-27 11:32:38 AM
+
+### Dual API Support: OpenResponses & OpenAI Chat-Completions
+
+Added support for both OpenResponses (`/api/chat`) and OpenAI Chat-Completions (`/v1/chat/completions`) API endpoints. Ollama supports both APIs, allowing users to switch between them with a single flag.
+
+### Added
+
+#### API Mode Selection (`--api` flag)
+- **`--api resp`** - Use OpenResponses API (Ollama native `/api/chat` endpoint)
+  - Default mode, maintains backward compatibility
+  - Debug output includes `[OpenResponses]` prefixed messages
+- **`--api comp`** - Use OpenAI Chat-Completions API (`/v1/chat/completions` endpoint)
+  - OpenAI-compatible endpoint for cross-platform compatibility
+  - Debug output uses `[OpenAI-Comp]` prefix instead of `[OpenResponses]`
+  - `[OpenResponses]` debug output suppressed in this mode
+
+#### ApiMode Enum (`core/types.py`)
+- `ApiMode.RESPONSES` ("resp") - OpenResponses API mode
+- `ApiMode.COMPLETIONS` ("comp") - OpenAI Chat-Completions mode
+
+#### OllamaBackend Dual API Support (`backends/ollama.py`)
+- **`api_mode` parameter** - Backend now accepts API mode selection
+- **`generate_completions()` method** - New method for Chat-Completions endpoint
+  - Uses `/v1/chat/completions` endpoint
+  - Returns content and tool_calls in OpenAI format
+  - Debug output prefixed with `[OpenAI-Comp]`
+- **Debug output separation**:
+  - `[OpenResponses]` - Internal state tracking (Response, Items, tool_choice)
+  - `[OpenAI-Comp]` - Chat-Completions API transport layer
+  - `[Ollama]` - Backend dispatch routing
+  - `[AgentNova]`, `[Soul]`, `[Step]`, `[DEBUG]`, `[MSG]` - Agent-level debug (both modes)
+
+#### CLI Integration
+- **`--api` flag added to commands**:
+  - `agentnova run --api comp "What is 15 + 27?"`
+  - `agentnova chat --api comp`
+  - `agentnova agent --api comp`
+  - `agentnova test --api comp`
+- **Startup info shows API mode**: `API Mode: comp`
+
+### Changed
+- **Debug output separation**: Non-`[OpenResponses]` debug output now prints in both API modes
+  - `[Soul]`, `[AgentNova]`, `[Step]`, `[DEBUG]`, `[MSG]`, `[ErrorRecovery]` output preserved in comp mode
+  - Only `[OpenResponses]` specific output suppressed in comp mode
+
+### Usage
+
+```bash
+# Default: OpenResponses API (Ollama native)
+agentnova chat -m qwen2.5:0.5b
+
+# Use OpenAI Chat-Completions API
+agentnova chat -m qwen2.5:0.5b --api comp
+
+# Run test with Chat-Completions API
+agentnova test 01 -m qwen2.5:0.5b --api comp --debug
+
+# Run single prompt with Chat-Completions API
+agentnova run "What is 15 plus 27?" --api comp --tools calculator
+```
+
+### Technical Details
+
+**API Endpoint Comparison**:
+
+| Aspect | OpenResponses (`--api resp`) | Chat-Completions (`--api comp`) |
+|--------|------------------------------|--------------------------------|
+| Endpoint | `/api/chat` | `/v1/chat/completions` |
+| Format | Ollama native | OpenAI-compatible |
+| Tool Calling | ReAct prompting | ReAct prompting |
+| Debug Prefix | `[OpenResponses]` | `[OpenAI-Comp]` |
+
+**Tool Calling Strategy**: Both APIs use ReAct prompting (Action/Action Input format). Native tool definitions are not passed to the API - the model outputs tool calls in text format which are parsed by the Tool Parser.
+
+### Debug Output Comparison
+
+**OpenResponses mode (`--api resp`)**:
+```
+[OpenResponses] tool_choice initialized: type=auto, name=N/A, tools=N/A
+[Soul] Loaded: Agent Nova v1.0.0
+[OpenResponses] Response created: id=resp_...
+[OpenResponses] Response status: queued
+[OpenResponses] Response status: in_progress
+[AgentNova] Model: qwen2.5:0.5b
+[Step 1]
+  [DEBUG] Sending 2 messages
+  [OpenResponses] Tool calls detected: 1
+  [OpenResponses] Parsed: name=calculator, args={'expression': '15 + 27'}
+```
+
+**Chat-Completions mode (`--api comp`)**:
+```
+[Soul] Loaded: Agent Nova v1.0.0
+[AgentNova] Model: qwen2.5:0.5b
+[Step 1]
+  [DEBUG] Sending 2 messages
+  [Ollama] Dispatching to OpenAI-compatible API (mode=comp)
+  [OpenAI-Comp] Request: tools=0
+  [OpenAI-Comp] Content: Action: calculator...
+```
+
+---
+
+## [R03.3] - 2026-03-26 11:34:38 PM
 
 ### OpenResponses Compliance Improvements
 
