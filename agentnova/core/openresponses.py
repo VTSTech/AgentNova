@@ -39,12 +39,21 @@ Written by VTSTech — https://www.vts-tech.org
 
 from __future__ import annotations
 
+import os
 import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
 from typing import Any, Literal, Optional, Union
+
+
+def _should_show_openresponses_debug(debug: bool) -> bool:
+    """Check if OpenResponses debug output should be shown."""
+    if not debug:
+        return False
+    # Suppress OpenResponses debug when using Chat-Completions mode
+    return os.environ.get("AGENTNOVA_API_MODE", "resp") != "comp"
 
 
 # ============================================================================
@@ -443,7 +452,7 @@ class Response:
         if self.status == ResponseStatus.QUEUED:
             old_status = self.status
             self.status = ResponseStatus.IN_PROGRESS
-            if debug:
+            if _should_show_openresponses_debug(debug):
                 print(f"[OpenResponses.Response] State transition: {old_status.value} -> {self.status.value}")
     
     def mark_completed(self, debug: bool = False) -> None:
@@ -451,7 +460,7 @@ class Response:
         old_status = self.status
         self.status = ResponseStatus.COMPLETED
         self.completed_at = time.time()
-        if debug:
+        if _should_show_openresponses_debug(debug):
             print(f"[OpenResponses.Response] State transition: {old_status.value} -> {self.status.value}")
     
     def mark_failed(self, error: dict, debug: bool = False) -> None:
@@ -460,7 +469,7 @@ class Response:
         self.status = ResponseStatus.FAILED
         self.error = error
         self.completed_at = time.time()
-        if debug:
+        if _should_show_openresponses_debug(debug):
             print(f"[OpenResponses.Response] State transition: {old_status.value} -> {self.status.value}")
             print(f"[OpenResponses.Response] Error: {error}")
     
@@ -469,13 +478,13 @@ class Response:
         old_status = self.status
         self.status = ResponseStatus.INCOMPLETE
         self.completed_at = time.time()
-        if debug:
+        if _should_show_openresponses_debug(debug):
             print(f"[OpenResponses.Response] State transition: {old_status.value} -> {self.status.value}")
     
     def add_output_item(self, item: Item, debug: bool = False) -> None:
         """Add an output item."""
         self.output.append(item)
-        if debug:
+        if _should_show_openresponses_debug(debug):
             print(f"[OpenResponses.Response] Output item added: id={item.id}, type={item.type}")
     
     def get_final_answer(self) -> str | None:

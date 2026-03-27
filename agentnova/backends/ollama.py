@@ -51,6 +51,9 @@ class OllamaBackend(BaseBackend):
         if isinstance(api_mode, str):
             api_mode = ApiMode(api_mode.lower())
         self._api_mode = api_mode
+        
+        # Set environment variable so other components know the API mode
+        os.environ["AGENTNOVA_API_MODE"] = api_mode.value
 
     @property
     def backend_type(self) -> BackendType:
