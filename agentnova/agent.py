@@ -94,7 +94,7 @@ class Agent:
         model: str,
         tools: ToolRegistry | list[str] | list[Tool] | None = None,
         backend: BaseBackend | str | None = None,
-        max_steps: int = 10,
+        max_steps: int = 5,
         memory_config: MemoryConfig | None = None,
         debug: bool = False,
         system_prompt: str | None = None,

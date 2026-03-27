@@ -434,6 +434,73 @@ Step 4: Final answer used
 Result: AgentRun(final_answer="120", tool_calls=1, success=True)
 ```
 
+### Example: Small Model with Enhanced Observation
+
+Small models (under 1B params) receive additional guidance in the Observation:
+
+```
+User: "What is 2 to the power of 10?"
+
+Step 1: Model generates (with correct syntax from soul prompt)
+─────────────────────────────────────────────────────────────
+Action: calculator
+Action Input: {"expression": "2**10"}
+
+Step 2: Tool executed
+─────────────────────
+Tool: calculator({'expression': '2**10'})
+Result: 1024
+
+Step 3: Enhanced Observation added to memory
+────────────────────────────────────────────
+Observation: 1024
+
+Now output: Final Answer: <the result>
+
+Step 4: Model generates Final Answer
+────────────────────────────────────
+Final Answer: 1024
+
+Result: AgentRun(final_answer="1024", tool_calls=1, success=True)
+```
+
+### Example: Error Recovery
+
+When a tool error occurs, the Observation includes recovery guidance:
+
+```
+User: "What is 2 to the power of 10?"
+
+Step 1: Model generates (incorrect syntax)
+──────────────────────────────────────────
+Action: calculator
+Action Input: {"expression": "2 to the power of 10"}
+
+Step 2: Tool error
+──────────────────
+Tool: calculator({'expression': '2 to the power of 10'})
+Result: Error evaluating expression: invalid syntax
+
+Step 3: Enhanced Observation with recovery hint
+───────────────────────────────────────────────
+Observation: Error evaluating expression: invalid syntax
+
+Note: Try a different approach. For calculator, use Python syntax (e.g., 2**10 for power, sqrt(144) for roots).
+
+Step 4: Model recovers with correct syntax
+──────────────────────────────────────────
+Action: calculator
+Action Input: {"expression": "2**10"}
+
+Step 5: Success
+──────────────
+Observation: 1024
+
+Now output: Final Answer: <the result>
+
+Final Answer: 1024
+```
+
 ---
 
 ## Configuration
