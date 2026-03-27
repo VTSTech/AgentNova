@@ -567,7 +567,7 @@ Final Answer: <the answer>
                         
                         # Check if we should terminate due to too many failures
                         if self._error_tracker.should_terminate():
-                            if self.debug:
+                            if self.debug and not self._is_comp_mode:
                                 print(f"  [ErrorRecovery] Terminating: total failures ({self._error_tracker.total_failures}) >= max ({self._error_tracker.max_total_failures})")
                             fc_item.status = ItemStatus.FAILED
                             response.mark_failed({"message": "Too many tool failures", "type": "error_recovery"})
@@ -623,7 +623,7 @@ Final Answer: <the answer>
                         tokens_used=tokens,
                     ))
 
-                    if self.debug:
+                    if self.debug and not self._is_comp_mode:
                         print(f"  Tool: {tool_name}({tool_args})")
                         print(f"  Result: {str(result)[:200]}...")
 
@@ -715,7 +715,7 @@ Final Answer: <the answer>
                     tokens_used=tokens,
                 ))
 
-                if self.debug and not self._is_comp_mode:
+                if self.debug:
                     print(f"  Final answer: {answer}")
 
                 break
