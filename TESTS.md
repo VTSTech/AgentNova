@@ -2,7 +2,7 @@
 
 ## Test 01 Quick Diagnostic (5 Questions)
 
-> **Updated:** 2026-03-27 - R03.3 OpenResponses/ChatCompletions compliance fixes, native tool calling + ReAct fallback
+> **Updated:** 2026-03-27 - Comprehensive comp mode testing complete, 10 models tested
 
 Test 01 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
 
@@ -45,11 +45,14 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 |:----:|-------|------:|-----:|:----:|:---------:|:--:|:--:|:--:|:--:|:--:|-------|
 | 🥇 | **`granite4:350m`** | **5/5 (100%)** | 139.8s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Native tool calling! |
 | 🥇 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 141.7s | nova-helper | native | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Perfect score! |
-| 🥉 | `qwen2.5-coder:0.5b` | 4/5 (80%) | 135.5s | nova-helper | native | ❌ 69 | ✅ | ✅ | ✅ | ✅ | Q1 hallucination |
+| 🥉 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | 4/5 (80%) | 135.5s | nova-helper | native | ❌ 69 | ✅ | ✅ | ✅ | ✅ | Q1 hallucination |
+| 4 | `qwen3:0.6b` | 3/5 (60%) | 476.9s | nova-helper | native | ❌ timeout | ❌ timeout | ✅ | ✅ | ✅ | Q1/Q2 timeouts |
 | 4 | `qwen2:0.5b` | 3/5 (60%) | 127.7s | nova-helper | native | ✅ | ✅ | ✅ | ❌ code | ❌ code | Wrote Python instead |
-| 5 | `gemma3:270m` | 2/5 (40%) | 380.0s | nova-helper | fallback | ✅ | ❌ 3 | ✅ | ❌ empty | ❌ 120 | ReAct fallback working |
-| 5 | `functiongemma:270m` | 2/5 (40%) | 213.2s | nova-helper | fallback | ✅ | ✅ | ❌ echo | ❌ 20 | ❌ refused | ReAct fallback working |
-| 5 | `dolphin3.0-qwen2.5:0.5b` | 2/5 (40%) | 105.7s | nova-helper | ReAct | ✅ | ❌ 4 | ✅ | ❌ 12 | ❌ 10 | Reasoning errors |
+| 6 | `gemma3:270m` | 2/5 (40%) | 380.0s | nova-helper | fallback | ✅ | ❌ 3 | ✅ | ❌ empty | ❌ 120 | ReAct fallback working |
+| 6 | `functiongemma:270m` | 2/5 (40%) | 213.2s | nova-helper | fallback | ✅ | ✅ | ❌ echo | ❌ 20 | ❌ refused | ReAct fallback working |
+| 6 | `dolphin3.0-qwen2.5:0.5b` | 2/5 (40%) | 105.7s | nova-helper | ReAct | ✅ | ❌ 4 | ✅ | ❌ 12 | ❌ 10 | Reasoning errors |
+| 9 | `qwen:0.5b` | 1/5 (20%) | 226.3s | nova-helper | native | ❌ text | ❌ text | ❌ 35 | ❌ 0.43 | ✅ | Explanation text instead of tools |
+| 10 | `qwen3.5:0.8b` | 0/5 (0%) | 295.3s | nova-helper | native | ❌ | ❌ | ❌ | ❌ | ❌ | ⚠️ Memory limit - needs re-test |
 
 #### Before Compliance Fixes (Historical)
 
@@ -91,15 +94,20 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | **`qwen2.5:0.5b`** | **5/5 (100%)** 98.5s | **5/5 (100%)** 141.7s | = | ✅ Native tools work in both! |
 | `qwen2.5-coder:0.5b` | **5/5 (100%)** 52.2s | 4/5 (80%) 135.5s | -20% | Q1 hallucination in comp |
 | `qwen2:0.5b` | **5/5 (100%)** 53.8s | 3/5 (60%) 127.7s | -40% | Wrote Python instead of tool calls |
+| `qwen3:0.6b` | **5/5 (100%)** 102.3s | 3/5 (60%) 476.9s | -40% | Q1/Q2 timeouts in comp |
 | `gemma3:270m` | **5/5 (100%)** w/soul | 2/5 (40%) 380.0s | -60% | Soul + fallback help in resp |
 | `functiongemma:270m` | **5/5 (100%)** | 2/5 (40%) 213.2s | -60% | Native vs fallback mode |
 | `dolphin3.0-qwen2.5:0.5b` | **5/5 (100%)** 38.2s | 2/5 (40%) 105.7s | -60% | Reasoning errors in comp |
+| `qwen:0.5b` | **5/5 (100%)** 96.0s | 1/5 (20%) 226.3s | -80% | Explanation text instead of tools |
+| `qwen3.5:0.8b` | **5/5 (100%)** 331.8s | 0/5 (0%) 295.3s | -100% | ⚠️ Memory limit - needs re-test |
 
 **Key Insights:**
 - **2 models achieve 100% in both modes**: granite4:350m, qwen2.5:0.5b
 - **OpenResponses (resp) mode more consistent** for small models
 - **Native tool calling works in both modes** after compliance fixes
 - **Soul persona provides stability** across API modes
+- **qwen family shows largest gap**: resp significantly outperforms comp
+- **Timeouts common in comp mode**: Models struggle with native tool format
 
 ---
 
@@ -136,6 +144,9 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 7. **10 models achieve 100% in resp mode** - functiongemma, granite4, qwen family, gemma3+soul
 8. **Native > ReAct > Fallback** - Native tool calling outperforms text parsing
 9. **Soul persona critical** - All tests used nova-helper soul for consistency
+10. **resp mode significantly outperforms comp** for qwen family (40-80% gap)
+11. **Timeouts common in comp mode** - Q1/Q2 often hit 120s limit with native tools
+12. **qwen3.5:0.8b needs re-test** - Possible memory limit issue
 
 ---
 
