@@ -234,10 +234,13 @@ BANNER_ATOM_PLAIN = """
 
 def print_banner() -> None:
     """Print the AgentNova ASCII banner."""
+    from . import __version__, __status__
     if _COLOR_ENABLED:
-        print(BANNER_ATOM_BRAILLE)
+        banner = BANNER_ATOM_BRAILLE.replace("Status: Alpha", f"v{__version__} [{__status__}]")
+        print(banner)
     else:
-        print(BANNER_ATOM_PLAIN)
+        banner = BANNER_ATOM_PLAIN.replace("Status: Alpha", f"v{__version__} [{__status__}]")
+        print(banner)
 
 
 # ============================================================================
