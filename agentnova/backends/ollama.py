@@ -161,7 +161,28 @@ class OllamaBackend(BaseBackend):
 
         except urllib.error.HTTPError as e:
             error_body = e.read().decode("utf-8") if e.fp else ""
-            raise RuntimeError(f"Ollama HTTP error {e.code}: {error_body}")
+            error_msg = error_body.lower() if error_body else ""
+            
+            # Check if model doesn't support tools - fallback to no tools (ReAct mode)
+            if "does not support tools" in error_msg and tools:
+                if os.environ.get("AGENTNOVA_DEBUG"):
+                    print(f"  [Ollama] Model doesn't support tools, falling back to ReAct mode")
+                # Retry without tools - let ReAct parsing handle tool calls
+                body_fallback = {k: v for k, v in body.items() if k != "tools"}
+                try:
+                    req = urllib.request.Request(
+                        url,
+                        data=json.dumps(body_fallback).encode("utf-8"),
+                        headers={"Content-Type": "application/json"},
+                        method="POST",
+                    )
+                    with urllib.request.urlopen(req, timeout=self.config.timeout) as response:
+                        result = json.loads(response.read().decode("utf-8"))
+                except urllib.error.HTTPError as e2:
+                    error_body2 = e2.read().decode("utf-8") if e2.fp else ""
+                    raise RuntimeError(f"Ollama HTTP error {e2.code}: {error_body2}")
+            else:
+                raise RuntimeError(f"Ollama HTTP error {e.code}: {error_body}")
 
         except urllib.error.URLError as e:
             raise RuntimeError(f"Ollama connection error: {e.reason}")
@@ -295,7 +316,28 @@ class OllamaBackend(BaseBackend):
 
         except urllib.error.HTTPError as e:
             error_body = e.read().decode("utf-8") if e.fp else ""
-            raise RuntimeError(f"Ollama HTTP error {e.code}: {error_body}")
+            error_msg = error_body.lower() if error_body else ""
+            
+            # Check if model doesn't support tools - fallback to no tools (ReAct mode)
+            if "does not support tools" in error_msg and tools:
+                if os.environ.get("AGENTNOVA_DEBUG"):
+                    print(f"  [OpenAI-Comp] Model doesn't support tools, falling back to ReAct mode")
+                # Retry without tools - let ReAct parsing handle tool calls
+                body_fallback = {k: v for k, v in body.items() if k != "tools"}
+                try:
+                    req = urllib.request.Request(
+                        url,
+                        data=json.dumps(body_fallback).encode("utf-8"),
+                        headers={"Content-Type": "application/json"},
+                        method="POST",
+                    )
+                    with urllib.request.urlopen(req, timeout=self.config.timeout) as response:
+                        result = json.loads(response.read().decode("utf-8"))
+                except urllib.error.HTTPError as e2:
+                    error_body2 = e2.read().decode("utf-8") if e2.fp else ""
+                    raise RuntimeError(f"Ollama HTTP error {e2.code}: {error_body2}")
+            else:
+                raise RuntimeError(f"Ollama HTTP error {e.code}: {error_body}")
 
         except urllib.error.URLError as e:
             raise RuntimeError(f"Ollama connection error: {e.reason}")

@@ -32,27 +32,47 @@ class Message:
 
     def to_dict(self) -> dict:
         """Convert to dictionary for API calls."""
+        import json
         result = {"role": self.role, "content": self.content}
         if self.tool_calls:
-            # Convert internal format to Ollama API format
+            # Convert internal format to OpenAI ChatCompletions API format
             # Internal: {"id": "x", "name": "tool", "arguments": {...}}
-            # Ollama: {"id": "x", "function": {"name": "tool", "arguments": {...}}}
-            ollama_tool_calls = []
+            # OpenAI: {"id": "x", "type": "function", "function": {"name": "tool", "arguments": "{...}"}}
+            # Note: arguments MUST be a JSON string, not an object!
+            openai_tool_calls = []
             for tc in self.tool_calls:
                 if "function" in tc:
-                    # Already in Ollama format
-                    ollama_tool_calls.append(tc)
-                else:
-                    # Convert from internal format
-                    ollama_tc = {
+                    # Already in function format, ensure arguments is a string
+                    func = tc.get("function", {})
+                    args = func.get("arguments", {})
+                    # Convert object to JSON string if needed
+                    if isinstance(args, dict):
+                        args = json.dumps(args)
+                    openai_tc = {
                         "id": tc.get("id", ""),
+                        "type": tc.get("type", "function"),
                         "function": {
-                            "name": tc.get("name", ""),
-                            "arguments": tc.get("arguments", {}),
+                            "name": func.get("name", ""),
+                            "arguments": args,
                         }
                     }
-                    ollama_tool_calls.append(ollama_tc)
-            result["tool_calls"] = ollama_tool_calls
+                    openai_tool_calls.append(openai_tc)
+                else:
+                    # Convert from internal format
+                    args = tc.get("arguments", {})
+                    # Convert object to JSON string
+                    if isinstance(args, dict):
+                        args = json.dumps(args)
+                    openai_tc = {
+                        "id": tc.get("id", ""),
+                        "type": "function",
+                        "function": {
+                            "name": tc.get("name", ""),
+                            "arguments": args,
+                        }
+                    }
+                    openai_tool_calls.append(openai_tc)
+            result["tool_calls"] = openai_tool_calls
         if self.tool_call_id:
             result["tool_call_id"] = self.tool_call_id
         if self.name:
