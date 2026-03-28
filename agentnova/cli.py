@@ -183,7 +183,7 @@ def create_parser() -> argparse.ArgumentParser:
                            help="Context window size in tokens (Ollama default is 2048)")
     run_parser.add_argument("--num-predict", type=int, default=None, dest="num_predict",
                            help="Maximum tokens to generate (default: model-specific)")
-    run_parser.add_argument("--temperature", type=float, default=None,
+    run_parser.add_argument("--temp", "--temperature", type=float, default=None, dest="temperature",
                            help="Sampling temperature 0.0-2.0 (default: model-specific)")
     run_parser.add_argument("--top-p", type=float, default=None, dest="top_p",
                            help="Nucleus sampling probability 0.0-1.0 (default: model-specific)")
@@ -1071,6 +1071,12 @@ def cmd_test(args: argparse.Namespace) -> int:
                     test_argv.append("--warmup")
                 if getattr(args, 'num_ctx', None):
                     test_argv.extend(["--num-ctx", str(args.num_ctx)])
+                if getattr(args, 'num_predict', None):
+                    test_argv.extend(["--num-predict", str(args.num_predict)])
+                if getattr(args, 'temperature', None):
+                    test_argv.extend(["--temp", str(args.temperature)])
+                if getattr(args, 'top_p', None):
+                    test_argv.extend(["--top-p", str(args.top_p)])
                 
                 # Override sys.argv for the test module's argparse
                 old_argv = sys.argv
