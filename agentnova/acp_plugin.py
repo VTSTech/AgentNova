@@ -67,12 +67,21 @@ from __future__ import annotations
 
 import base64
 import json
+import random
 import time
 import urllib.request
 import urllib.error
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Callable, Generator
+
+# Default retry configuration
+ACP_RETRY_CONFIG = {
+    "max_retries": 3,
+    "base_delay": 0.5,
+    "max_delay": 8.0,
+    "jitter": True,  # Add randomness to avoid thundering herd
+}
 
 # Import StepResult for type hints (optional - works without it)
 try:
@@ -368,6 +377,83 @@ class ACPPlugin:
             # If CSRF is disabled, use empty string sentinel so we don't re-fetch
             self._csrf_token = token if token else ""
             self._csrf_expiry = now
+
+    def _request_with_retry(
+        self,
+        endpoint: str,
+        method: str = "GET",
+        data: dict | None = None,
+        timeout: float = 5.0,
+        max_retries: int = None,
+        base_delay: float = None,
+        max_delay: float = None,
+        jitter: bool = None,
+        retryable_errors: tuple = None,
+    ) -> dict:
+        """
+        Make HTTP request with exponential backoff retry logic.
+        
+        This wraps _request() with automatic retry on transient failures,
+        implementing exponential backoff to avoid overwhelming the server.
+        
+        Args:
+            endpoint: API endpoint path
+            method: HTTP method
+            data: Request body data
+            timeout: Request timeout
+            max_retries: Maximum number of retry attempts (default: from ACP_RETRY_CONFIG)
+            base_delay: Initial delay in seconds (default: from ACP_RETRY_CONFIG)
+            max_delay: Maximum delay cap in seconds (default: from ACP_RETRY_CONFIG)
+            jitter: Add randomness to avoid thundering herd (default: from ACP_RETRY_CONFIG)
+            retryable_errors: Tuple of error types that should trigger retry
+                            Default: (502, 503, 504, connection errors)
+        
+        Returns:
+            API response dict
+        """
+        # Use config defaults if not specified
+        if max_retries is None:
+            max_retries = ACP_RETRY_CONFIG["max_retries"]
+        if base_delay is None:
+            base_delay = ACP_RETRY_CONFIG["base_delay"]
+        if max_delay is None:
+            max_delay = ACP_RETRY_CONFIG["max_delay"]
+        if jitter is None:
+            jitter = ACP_RETRY_CONFIG["jitter"]
+        
+        if retryable_errors is None:
+            # Default retryable: server errors and connection issues
+            retryable_errors = (502, 503, 504, "connection", "timeout")
+        
+        last_error = None
+        
+        for attempt in range(max_retries + 1):
+            result = self._request(endpoint, method, data, timeout)
+            
+            # Check for success
+            if result.get("success") != False or "error" not in result:
+                return result
+            
+            # Check if error is retryable
+            error_str = str(result.get("error", "")).lower()
+            is_retryable = any(
+                str(code) in error_str or str(code) in error_str.lower()
+                for code in retryable_errors
+            )
+            
+            if not is_retryable or attempt == max_retries:
+                return result
+            
+            # Calculate exponential backoff delay with optional jitter
+            delay = min(base_delay * (2 ** attempt), max_delay)
+            if jitter:
+                # Add up to 25% random jitter
+                delay = delay * (0.75 + random.random() * 0.5)
+            self._log(f"Retry {attempt + 1}/{max_retries} after {delay:.2f}s: {error_str}")
+            time.sleep(delay)
+            last_error = error_str
+        
+        return result
 
     # ------------------------------------------------------------------ #
     #  JSON-RPC 2.0 Support (1.0.4 - A2A Compliance)                          #

@@ -296,6 +296,11 @@ class OllamaBackend(BaseBackend):
         frequency_penalty: float | None = None,
         response_format: dict | None = None,
         top_p: float | None = None,
+        # OpenAI Chat Completions API spec completeness (v1.0)
+        logprobs: bool | None = None,
+        top_logprobs: int | None = None,
+        n: int | None = None,
+        user: str | None = None,
         **kwargs,
     ) -> dict:
         """Generate a response using OpenAI Chat-Completions compatible API.
@@ -315,6 +320,10 @@ class OllamaBackend(BaseBackend):
             frequency_penalty: Frequency penalty (-2.0 to 2.0)
             response_format: Response format (e.g., {"type": "json_object"})
             top_p: Top-p sampling (0.0 to 1.0)
+            logprobs: Whether to return log probabilities of output tokens
+            top_logprobs: Number of most likely tokens to return at each position (requires logprobs=True)
+            n: Number of completions to generate (default: 1)
+            user: Unique identifier representing the end-user for abuse monitoring
             **kwargs: Additional options passed to Ollama
         """
         import urllib.request
@@ -343,6 +352,16 @@ class OllamaBackend(BaseBackend):
             body["response_format"] = response_format
         if top_p is not None:
             body["top_p"] = top_p
+        
+        # Add OpenAI API spec completeness parameters (v1.0)
+        if logprobs is not None:
+            body["logprobs"] = logprobs
+        if top_logprobs is not None:
+            body["top_logprobs"] = top_logprobs
+        if n is not None:
+            body["n"] = n
+        if user is not None:
+            body["user"] = user
 
         # Add tools in OpenAI format
         if tools:
@@ -442,6 +461,11 @@ class OllamaBackend(BaseBackend):
             })
 
         usage = result.get("usage", {})
+        
+        # Extract logprobs if present (OpenAI API spec completeness)
+        logprobs_result = None
+        if logprobs:
+            logprobs_result = choice.get("logprobs")
 
         return {
             "content": content,
@@ -452,6 +476,7 @@ class OllamaBackend(BaseBackend):
                 "total_tokens": usage.get("total_tokens", 0),
             },
             "latency_ms": latency_ms,
+            "logprobs": logprobs_result,
             "raw": result,
         }
 
@@ -468,6 +493,11 @@ class OllamaBackend(BaseBackend):
         frequency_penalty: float | None = None,
         response_format: dict | None = None,
         top_p: float | None = None,
+        # OpenAI Chat Completions API spec completeness (v1.0)
+        logprobs: bool | None = None,
+        top_logprobs: int | None = None,
+        n: int | None = None,
+        user: str | None = None,
         **kwargs,
     ) -> Generator[dict, None, None]:
         """Stream generated text using OpenAI Chat-Completions compatible API with SSE.
@@ -492,6 +522,10 @@ class OllamaBackend(BaseBackend):
             frequency_penalty: Frequency penalty (-2.0 to 2.0)
             response_format: Response format (e.g., {"type": "json_object"})
             top_p: Top-p sampling (0.0 to 1.0)
+            logprobs: Whether to return log probabilities of output tokens
+            top_logprobs: Number of most likely tokens to return at each position
+            n: Number of completions to generate (default: 1)
+            user: Unique identifier representing the end-user for abuse monitoring
             **kwargs: Additional options
             
         Yields:
@@ -522,6 +556,16 @@ class OllamaBackend(BaseBackend):
             body["response_format"] = response_format
         if top_p is not None:
             body["top_p"] = top_p
+        
+        # Add OpenAI API spec completeness parameters (v1.0)
+        if logprobs is not None:
+            body["logprobs"] = logprobs
+        if top_logprobs is not None:
+            body["top_logprobs"] = top_logprobs
+        if n is not None:
+            body["n"] = n
+        if user is not None:
+            body["user"] = user
 
         if tools:
             body["tools"] = [t.to_openai_schema() for t in tools]
