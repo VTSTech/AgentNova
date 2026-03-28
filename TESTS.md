@@ -58,7 +58,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | Rank | Model | Score | Time | Soul | Tool Mode | Q1 | Q2 | Q3 | Q4 | Q5 | Notes |
 |:----:|-------|------:|-----:|:----:|:---------:|:--:|:--:|:--:|:--:|:--:|-------|
 | 🥇 | **`granite4:350m`** | **5/5 (100%)** | 183.0s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Native tool calling! |
-| 🥇 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 141.7s | nova-helper | native | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Perfect score! |
+| 🥇 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 169.8s | nova-helper | native | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Perfect score! Fastest! |
 | 🥇 | **`qwen2.5-coder:0.5b`** | **5/5 (100%)** | 182.7s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Coder model 100% in comp mode! |
 | 🥉 | `granite3.1-moe:1b` | **4/5 (80%)** | 220.2s | nova-helper | **native** | ✅ | ❌ 53 | ✅ | ✅ | ✅ | Q2 reasoning error, MoE model |
 | 🥉 | `gemma3:270m` | **4/5 (80%)** | 424.7s | nova-helper | native | ✅ | ✅ | ✅ | ✅ | ❌ 1024 | Q5 reasoning error, improved! |
