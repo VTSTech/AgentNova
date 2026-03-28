@@ -58,13 +58,13 @@ agentnova/
 ├── acp_plugin.py             # ACP v1.0.5 integration
 │                             # - Status reporting, activity logging
 │                             # - Batch context manager for atomic operations
-├── orchestrator.py           # Multi-agent orchestration (R03.7)
+├── orchestrator.py           # Multi-agent orchestration (R03.6)
 │                             # - Router, Pipeline, Parallel modes
 │                             # - LLM-based routing (optional)
 │                             # - True parallel execution with ThreadPoolExecutor
 │                             # - Fallback agents, timeout handling
 │                             # - Result merging strategies
-├── colors.py                 # Shared ANSI color utilities (R03.7)
+├── colors.py                 # Shared ANSI color utilities (R03.6)
 │                             # - Color class with ANSI codes
 │                             # - Color functions: green, yellow, cyan, etc.
 │                             # - Utility: visible_len, pad_colored
@@ -96,7 +96,7 @@ The main Agent class implements the **OpenResponses Agentic Loop**:
 
 ### Orchestrator (`orchestrator.py`)
 
-Multi-agent orchestration with three execution modes (enhanced in R03.7):
+Multi-agent orchestration with three execution modes (enhanced in R03.6):
 
 **Execution Modes**:
 
