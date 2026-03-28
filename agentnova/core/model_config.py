@@ -2,27 +2,34 @@
 ⚛️ AgentNova — Model Family Configuration
 Configuration for different model families' prompting strategies.
 
+NOTE: Tool support is NOT determined by family. Each model must be tested
+individually via backend.test_tool_support() or use cached results from
+the tool_cache module.
+
 Written by VTSTech — https://www.vts-tech.org
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
 
 
 @dataclass
 class ModelFamilyConfig:
-    """Configuration for a model family's behavior."""
+    """Configuration for a model family's behavior.
+    
+    NOTE: Tool support is NOT determined by family. It depends on the model's
+    template, which can vary within the same family. Use runtime detection via
+    backend.test_tool_support() or check the cache via tool_cache module.
+    """
     name: str
-    tool_support: Literal["native", "react", "none"] = "react"
 
     # Prompting settings
     system_prompt_style: str = "default"  # default, react, minimal, xml
     think_tag: str | None = None  # e.g., <think/> for DeepSeek
     use_system_role: bool = True  # Some models prefer user role for system
 
-    # Tool calling settings
+    # Tool calling settings (format for ReAct prompts, NOT detection)
     tool_format: str = "json"  # json, react, xml, markdown
     supports_streaming: bool = True
     supports_vision: bool = False
@@ -49,12 +56,13 @@ class ModelFamilyConfig:
 
 
 # Model family configurations
+# These control prompting style, NOT tool support detection.
+# Tool support is determined at runtime by testing each model.
 MODEL_CONFIGS: dict[str, ModelFamilyConfig] = {
 
-    # Qwen family - Excellent tool support
+    # Qwen family
     "qwen2.5": ModelFamilyConfig(
         name="qwen2.5",
-        tool_support="native",
         system_prompt_style="default",
         tool_format="json",
         default_temperature=0.6,
@@ -62,16 +70,21 @@ MODEL_CONFIGS: dict[str, ModelFamilyConfig] = {
 
     "qwen2": ModelFamilyConfig(
         name="qwen2",
-        tool_support="react",
         system_prompt_style="react",
         tool_format="react",
         default_temperature=0.7,
     ),
 
-    # Llama 3 family - Native tool support in 3.1+
+    "qwen3": ModelFamilyConfig(
+        name="qwen3",
+        system_prompt_style="default",
+        tool_format="json",
+        default_temperature=0.6,
+    ),
+
+    # Llama 3 family
     "llama3.3": ModelFamilyConfig(
         name="llama3.3",
-        tool_support="native",
         system_prompt_style="default",
         tool_format="json",
         default_temperature=0.7,
@@ -79,7 +92,6 @@ MODEL_CONFIGS: dict[str, ModelFamilyConfig] = {
 
     "llama3.2": ModelFamilyConfig(
         name="llama3.2",
-        tool_support="native",
         system_prompt_style="default",
         tool_format="json",
         default_temperature=0.7,
@@ -88,7 +100,6 @@ MODEL_CONFIGS: dict[str, ModelFamilyConfig] = {
 
     "llama3.1": ModelFamilyConfig(
         name="llama3.1",
-        tool_support="native",
         system_prompt_style="default",
         tool_format="json",
         default_temperature=0.7,
@@ -96,7 +107,6 @@ MODEL_CONFIGS: dict[str, ModelFamilyConfig] = {
 
     "llama3": ModelFamilyConfig(
         name="llama3",
-        tool_support="react",
         system_prompt_style="react",
         tool_format="react",
         default_temperature=0.7,
@@ -105,7 +115,6 @@ MODEL_CONFIGS: dict[str, ModelFamilyConfig] = {
     # Mistral family
     "mistral": ModelFamilyConfig(
         name="mistral",
-        tool_support="native",
         system_prompt_style="default",
         tool_format="json",
         default_temperature=0.7,
@@ -113,16 +122,14 @@ MODEL_CONFIGS: dict[str, ModelFamilyConfig] = {
 
     "mixtral": ModelFamilyConfig(
         name="mixtral",
-        tool_support="native",
         system_prompt_style="default",
         tool_format="json",
         default_temperature=0.7,
     ),
 
-    # Gemma family - Limited native support
+    # Gemma family
     "gemma3": ModelFamilyConfig(
         name="gemma3",
-        tool_support="react",
         system_prompt_style="minimal",
         tool_format="react",
         default_temperature=0.7,
@@ -132,7 +139,6 @@ MODEL_CONFIGS: dict[str, ModelFamilyConfig] = {
 
     "gemma2": ModelFamilyConfig(
         name="gemma2",
-        tool_support="react",
         system_prompt_style="minimal",
         tool_format="react",
         default_temperature=0.7,
@@ -142,7 +148,6 @@ MODEL_CONFIGS: dict[str, ModelFamilyConfig] = {
 
     "gemma": ModelFamilyConfig(
         name="gemma",
-        tool_support="react",
         system_prompt_style="minimal",
         tool_format="react",
         default_temperature=0.7,
@@ -152,7 +157,6 @@ MODEL_CONFIGS: dict[str, ModelFamilyConfig] = {
     # Granite family - IBM models
     "granite": ModelFamilyConfig(
         name="granite",
-        tool_support="native",
         system_prompt_style="default",
         tool_format="json",
         default_temperature=0.7,
@@ -160,7 +164,6 @@ MODEL_CONFIGS: dict[str, ModelFamilyConfig] = {
 
     "granitemoe": ModelFamilyConfig(
         name="granitemoe",
-        tool_support="native",
         system_prompt_style="default",
         tool_format="json",
         default_temperature=0.7,
@@ -169,7 +172,6 @@ MODEL_CONFIGS: dict[str, ModelFamilyConfig] = {
     # Phi-3 family
     "phi3": ModelFamilyConfig(
         name="phi3",
-        tool_support="native",
         system_prompt_style="default",
         tool_format="json",
         default_temperature=0.7,
@@ -178,7 +180,6 @@ MODEL_CONFIGS: dict[str, ModelFamilyConfig] = {
     # CodeLlama
     "codellama": ModelFamilyConfig(
         name="codellama",
-        tool_support="react",
         system_prompt_style="default",
         tool_format="react",
         default_temperature=0.3,  # Lower for code
@@ -187,7 +188,6 @@ MODEL_CONFIGS: dict[str, ModelFamilyConfig] = {
     # Command-R - Excellent for tools
     "command-r": ModelFamilyConfig(
         name="command-r",
-        tool_support="native",
         system_prompt_style="default",
         tool_format="json",
         default_temperature=0.7,
@@ -196,7 +196,6 @@ MODEL_CONFIGS: dict[str, ModelFamilyConfig] = {
     # DeepSeek - Has <think/> tags
     "deepseek": ModelFamilyConfig(
         name="deepseek",
-        tool_support="native",
         system_prompt_style="default",
         tool_format="json",
         think_tag="think",
@@ -207,7 +206,6 @@ MODEL_CONFIGS: dict[str, ModelFamilyConfig] = {
     # Default configuration
     "default": ModelFamilyConfig(
         name="default",
-        tool_support="react",
         system_prompt_style="react",
         tool_format="react",
         default_temperature=0.7,

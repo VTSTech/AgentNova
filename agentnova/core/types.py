@@ -20,33 +20,45 @@ class StepResultType(Enum):
 
 
 class ToolSupportLevel(Enum):
-    """Level of tool support provided by a model."""
-    NATIVE = "native"      # Native function calling support
+    """Level of tool support provided by a model.
+    
+    Detection is purely runtime-based. Each model must be tested individually
+    because tool support depends on the model's template, not its family.
+    
+    Use backend.test_tool_support() for runtime detection, or check the cache
+    via tool_cache.get_cached_tool_support().
+    """
+    NATIVE = "native"      # Native function calling support (API tool_calls)
     REACT = "react"        # Text-based tool use via ReAct prompting
     NONE = "none"          # No tool support (pure reasoning)
     UNTESTED = "untested"  # Not yet tested - each model must be tested individually
 
     @classmethod
-    def detect(cls, model_name: str, capabilities: dict | None = None) -> "ToolSupportLevel":
+    def detect(cls, model_name: str, backend=None, use_cache: bool = True) -> "ToolSupportLevel":
         """
-        Auto-detect tool support level from model capabilities.
-
-        IMPORTANT: Tool support is NOT determined by family name. It depends on
-        the model's template, which can vary within the same family. Each model
-        must be tested individually.
-
+        Get tool support level for a model.
+        
+        This method checks the cache first. If not cached, returns UNTESTED.
+        For actual runtime testing, use backend.test_tool_support(force_test=True).
+        
         Args:
-            model_name: Name of the model (ignored, kept for API compatibility)
-            capabilities: Optional capabilities dict from backend
-
+            model_name: Name of the model
+            backend: Optional backend for runtime testing (not used by default)
+            use_cache: If True, check cache first (default: True)
+            
         Returns:
-            ToolSupportLevel (UNTESTED if capabilities not provided)
+            ToolSupportLevel (UNTESTED if not in cache)
         """
-        # Check capabilities if provided
-        if capabilities:
-            if capabilities.get("supports_function_calling"):
-                return cls.NATIVE
-
+        if use_cache:
+            from .tool_cache import get_cached_tool_support
+            cached = get_cached_tool_support(model_name)
+            if cached is not None:
+                return cached
+        
+        # If backend provided and we want to test, do so
+        if backend is not None and hasattr(backend, 'test_tool_support'):
+            return backend.test_tool_support(model_name, force_test=True)
+        
         # Cannot determine without testing
         return cls.UNTESTED
 

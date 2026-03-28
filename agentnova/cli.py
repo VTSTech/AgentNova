@@ -825,6 +825,11 @@ def _save_tool_cache(cache: dict) -> None:
 
 def cmd_models(args: argparse.Namespace) -> int:
     """Execute the models command."""
+    from .core.tool_cache import (
+        load_tool_cache, save_tool_cache, cache_tool_support, get_cached_tool_support
+    )
+    from .core.types import ToolSupportLevel
+    
     config = get_config()
     backend_name = args.backend or config.backend
 
@@ -849,7 +854,7 @@ def cmd_models(args: argparse.Namespace) -> int:
         return 0
 
     # Load tool support cache
-    cache = {} if args.no_cache else _load_tool_cache()
+    cache = {} if args.no_cache else load_tool_cache()
     cache_updated = False
     
     # Column widths
@@ -896,29 +901,19 @@ def cmd_models(args: argparse.Namespace) -> int:
         
         # Get tool support level (from cache or test)
         if isinstance(backend, OllamaBackend):
-            cached = cache.get(name)
+            cached_support = get_cached_tool_support(name) if not args.no_cache else None
             
             if args.tool_support:
                 # Force test: actually call the model to test tool support
                 print(f"  {dim('Testing:')} {cyan(name)}...", end="", flush=True)
                 try:
                     support = backend.test_tool_support(name, family=family, force_test=True)
-                    cache[name] = {
-                        "support": support.value,
-                        "tested_at": time.time(),
-                        "family": family,
-                    }
+                    cache_tool_support(name, support, family=family)
                     cache_updated = True
                     status = support.value
                 except Exception as e:
-                    # If test fails, still cache as unknown to avoid re-testing
-                    cache[name] = {
-                        "support": "error",
-                        "tested_at": time.time(),
-                        "family": family,
-                        "error": str(e)[:100],
-                    }
-                    cache_updated = True
+                    # If test fails, still cache as error to avoid re-testing
+                    cache_tool_support(name, ToolSupportLevel.NONE, family=family, error=str(e)[:100])
                     status = "error"
                 
                 # Overwrite the "Testing..." line
@@ -933,20 +928,15 @@ def cmd_models(args: argparse.Namespace) -> int:
                 else:
                     tool_col = pad_colored(yellow("○ react"), TOOLS_W, 'right')
                 print(f"{tool_col}  {dim('(' + family + ')')}")
-                
-                # Save cache incrementally after each test (in case of interruption)
-                _save_tool_cache(cache)
-            elif cached:
+            elif cached_support is not None:
                 # Use cached value
-                status = cached.get("support", "untested")
+                status = cached_support.value
                 if status == "native":
                     tool_col = pad_colored(bright_green("✓ native"), TOOLS_W, 'right')
                 elif status == "react":
                     tool_col = pad_colored(yellow("○ react"), TOOLS_W, 'right')
                 elif status == "none":
                     tool_col = pad_colored(red("✗ none"), TOOLS_W, 'right')
-                elif status == "error":
-                    tool_col = pad_colored(red("✗ error"), TOOLS_W, 'right')
                 else:
                     tool_col = pad_colored(dim("? untested"), TOOLS_W, 'right')
                 name_col = pad_colored(cyan(name), NAME_W)
