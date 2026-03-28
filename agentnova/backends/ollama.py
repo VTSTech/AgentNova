@@ -761,14 +761,22 @@ class OllamaBackend(BaseBackend):
 
     def get_model_info(self, model: str) -> dict | None:
         """
-        Get detailed model information from Ollama.
+        Get detailed model information from Ollama (with per-instance caching).
         
         Uses /api/show endpoint which returns:
         - modelfile
         - parameters (including num_ctx)
         - template
         - details (family, parameter count, etc.)
+        
+        Results are cached for the lifetime of the backend instance.
         """
+        # Check instance cache first
+        if not hasattr(self, '_model_info_cache'):
+            self._model_info_cache = {}
+        if model in self._model_info_cache:
+            return self._model_info_cache[model]
+
         import urllib.request
         import urllib.error
 
@@ -785,7 +793,9 @@ class OllamaBackend(BaseBackend):
             )
 
             with urllib.request.urlopen(req, timeout=10) as response:
-                return json.loads(response.read().decode("utf-8"))
+                data = json.loads(response.read().decode("utf-8"))
+                self._model_info_cache[model] = data
+                return data
 
         except (urllib.error.HTTPError, urllib.error.URLError):
             return None
@@ -861,54 +871,54 @@ class OllamaBackend(BaseBackend):
         """
         Get the model's maximum trained context window size.
         
-        This is the context_length from model_info, representing the model's
-        capability regardless of runtime settings.
+        Resolution order (most authoritative first):
+        1. API /api/show → model_info.<family>.context_length  (exact model data)
+        2. API /api/show → details.family → FAMILY_CONTEXT_DEFAULTS lookup
+        3. Caller-provided family → FAMILY_CONTEXT_DEFAULTS lookup
+        4. Hardcoded fallback 4096
         
         Args:
             model: Model name
-            family: Optional family name (uses default if provided)
+            family: Optional family name (fallback if API doesn't report it)
         
         Returns:
             Maximum context window size in tokens
         """
-        # Fast path: use family default
+        # Primary: ask the API for the model's actual context_length
+        info = self.get_model_info(model)
+        
+        if info:
+            model_info = info.get("model_info", {})
+            # Key format: "<family>.context_length" (e.g., "gemma3.context_length")
+            for key, value in model_info.items():
+                if key.endswith(".context_length"):
+                    try:
+                        return int(value)
+                    except (ValueError, TypeError):
+                        pass
+            
+            # Fallback: bare "context_length" key (some Ollama versions)
+            if "context_length" in model_info:
+                try:
+                    return int(model_info["context_length"])
+                except (ValueError, TypeError):
+                    pass
+            
+            # Try family from API details (more reliable than caller-provided)
+            details = info.get("details", {})
+            api_family = details.get("family", "")
+            if api_family:
+                ctx = self.get_context_by_family(api_family)
+                if ctx:
+                    return ctx
+        
+        # Fallback: use caller-provided family or hardcoded table
         if family:
             ctx = self.get_context_by_family(family)
             if ctx:
                 return ctx
         
-        # Slow path: get from API
-        info = self.get_model_info(model)
-        
-        if not info:
-            return 4096  # Fallback
-        
-        # Check model_info for context_length
-        # Key format: "<family>.context_length" (e.g., "gemma3.context_length", "qwen2.context_length")
-        model_info = info.get("model_info", {})
-        for key, value in model_info.items():
-            if key.endswith(".context_length"):
-                try:
-                    return int(value)
-                except (ValueError, TypeError):
-                    pass
-        
-        # Fallback: check for bare "context_length" key (some versions)
-        if "context_length" in model_info:
-            try:
-                return int(model_info["context_length"])
-            except (ValueError, TypeError):
-                pass
-        
-        # Check details for family
-        details = info.get("details", {})
-        api_family = details.get("family", "").lower()
-        
-        ctx = self.get_context_by_family(api_family)
-        if ctx:
-            return ctx
-        
-        return 4096  # Fallback
+        return 4096  # Ultimate fallback
 
     def get_model_context_size(self, model: str, family: str | None = None) -> int:
         """
