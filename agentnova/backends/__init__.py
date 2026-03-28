@@ -26,7 +26,7 @@ def get_backend(name: str, timeout: int | None = None, api_mode: ApiMode | str |
     Args:
         name: Backend name ("ollama", "bitnet")
         timeout: Request timeout in seconds (default: 120)
-        api_mode: API mode ("resp" for OpenResponses/native, "comp" for Chat-Completions)
+        api_mode: API mode ("openre" for OpenResponses, "openai" for Chat-Completions)
         **kwargs: Backend-specific configuration
 
     Returns:

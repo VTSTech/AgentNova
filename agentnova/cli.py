@@ -171,8 +171,8 @@ def create_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("-m", "--model", default=None, help="Model to use")
     run_parser.add_argument("--tools", default="calculator", help="Comma-separated tool list")
     run_parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None, help="Backend to use")
-    run_parser.add_argument("--api", choices=["resp", "comp"], default="resp", dest="api_mode",
-                           help="API mode: 'resp' (OpenResponses/native) or 'comp' (Chat-Completions)")
+    run_parser.add_argument("--api", choices=["openre", "openai"], default="openre", dest="api_mode",
+                           help="API mode: 'openre' (OpenResponses) or 'openai' (Chat-Completions)")
     run_parser.add_argument("--stream", action="store_true", help="Stream output")
     run_parser.add_argument("--debug", action="store_true", help="Enable debug output")
     run_parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
@@ -202,8 +202,8 @@ def create_parser() -> argparse.ArgumentParser:
     chat_parser.add_argument("-m", "--model", default=None, help="Model to use")
     chat_parser.add_argument("--tools", default="", help="Comma-separated tool list")
     chat_parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None, help="Backend to use")
-    chat_parser.add_argument("--api", choices=["resp", "comp"], default="resp", dest="api_mode",
-                           help="API mode: 'resp' (OpenResponses/native) or 'comp' (Chat-Completions)")
+    chat_parser.add_argument("--api", choices=["openre", "openai"], default="openre", dest="api_mode",
+                           help="API mode: 'openre' (OpenResponses) or 'openai' (Chat-Completions)")
     chat_parser.add_argument("--debug", action="store_true", help="Enable debug output")
     chat_parser.add_argument("--force-react", action="store_true", help="Force ReAct mode")
     chat_parser.add_argument("--soul", default=None, help="Path to Soul Spec package (disabled by default)")
@@ -231,8 +231,8 @@ def create_parser() -> argparse.ArgumentParser:
     agent_parser.add_argument("-m", "--model", default=None, help="Model to use")
     agent_parser.add_argument("--tools", default="calculator,shell,write_file", help="Comma-separated tool list")
     agent_parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None, help="Backend to use")
-    agent_parser.add_argument("--api", choices=["resp", "comp"], default="resp", dest="api_mode",
-                           help="API mode: 'resp' (OpenResponses/native) or 'comp' (Chat-Completions)")
+    agent_parser.add_argument("--api", choices=["openre", "openai"], default="openre", dest="api_mode",
+                           help="API mode: 'openre' (OpenResponses) or 'openai' (Chat-Completions)")
     agent_parser.add_argument("--debug", action="store_true", help="Enable debug output")
     agent_parser.add_argument("--force-react", action="store_true", help="Force ReAct mode for tool calling")
     agent_parser.add_argument("--soul", default=None, help="Path to Soul Spec package (disabled by default)")
@@ -1060,7 +1060,7 @@ def cmd_test(args: argparse.Namespace) -> int:
                     test_argv.append("--debug")
                 if args.backend:
                     test_argv.extend(["--backend", args.backend])
-                if getattr(args, 'api_mode', 'resp') != 'resp':
+                if getattr(args, 'api_mode', 'openre') != 'openre':
                     test_argv.extend(["--api", args.api_mode])
                 if getattr(args, 'force_react', False):
                     test_argv.append("--force-react")

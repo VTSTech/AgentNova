@@ -74,15 +74,15 @@ class BackendType(Enum):
 class ApiMode(Enum):
     """API mode for backend communication.
     
-    - RESPONSES: OpenResponses-style API (Ollama native /api/chat)
-    - COMPLETIONS: OpenAI Chat-Completions compatible API (/v1/chat/completions)
+    - OPENRE: OpenResponses API (open spec for agentic workflows)
+    - OPENAI: OpenAI Chat-Completions API
     
     Ollama supports both endpoints:
-    - /api/chat - Native Ollama format (default)
+    - /api/chat - OpenResponses format (default)
     - /v1/chat/completions - OpenAI-compatible format
     """
-    RESPONSES = "resp"      # OpenResponses / Ollama native format
-    COMPLETIONS = "comp"    # OpenAI Chat-Completions compatible format
+    OPENRE = "openre"      # OpenResponses API (/api/chat)
+    OPENAI = "openai"      # OpenAI Chat-Completions API (/v1/chat/completions)
 
 
 # Type aliases for clarity
