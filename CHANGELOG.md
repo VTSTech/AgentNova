@@ -4,6 +4,107 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+# Changelog
+
+All notable changes to AgentNova will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+
+## [R03.8] - 2026-03-28 4:03:37 PM
+
+### Spec Compliance Audit — Critical, High & Medium Fixes
+
+Resolved 9 issues identified in the R03.7 Spec Compliance Audit (30 FAIL + 55 WARN items). All Critical (4), High (3), and Medium (2) priority issues have been addressed.
+
+### Fixed
+
+#### [Critical] `run_stream()` Missing Agentic Loop (`agent.py`)
+- **Bug**: `run_stream()` yielded raw backend chunks with no tool-call detection, tool execution, or multi-step looping. Streaming was effectively single-pass — if a model produced a tool call in streaming mode, it was never executed.
+- **Fix**: Implemented full agentic loop inside `run_stream()` with proper OpenResponses SSE event emission:
+  - Streams model output into `full_content`, then parses for ReAct tool calls
+  - On tool call: emits `OUTPUT_ITEM_ADDED` / `OUTPUT_ITEM_DONE` SSE events, executes the tool, builds observation, and continues the loop
+  - On final answer: emits the answer wrapped in proper `stream_response_events()` SSE lifecycle
+  - On max steps: emits `RESPONSE_INCOMPLETE` SSE event
+  - On error: emits `RESPONSE_FAILED` SSE event
+  - Carries over output items, input items, and usage across loop iterations
+- **Impact**: Streaming mode now has full feature parity with `run()` for tool calling
+
+#### [Critical] Path Validation Bypass via Relative Paths (`core/helpers.py`)
+- **Bug**: `validate_path()` skipped system directory checks for relative paths. An attacker could use `../../../etc/passwd` which would pass the `isabs()` gate, then bypass all critical directory protections because the function only checked absolute paths.
+- **Fix**: Path is now resolved to absolute via `os.path.abspath()` **before** any security checks. Both relative and absolute paths are checked against critical system directories, allowed directories, and temp directories after resolution.
+- **Impact**: All paths — relative, absolute, or traversal-containing — are now consistently validated
+
+#### [Critical] Shell Injection via Newline Characters (`core/helpers.py`)
+- **Bug**: `sanitize_command()` did not detect newline or carriage-return characters. A command like `ls\ncat /etc/passwd` would execute two separate commands since the shell interprets `\n` as a command separator.
+- **Fix**: Added pre-check that strips `\n` and `\r` before evaluating. If stripping changes the command, it is rejected with `"Newline characters detected: potential command injection"`.
+- **Impact**: Closes the newline injection vector in shell command sanitization
+
+#### [Critical] Sandboxed REPL Escape via `pathlib`/`os.path` (`tools/sandboxed_repl.py`)
+- **Bug**: `pathlib` and `os.path` were listed in `SAFE_MODULES`, allowing the REPL to construct `Path("/etc/passwd").read_text()` or use `os.path.abspath()` to resolve paths outside the sandbox. These modules provide filesystem access that bypasses the eval sandbox.
+- **Fix**: Removed `pathlib` and `os.path` from `SAFE_MODULES`.
+- **Impact**: Reduces the REPL attack surface. Note: Python `eval()` sandboxing has inherent limitations — dunder attribute chains like `().__class__.__bases__` remain possible (documented as known gap W-SEC03).
+
+#### [High] `finish_reason` Handling in `run()` and `run_stream()` (`agent.py`)
+- **Bug**: The `finish_reason` field from backend responses was silently discarded. When the backend returned `"length"` (token limit) or `"content_filter"`, the agent treated the response as a normal completion, potentially returning truncated or harmful content.
+- **Fix**:
+  - In `run()`: added handling after each generation step — `"length"` produces `StepResult(MAX_STEPS)` and breaks the loop; `"content_filter"` produces `StepResult(ERROR)` and calls `response.mark_failed()`.
+  - In `_generate_stream_chunks()`: `finish_reason` is now extracted from the backend response dict and stored as `response["_finish_reason"]` for callers to consume.
+  - Debug output shows `finish_reason` value at each step.
+- **Impact**: Token limit exhaustion and content filtering are now properly surfaced to the agent and the caller
+
+#### [High] `tool_choice` Not Forwarded to Backend API (`agent.py`)
+- **Bug**: The `tool_choice` parameter (set via `set_tool_choice()`) was never sent to the backend. When a user configured `tool_choice=required` or `tool_choice=none`, the backend still received `auto`, meaning tool invocation constraints were ignored at the API level.
+- **Fix**: Added forwarding in `_generate()`: if `tool_choice` is set and not `AUTO`, it is included in `backend_kwargs` as `tool_choice.to_dict()`. The backend can now natively enforce tool calling constraints.
+- **Impact**: `tool_choice` now works end-to-end — from CLI/Python API through to the backend request body
+
+#### [High] `load_soul(reload=True)` Cache Key Mismatch (`soul/loader.py`)
+- **Bug**: `load_soul(path, level=2, reload=True)` constructed a cache key as `f"{path}:{level}"` using the raw input path. However, `SoulLoader.load()` stored cache entries using the **resolved** path (e.g., `/absolute/path/to/soul:2`). The cache key never matched, so `reload=True` never actually cleared the cache entry — stale souls were always returned.
+- **Fix**: `load_soul()` now resolves the path via `loader._resolve_soul_path()` before constructing the cache key. Falls back to a prefix scan of the cache if resolution fails.
+- **Impact**: `reload=True` now correctly invalidates cached souls, allowing hot-reload of soul configuration
+
+#### [Medium] A2A Action Type Missing from ACP Activity Mapping (`acp_plugin.py`)
+- **Bug**: ACP v1.0.4 added agent-to-agent (A2A) communication actions (`a2a_send`, `a2a_request`, `a2a_response`) but the activity mapping in `ACPPlugin` did not include an `"A2A"` action type. These tool calls were silently dropped from the activity log.
+- **Fix**: Added `"A2A"` action type mapping for `a2a_send`, `a2a_request`, and `a2a_response` tools.
+- **Impact**: A2A tool calls are now properly tracked in ACP activity logs
+
+#### [Medium] `skill-creator` Missing `license` Frontmatter Field (`skills/skill-creator/SKILL.md`)
+- **Bug**: The skill-creator `SKILL.md` had a `LICENSE.txt` file but the `license` field was missing from the YAML frontmatter. Per AgentSkills spec, the license must be declared in frontmatter for automated validation.
+- **Fix**: Added `license: MIT` to the frontmatter.
+- **Impact**: skill-creator now passes frontmatter validation; SPDX license check returns valid
+
+### Added
+
+#### Security Test Suites (`tests/test_security.py`, `tests/test_builtins.py`)
+- **79 new tests** (40 security + 40 builtins − 1 xfail) covering adversarial edge cases
+- `test_security.py`: path traversal (encoded, relative, UNC), shell injection (pipe, semicolon, backtick, newline, I/O redirect), SSRF (decimal/hex/octal IP, localhost, cloud metadata, private networks, `file://` scheme)
+- `test_builtins.py`: calculator sandbox limits, blocked shell commands (rm, sudo, curl, wget, ssh, etc.), file system access restrictions, HTTP SSRF blocking
+- Known gaps documented: `eval()` dunder attribute chains (W-SEC03), `/var/tmp` unreachable whitelist (F-SEC01 variant)
+
+### File Changes Summary
+
+| Action | File | Changes |
+|--------|------|:-------:|
+| Updated | `agentnova/agent.py` | +247 −3 |
+| Updated | `agentnova/core/helpers.py` | +58 −10 |
+| Updated | `agentnova/soul/loader.py` | +16 −2 |
+| Updated | `agentnova/acp_plugin.py` | +4 |
+| Updated | `agentnova/tools/sandboxed_repl.py` | −3 |
+| Updated | `agentnova/skills/skill-creator/SKILL.md` | +1 |
+| Updated | `TESTS.md` | +1 |
+| **Total** | **6 files** | **+326 −18** |
+
+### Audit Status
+
+| Priority | Total | Fixed | Remaining |
+|----------|:-----:|:-----:|:---------:|
+| Critical | 4 | 4 | 0 |
+| High | 3 | 3 | 0 |
+| Medium | 2 | 2 | 0 |
+| Low | 9 | — | 9 (deferred) |
+| Info | 68 | — | 68 (deferred) |
+
+---
+
 ## [R03.7] - 2026-03-28 11:57:44 AM
 
 ### API Mode Naming Cleanup
