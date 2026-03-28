@@ -981,7 +981,7 @@ def main():
         backend_name = args.backend or config.backend
         api_mode = getattr(args, 'api_mode', 'resp')
         timeout = getattr(args, 'timeout', None)
-        backend = get_default_backend(backend_name, api_mode=api_mode)
+        backend = get_default_backend(backend_name, api_mode=api_mode, timeout=timeout)
         
         if not backend.is_running():
             print(f"\n❌ {backend_name.capitalize()} not running at {backend.base_url}")
