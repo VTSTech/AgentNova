@@ -84,7 +84,7 @@ if AGENTNOVA_BACKEND not in ("ollama", "bitnet"):
 if AGENTNOVA_BACKEND == "bitnet":
     DEFAULT_MODEL = os.environ.get("AGENTNOVA_MODEL", "bitnet-b1.58-2b-4t")
 else:
-    DEFAULT_MODEL = os.environ.get("AGENTNOVA_MODEL", "qwen2.5-coder:0.5b-instruct-q4_k_m")
+    DEFAULT_MODEL = os.environ.get("AGENTNOVA_MODEL", "qwen2.5:0.5b")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
