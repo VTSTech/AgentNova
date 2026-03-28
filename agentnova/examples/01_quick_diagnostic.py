@@ -177,19 +177,21 @@ After getting the result, provide the final answer as a number."""
 
 
 def run_warmup(model: str, backend, timeout: int = None) -> bool:
-    """Send a warmup request to load the model into memory."""
+    """Send a warmup request to load the model into memory.
+    
+    Uses a direct backend call with minimal prompt to avoid loading
+    the full soul (saves ~8000 chars of system prompt processing).
+    """
     print("🔥 Warming up model...", end="\n", flush=True)
     try:
-        # Create a minimal agent for warmup
-        agent = Agent(
-            model=model,
-            tools=None,
-            backend=backend,
-            max_steps=1,
-            debug=False,
-        )
         t0 = time.time()
-        result = agent.run("Say 'ok'")
+        # Direct backend call - no Agent, no soul, minimal overhead
+        response = backend.generate(
+            model=model,
+            messages=[{"role": "user", "content": "Say 'ok'"}],
+            temperature=0.1,
+            max_tokens=10,
+        )
         elapsed = time.time() - t0
         print(f"✅ ({elapsed:.1f}s)")
         return True
