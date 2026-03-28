@@ -264,7 +264,9 @@ def main():
     
     result = run_diagnostic(model, backend, debug=args.debug, force_react=args.force_react,
                            soul=args.soul, soul_level=args.soul_level, timeout=timeout,
-                           num_ctx=num_ctx)
+                           num_ctx=num_ctx, num_predict=getattr(args, 'num_predict', None),
+                           temperature=getattr(args, 'temperature', None),
+                           top_p=getattr(args, 'top_p', None))
     
     # Return granular results for test runner, exit_code for direct execution
     result["exit_code"] = 0 if result["passed"] == result["total"] else 1
