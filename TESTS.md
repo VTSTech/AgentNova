@@ -35,17 +35,17 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | 🥉 | `gemma3:270m` | **4/5 (80%)** | 425.2s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ❌ 1024 | Q5 reasoning error, improved! |
 | 🥉 | `qwen3.5:0.8b` | 4/5 (80%) | 625.8s | nova-helper | native | ❌ empty | ✅ | ✅ | ✅ | ✅ | Q1 empty, very slow |
 | 🥉 | `granite3.1-moe:1b` | **4/5 (80%)** | 225.4s | nova-helper | **native** | ✅ | ❌ 53 | ✅ | ✅ | ✅ | Q2 reasoning error, MoE model |
-| 5 | `qwen2:0.5b` | 3/5 (60%) | 116.8s | nova-helper | native | ✅ | ✅ | ✅ | ❌ code | ❌ 30 | Writes Python instead of calculator |
+| 5 | `qwen2:0.5b` | 3/5 (60%) | 166.9s | nova-helper | native | ✅ | ✅ | ✅ | ❌ text | ❌ 24 | Q4/Q5 explanation text instead of tools |
 | 5 | `qwen3:0.6b` | 3/5 (60%) | 231.3s | nova-helper | native | ❌ empty | ❌ 49 | ✅ | ✅ | ✅ | Q1 empty, Q2 reasoning error |
-| 5 | `qwen:0.5b` | 3/5 (60%) | 176.6s | nova-helper | native | ✅ | ✅ | ❌ 42.5 | ❌ 16 | ✅ | Q3/Q4 reasoning errors |
+| 9 | `qwen:0.5b` | 2/5 (40%) | 232.7s | nova-helper | native | ✅ | ❌ 2 | ❌ 3 | ✅ | ❌ 4 | Q2/Q3/Q5 reasoning errors |
 | 9 | `nchapman/dolphin3.0-qwen2.5:0.5b` | 2/5 (40%) | 287.1s | nova-helper | native | ❌ empty | ❌ empty | ❌ empty | ✅ | ✅ | Q1-Q3 empty responses |
-| 12 | `functiongemma:270m` | 1/5 (20%) | 237.5s | nova-helper | native | ✅ | ❌ 51 | ❌ 1024 | ❌ refused | ❌ refused | Reasoning errors, Q5 refusal |
+| 11 | `functiongemma:270m` | 1/5 (20%) | 237.5s | nova-helper | native | ✅ | ❌ 51 | ❌ 1024 | ❌ refused | ❌ refused | Reasoning errors, Q5 refusal |
 
 **Summary:**
 - **4 models achieve 100%**: `granite4:350m`, `qwen2.5:0.5b`, `deepseek-r1:1.5b`, `qwen2.5-coder:0.5b`
 - **3 models at 80%**: `gemma3:270m`, `qwen3.5:0.8b`, `granite3.1-moe:1b`
-- **3 models at 60%**: `qwen2:0.5b`, `qwen3:0.6b`, `qwen:0.5b`
-- **1 model at 40%**: `nchapman/dolphin3.0-qwen2.5:0.5b`
+- **2 models at 60%**: `qwen2:0.5b`, `qwen3:0.6b`
+- **2 models at 40%**: `qwen:0.5b`, `nchapman/dolphin3.0-qwen2.5:0.5b`
 - **1 model at 20%**: `functiongemma:270m`
 
 **deepseek-r1:1.5b Details:**
@@ -86,6 +86,14 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 - Q1-Q3: ❌ Empty responses (tool calls not returning values)
 - Q4-Q5: ✅ ~3-4s each (passed when tool worked)
 - **Inconsistent tool usage - may need investigation**
+
+**qwen:0.5b Details:**
+- Warmup: 11.3s
+- Q1: ✅ 161.5s, Q4: ✅ 27.8s
+- Q2: ❌ Expected 51, Got 2 (reasoning error)
+- Q3: ❌ Expected 4.25, Got 3 (reasoning error)
+- Q5: ❌ Expected 8, Got 4 (reasoning error)
+- **Regressed from 60% to 40%**
 
 ---
 
@@ -186,8 +194,9 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 5. **Native tool calling fully working** - All models with native support can use tools
 6. **Soul persona critical** - All tests used nova-helper soul for consistency
 7. **resp mode significantly outperforms comp** for qwen family (40-80% gap)
-8. **dolphin3.0 regressed to 40%** - Empty responses on Q1-Q3, may need investigation
-9. **functiongemma:270m struggles** - Reasoning errors and refusals
+8. **qwen:0.5b regressed to 40%** - Reasoning errors on Q2/Q3/Q5
+9. **dolphin3.0 at 40%** - Empty responses on Q1-Q3, may need investigation
+10. **functiongemma:270m struggles** - Reasoning errors and refusals
 
 ---
 
