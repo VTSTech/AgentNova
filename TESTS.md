@@ -28,23 +28,24 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 | Rank | Model | Score | Time | Soul | Tool Mode | Q1 | Q2 | Q3 | Q4 | Q5 | Notes |
 |:----:|-------|------:|-----:|:----:|:---------:|:--:|:--:|:--:|:--:|:--:|-------|
-| 🥇 | **`granite4:350m`** | **5/5 (100%)** | 136.3s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Native tools working! |
+| 🥇 | **`granite4:350m`** | **5/5 (100%)** | 188.3s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Native tools working! |
 | 🥇 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 130.2s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Perfect score! Fastest! |
 | 🥇 | **`deepseek-r1:1.5b`** | **5/5 (100%)** | 304.7s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Perfect score! Reasoning model |
+| 🥇 | **`qwen2.5-coder:0.5b`** | **5/5 (100%)** | 184.1s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Coder model joins 100% club! |
 | 🥉 | `gemma3:270m` | **4/5 (80%)** | 425.2s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ❌ 1024 | Q5 reasoning error, improved! |
-| 🥉 | `qwen2.5-coder:0.5b` | 4/5 (80%) | 120.3s | nova-helper | native | ✅ | ✅ | ✅ | ❌ 5 | ✅ | Q4 reasoning error |
 | 🥉 | `qwen3.5:0.8b` | 4/5 (80%) | 625.8s | nova-helper | native | ❌ empty | ✅ | ✅ | ✅ | ✅ | Q1 empty, very slow |
 | 🥉 | `granite3.1-moe:1b` | **4/5 (80%)** | 225.4s | nova-helper | **native** | ✅ | ❌ 53 | ✅ | ✅ | ✅ | Q2 reasoning error, MoE model |
-| 5 | `dolphin3.0-qwen2.5:0.5b` | 3/5 (60%) | 114.3s | nova-helper | native | ✅ | ❌ 4 | ✅ | ✅ | ❌ 6 | Q2 reasoning error, Q5 wrong |
 | 5 | `qwen2:0.5b` | 3/5 (60%) | 116.8s | nova-helper | native | ✅ | ✅ | ✅ | ❌ code | ❌ 30 | Writes Python instead of calculator |
 | 5 | `qwen3:0.6b` | 3/5 (60%) | 231.3s | nova-helper | native | ❌ empty | ❌ 49 | ✅ | ✅ | ✅ | Q1 empty, Q2 reasoning error |
 | 5 | `qwen:0.5b` | 3/5 (60%) | 176.6s | nova-helper | native | ✅ | ✅ | ❌ 42.5 | ❌ 16 | ✅ | Q3/Q4 reasoning errors |
+| 9 | `nchapman/dolphin3.0-qwen2.5:0.5b` | 2/5 (40%) | 287.1s | nova-helper | native | ❌ empty | ❌ empty | ❌ empty | ✅ | ✅ | Q1-Q3 empty responses |
 | 12 | `functiongemma:270m` | 1/5 (20%) | 237.5s | nova-helper | native | ✅ | ❌ 51 | ❌ 1024 | ❌ refused | ❌ refused | Reasoning errors, Q5 refusal |
 
 **Summary:**
-- **3 models achieve 100%**: `granite4:350m`, `qwen2.5:0.5b`, `deepseek-r1:1.5b`
-- **4 models at 80%**: `gemma3:270m`, `qwen2.5-coder:0.5b`, `qwen3.5:0.8b`, `granite3.1-moe:1b`
-- **4 models at 60%**: `dolphin3.0-qwen2.5:0.5b`, `qwen2:0.5b`, `qwen3:0.6b`, `qwen:0.5b`
+- **4 models achieve 100%**: `granite4:350m`, `qwen2.5:0.5b`, `deepseek-r1:1.5b`, `qwen2.5-coder:0.5b`
+- **3 models at 80%**: `gemma3:270m`, `qwen3.5:0.8b`, `granite3.1-moe:1b`
+- **3 models at 60%**: `qwen2:0.5b`, `qwen3:0.6b`, `qwen:0.5b`
+- **1 model at 40%**: `nchapman/dolphin3.0-qwen2.5:0.5b`
 - **1 model at 20%**: `functiongemma:270m`
 
 **deepseek-r1:1.5b Details:**
@@ -52,6 +53,12 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 - Q1 (Simple Math): ✅ 278.9s (first inference after warmup)
 - Q2-Q5: ✅ ~6-7s each (subsequent calls much faster)
 - Note: Reasoning model with native tool support
+
+**qwen2.5-coder:0.5b Details:**
+- Warmup: 5.4s
+- Q1 (Simple Math): ✅ 132.8s (first inference after warmup)
+- Q2-Q5: ✅ ~12-13s each (consistent timing)
+- **Improved from 80% to 100%! Coder model excels at tools!**
 
 **functiongemma:270m Details:**
 - Warmup: 2.7s
@@ -73,6 +80,12 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 - Q2 (Multi-step): ❌ Expected 51, Got: 53 (reasoning error)
 - Q3-Q5: ✅ ~10-13s each (subsequent calls much faster)
 - **New MoE model with native tool support!**
+
+**nchapman/dolphin3.0-qwen2.5:0.5b Details:**
+- Warmup: 7.4s
+- Q1-Q3: ❌ Empty responses (tool calls not returning values)
+- Q4-Q5: ✅ ~3-4s each (passed when tool worked)
+- **Inconsistent tool usage - may need investigation**
 
 ---
 
@@ -142,11 +155,11 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 ## Reference
 
-### Tool Mode Comparison (R03.3)
+### Tool Mode Comparison (R03.6)
 
 | Tool Mode | Best Score | Best Model | Description |
 |-----------|:----------:|------------|-------------|
-| **Native** | **100%** | granite4:350m, qwen2.5:0.5b, deepseek-r1:1.5b | Model uses API tool_calls directly |
+| **Native** | **100%** | granite4:350m, qwen2.5:0.5b, deepseek-r1:1.5b, qwen2.5-coder:0.5b | Model uses API tool_calls directly |
 | **ReAct** | **80%** | qwen2.5:0.5b | Parser extracts Action/Action Input from text |
 | **Fallback** | **40%** | gemma3:270m, functiongemma:270m | Auto-fallback when model rejects tools |
 
@@ -166,14 +179,15 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 ### Key Findings (R03.6)
 
-1. **deepseek-r1:1.5b joins the 100% club!** - Reasoning model with excellent tool usage
-2. **3 models now achieve 100%** - granite4:350m, qwen2.5:0.5b, deepseek-r1:1.5b
-3. **4 models at 80%** - gemma3:270m (improved!), granite3.1-moe:1b (new!), qwen2.5-coder:0.5b, qwen3.5:0.8b
+1. **qwen2.5-coder:0.5b joins the 100% club!** - Coder model improved from 80% to perfect score!
+2. **4 models now achieve 100%** - granite4:350m, qwen2.5:0.5b, deepseek-r1:1.5b, qwen2.5-coder:0.5b
+3. **3 models at 80%** - gemma3:270m (improved!), qwen3.5:0.8b, granite3.1-moe:1b
 4. **granite3.1-moe:1b debuts at 80%** - MoE architecture with native tools
 5. **Native tool calling fully working** - All models with native support can use tools
 6. **Soul persona critical** - All tests used nova-helper soul for consistency
 7. **resp mode significantly outperforms comp** for qwen family (40-80% gap)
-8. **functiongemma:270m struggles** - Reasoning errors and refusals
+8. **dolphin3.0 regressed to 40%** - Empty responses on Q1-Q3, may need investigation
+9. **functiongemma:270m struggles** - Reasoning errors and refusals
 
 ---
 
@@ -273,6 +287,6 @@ Example output:
   qwen2.5:0.5b                               qwen2        32K        ✓ native
   qwen3:0.6b                                 qwen3        32K        ReAct
   functiongemma:270m                         gemma3       32K        ✓ native
-  dolphin3.0-qwen2.5:0.5b                    qwen2        32K        ○ none
+  nchapman/dolphin3.0-qwen2.5:0.5b           qwen2        32K        ○ none
   deepseek-r1:1.5b                           deepseek     128K       ✓ native
 ```
