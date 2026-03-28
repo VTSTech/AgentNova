@@ -178,7 +178,7 @@ After getting the result, provide the final answer as a number."""
 
 def run_warmup(model: str, backend, timeout: int = None) -> bool:
     """Send a warmup request to load the model into memory."""
-    print("🔥 Warming up model...", end=" ", flush=True)
+    print("🔥 Warming up model...", end="\n", flush=True)
     try:
         # Create a minimal agent for warmup
         agent = Agent(
