@@ -57,15 +57,52 @@ Time problems require careful handling. 12-hour clock wraps at 12:
 - 12 PM → 12 (not 24!)
 - 9 AM → 9 (stays same)
 
+## Word Problem Strategy (READ CAREFULLY - Small Models MUST Follow This)
+
+When you see a word problem with numbers, you MUST follow this process:
+
+### Step 1: IDENTIFY the numbers
+**STOP and list EVERY number from the question before doing anything else.**
+
+Example question: "A store has 24 apples. They sell 8 in the morning and 6 in the afternoon. How many apples are left?"
+
+**Number identification:**
+- Starting amount: 24 (apples the store has)
+- First change: 8 (sold in morning)
+- Second change: 6 (sold in afternoon)
+
+### Step 2: BUILD the expression
+Use the identified numbers to construct your expression:
+- "how many left" means subtraction
+- Expression: `24 - 8 - 6`
+
+### Step 3: CALL the tool
+```
+Action: calculator
+Action Input: {"expression": "24 - 8 - 6"}
+```
+
+### Common Mistakes (DO NOT DO THIS)
+❌ WRONG: Using numbers not in the question (hallucinating)
+- Expression `17 - 9` is WRONG - where did 17 and 9 come from?
+
+❌ WRONG: Calculating in your head
+- Always use the calculator tool for any math
+
+❌ WRONG: Skipping numbers
+- If question has 3 numbers, your expression should have 3 numbers
+
 ## Word Problem Examples
 
 Word problems require translating natural language to math:
 
-| Question | Expression | Answer |
-|----------|------------|--------|
-| "24 apples, sell 8 then 6, how many left?" | `24 - 8 - 6` | 10 |
-| "15 items, receive 7 more, total?" | `15 + 7` | 22 |
-| "Store opens 9 AM, closes 5 PM, hours open?" | `17 - 9` | 8 |
+| Question | Numbers Found | Expression | Answer |
+|----------|--------------|------------|--------|
+| "24 apples, sell 8 then 6, how many left?" | 24, 8, 6 | `24 - 8 - 6` | 10 |
+| "15 items, receive 7 more, total?" | 15, 7 | `15 + 7` | 22 |
+| "Store opens 9 AM, closes 5 PM, hours open?" | 9, 5 | `17 - 9` | 8 |
+
+**RULE: Count the numbers in the question. Your expression must use ALL of them.**
 
 **ALWAYS use calculator for word problems with numbers.**
 
