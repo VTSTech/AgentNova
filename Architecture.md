@@ -2,11 +2,11 @@
 
 AgentNova is a modular agent framework designed for local LLMs with tool-calling capabilities. It implements the OpenResponses specification for multi-provider, interoperable LLM interfaces.
 
-**Specification Compliance**: ~99% overall (R03.4)
+**Specification Compliance**: ~98% overall (R03.5)
 - OpenResponses API: 100%
-- Chat Completions API: 100%
-- Soul Spec v0.5: 98%
-- ACP v1.0.5: 100%
+- Chat Completions API: 99%
+- Soul Spec v0.5: 97%
+- ACP v1.0.5: 95%
 - AgentSkills: 100%
 
 ```
@@ -33,6 +33,7 @@ agentnova/
 │
 ├── skills/
 │   ├── loader.py             # Skill loader (Agent Skills spec)
+│   │                         # - Description validation (1-1024 chars)
 │   │                         # - SPDX license validation
 │   │                         # - Compatibility parsing
 │   │                         # - Environment compatibility checks
@@ -209,7 +210,240 @@ soul = load_soul("nova-helper", reload=True)
 
 ## AgentSkills System (`skills/loader.py`)
 
-The skills loader implements the AgentSkills specification with SPDX license validation and compatibility checking.
+The skills loader implements the AgentSkills specification with full validation support.
+
+### Skill Validation (R03.5)
+
+The `Skill` dataclass validates all fields during initialization:
+
+```python
+from agentnova.skills import Skill
+
+skill = Skill(
+    name="my-skill",                    # 1-64 chars, lowercase, hyphens only
+    description="A skill description",  # 1-1024 chars (enforced)
+    instructions="...",                 # Markdown body
+    path="/path/to/skill",
+    license="MIT",                      # Validated against SPDX
+    compatibility="python>=3.8"         # Parsed into structured data
+)
+```
+
+**Validation Methods**:
+- `_validate_name()` - Enforces `^[a-z0-9]+(-[a-z0-9]+)*## Architecture
+
+AgentNova is a modular agent framework designed for local LLMs with tool-calling capabilities. It implements the OpenResponses specification for multi-provider, interoperable LLM interfaces.
+
+**Specification Compliance**: ~98% overall (R03.5)
+- OpenResponses API: 100%
+- Chat Completions API: 99%
+- Soul Spec v0.5: 97%
+- ACP v1.0.5: 95%
+- AgentSkills: 100%
+
+```
+agentnova/
+├── core/
+│   ├── types.py              # Enum types (StepResultType, BackendType, ApiMode)
+│   ├── models.py             # Data models (Tool, ToolParam, StepResult, AgentRun)
+│   ├── memory.py             # Sliding window conversation memory
+│   ├── tool_parse.py         # ReAct/JSON tool call extraction (see Tool Parser section)
+│   ├── helpers.py            # Utilities (fuzzy match, argument normalization, security)
+│   ├── model_config.py       # Model configuration (temperature, max tokens)
+│   ├── model_family_config.py # Family-specific behavior (stop tokens, formats)
+│   └── openresponses.py      # OpenResponses specification types
+│
+├── tools/
+│   ├── registry.py           # Tool registry with decorator-based registration
+│   ├── builtins.py           # Built-in tools (calculator, shell, file ops, http)
+│   └── sandboxed_repl.py     # Sandboxed Python REPL execution
+│
+├── backends/
+│   ├── base.py               # Abstract BaseBackend class
+│   ├── ollama.py             # Ollama backend (dual API: OpenResponses + Chat-Completions)
+│   └── bitnet.py             # BitNet backend
+│
+├── skills/
+│   ├── loader.py             # Skill loader (Agent Skills spec)
+│   │                         # - Description validation (1-1024 chars)
+│   │                         # - SPDX license validation
+│   │                         # - Compatibility parsing
+│   │                         # - Environment compatibility checks
+│   └── ...                   # Various skills (web-search, datetime, etc.)
+│
+├── soul/
+│   ├── types.py              # Soul Spec v0.5 data structures
+│   └── loader.py             # SoulLoader with progressive disclosure + dynamic tools
+│
+├── souls/
+│   └── nova-helper/          # Default diagnostic assistant soul
+│       ├── soul.json         # Manifest
+│       ├── SOUL.md           # Persona definition (concise)
+│       ├── IDENTITY.md       # Identity (concise)
+│       └── STYLE.md          # Communication style (concise)
+│
+├── examples/                 # Test examples and benchmarks
+│
+├── agent.py                  # Main Agent class (OpenResponses agentic loop)
+├── agent_mode.py             # Autonomous agent mode (state machine)
+├── acp_plugin.py             # ACP v1.0.5 integration
+│                             # - Status reporting, activity logging
+│                             # - Batch context manager for atomic operations
+├── orchestrator.py           # Multi-agent orchestration
+└── cli.py                    # Command-line interface
+```
+
+---
+
+## Key Components
+
+### Agent (`agent.py`)
+
+The main Agent class implements the **OpenResponses Agentic Loop**:
+
+```
+1. Model samples from input
+2. If tool call: execute tool, return observation, continue
+3. If no tool call: return final output items
+```
+
+**Key principle**: All tool calls must come from the model itself. No fallbacks that bypass the AI model.
+
+**Features**:
+- Unified ReAct prompting for all models
+- Soul Spec integration for persona/personality
+- Dynamic tool injection into system prompt
+- Default context window: 4096 tokens
+- Debug output with OpenResponses item tracking
+
+### OpenResponses Specification (`core/openresponses.py`)
+
+Full implementation of the OpenResponses specification (https://www.openresponses.org/specification):
+
+**Items**: Atomic units of context with lifecycle states
+- `MessageItem`: Conversation turns (user/assistant/system)
+- `FunctionCallItem`: Tool invocations from the model
+- `FunctionCallOutputItem`: Tool execution results
+- `ReasoningItem`: Model's internal thought process
+
+**State Machines**:
+```
+Response: queued → in_progress → completed/failed/incomplete/cancelled
+Items: in_progress → completed/failed/incomplete
+```
+
+**tool_choice modes**:
+| Mode | Behavior |
+|------|----------|
+| `"auto"` | Model decides whether to call tools (default) |
+| `"required"` | Model MUST call at least one tool |
+| `"none"` | Model MUST NOT call tools |
+| `ToolChoice.specific("name")` | Force specific tool |
+| `ToolChoice.allowed_tools([...])` | Restrict to tool list |
+
+```python
+from agentnova import Agent
+from agentnova.core.openresponses import ToolChoice
+
+# Default: model decides
+agent = Agent(model="qwen2.5:0.5b", tools=["calculator"])
+
+# Force tool usage
+agent = Agent(model="llama3", tools=["calculator"], tool_choice="required")
+
+# Restrict to specific tools
+agent = Agent(
+    model="llama3",
+    tools=["calculator", "shell", "read_file"],
+    allowed_tools=["calculator"]  # Only calculator available
+)
+
+# Disable tools
+agent = Agent(model="llama3", tools=["calculator"], tool_choice="none")
+```
+
+### Tool Parser (`core/tool_parse.py`)
+
+Parses tool calls from model output in multiple formats:
+
+**Supported Formats**:
+
+1. **Plain ReAct format**:
+```
+Action: calculator
+Action Input: {"expression": "15 * 8"}
+```
+
+2. **JSON-wrapped ReAct** (from small models):
+```json
+{
+  "action": "calculator",
+  "actionInput": {"expression": "15 * 8"}
+}
+```
+
+3. **Markdown code block JSON**:
+```json
+{
+  "action": "calculator",
+  "action_input": {"expression": "15 * 8"}
+}
+```
+
+4. **With Final Answer** (simultaneous):
+```
+Action: calculator
+Action Input: {"expression": "15 * 8"}
+Final Answer: 120
+```
+
+**Key variations handled**:
+- `action`, `Action`, `ACTION`
+- `actionInput`, `action_input`, `Action Input`
+- Fuzzy matching for hallucinated tool names
+
+### Soul System (`soul/`)
+
+ClawSouls Soul Spec v0.5 support for persona packages:
+
+**Progressive Disclosure**:
+- Level 1: soul.json manifest only
+- Level 2: + SOUL.md + IDENTITY.md
+- Level 3: + STYLE.md + AGENTS.md + HEARTBEAT.md
+
+**Dynamic Tool Injection**:
+The static tool reference in SOUL.md is replaced with actual available tools at runtime:
+
+```python
+# Static in SOUL.md:
+## Tool Reference (only use if available)
+| Tool | When to use | Arguments |
+...
+
+# Dynamically replaced with actual tools:
+### Tool Reference (only use if available)
+| Tool | When to use | Arguments |
+|------|-------------|-----------|
+| `calculator` | Evaluate mathematical expressions | `{"expression": "..."}` |
+```
+
+**Cache Management**:
+```python
+from agentnova.soul import clear_soul_cache, load_soul
+
+# Clear cache after modifying soul files
+clear_soul_cache()
+
+# Force reload from disk
+soul = load_soul("nova-helper", reload=True)
+```
+
+---
+
+ format, max 64 chars
+- `_validate_description()` - Enforces 1-1024 character limit per spec
+- `_validate_license()` - Validates against SPDX identifiers
+- `_parse_compatibility()` - Parses requirements into structured dict
 
 ### SPDX License Validation
 
@@ -516,7 +750,7 @@ for chunk in backend.generate_completions_stream(
         print(f"\nFinished: {chunk['finish_reason']}")
 ```
 
-### Chat-Completions Parameters (R03.3)
+### Chat-Completions Parameters (R03.3+R03.5)
 
 Additional parameters supported in Chat-Completions mode:
 
@@ -528,6 +762,11 @@ Additional parameters supported in Chat-Completions mode:
 | `response_format` | dict | Response format (e.g., `{"type": "json_object"}`) |
 | `top_p` | float | Top-p sampling (0.0 to 1.0) |
 | `think` | bool \| None | For thinking models (qwen3, deepseek-r1): None=auto, False=disable thinking |
+| `tool_choice` | str \| dict | Tool choice mode: `"auto"`, `"none"`, `"required"`, or `{"type": "function", "function": {"name": "..."}}` (R03.5) |
+| `logprobs` | bool | Return log probabilities of output tokens |
+| `top_logprobs` | int | Number of most likely tokens per position |
+| `n` | int | Number of completions to generate |
+| `user` | str | End-user identifier for abuse monitoring |
 
 ```python
 # JSON mode with additional parameters
@@ -540,7 +779,37 @@ result = backend.generate_completions(
     stop=["\n\n"],
     presence_penalty=0.1
 )
+
+# Force tool usage (R03.5)
+result = backend.generate_completions(
+    model="qwen2.5:0.5b",
+    messages=[{"role": "user", "content": "What is 15 + 27?"}],
+    tools=[calculator_tool],
+    tool_choice="required"  # Model MUST call a tool
+)
+
+# Force specific tool (R03.5)
+result = backend.generate_completions(
+    model="qwen2.5:0.5b",
+    messages=[{"role": "user", "content": "Calculate something"}],
+    tools=[calculator_tool, shell_tool],
+    tool_choice={"type": "function", "function": {"name": "calculator"}}
+)
 ```
+
+### Response Fields (R03.5)
+
+The `generate_completions()` method returns a dict with:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `content` | str | Generated text content |
+| `tool_calls` | list | Parsed tool calls with `id`, `name`, `arguments` |
+| `finish_reason` | str | Completion reason: `"stop"`, `"length"`, `"tool_calls"`, `"content_filter"` |
+| `usage` | dict | Token counts (`prompt_tokens`, `completion_tokens`, `total_tokens`) |
+| `latency_ms` | float | Request latency in milliseconds |
+| `logprobs` | dict \| None | Log probabilities (if requested) |
+| `raw` | dict | Raw API response |
 
 ### Thinking Models Support (R03.4)
 
