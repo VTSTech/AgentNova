@@ -447,16 +447,31 @@ def normalize_number(text: str) -> str:
     return match.group(0) if match else ""
 
 
+def numbers_match(expected_str: str, actual_str: str, tolerance: float = 0.01) -> bool:
+    """Compare two numeric strings, handling float/integer differences.
+
+    Solves the problem where '12' != '12.0' in string comparison.
+    Falls back to exact string match if either value is not a valid number.
+    """
+    if not expected_str or not actual_str:
+        return False
+    try:
+        return abs(float(expected_str) - float(actual_str)) < tolerance
+    except (ValueError, OverflowError):
+        return expected_str == actual_str
+
+
 def check_tool_used(run, tool_name: str) -> bool:
-    """Verify that a specific tool was called during the run."""
+    """Verify that a specific tool was called during the run.
+
+    Only checks the actual tool call name recorded in step.tool_call,
+    not the tool result content.  This avoids false positives where a
+    tool name appears incidentally in another tool's output.
+    """
     for step in run.steps:
         if step.type == StepResultType.TOOL_CALL:
             if step.tool_call and step.tool_call.name == tool_name:
                 return True
-            # Also check by looking at tool result content for tool name
-            if step.tool_result is not None:
-                if tool_name in str(step.tool_result).lower():
-                    return True
     return False
 
 
@@ -509,15 +524,15 @@ def test_calculator_model(model: str, backend, debug: bool = False,
         tool_used = check_tool_used(run, "calculator")
         expected_num = normalize_number(expected)
         actual_num = normalize_number(run.final_answer)
-        passed = expected_num == actual_num and expected_num != ""
-        
+        passed = numbers_match(expected_num, actual_num)
+
         # Also check if the expected number appears in any tool result
         # (model may get the right answer from tool but fail to format Final Answer)
         if not passed and expected_num:
             for step in run.steps:
                 if step.tool_result:
                     result_num = normalize_number(str(step.tool_result))
-                    if result_num == expected_num:
+                    if numbers_match(expected_num, result_num):
                         passed = True
                         break
         
@@ -669,10 +684,25 @@ def test_datetime_model(model: str, backend, debug: bool = False,
         has_time = bool(re.search(r'\d{2}:\d{2}', run.final_answer))
         passed = (keyword == "date" and has_date) or (keyword == "time" and has_time)
         
+        # Fallback: check tool results if model didn't format the answer
+        # (consistent with calculator/shell/file tests — the model may have
+        # called the right tool but failed to produce a well-formed Final Answer)
+        if not passed and tool_used:
+            for step in run.steps:
+                if step.tool_result:
+                    result_str = str(step.tool_result)
+                    if keyword == "date" and re.search(r'\d{4}-\d{2}-\d{2}', result_str):
+                        passed = True
+                        break
+                    elif keyword == "time" and re.search(r'\d{2}:\d{2}', result_str):
+                        passed = True
+                        break
+        
         results.append(passed)
         status = "✅" if passed else "❌"
         tool_status = "🔧" if tool_used else "⚠️"
-        print(f"  {status} {tool_status} Tool used: {tool_used} | {elapsed:.1f}s")
+        found_where = "(in answer)" if (keyword == "date" and has_date) or (keyword == "time" and has_time) else "(in tool result)" if passed and tool_used else ""
+        print(f"  {status} {tool_status} Tool used: {tool_used} | {elapsed:.1f}s {found_where}")
         print(f"  📝 {run.final_answer}")
     
     passed = sum(results)
@@ -745,14 +775,14 @@ def test_file_model(model: str, backend, debug: bool = False,
             # Check result in answer or tool result
             expected_num = normalize_number(expected)
             actual_num = normalize_number(run.final_answer)
-            found_in_answer = expected_num == actual_num and expected_num != ""
+            found_in_answer = numbers_match(expected_num, actual_num)
             if not found_in_answer:
                 found_in_answer = expected.lower() in run.final_answer.lower()
             found_in_tool_result = False
             for step in run.steps:
                 if step.tool_result:
                     result_num = normalize_number(str(step.tool_result))
-                    if result_num == expected_num:
+                    if numbers_match(expected_num, result_num):
                         found_in_tool_result = True
                         break
                     if expected.lower() in str(step.tool_result).lower():
@@ -819,13 +849,22 @@ def test_python_repl_model(model: str, backend, debug: bool = False,
         
         tool_used = check_tool_used(run, "python_repl")
         
-        # Check result in answer or tool result
-        found_in_answer = expected in run.final_answer
+        # Check result in answer or tool result (numeric-aware)
+        expected_num = normalize_number(expected)
+        actual_num = normalize_number(run.final_answer)
+        found_in_answer = numbers_match(expected_num, actual_num)
+        if not found_in_answer:
+            found_in_answer = expected in run.final_answer
         found_in_tool_result = False
         for step in run.steps:
-            if step.tool_result and expected in str(step.tool_result):
-                found_in_tool_result = True
-                break
+            if step.tool_result:
+                result_num = normalize_number(str(step.tool_result))
+                if numbers_match(expected_num, result_num):
+                    found_in_tool_result = True
+                    break
+                if expected in str(step.tool_result):
+                    found_in_tool_result = True
+                    break
         
         passed = found_in_answer or found_in_tool_result
         results.append(passed)
@@ -898,15 +937,24 @@ def test_all_tools_model(model: str, backend, debug: bool = False,
             # Check if correct tool was used
             correct_tool = check_tool_used(run, expected_tool)
             
-            # Check result
+            # Check result (numeric-aware comparison for number expectations)
             passed = correct_tool
             if expected:
-                found = expected.lower() in run.final_answer.lower()
+                expected_num = normalize_number(expected)
+                actual_num = normalize_number(run.final_answer)
+                found = numbers_match(expected_num, actual_num)
+                if not found:
+                    found = expected.lower() in run.final_answer.lower()
                 if not found:
                     for step in run.steps:
-                        if step.tool_result and expected.lower() in str(step.tool_result).lower():
-                            found = True
-                            break
+                        if step.tool_result:
+                            result_num = normalize_number(str(step.tool_result))
+                            if numbers_match(expected_num, result_num):
+                                found = True
+                                break
+                            if expected.lower() in str(step.tool_result).lower():
+                                found = True
+                                break
                 passed = passed and found
             
             results.append(passed)
@@ -1052,3 +1100,5 @@ def main():
     print(f"   ─────────────────────────")
     print(f"   TOTAL: {total_passed}/{total_tests} ({100*total_passed//total_tests if total_tests > 0 else 0}%)")
     print(f"{'='*60}")
+    
+    return 0
