@@ -42,6 +42,8 @@ def parse_args():
     parser.add_argument("--top-p", type=float, default=None, dest="top_p",
                        help="Nucleus sampling probability 0.0-1.0")
     parser.add_argument("--force-react", action="store_true", help="Force ReAct mode for tool calling")
+    parser.add_argument("--timeout", type=int, default=None,
+                       help="Request timeout in seconds (default: 120)")
     return parser.parse_args()
 
 
@@ -51,8 +53,9 @@ def main():
     
     # Get backend (respects AGENTNOVA_BACKEND env var)
     backend_name = args.backend or config.backend
-    api_mode = getattr(args, 'api_mode', 'resp')
-    backend = get_default_backend(backend_name, api_mode=api_mode)
+    api_mode = getattr(args, 'api_mode', 'openre')
+    timeout = getattr(args, 'timeout', None)
+    backend = get_default_backend(backend_name, api_mode=api_mode, timeout=timeout)
     
     # Check if backend is running
     if not backend.is_running():
@@ -81,8 +84,10 @@ def main():
     print(f"\n⚛️ AgentNova Basic Agent")
     print(f"   Model: {args.model or config.default_model}")
     print(f"   Backend: {backend_name}")
-    if api_mode != 'resp':
+    if api_mode != 'openre':
         print(f"   API Mode: {api_mode}")
+    if timeout:
+        print(f"   Timeout: {timeout}s")
     print("-" * 40)
     
     # Single question

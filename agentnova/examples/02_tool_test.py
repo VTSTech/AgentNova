@@ -979,7 +979,7 @@ def main():
     if not args.tools_only:
         model = args.model or config.default_model
         backend_name = args.backend or config.backend
-        api_mode = getattr(args, 'api_mode', 'resp')
+        api_mode = getattr(args, 'api_mode', 'openre')
         timeout = getattr(args, 'timeout', None)
         backend = get_default_backend(backend_name, api_mode=api_mode, timeout=timeout)
         
@@ -990,7 +990,7 @@ def main():
             print(f"\n⚛️ AgentNova Model Tool Tests")
             print(f"   Backend: {backend_name} ({backend.base_url})")
             print(f"   Model: {model}")
-            if api_mode != 'resp':
+            if api_mode != 'openre':
                 print(f"   API Mode: {api_mode}")
             if args.soul:
                 print(f"   Soul: {args.soul}")

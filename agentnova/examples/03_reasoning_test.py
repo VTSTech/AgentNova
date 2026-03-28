@@ -54,6 +54,8 @@ def parse_args():
     parser.add_argument("--top-p", type=float, default=None, dest="top_p",
                        help="Nucleus sampling probability 0.0-1.0")
     parser.add_argument("--force-react", action="store_true", help="Force ReAct mode for tool calling")
+    parser.add_argument("--timeout", type=int, default=None,
+                       help="Request timeout in seconds (default: 120)")
     return parser.parse_args()
 
 
@@ -267,8 +269,9 @@ def main():
     
     model = args.model or config.default_model
     backend_name = args.backend or config.backend
-    api_mode = getattr(args, 'api_mode', 'resp')
-    backend = get_default_backend(backend_name)
+    api_mode = getattr(args, 'api_mode', 'openre')
+    timeout = getattr(args, 'timeout', None)
+    backend = get_default_backend(backend_name, api_mode=api_mode, timeout=timeout)
     
     if not backend.is_running():
         print(f"❌ {backend_name.capitalize()} not running at {backend.base_url}")
@@ -278,6 +281,10 @@ def main():
     print(f"   Backend: {backend_name} ({backend.base_url})")
     print(f"   Model: {model}")
     print(f"   Tests: {len(REASONING_TESTS)}")
+    if api_mode != 'openre':
+        print(f"   API Mode: {api_mode}")
+    if timeout:
+        print(f"   Timeout: {timeout}s")
     
     result = run_reasoning_test(model, backend, args.debug,
                                 soul=args.soul, soul_level=args.soul_level,
