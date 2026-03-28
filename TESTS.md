@@ -48,71 +48,31 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 - **2 models at 40%**: `qwen:0.5b`, `nchapman/dolphin3.0-qwen2.5:0.5b`
 - **1 model at 20%**: `functiongemma:270m`
 
-**deepseek-r1:1.5b Details:**
-- Warmup: 16.3s
-- Q1 (Simple Math): ✅ 278.9s (first inference after warmup)
-- Q2-Q5: ✅ ~6-7s each (subsequent calls much faster)
-- Note: Reasoning model with native tool support
-
-**qwen2.5-coder:0.5b Details:**
-- Warmup: 5.4s
-- Q1 (Simple Math): ✅ 132.8s (first inference after warmup)
-- Q2-Q5: ✅ ~12-13s each (consistent timing)
-- **Improved from 80% to 100%! Coder model excels at tools!**
-
-**functiongemma:270m Details:**
-- Warmup: 2.7s
-- Q1 (Simple Math): ✅ 65.9s
-- Q2 (Multi-step): ❌ Expected 51, Got: "The calculation was: 8 * 7 - 5"
-- Q3 (Division): ❌ Expected 4.25, Got: "The result is 1024"
-- Q4 (Word Problem): ❌ Asked for more info instead of calculating
-- Q5 (Time Calc): ❌ Refused - claimed inability to assist with business operations
-
-**gemma3:270m Details:**
-- Warmup: 1.9s
-- Q1-Q4: ✅ ~77-79s each (consistent timing)
-- Q5 (Time Calc): ❌ Expected 8, Got: 1024 (reasoning error)
-- **Improved from 60% to 80%!**
-
-**granite3.1-moe:1b Details:**
-- Warmup: 23.4s
-- Q1 (Simple Math): ✅ 179.7s (first inference after warmup)
-- Q2 (Multi-step): ❌ Expected 51, Got: 53 (reasoning error)
-- Q3-Q5: ✅ ~10-13s each (subsequent calls much faster)
-- **New MoE model with native tool support!**
-
-**nchapman/dolphin3.0-qwen2.5:0.5b Details:**
-- Warmup: 7.4s
-- Q1-Q3: ❌ Empty responses (tool calls not returning values)
-- Q4-Q5: ✅ ~3-4s each (passed when tool worked)
-- **Inconsistent tool usage - may need investigation**
-
-**qwen:0.5b Details:**
-- Warmup: 11.3s
-- Q1: ✅ 161.5s, Q4: ✅ 27.8s
-- Q2: ❌ Expected 51, Got 2 (reasoning error)
-- Q3: ❌ Expected 4.25, Got 3 (reasoning error)
-- Q5: ❌ Expected 8, Got 4 (reasoning error)
-- **Regressed from 60% to 40%**
-
 ---
 
-### Chat Completions Mode Results (R03.3 - comp API Mode)
+### Chat Completions Mode Results (R03.6 - comp API Mode)
 
 > Testing with `--api comp` uses OpenAI-compatible Chat Completions API (`/v1/chat/completions`)
+> Test params: `--soul nova-helper --timeout 9999 --warmup --num-predict 128 --num-ctx 4096 --temp 0.0`
 
 | Rank | Model | Score | Time | Soul | Tool Mode | Q1 | Q2 | Q3 | Q4 | Q5 | Notes |
 |:----:|-------|------:|-----:|:----:|:---------:|:--:|:--:|:--:|:--:|:--:|-------|
 | 🥇 | **`granite4:350m`** | **5/5 (100%)** | 139.8s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Native tool calling! |
 | 🥇 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 141.7s | nova-helper | native | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Perfect score! |
+| 🥉 | `gemma3:270m` | **4/5 (80%)** | 424.7s | nova-helper | native | ✅ | ✅ | ✅ | ✅ | ❌ 1024 | Q5 reasoning error, improved! |
 | 🥉 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | 4/5 (80%) | 135.5s | nova-helper | native | ❌ 69 | ✅ | ✅ | ✅ | ✅ | Q1 hallucination |
 | 4 | `qwen3:0.6b` | 3/5 (60%) | 476.9s | nova-helper | native | ❌ timeout | ❌ timeout | ✅ | ✅ | ✅ | Q1/Q2 timeouts |
 | 4 | `qwen2:0.5b` | 3/5 (60%) | 127.7s | nova-helper | native | ✅ | ✅ | ✅ | ❌ code | ❌ code | Wrote Python instead |
-| 6 | `gemma3:270m` | 2/5 (40%) | 380.0s | nova-helper | fallback | ✅ | ❌ 3 | ✅ | ❌ empty | ❌ 120 | ReAct fallback working |
-| 6 | `functiongemma:270m` | 2/5 (40%) | 213.2s | nova-helper | fallback | ✅ | ✅ | ❌ echo | ❌ 20 | ❌ refused | ReAct fallback working |
 | 6 | `dolphin3.0-qwen2.5:0.5b` | 2/5 (40%) | 105.7s | nova-helper | ReAct | ✅ | ❌ 4 | ✅ | ❌ 12 | ❌ 10 | Reasoning errors |
-| 9 | `qwen:0.5b` | 1/5 (20%) | 226.3s | nova-helper | native | ❌ text | ❌ text | ❌ 35 | ❌ 0.43 | ✅ | Explanation text instead of tools |
-| 10 | `qwen3.5:0.8b` | 0/5 (0%) | 295.3s | nova-helper | native | ❌ | ❌ | ❌ | ❌ | ❌ | ⚠️ Memory limit - needs re-test |
+| 6 | `functiongemma:270m` | 1/5 (20%) | 225.0s | nova-helper | fallback | ✅ | ❌ calc | ❌ 1024 | ❌ refused | ❌ refused | Reasoning errors, Q5 refusal |
+| 8 | `qwen:0.5b` | 1/5 (20%) | 226.3s | nova-helper | native | ❌ text | ❌ text | ❌ 35 | ❌ 0.43 | ✅ | Explanation text instead of tools |
+| 9 | `qwen3.5:0.8b` | 0/5 (0%) | 295.3s | nova-helper | native | ❌ | ❌ | ❌ | ❌ | ❌ | ⚠️ Memory limit - needs re-test |
+| 9 | **`deepseek-r1:1.5b`** | **0/5 (0%)** | 445.4s | nova-helper | native | ❌ empty | ❌ empty | ❌ empty | ❌ empty | ❌ empty | ⚠️ Empty responses in comp mode! |
+
+**Key Finding - deepseek-r1:1.5b API Mode Discrepancy:**
+- **resp mode**: 100% (5/5) ✅
+- **comp mode**: 0% (0/5) ❌ - Empty responses on all questions
+- Possible tool calling format incompatibility between OpenResponses and ChatCompletions APIs
 
 ---
 
