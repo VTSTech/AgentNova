@@ -1069,13 +1069,13 @@ def cmd_test(args: argparse.Namespace) -> int:
                     test_argv.extend(["--timeout", str(args.timeout)])
                 if getattr(args, 'warmup', False):
                     test_argv.append("--warmup")
-                if getattr(args, 'num_ctx', None):
+                if getattr(args, 'num_ctx', None) is not None:
                     test_argv.extend(["--num-ctx", str(args.num_ctx)])
-                if getattr(args, 'num_predict', None):
+                if getattr(args, 'num_predict', None) is not None:
                     test_argv.extend(["--num-predict", str(args.num_predict)])
-                if getattr(args, 'temperature', None):
+                if getattr(args, 'temperature', None) is not None:
                     test_argv.extend(["--temp", str(args.temperature)])
-                if getattr(args, 'top_p', None):
+                if getattr(args, 'top_p', None) is not None:
                     test_argv.extend(["--top-p", str(args.top_p)])
                 
                 # Override sys.argv for the test module's argparse
