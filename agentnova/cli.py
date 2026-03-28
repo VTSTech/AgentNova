@@ -265,6 +265,8 @@ def create_parser() -> argparse.ArgumentParser:
                            help="Context window size in tokens (Ollama default is 2048)")
     test_parser.add_argument("--timeout", type=int, default=None,
                            help="Request timeout in seconds (default: 120)")
+    test_parser.add_argument("--warmup", action="store_true",
+                           help="Send warmup request before testing (avoids cold start timeout)")
     test_parser.add_argument("--force-react", action="store_true", help="Force ReAct mode for tool calling")
     test_parser.add_argument("--soul", default=None, help="Path to Soul Spec package (disabled by default)")
     test_parser.add_argument("--soul-level", type=int, default=2, choices=[1, 2, 3],
@@ -1030,6 +1032,12 @@ def cmd_test(args: argparse.Namespace) -> int:
                 if getattr(args, 'soul', None):
                     test_argv.extend(["--soul", args.soul])
                     test_argv.extend(["--soul-level", str(getattr(args, 'soul_level', 2))])
+                if getattr(args, 'timeout', None):
+                    test_argv.extend(["--timeout", str(args.timeout)])
+                if getattr(args, 'warmup', False):
+                    test_argv.append("--warmup")
+                if getattr(args, 'num_ctx', None):
+                    test_argv.extend(["--num-ctx", str(args.num_ctx)])
                 
                 # Override sys.argv for the test module's argparse
                 old_argv = sys.argv

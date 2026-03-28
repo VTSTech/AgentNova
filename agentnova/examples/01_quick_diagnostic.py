@@ -34,7 +34,7 @@ import argparse
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agentnova import Agent, get_config, __version__, __status__
-from agentnova.backends import get_default_backend
+from agentnova.backends import get_backend, get_default_backend
 from agentnova.tools import make_builtin_registry
 
 
@@ -49,6 +49,12 @@ def parse_args():
     parser.add_argument("--soul", default=None, help="Path to Soul Spec package")
     parser.add_argument("--soul-level", type=int, default=2, choices=[1, 2, 3],
                        help="Soul progressive disclosure level (1=quick, 2=full, 3=deep)")
+    parser.add_argument("--timeout", type=int, default=None,
+                       help="Request timeout in seconds (default: 120)")
+    parser.add_argument("--warmup", action="store_true",
+                       help="Send warmup request before testing (avoids cold start timeout)")
+    parser.add_argument("--num-ctx", type=int, default=None,
+                       help="Context window size in tokens")
     return parser.parse_args()
 
 
@@ -168,6 +174,28 @@ After getting the result, provide the final answer as a number."""
     return results
 
 
+def run_warmup(model: str, backend, timeout: int = None) -> bool:
+    """Send a warmup request to load the model into memory."""
+    print("🔥 Warming up model...", end=" ", flush=True)
+    try:
+        # Create a minimal agent for warmup
+        agent = Agent(
+            model=model,
+            tools=None,
+            backend=backend,
+            max_steps=1,
+            debug=False,
+        )
+        t0 = time.time()
+        result = agent.run("Say 'ok'")
+        elapsed = time.time() - t0
+        print(f"✅ ({elapsed:.1f}s)")
+        return True
+    except Exception as e:
+        print(f"❌ {e}")
+        return False
+
+
 def main():
     args = parse_args()
     config = get_config()
@@ -179,10 +207,11 @@ def main():
     # Get model
     model = args.model or config.default_model
     
-    # Get backend
+    # Get backend with timeout
     backend_name = args.backend or config.backend
     api_mode = getattr(args, 'api_mode', 'resp')
-    backend = get_default_backend(backend_name, api_mode=api_mode)
+    timeout = getattr(args, 'timeout', None)
+    backend = get_backend(backend_name, timeout=timeout, api_mode=api_mode)
     
     # Check if running
     if not backend.is_running():
@@ -190,6 +219,43 @@ def main():
         if backend_name == "ollama":
             print("   Start with: ollama serve")
             print("   Or set OLLAMA_BASE_URL to your remote server")
+        return {"passed": 0, "total": 1, "time": 0, "exit_code": 1}
+    
+    # Convert 0.3.3 to R03.3 format for display
+    parts = __version__.split('.')
+    display_version = f"R{int(parts[1]):02d}.{parts[2]}" if len(parts) >= 2 else __version__
+    
+    print(f"\n⚛️ AgentNova {display_version} [{__status__}] Quick Diagnostic (5 questions)")
+    print(f"   Backend: {backend_name} ({backend.base_url})")
+    print(f"   Model: {model}")
+    api_mode_display = {
+        'resp': '[OpenAI] OpenResponses (2025)',
+        'comp': '[OpenAI] ChatCompletions (2023)'
+    }.get(api_mode, api_mode)
+    print(f"   API Mode: {api_mode_display}")
+    if timeout:
+        print(f"   Timeout: {timeout}s")
+    if args.force_react:
+        print(f"   Force ReAct: True")
+    if args.soul:
+        print(f"   Soul: {args.soul}")
+    num_ctx = getattr(args, 'num_ctx', None) or config.num_ctx
+    if num_ctx:
+        ctx_display = f"{num_ctx // 1024}K" if num_ctx >= 1024 else str(num_ctx)
+        print(f"   Context: {ctx_display}")
+    
+    # Warmup if requested
+    if getattr(args, 'warmup', False):
+        if not run_warmup(model, backend, timeout):
+            print("Warning: Warmup failed, continuing anyway...")
+    
+    result = run_diagnostic(model, backend, debug=args.debug, force_react=args.force_react,
+                           soul=args.soul, soul_level=args.soul_level, timeout=timeout,
+                           num_ctx=num_ctx)
+    
+    # Return granular results for test runner, exit_code for direct execution
+    result["exit_code"] = 0 if result["passed"] == result["total"] else 1
+    return result server")
         return {"passed": 0, "total": 1, "time": 0, "exit_code": 1}
     
     # Convert 0.3.3 to R03.3 format for display
