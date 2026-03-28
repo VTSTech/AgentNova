@@ -10,6 +10,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 Major refactoring to eliminate code duplication and reduce repository size.
 
+### Added
+
+#### Model Generation Parameters CLI Support (`cli.py`, `shared_args.py`, `agent.py`)
+- **New CLI arguments for all commands** (run, chat, agent, test):
+  - `--temperature` - Sampling temperature 0.0-2.0 (default: model-specific)
+  - `--top-p` - Nucleus sampling probability 0.0-1.0 (default: model-specific)
+  - `--num-predict` - Maximum tokens to generate (default: model-specific)
+- **Environment variable support**:
+  - `AGENTNOVA_TEMPERATURE` - Set default temperature
+  - `AGENTNOVA_TOP_P` - Set default top_p
+- **Agent class parameters**:
+  - `temperature` - Override model default temperature
+  - `top_p` - Override model default top_p
+  - `num_predict` - Override model default max_tokens
+- **Enhanced DEBUG output**:
+  - Now shows all model parameters: `temp=0.6, top_p=0.9, max_tokens=8192, num_ctx=4096`
+  - Also shows `think=False` for thinking models (qwen3, deepseek-r1)
+
 ### Changed
 
 #### Color Functions Consolidated into Shared Module (`colors.py`)
@@ -34,6 +52,21 @@ Major refactoring to eliminate code duplication and reduce repository size.
   - Enhanced `AgentCard` with `priority`, `timeout`, `fallback` fields
 - **Deleted `orchestrator_enhanced.py`** - No longer needed, all features merged
 
+### Fixed
+
+#### Tool Support Cache Not Persisting (`cli.py`)
+- **Fixed `NameError` in `cmd_models()`** - The function was calling `_save_tool_cache(cache)` which doesn't exist
+- **Removed redundant cache variables** - `cache_tool_support()` already handles saving internally
+- **Cleaned up imports** - Removed unused `load_tool_cache` and `save_tool_cache` from CLI imports
+
+#### Test Command Timeout Not Applied (`cli.py`, `examples/01_quick_diagnostic.py`)
+- **Fixed `--timeout` not being passed to test modules** - CLI now passes `--timeout` via argv to test modules
+- **Test modules now use `get_backend(timeout=...)`** - Examples create backend with the specified timeout
+- **Added `--warmup` flag** - Sends a simple request before testing to load model into memory
+  - Avoids cold start timeout on first question
+  - Usage: `agentnova test 01 --warmup --timeout 300`
+- **Updated quick diagnostic example** to accept `--timeout`, `--warmup`, `--num-ctx` arguments
+
 ### Removed
 
 #### Audit Directory Cleanup
@@ -43,6 +76,32 @@ Major refactoring to eliminate code duplication and reduce repository size.
   - Repository size reduced significantly
 
 ### Migration Guide
+
+**Model Generation Parameters** - New CLI arguments and Agent parameters:
+```bash
+# CLI usage with generation parameters
+agentnova run "What is 15 + 27?" --temperature 0.3 --top-p 0.95 --num-predict 512
+agentnova chat --temperature 0.7 --num-ctx 8192
+
+# Environment variables
+export AGENTNOVA_TEMPERATURE=0.5
+export AGENTNOVA_TOP_P=0.9
+agentnova run "Hello"
+```
+
+```python
+# Python API usage
+from agentnova import Agent
+
+agent = Agent(
+    model="qwen2.5:0.5b",
+    tools=["calculator"],
+    temperature=0.3,      # Lower = more deterministic
+    top_p=0.95,           # Nucleus sampling
+    num_predict=512,      # Max tokens to generate
+    num_ctx=8192,         # Context window size
+)
+```
 
 **Color Functions** - No changes needed for external usage:
 ```python
@@ -89,13 +148,23 @@ print(f"Total time: {result.total_ms:.0f}ms")
 | Action | File | Lines Changed |
 |--------|------|---------------|
 | Created | `agentnova/colors.py` | +160 |
-| Updated | `agentnova/cli.py` | -140 |
+| Updated | `agentnova/cli.py` | -100 |
+| Updated | `agentnova/agent.py` | +30 |
+| Updated | `agentnova/shared_args.py` | +25 |
 | Updated | `agentnova/agent_mode.py` | -20 |
 | Merged | `agentnova/orchestrator.py` | +400 |
 | Deleted | `agentnova/orchestrator_enhanced.py` | -394 |
 | Deleted | `audit/` (40 PNG files) | - |
 
 ### Technical Details
+
+**Model Parameters Debug Output**:
+```
+[Step 1]
+  [DEBUG] Sending 2 messages
+  [DEBUG] Tools: ['calculator']
+  [DEBUG] Model params: temp=0.6, top_p=0.9, max_tokens=8192, num_ctx=4096
+```
 
 **Consolidated Color Module Structure**:
 ```python
