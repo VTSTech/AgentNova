@@ -271,8 +271,8 @@ def create_parser() -> argparse.ArgumentParser:
     test_parser.add_argument("-m", "--model", default=None, 
                              help="Model to test (supports patterns: 'qwen', 'g', ':0.5b')")
     test_parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None, help="Backend to use")
-    test_parser.add_argument("--api", choices=["resp", "comp"], default="resp", dest="api_mode",
-                           help="API mode: 'resp' (OpenResponses/native) or 'comp' (Chat-Completions)")
+    test_parser.add_argument("--api", choices=["openre", "openai"], default="openre", dest="api_mode",
+                           help="API mode: 'openre' (OpenResponses) or 'openai' (Chat-Completions)")
     test_parser.add_argument("--debug", action="store_true", help="Enable debug output")
     test_parser.add_argument("--list", action="store_true", help="List available tests")
     test_parser.add_argument("--acp", action="store_true", help="Enable ACP logging to Agent Control Panel")
@@ -364,7 +364,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     config = get_config()
     model = args.model or config.default_model
     backend_name = args.backend or config.backend
-    api_mode = getattr(args, 'api_mode', 'resp')
+    api_mode = getattr(args, 'api_mode', 'openre')
 
     # Initialize ACP if requested
     acp, should_stop = _init_acp(args, config, "AgentNova-Run")
@@ -418,7 +418,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
     config = get_config()
     model = args.model or config.default_model
     backend_name = args.backend or config.backend
-    api_mode = getattr(args, 'api_mode', 'resp')
+    api_mode = getattr(args, 'api_mode', 'openre')
 
     # Initialize ACP if requested
     acp, should_stop = _init_acp(args, config, "AgentNova-Chat")
@@ -516,7 +516,7 @@ def cmd_agent(args: argparse.Namespace) -> int:
     config = get_config()
     model = args.model or config.default_model
     backend_name = args.backend or config.backend
-    api_mode = getattr(args, 'api_mode', 'resp')
+    api_mode = getattr(args, 'api_mode', 'openre')
 
     # Initialize ACP if requested
     acp, should_stop = _init_acp(args, config, "AgentNova-Agent")
@@ -954,7 +954,7 @@ def cmd_test(args: argparse.Namespace) -> int:
     # Check backend
     config = get_config()
     backend_name = args.backend or config.backend
-    api_mode = getattr(args, 'api_mode', 'resp')
+    api_mode = getattr(args, 'api_mode', 'openre')
     timeout = getattr(args, 'timeout', None)
     backend = get_backend(backend_name, timeout=timeout, api_mode=api_mode)
     
