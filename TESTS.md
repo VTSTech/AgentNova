@@ -59,9 +59,9 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 |:----:|-------|------:|-----:|:----:|:---------:|:--:|:--:|:--:|:--:|:--:|-------|
 | 🥇 | **`granite4:350m`** | **5/5 (100%)** | 183.0s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Native tool calling! |
 | 🥇 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 141.7s | nova-helper | native | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Perfect score! |
+| 🥇 | **`qwen2.5-coder:0.5b`** | **5/5 (100%)** | 182.7s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Coder model 100% in comp mode! |
 | 🥉 | `granite3.1-moe:1b` | **4/5 (80%)** | 220.2s | nova-helper | **native** | ✅ | ❌ 53 | ✅ | ✅ | ✅ | Q2 reasoning error, MoE model |
 | 🥉 | `gemma3:270m` | **4/5 (80%)** | 424.7s | nova-helper | native | ✅ | ✅ | ✅ | ✅ | ❌ 1024 | Q5 reasoning error, improved! |
-| 🥉 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | 4/5 (80%) | 135.5s | nova-helper | native | ❌ 69 | ✅ | ✅ | ✅ | ✅ | Q1 hallucination |
 | 4 | `qwen3:0.6b` | 3/5 (60%) | 476.9s | nova-helper | native | ❌ timeout | ❌ timeout | ✅ | ✅ | ✅ | Q1/Q2 timeouts |
 | 4 | `qwen2:0.5b` | 3/5 (60%) | 127.7s | nova-helper | native | ✅ | ✅ | ✅ | ❌ code | ❌ code | Wrote Python instead |
 | 6 | `nchapman/dolphin3.0-qwen2.5:0.5b` | 2/5 (40%) | 282.8s | nova-helper | native | ❌ empty | ❌ empty | ❌ empty | ✅ | ✅ | Q1-Q3 empty responses |
