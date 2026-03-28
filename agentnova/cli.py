@@ -788,23 +788,13 @@ def cmd_models(args: argparse.Namespace) -> int:
         runtime_ctx = backend.get_model_runtime_context(name)
         max_ctx = backend.get_model_max_context(name, family=family)
         
-        # Format context size
-        def format_ctx(n):
-            if n >= 1000000:
-                return f"{n // 1000}K"
-            elif n >= 1000:
-                return f"{n // 1000}K"
-            return str(n)
-        
-        if runtime_ctx == max_ctx:
-            ctx_str = format_ctx(runtime_ctx)
-        else:
-            ctx_str = f"{format_ctx(runtime_ctx)}/{format_ctx(max_ctx)}"
+        # Format context size — show max context as plain int
+        ctx_str = str(max_ctx)
         
         # Fixed columns
         name_col = pad_colored(cyan(name), NAME_W)
         size_col = f"{size_gb:>6.2f} GB"
-        ctx_col = pad_colored(yellow(ctx_str) if runtime_ctx == 2048 else dim(ctx_str), CTX_W, 'right')
+        ctx_col = pad_colored(dim(ctx_str), CTX_W, 'right')
 
         if isinstance(backend, OllamaBackend):
             results = {}  # mode -> status string
@@ -838,11 +828,10 @@ def cmd_models(args: argparse.Namespace) -> int:
 
                 # Log per-model test result to ACP
                 if acp:
-                    acp.log_shell(
-                        f"agentnova models --tool-support {name}",
-                        status="completed" if "error" not in results.values() else "error",
-                        output_preview=f"{name} ({family}): openre={results.get('openre','?')} openai={results.get('openai','?')} | {size_gb:.2f} GB | ctx {max_ctx}",
-                    )
+                    re_status = results.get('openre', '?')
+                    ai_status = results.get('openai', '?')
+                    acp.log_chat("user", f"[{name}] Testing tool support...")
+                    acp.log_chat("assistant", f"[{name}] ({family}) openre={re_status} openai={ai_status} | {size_gb:.2f} GB | ctx {max_ctx}")
             else:
                 # Read from cache for both display modes
                 for mode in modes_display:
@@ -864,7 +853,7 @@ def cmd_models(args: argparse.Namespace) -> int:
     
     # Show legend
     print(f"\n{dim('Legend:')} {bright_green('✓ native')} (API tools) | {yellow('○ react')} (text parsing) | {red('✗ none')} (no tools) | {dim('? untested')}")
-    print(f"{dim('Context:')} {yellow('2K/32K')} = runtime/max (Ollama defaults to 2K unless num_ctx is set)")
+    print(f"{dim('Context:')} Max context window from model API")
     print(f"{dim('Tool support columns show openre (OpenResponses) and openai (Chat-Completions) results.')}")
     print(f"{dim('Use')} {cyan('--tool-support')} {dim('to test both API modes.')} {cyan('--tool-support --api openai')} {dim('to test only Chat-Completions.')}")
 
