@@ -802,9 +802,7 @@ def cmd_models(args: argparse.Namespace) -> int:
     print(dim("-" * (4 + NAME_W + SIZE_W + CTX_W + TOOLS_W + FAMILY_W + 8)))
     print(f"Total: {bright_green(str(len(models)))} models")
     
-    # Save cache if updated
-    if cache_updated:
-        _save_tool_cache(cache)
+    # Note: cache_tool_support() already saves each entry, so no need to save again here
     
     # Show legend
     print(f"\n{dim('Legend:')} {bright_green('✓ native')} (API tools) | {yellow('○ react')} (text parsing) | {red('✗ none')} (no tools) | {dim('? untested')}")
