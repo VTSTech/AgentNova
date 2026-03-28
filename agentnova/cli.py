@@ -258,6 +258,8 @@ def create_parser() -> argparse.ArgumentParser:
     # Models command
     models_parser = subparsers.add_parser("models", help="List available models")
     models_parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None, help="Backend to use")
+    models_parser.add_argument("--api", choices=["openre", "openai"], default="openre", dest="api_mode",
+                           help="API mode for tool support testing (default: openre)")
     models_parser.add_argument("--tool-support", action="store_true", help="Force re-test tool calling support")
     models_parser.add_argument("--no-cache", action="store_true", help="Ignore cached tool support results")
 
@@ -711,8 +713,9 @@ def cmd_models(args: argparse.Namespace) -> int:
     
     config = get_config()
     backend_name = args.backend or config.backend
+    api_mode = getattr(args, 'api_mode', 'openre')
 
-    backend = get_backend(backend_name)
+    backend = get_backend(backend_name, api_mode=api_mode)
 
     if not isinstance(backend, OllamaBackend):
         print(f"Models command works best with Ollama backend (current: {backend_name})")
@@ -741,7 +744,7 @@ def cmd_models(args: argparse.Namespace) -> int:
     
     print()
     print(f"{bright_cyan('⚛ AgentNova')} - Available Models")
-    print(dim(f"  Backend: {backend.base_url}"))
+    print(dim(f"  Backend: {backend.base_url}  API: {api_mode}"))
     print(dim("-" * (4 + NAME_W + SIZE_W + CTX_W + TOOLS_W + FAMILY_W + 8)))
     print(f"  {'Name':<{NAME_W}} {'Size':>{SIZE_W}}  {'Context':>{CTX_W}}  {'Tools':>{TOOLS_W}}  {'Family':<{FAMILY_W}}")
     print(dim("-" * (4 + NAME_W + SIZE_W + CTX_W + TOOLS_W + FAMILY_W + 8)))
@@ -776,18 +779,18 @@ def cmd_models(args: argparse.Namespace) -> int:
         
         # Get tool support level (from cache or test)
         if isinstance(backend, OllamaBackend):
-            cached_support = get_cached_tool_support(name) if not args.no_cache else None
+            cached_support = get_cached_tool_support(name, api_mode=api_mode) if not args.no_cache else None
             
             if args.tool_support:
                 # Force test: actually call the model to test tool support
-                print(f"  {dim('Testing:')} {cyan(name)}...", end="", flush=True)
+                print(f"  {dim('Testing:')} {cyan(name)} [{dim(api_mode)}]...", end="", flush=True)
                 try:
                     support = backend.test_tool_support(name, family=family, force_test=True)
-                    cache_tool_support(name, support, family=family)
+                    cache_tool_support(name, support, family=family, api_mode=api_mode)
                     status = support.value
                 except Exception as e:
                     # If test fails, still cache as error to avoid re-testing
-                    cache_tool_support(name, ToolSupportLevel.NONE, family=family, error=str(e)[:100])
+                    cache_tool_support(name, ToolSupportLevel.NONE, family=family, error=str(e)[:100], api_mode=api_mode)
                     status = "error"
                 
                 # Overwrite the "Testing..." line
@@ -840,6 +843,7 @@ def cmd_models(args: argparse.Namespace) -> int:
     print(f"\n{dim('Legend:')} {bright_green('✓ native')} (API tools) | {yellow('○ react')} (text parsing) | {red('✗ none')} (no tools) | {dim('? untested')}")
     print(f"{dim('Context:')} {yellow('2K/32K')} = runtime/max (Ollama defaults to 2K unless num_ctx is set)")
     print(f"{dim('Tool support depends on model template, not family. Use')} {cyan('--tool-support')} {dim('to test each model.')}")
+    print(f"{dim('API mode:')} {cyan(f'--api {api_mode}')} {dim('(use --api openai to test Chat-Completions tool support)')}")
 
     return 0
 

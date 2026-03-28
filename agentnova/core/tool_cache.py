@@ -117,28 +117,54 @@ def save_tool_cache(cache: dict) -> None:
         print(f"[ToolCache] Warning: Could not save tool cache: {e}", file=__import__('sys').stderr)
 
 
-def get_cached_tool_support(model: str) -> Optional[ToolSupportLevel]:
+def _cache_key(model: str, api_mode: str = "openre") -> str:
+    """
+    Build a cache key that namespaces by API mode.
+
+    Different API modes (openre vs openai) can produce different tool
+    support results for the same model, so the cache key must include
+    the API mode.  The default "openre" is omitted for backward
+    compatibility with existing cache entries.
+    """
+    if api_mode and api_mode != "openre":
+        return f"{model}:{api_mode}"
+    return model
+
+
+def get_cached_tool_support(model: str, api_mode: str = "openre") -> Optional[ToolSupportLevel]:
     """
     Get cached tool support level for a model.
     
     Args:
         model: Model name (e.g., "qwen2.5:0.5b")
+        api_mode: API mode used during testing (default: "openre")
     
     Returns:
         ToolSupportLevel if cached, None if not in cache
     """
     cache = load_tool_cache()
-    cached = cache.get(model)
+    key = _cache_key(model, api_mode)
+    cached = cache.get(key)
     if cached:
         support_str = cached.get("support", "")
         try:
             return ToolSupportLevel(support_str)
         except ValueError:
             pass
+    # Fallback: check legacy key without API mode suffix
+    # (supports caches written before this change)
+    if key != model:
+        cached = cache.get(model)
+        if cached:
+            support_str = cached.get("support", "")
+            try:
+                return ToolSupportLevel(support_str)
+            except ValueError:
+                pass
     return None
 
 
-def cache_tool_support(model: str, support: ToolSupportLevel, family: str = "", error: str = "") -> None:
+def cache_tool_support(model: str, support: ToolSupportLevel, family: str = "", error: str = "", api_mode: str = "openre") -> None:
     """
     Cache tool support result for a model.
     
@@ -147,15 +173,19 @@ def cache_tool_support(model: str, support: ToolSupportLevel, family: str = "", 
         support: Detected tool support level
         family: Model family (for reference)
         error: Error message if detection failed
+        api_mode: API mode used during testing (default: "openre")
     """
     cache = load_tool_cache()
-    cache[model] = {
+    key = _cache_key(model, api_mode)
+    cache[key] = {
         "support": support.value,
         "tested_at": time.time(),
         "family": family,
     }
+    if api_mode:
+        cache[key]["api_mode"] = api_mode
     if error:
-        cache[model]["error"] = error[:100]
+        cache[key]["error"] = error[:100]
     save_tool_cache(cache)
 
 
@@ -175,15 +205,20 @@ def list_cached_models() -> list[str]:
     return list(cache.keys())
 
 
-def get_cache_age(model: str) -> Optional[float]:
+def get_cache_age(model: str, api_mode: str = "openre") -> Optional[float]:
     """
     Get age of cached result in seconds.
+    
+    Args:
+        model: Model name
+        api_mode: API mode used during testing (default: "openre")
     
     Returns:
         Age in seconds, or None if not cached
     """
     cache = load_tool_cache()
-    cached = cache.get(model)
+    key = _cache_key(model, api_mode)
+    cached = cache.get(key)
     if cached and "tested_at" in cached:
         return time.time() - cached["tested_at"]
     return None
