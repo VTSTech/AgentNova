@@ -205,10 +205,15 @@ class SoulManifest:
     examples_bad_content: Optional[str] = None   # Bad calibration examples
     avatar_path: Optional[str] = None            # Resolved path to avatar file
     
-    def validate(self) -> list[str]:
+    def validate(self, soul_dir: Optional["Path"] = None) -> list[str]:
         """
         Validate the manifest and return list of issues.
         Empty list means valid.
+        
+        Parameters
+        ----------
+        soul_dir : Optional[Path]
+            Path to soul directory for file existence validation (avatar, etc.)
         """
         issues = []
         
@@ -251,6 +256,13 @@ class SoulManifest:
                     content_lower = self.soul_content.lower()
                     if "full-contact" not in content_lower and "physical interaction" not in content_lower:
                         issues.append("Full-contact policy requires justification in SOUL.md (mention 'full-contact' or 'physical interaction')")
+        
+        # Check avatar file exists if specified
+        if self.files.avatar and soul_dir:
+            from pathlib import Path
+            avatar_path = Path(soul_dir) / self.files.avatar
+            if not avatar_path.exists():
+                issues.append(f"Avatar file not found: {self.files.avatar}")
         
         return issues
     
