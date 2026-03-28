@@ -176,6 +176,101 @@ class Skill:
                 "alphanumeric with hyphens, no leading/trailing/consecutive hyphens"
             )
     
+    def _validate_description(self):
+        """Validate the description field follows Agent Skills spec.
+        
+        Spec requirement: 1-1024 characters describing what the skill does.
+        """
+        if not self.description:
+            raise ValueError("Skill description is required")
+        if len(self.description) > 1024:
+            raise ValueError(
+                f"Skill description too long: {len(self.description)} chars (max 1024)"
+            )
+    
+    def _validate_license(self):
+        """Validate and cache the license field.
+        
+        Validates against SPDX identifiers but does not fail on unknown licenses.
+        """
+        if self.license:
+            is_valid, msg = validate_spdx_license(self.license)
+            self._license_valid = is_valid
+            self._license_warning = "" if is_valid else msg
+        else:
+            self._license_valid = True  # No license is acceptable
+            self._license_warning = ""
+    
+    def _parse_compatibility(self):
+        """Parse and cache the compatibility field."""
+        if self.compatibility:
+            self._compatibility_parsed = parse_compatibility(self.compatibility)
+        else:
+            self._compatibility_parsed = {
+                "python": None,
+                "runtimes": [],
+                "frameworks": [],
+                "raw": ""
+            }
+    
+    @property
+    def license_valid(self) -> bool:
+        """Check if the license is a valid SPDX identifier."""
+        return self._license_valid
+    
+    @property
+    def license_warning(self) -> str:
+        """Get the license validation warning (empty if valid)."""
+        return self._license_warning
+    
+    @property
+    def compatibility_info(self) -> Dict[str, Any]:
+        """Get parsed compatibility requirements."""
+        return self._compatibility_parsed
+    
+    def check_compatibility(
+        self,
+        runtime: str | None = None,
+        python_version: str | None = None,
+    ) -> tuple[bool, List[str]]:
+        """
+        Check if the skill is compatible with the given environment.
+        
+        Args:
+            runtime: Runtime name (e.g., "ollama", "openai")
+            python_version: Python version string (e.g., "3.10")
+            
+        Returns:
+            Tuple of (is_compatible, warnings_list)
+        """
+        warnings = []
+        
+        # Check Python version
+        py_req = self._compatibility_parsed.get("python")
+        if py_req and python_version:
+            min_ver = py_req.get("min_version", "0")
+            op = py_req.get("operator", ">=")
+            try:
+                from packaging import version
+                py_ver = version.parse(python_version)
+                req_ver = version.parse(min_ver)
+                if op == ">=" and py_ver < req_ver:
+                    warnings.append(f"Python {python_version} < required {min_ver}")
+                elif op == ">" and py_ver <= req_ver:
+                    warnings.append(f"Python {python_version} <= required >{min_ver}")
+            except ImportError:
+                # packaging not available, skip version check
+                pass
+        
+        # Check runtime
+        runtimes = self._compatibility_parsed.get("runtimes", [])
+        if runtimes and runtime:
+            runtime_names = [r.get("name", "").lower() for r in runtimes]
+            if runtime.lower() not in runtime_names:
+                warnings.append(f"Runtime '{runtime}' not in required: {runtime_names}")
+        
+        return len(warnings) == 0, warnings
+    
     @property
     def scripts_dir(self) -> Optional[Path]:
         """Path to scripts directory if it exists."""

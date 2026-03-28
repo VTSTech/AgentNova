@@ -301,6 +301,8 @@ class OllamaBackend(BaseBackend):
         top_logprobs: int | None = None,
         n: int | None = None,
         user: str | None = None,
+        # Tool choice control (OpenAI API spec)
+        tool_choice: str | dict | None = None,
         **kwargs,
     ) -> dict:
         """Generate a response using OpenAI Chat-Completions compatible API.
@@ -366,6 +368,11 @@ class OllamaBackend(BaseBackend):
         # Add tools in OpenAI format
         if tools:
             body["tools"] = [t.to_openai_schema() for t in tools]
+        
+        # Add tool_choice parameter (OpenAI API spec)
+        # Supports: "auto", "none", "required", or {"type": "function", "function": {"name": "..."}}
+        if tool_choice is not None:
+            body["tool_choice"] = tool_choice
 
         # Add think parameter for thinking models (qwen3, deepseek-r1)
         # Ollama's OpenAI-compatible endpoint supports this in the request body
@@ -436,6 +443,7 @@ class OllamaBackend(BaseBackend):
         message = choice.get("message", {})
         content = message.get("content", "")
         tool_calls = message.get("tool_calls", [])
+        finish_reason = choice.get("finish_reason")  # Extract for API spec completeness
 
         # Debug output
         if os.environ.get("AGENTNOVA_DEBUG"):
@@ -470,6 +478,7 @@ class OllamaBackend(BaseBackend):
         return {
             "content": content,
             "tool_calls": parsed_tool_calls,
+            "finish_reason": finish_reason,  # OpenAI API spec: "stop", "length", "tool_calls", "content_filter"
             "usage": {
                 "prompt_tokens": usage.get("prompt_tokens", 0),
                 "completion_tokens": usage.get("completion_tokens", 0),
