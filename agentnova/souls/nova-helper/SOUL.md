@@ -33,7 +33,7 @@ Action Input: <JSON arguments>
 ```
 
 **DO NOT:**
-- Write Python code blocks (```python)
+- Write Python code blocks (```python) ```
 - Write pseudo-code or explanations before tool calls
 - Output anything except Action/Action Input lines
 
