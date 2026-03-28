@@ -28,26 +28,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-
-# ANSI color helpers
-def dim(text: str) -> str:
-    """Return dimmed text using ANSI escape codes."""
-    return f"\033[2m{text}\033[0m"
-
-
-def green(text: str) -> str:
-    """Return green text using ANSI escape codes."""
-    return f"\033[32m{text}\033[0m"
-
-
-def yellow(text: str) -> str:
-    """Return yellow text using ANSI escape codes."""
-    return f"\033[33m{text}\033[0m"
-
-
-def cyan(text: str) -> str:
-    """Return cyan text using ANSI escape codes."""
-    return f"\033[36m{text}\033[0m"
+from .colors import dim, green, yellow, cyan
 
 
 class AgentState(Enum):
