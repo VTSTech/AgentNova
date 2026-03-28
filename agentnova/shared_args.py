@@ -128,9 +128,10 @@ def add_shared_args(parser: argparse.ArgumentParser) -> None:
         help="Maximum tokens to generate",
     )
     parser.add_argument(
-        "--temperature",
+        "--temp", "--temperature",
         type=float,
         default=None,
+        dest="temperature",
         metavar="TEMP",
         help="Sampling temperature 0.0-2.0 (default: model-specific)",
     )
