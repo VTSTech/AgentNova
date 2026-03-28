@@ -12,10 +12,11 @@ AgentNova is a modular agent framework designed for local LLMs with tool-calling
 ```
 agentnova/
 ├── core/
-│   ├── types.py              # Enum types (StepResultType, BackendType, ApiMode)
+│   ├── types.py              # Enum types (StepResultType, BackendType, ApiMode, ToolSupportLevel)
 │   ├── models.py             # Data models (Tool, ToolParam, StepResult, AgentRun)
 │   ├── memory.py             # Sliding window conversation memory
 │   ├── tool_parse.py         # ReAct/JSON tool call extraction (see Tool Parser section)
+│   ├── tool_cache.py         # Persistent tool support detection cache (R03.6)
 │   ├── helpers.py            # Utilities (fuzzy match, argument normalization, security)
 │   ├── model_config.py       # Model configuration (temperature, max tokens)
 │   ├── model_family_config.py # Family-specific behavior (stop tokens, formats)
@@ -169,6 +170,85 @@ Final Answer: 120
 - `action`, `Action`, `ACTION`
 - `actionInput`, `action_input`, `Action Input`
 - Fuzzy matching for hallucinated tool names
+
+### Tool Support Detection (`core/tool_cache.py`, `core/types.py`)
+
+**IMPORTANT**: Tool support is NOT determined by model family. It depends on the model's template, which can vary within the same family.
+
+**Problem with family-based assumptions**:
+```
+qwen2.5:0.5b (base)      → native tools ✓
+qwen2.5-coder:0.5b       → ReAct only ○ (same family, different template!)
+deepseek (coder)         → varies by variant
+deepseek-r1:1.5b         → ReAct only ○ (reasoning model, no native tools)
+```
+
+**Detection Flow**:
+```
+┌─────────────────────┐
+│ ToolSupportLevel    │
+│ .detect(model)      │
+└──────────┬──────────┘
+           │
+           ▼
+    ┌──────────────┐
+    │ Check Cache  │ ──→ ~/.cache/agentnova/tool_support.json
+    └──────┬───────┘
+           │
+     ┌─────┴─────┐
+     │           │
+  Cached      Not Cached
+     │           │
+     ▼           ▼
+ Return      Return UNTESTED
+ Level       (use --tool-support to test)
+```
+
+**Cache Module API**:
+```python
+from agentnova.core.tool_cache import (
+    get_cached_tool_support,    # Get cached level or None
+    cache_tool_support,          # Save detection result
+    clear_tool_cache,            # Clear cache file
+    load_tool_cache,             # Load full cache dict
+    save_tool_cache,             # Save full cache dict
+)
+from agentnova.core.types import ToolSupportLevel
+
+# Check if model has cached support level
+support = get_cached_tool_support("qwen2.5-coder:0.5b")
+# Returns: ToolSupportLevel.REACT or None if not cached
+
+# Cache a detection result
+cache_tool_support(
+    model="qwen2.5-coder:0.5b",
+    support=ToolSupportLevel.REACT,
+    family="qwen2"
+)
+
+# Clear cache
+clear_tool_cache()
+```
+
+**CLI Usage**:
+```bash
+# List models with cached tool support (or "? untested")
+agentnova models
+
+# Test and cache tool support for all models
+agentnova models --tool-support
+
+# Ignore cache
+agentnova models --tool-support --no-cache
+```
+
+**ToolSupportLevel Values**:
+| Level | Meaning | Display |
+|-------|---------|---------|
+| `NATIVE` | API returns `tool_calls` structure | ✓ native |
+| `REACT` | Model outputs JSON as text, parsed by AgentNova | ○ react |
+| `NONE` | Model explicitly rejects tools (HTTP 400) | ✗ none |
+| `UNTESTED` | Not yet tested | ? untested |
 
 ### Soul System (`soul/`)
 
@@ -734,7 +814,7 @@ agentnova agent --acp --acp-url https://tunnel.example.com
 | `run` | Run a single prompt |
 | `chat` | Interactive chat mode |
 | `agent` | Autonomous agent mode |
-| `models` | List available models |
+| `models` | List available models (with tool support status) |
 | `tools` | List available tools |
 | `test` | Run diagnostic tests |
 | `soul` | Inspect a Soul Spec package |
@@ -758,6 +838,24 @@ agentnova agent --acp --acp-url https://tunnel.example.com
 | `--acp` | run, chat, agent, test | Enable ACP logging |
 | `--acp-url` | run, chat, agent, test | ACP server URL |
 | `--debug` | run, chat, agent, test | Enable debug output |
+
+## Models Command Options
+
+| Option | Description |
+|--------|-------------|
+| `--tool-support` | Test each model's tool support and cache results |
+| `--no-cache` | Ignore cached tool support results |
+
+```bash
+# List models with cached tool support status
+agentnova models
+
+# Test tool support for all models (caches results)
+agentnova models --tool-support
+
+# Re-test ignoring cache
+agentnova models --tool-support --no-cache
+```
 
 ---
 

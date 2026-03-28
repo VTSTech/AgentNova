@@ -4,6 +4,109 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [R03.6] - 2026-03-27 11:32:25 PM
+
+### Runtime-Based Tool Support Detection
+
+Refactored tool support detection from static family-based assumptions to purely runtime-based detection. Tool support now depends on the model's template, not its family name.
+
+### Changed
+
+#### Tool Support Detection is Now Runtime-Only (`core/types.py`, `core/model_config.py`)
+- **Removed `tool_support` field from `ModelFamilyConfig`** - Family name does NOT determine tool support
+- **Why?** Same family can have different templates:
+  - `qwen2.5:0.5b` (base) → native tools ✓
+  - `qwen2.5-coder:0.5b` (coder variant) → ReAct only ○
+  - `deepseek` (coder) → varies by variant
+  - `deepseek-r1:1.5b` (reasoning) → ReAct only ○
+- **ToolSupportLevel.detect()** now checks cache first, returns `UNTESTED` if not cached
+- **Model family configs still control**: temperature, stop tokens, think directives, format preferences
+
+### Added
+
+#### Shared Tool Support Cache (`core/tool_cache.py`)
+New module for persistent caching of tool support detection results:
+- **`get_cached_tool_support(model)`** → Returns cached `ToolSupportLevel` or `None`
+- **`cache_tool_support(model, support, family, error)`** → Saves detection result
+- **`load_tool_cache()` / `save_tool_cache()`** → Low-level cache access
+- **`clear_tool_cache()`** → Clears the cache file
+- **Cache location**: `~/.cache/agentnova/tool_support.json`
+- **Atomic writes** to prevent corruption in containerized environments
+
+#### Cache CLI Integration (`cli.py`)
+- **`agentnova models`** - Shows cached tool support or "? untested"
+- **`agentnova models --tool-support`** - Tests each model and caches results
+- **`agentnova models --no-cache`** - Ignores cached results
+
+### Removed
+
+#### Duplicate Cache Functions in CLI
+- Removed `_get_cache_dir()`, `_load_tool_cache()`, `_save_tool_cache()` from `cli.py`
+- CLI now uses shared `tool_cache` module
+
+### Migration Guide
+
+**Before (incorrect assumptions)**:
+```python
+# Family config assumed tool support
+"deepseek": ModelFamilyConfig(
+    tool_support="native",  # WRONG - deepseek-r1 doesn't support native tools!
+)
+```
+
+**After (runtime detection)**:
+```python
+# Check cache or test at runtime
+from agentnova.core.tool_cache import get_cached_tool_support, cache_tool_support
+from agentnova.core.types import ToolSupportLevel
+
+# Check cache
+support = get_cached_tool_support("deepseek-r1:1.5b")
+if support is None:
+    # Not cached - will show as "untested"
+    support = ToolSupportLevel.UNTESTED
+```
+
+**CLI Usage**:
+```bash
+# List models (shows cached or "? untested")
+agentnova models
+
+# Test and cache tool support for all models
+agentnova models --tool-support
+
+# Clear cache if needed
+python -c "from agentnova.core.tool_cache import clear_tool_cache; clear_tool_cache()"
+```
+
+### Technical Details
+
+**Detection Flow**:
+```
+1. Check cache → if cached, return cached level
+2. If not cached → return UNTESTED
+3. Use --tool-support flag to test and cache
+4. Backend tests via test_tool_support(force_test=True)
+```
+
+**Cache File Format** (`~/.cache/agentnova/tool_support.json`):
+```json
+{
+  "qwen2.5:0.5b": {
+    "support": "native",
+    "tested_at": 1711612800.0,
+    "family": "qwen2"
+  },
+  "qwen2.5-coder:0.5b": {
+    "support": "react",
+    "tested_at": 1711612801.0,
+    "family": "qwen2"
+  }
+}
+```
+
+---
+
 ## [R03.5] - 2026-03-27 9:27:07 PM
 
 ### 100% Spec Compliance Achieved
@@ -60,7 +163,7 @@ All remaining specification compliance gaps have been resolved. Overall complian
   
 ### Compliance Summary
 
-| Specification | R03.4 Score | R03.5 Score | Improvement |
+| Specification | R03.5 Score | R03.6 Score | Improvement |
 |---------------|-------------|-------------|-------------|
 | OpenResponses API | 100% | 100% | - |
 | Chat Completions API | 99% | **100%** | +1% |
@@ -2331,7 +2434,3 @@ Early development iterations building the core framework.
 - **R0, R1, R2...** - Development iterations
 - **R00, R01, R02...** - Tagged releases
 - Each tagged release includes all changes from development iterations since the previous release
-
----
-
-For main branch changelog, see: https://github.com/VTSTech/AgentNova/blob/main/CHANGELOG.md
