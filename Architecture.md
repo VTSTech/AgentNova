@@ -2,7 +2,9 @@
 
 AgentNova is a modular agent framework designed for local LLMs with tool-calling capabilities. It implements the OpenResponses specification for multi-provider, interoperable LLM interfaces.
 
-**Specification Compliance**: 100% (R03.5) ✅
+**Specification Compliance**: 100% (R03.5+) ✅
+
+**Version**: R03.7
 - OpenResponses API: 100%
 - Chat Completions API: 100%
 - Soul Spec v0.5: 100%
@@ -12,7 +14,7 @@ AgentNova is a modular agent framework designed for local LLMs with tool-calling
 ```
 agentnova/
 ├── core/
-│   ├── types.py              # Enum types (StepResultType, BackendType, ApiMode, ToolSupportLevel)
+│   ├── types.py              # Enum types (StepResultType, BackendType, ApiMode.OPENRE/OPENAI, ToolSupportLevel)
 │   ├── models.py             # Data models (Tool, ToolParam, StepResult, AgentRun)
 │   ├── memory.py             # Sliding window conversation memory
 │   ├── tool_parse.py         # ReAct/JSON tool call extraction (see Tool Parser section)
@@ -29,7 +31,7 @@ agentnova/
 │
 ├── backends/
 │   ├── base.py               # Abstract BaseBackend class
-│   ├── ollama.py             # Ollama backend (dual API: OpenResponses + Chat-Completions)
+│   ├── ollama.py             # Ollama backend (dual API: openre + openai)
 │   └── bitnet.py             # BitNet backend
 │
 ├── skills/
@@ -613,18 +615,18 @@ AgentNova supports both OpenResponses and OpenAI Chat-Completions API endpoints 
 
 | Mode | Flag | Endpoint | Description |
 |------|------|----------|-------------|
-| **OpenResponses** | `--api resp` | `/api/chat` | Ollama native API (default) |
-| **Chat-Completions** | `--api comp` | `/v1/chat/completions` | OpenAI-compatible API |
+| **OpenResponses** | `--api openre` | `/api/chat` | OpenResponses API (default) |
+| **OpenAI** | `--api openai` | `/v1/chat/completions` | OpenAI Chat-Completions API |
 
 ### When to Use Each Mode
 
-**OpenResponses (`--api resp`)**:
+**OpenResponses (`--api openre`)**:
 - Default mode for Ollama-native deployments
 - Full OpenResponses specification compliance
 - Detailed item tracking with `[OpenResponses]` debug output
 - Recommended for AgentNova-specific applications
 
-**Chat-Completions (`--api comp`)**:
+**OpenAI Chat-Completions (`--api openai`)**:
 - OpenAI-compatible endpoint for cross-platform tools
 - Cleaner debug output without OpenResponses internals
 - Useful when integrating with OpenAI-compatible clients
@@ -643,7 +645,7 @@ AgentNova supports both OpenResponses and OpenAI Chat-Completions API endpoints 
 
 **Chat-Completions mode** shows API transport only:
 ```
-[Ollama] Dispatching to OpenAI-compatible API (mode=comp)
+[Ollama] Dispatching to OpenAI-compatible API (mode=openai)
 [OpenAI-Comp] Request: tools=0
 [OpenAI-Comp] Content: Action: calculator...
 [OpenAI-Comp] Tool calls: []
@@ -655,11 +657,11 @@ AgentNova supports both OpenResponses and OpenAI Chat-Completions API endpoints 
 # Default: OpenResponses API
 agentnova chat -m qwen2.5:0.5b
 
-# Chat-Completions API
-agentnova chat -m qwen2.5:0.5b --api comp
+# OpenAI Chat-Completions API
+agentnova chat -m qwen2.5:0.5b --api openai
 
 # With debug output
-agentnova test 01 --api comp --debug
+agentnova test 01 --api openai --debug
 ```
 
 ### Implementation Details
@@ -671,10 +673,10 @@ from agentnova.backends import get_backend
 from agentnova.core.types import ApiMode
 
 # OpenResponses mode (default)
-backend = get_backend("ollama", api_mode=ApiMode.RESPONSES)
+backend = get_backend("ollama", api_mode=ApiMode.OPENRE)
 
-# Chat-Completions mode
-backend = get_backend("ollama", api_mode=ApiMode.COMPLETIONS)
+# OpenAI Chat-Completions mode
+backend = get_backend("ollama", api_mode=ApiMode.OPENAI)
 ```
 
 Both modes use ReAct prompting - tool definitions are not passed to the API. The model outputs tool calls in text format, which are parsed by the Tool Parser.
@@ -687,7 +689,7 @@ The Chat-Completions mode supports SSE (Server-Sent Events) streaming for real-t
 from agentnova.backends import get_backend
 from agentnova.core.types import ApiMode
 
-backend = get_backend("ollama", api_mode=ApiMode.COMPLETIONS)
+backend = get_backend("ollama", api_mode=ApiMode.OPENAI)
 
 # Stream response chunks
 for chunk in backend.generate_completions_stream(
@@ -909,7 +911,7 @@ agentnova agent --acp --acp-url https://tunnel.example.com
 | `-m, --model` | run, chat, agent, test | Model to use |
 | `--tools` | run, chat, agent | Comma-separated tool list |
 | `--backend` | all | Backend (ollama, bitnet) |
-| `--api` | run, chat, agent, test | API mode: `resp` (OpenResponses) or `comp` (Chat-Completions) |
+| `--api` | run, chat, agent, test | API mode: `openre` (OpenResponses) or `openai` (OpenAI Chat-Completions) |
 | `--response-format` | run, chat, agent | Response format: `text` or `json` (Chat-Completions mode) |
 | `--truncation` | run, chat, agent | Truncation behavior: `auto` or `disabled` |
 | `--soul` | run, chat, agent | Path to Soul Spec package |

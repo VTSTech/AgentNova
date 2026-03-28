@@ -4,6 +4,190 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [R03.7] - 2026-03-28 11:57:44 AM
+
+### API Mode Naming Cleanup
+
+Renamed API mode values and enum members for clarity and consistency. The `resp`/`comp` shorthand values have been replaced with more descriptive `openre`/`openai` values that clearly indicate which API specification each mode targets.
+
+### Changed
+
+#### ApiMode Enum Renamed (`core/types.py`)
+- **`ApiMode.RESPONSES` → `ApiMode.OPENRE`** — Value changed from `"resp"` to `"openre"`
+  - Now clearly indicates this is the OpenResponses API specification
+  - Comment updated: "OpenResponses API (open spec for agentic workflows)"
+- **`ApiMode.COMPLETIONS` → `ApiMode.OPENAI`** — Value changed from `"comp"` to `"openai"`
+  - Now clearly indicates this is the OpenAI Chat-Completions API specification
+  - Comment updated: "OpenAI Chat-Completions API"
+
+#### CLI `--api` Flag Values Renamed (`cli.py`)
+- **`--api resp` → `--api openre`** — Default remains the same (OpenResponses)
+- **`--api comp` → `--api openai`** — OpenAI Chat-Completions API
+- Updated across all commands: `run`, `chat`, `agent`, `test`
+- Help text updated: `'openre' (OpenResponses) or 'openai' (Chat-Completions)`
+
+#### All Examples Updated (`examples/00-11`)
+- **12 example files updated** with new `--api` choice values
+- All `choices=["resp", "comp"]` → `choices=["openre", "openai"]`
+- All `default="resp"` → `default="openre"`
+- All fallback defaults `getattr(args, 'api_mode', 'resp')` → `getattr(args, 'api_mode', 'openre')`
+- API mode display conditionals updated: `if api_mode != 'resp'` → `if api_mode != 'openre'`
+
+#### API Mode Display in Test 01 (`examples/01_quick_diagnostic.py`)
+- Updated API mode display labels:
+  - `'resp'` → `[OpenResponses]` (was `[OpenAI] OpenResponses (2025)`)
+  - `'comp'` → `[OpenAI] ChatCompletions` (was `[OpenAI] ChatCompletions (2023)`)
+- Cleaner labeling without version years
+
+#### Ollama Backend Default API Mode (`backends/ollama.py`)
+- Default `api_mode` changed from `ApiMode.RESPONSES` to `ApiMode.OPENRE`
+- Comment updated: "openre = OpenResponses, openai = Chat-Completions"
+
+#### Agent Comp Mode Check (`agent.py`)
+- Updated `_is_comp_mode` property: `ApiMode.COMPLETIONS` → `ApiMode.OPENAI`
+
+### Added
+
+#### `get_default_backend()` Timeout Parameter (`backends/__init__.py`)
+- **`timeout` parameter** added to `get_default_backend()`
+  - Previously, `get_default_backend()` accepted `name` and `api_mode` but silently dropped `timeout`
+  - Now properly forwards `timeout` to `get_backend()`, which creates a `BackendConfig(timeout=timeout)`
+  - This fixes the issue where `--timeout 9999` was parsed but had no effect when examples used `get_default_backend()`
+
+```python
+# Before (timeout silently ignored):
+backend = get_default_backend(backend_name, api_mode=api_mode)
+
+# After (timeout properly forwarded):
+backend = get_default_backend(backend_name, api_mode=api_mode, timeout=timeout)
+```
+
+#### `--timeout` Argument in All Examples (`examples/00, 03-11`)
+- Added `--timeout` argparse argument to all 10 example files that were missing it
+- All examples now consistently accept and forward `--timeout` to the backend
+- Previously only examples 01 and 02 had `--timeout` support
+
+#### Generation Parameters Forwarded in Tool Test Phase 2 (`examples/02_tool_test.py`)
+- **Phase 2 model tests** now accept and forward generation parameters:
+  - `force_react` — Force ReAct mode for tool calling
+  - `num_ctx` — Context window size
+  - `num_predict` — Maximum tokens to generate
+  - `temperature` — Sampling temperature
+  - `top_p` — Nucleus sampling probability
+- Applied to all 6 model test functions: `test_calculator_model`, `test_shell_model`, `test_datetime_model`, `test_file_model`, `test_python_repl_model`, `test_all_tools_model`
+- Ensures Phase 2 tests respect the same generation parameters as the CLI
+
+#### Test Phase Selection Flags (`cli.py`, `examples/02_tool_test.py`)
+- **`--tools-only` flag** — Only run Phase 1 (direct tool tests, no model required)
+  - Useful for verifying tool registry is working without a running model
+- **`--model-only` flag** — Only run Phase 2 (model tool calling tests)
+  - Useful when tools are already verified and only model behavior is needed
+- Both flags added to `agentnova test 02` command and forwarded via argv
+
+### Fixed
+
+#### `api_mode` Not Forwarded in Examples 00, 03-11
+- **Bug**: Examples parsed `--api` into `api_mode` but never passed it to `get_default_backend()`
+  - Result: All examples always used the default API mode (OpenResponses), ignoring `--api openai`
+- **Fix**: Added `api_mode=api_mode` parameter to all `get_default_backend()` calls
+
+#### `--timeout` Silently Ignored in Examples
+- **Bug**: Examples 00, 03-11 did not have `--timeout` as a CLI argument
+  - Even when `get_default_backend()` now accepts timeout, the examples couldn't receive it from CLI
+- **Fix**: Added `--timeout` argparse argument and forwarded to `get_default_backend(timeout=timeout)`
+
+#### `num_ctx` Null Check in CLI (`cli.py`)
+- **Bug**: `getattr(args, 'num_ctx', None) or config.num_ctx` would use config default when `num_ctx=0`
+  - Python's `or` operator treats `0` as falsy, so `--num-ctx 0` would be ignored
+- **Fix**: Changed to proper None check: `x if x is not None else config.num_ctx`
+  - Applied in `cmd_run()`, `cmd_chat()`, `cmd_agent()`, `cmd_test()`, and `01_quick_diagnostic.py`
+
+### Migration Guide
+
+**API Mode Values** — Breaking change for CLI and Python API:
+
+```bash
+# Before (R03.6):
+agentnova chat --api resp           # OpenResponses
+agentnova chat --api comp           # Chat-Completions
+
+# After (R03.7):
+agentnova chat --api openre         # OpenResponses
+agentnova chat --api openai         # Chat-Completions
+```
+
+```python
+# Before (R03.6):
+from agentnova.core.types import ApiMode
+backend = get_backend("ollama", api_mode=ApiMode.RESPONSES)   # OpenResponses
+backend = get_backend("ollama", api_mode=ApiMode.COMPLETIONS)  # Chat-Completions
+
+# After (R03.7):
+from agentnova.core.types import ApiMode
+backend = get_backend("ollama", api_mode=ApiMode.OPENRE)       # OpenResponses
+backend = get_backend("ollama", api_mode=ApiMode.OPENAI)       # Chat-Completions
+
+# String values also changed:
+backend = get_backend("ollama", api_mode="openre")   # was "resp"
+backend = get_backend("ollama", api_mode="openai")   # was "comp"
+```
+
+**get_default_backend() Timeout** — Now requires explicit parameter:
+
+```python
+# Before (R03.6 - timeout silently ignored):
+backend = get_default_backend("ollama", api_mode="openre")
+
+# After (R03.7 - timeout properly forwarded):
+backend = get_default_backend("ollama", api_mode="openre", timeout=300)
+```
+
+### File Changes Summary
+
+| Action | File | Lines Changed |
+|--------|------|---------------|
+| Updated | `agentnova/__init__.py` | +1 -1 |
+| Updated | `agentnova/core/types.py` | +5 -5 |
+| Updated | `agentnova/agent.py` | +1 -1 |
+| Updated | `agentnova/backends/__init__.py` | +4 -3 |
+| Updated | `agentnova/backends/ollama.py` | +3 -3 |
+| Updated | `agentnova/cli.py` | +20 -22 |
+| Updated | `agentnova/examples/00_basic_agent.py` | +8 -3 |
+| Updated | `agentnova/examples/01_quick_diagnostic.py` | +10 -8 |
+| Updated | `agentnova/examples/02_tool_test.py` | +60 -30 |
+| Updated | `agentnova/examples/03_reasoning_test.py` | +8 -3 |
+| Updated | `agentnova/examples/04_gsm8k_benchmark.py` | +8 -3 |
+| Updated | `agentnova/examples/05_common_sense.py` | +8 -3 |
+| Updated | `agentnova/examples/06_causal_reasoning.py` | +8 -3 |
+| Updated | `agentnova/examples/07_logical_deduction.py` | +8 -3 |
+| Updated | `agentnova/examples/08_reading_comprehension.py` | +8 -3 |
+| Updated | `agentnova/examples/09_general_knowledge.py` | +8 -3 |
+| Updated | `agentnova/examples/10_implicit_reasoning.py` | +8 -3 |
+| Updated | `agentnova/examples/11_analogical_reasoning.py` | +8 -3 |
+| Updated | `pyproject.toml` | +1 -1 |
+
+### Technical Details
+
+**Enum Value Mapping**:
+```
+R03.6                        R03.7
+ApiMode.RESPONSES  ("resp")  →  ApiMode.OPENRE  ("openre")
+ApiMode.COMPLETIONS ("comp") →  ApiMode.OPENAI  ("openai")
+```
+
+**num_ctx Null Check Fix**:
+```python
+# Before (buggy - 0 treated as falsy):
+num_ctx = getattr(args, 'num_ctx', None) or config.num_ctx
+# --num-ctx 0 → config.num_ctx (WRONG!)
+
+# After (correct - only None falls through):
+num_ctx = getattr(args, 'num_ctx', None) if getattr(args, 'num_ctx', None) is not None else config.num_ctx
+# --num-ctx 0 → 0 (CORRECT!)
+```
+
+---
+
 ## [R03.6] - 2026-03-28 12:12:16 AM
 
 ### Code Quality Improvements

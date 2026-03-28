@@ -1,4 +1,4 @@
-# ⚛️ AgentNova R03.6
+# ⚛️ AgentNova R03.7
 
 **Status: Alpha**
 
@@ -29,7 +29,7 @@ Inspired by the architecture of OpenClaw, rebuilt from scratch for local-first o
 
 - **Zero dependencies** — Uses Python stdlib only (urllib for HTTP)
 - **Ollama + BitNet backends** — Switch with `--backend` flag
-- **Dual API support** — OpenResponses (`--api resp`) and Chat-Completions (`--api comp`)
+- **Dual API support** — OpenResponses (`--api openre`) and OpenAI Chat-Completions (`--api openai`)
 - **Three-tier tool support** — Native, ReAct, or none (auto-detected)
 - **Small model optimized** — Fuzzy matching, argument normalization
 - **Built-in security** — Path validation, command blocklist, SSRF protection
@@ -65,8 +65,8 @@ agentnova chat -m qwen2.5:0.5b --tools calculator,shell
 # Autonomous agent mode
 agentnova agent -m qwen2.5:7b --tools calculator,shell,write_file
 
-# Use Chat-Completions API (OpenAI-compatible)
-agentnova chat -m qwen2.5:0.5b --api comp
+# Use OpenAI Chat-Completions API
+agentnova chat -m qwen2.5:0.5b --api openai
 
 # List available models
 agentnova models
@@ -104,7 +104,7 @@ from agentnova.backends import get_backend
 from agentnova.core.types import ApiMode
 
 # Use Chat-Completions mode with streaming
-backend = get_backend("ollama", api_mode=ApiMode.COMPLETIONS)
+backend = get_backend("ollama", api_mode=ApiMode.OPENAI)
 
 for chunk in backend.generate_completions_stream(
     model="qwen2.5:0.5b",
@@ -227,7 +227,7 @@ agentnova config --urls  # Show only URLs
 
 | Option | Description |
 |--------|-------------|
-| `--api resp\|comp` | API mode: OpenResponses (default) or Chat-Completions |
+| `--api openre\|openai` | API mode: OpenResponses (default) or OpenAI Chat-Completions |
 | `--response-format text\|json` | Response format (Chat-Completions mode) |
 | `--truncation auto\|disabled` | Truncation behavior for long responses |
 | `--soul <path>` | Load Soul Spec persona package |
@@ -249,7 +249,7 @@ agentnova run "What is 2+2?"
 
 ## Tests & Examples
 
-AgentNova includes a suite of tests for validating agent capabilities:
+AgentNova includes a comprehensive suite of tests for validating agent capabilities across reasoning, knowledge, and tool usage:
 
 ```bash
 # Basic agent test (no tools)
@@ -258,7 +258,7 @@ python -m agentnova.examples.00_basic_agent
 # Quick 5-question diagnostic
 python -m agentnova.examples.01_quick_diagnostic
 
-# Tool usage tests (calculator, shell, datetime)
+# Tool usage tests (calculator, shell, datetime, file, python_repl)
 python -m agentnova.examples.02_tool_test
 
 # Logic and reasoning tests (BBH-style)
@@ -266,16 +266,45 @@ python -m agentnova.examples.03_reasoning_test
 
 # GSM8K math benchmark (50 questions)
 python -m agentnova.examples.04_gsm8k_benchmark
+
+# Common sense reasoning (BIG-bench)
+python -m agentnova.examples.05_common_sense
+
+# Causal reasoning (BIG-bench)
+python -m agentnova.examples.06_causal_reasoning
+
+# Logical deduction (BIG-bench)
+python -m agentnova.examples.07_logical_deduction
+
+# Reading comprehension
+python -m agentnova.examples.08_reading_comprehension
+
+# General knowledge (BIG-bench)
+python -m agentnova.examples.09_general_knowledge
+
+# Implicit reasoning
+python -m agentnova.examples.10_implicit_reasoning
+
+# Analogical reasoning
+python -m agentnova.examples.11_analogical_reasoning
 ```
 
 ### Test Categories
 
 | Test | Questions | Focus |
 |------|-----------|-------|
+| Basic Agent | 1 | Single prompt, no tools |
 | Quick Diagnostic | 5 | Calculator tool, multi-step reasoning |
-| Tool Test | 10 | Calculator, shell, datetime tools |
-| Reasoning Test | 13 | Logic, deduction, patterns, spatial |
+| Tool Test | 10 | Calculator, shell, datetime, file, python_repl tools |
+| Reasoning Test | 14 | Logic, deduction, patterns, spatial |
 | GSM8K Benchmark | 50 | Math word problems |
+| Common Sense | 25 | Physical properties, everyday reasoning |
+| Causal Reasoning | 25 | Cause and effect relationships |
+| Logical Deduction | 25 | Formal logic puzzles |
+| Reading Comprehension | 25 | Passage-based Q&A |
+| General Knowledge | 25 | Science, history, geography |
+| Implicit Reasoning | 25 | Unstated assumptions and inference |
+| Analogical Reasoning | 25 | Pattern matching and analogies |
 
 ### Benchmark Results (Quick Diagnostic)
 
@@ -284,8 +313,9 @@ python -m agentnova.examples.04_gsm8k_benchmark
 | functiongemma:270m | 5/5 (100%) | ~20s | native |
 | granite4:350m | 5/5 (100%) | ~50s | native |
 | qwen2.5:0.5b | 5/5 (100%) | 38s | native |
-| qwen2.5-coder:0.5b | 5/5 (100%) | 93s | react |
+| qwen2.5-coder:0.5b | 5/5 (100%) | 93s | native |
 | qwen3:0.6b | 5/5 (100%) | 70s | react |
+| deepseek-r1:1.5b | 5/5 (100%) | ~305s | native |
 
 All tested models achieve 100% on the Quick Diagnostic. Native models are ~2x faster than ReAct models due to direct API tool calling.
 
