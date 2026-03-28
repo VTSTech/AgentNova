@@ -102,6 +102,14 @@ Resolved 9 issues identified in the R03.7 Spec Compliance Audit (30 FAIL + 55 WA
 - **Fix**: Added `license: MIT` to the frontmatter.
 - **Impact**: skill-creator now passes frontmatter validation; SPDX license check returns valid
 
+### Added
+
+#### Security Test Suites (`tests/test_security.py`, `tests/test_builtins.py`)
+- **79 new tests** (40 security + 40 builtins − 1 xfail) covering adversarial edge cases
+- `test_security.py`: path traversal (encoded, relative, UNC), shell injection (pipe, semicolon, backtick, newline, I/O redirect), SSRF (decimal/hex/octal IP, localhost, cloud metadata, private networks, `file://` scheme)
+- `test_builtins.py`: calculator sandbox limits, blocked shell commands (rm, sudo, curl, wget, ssh, etc.), file system access restrictions, HTTP SSRF blocking
+- Known gaps documented: `eval()` dunder attribute chains (W-SEC03), `/var/tmp` unreachable whitelist (F-SEC01 variant)
+
 ### File Changes Summary
 
 | Action | File | Changes |
