@@ -32,7 +32,7 @@ class OllamaBackend(BaseBackend):
         host: str | None = None,
         port: int | None = None,
         config: BackendConfig | None = None,
-        api_mode: ApiMode | str = ApiMode.RESPONSES,
+        api_mode: ApiMode | str = ApiMode.OPENRE,
     ):
         # Determine base URL - priority: base_url > host/port > env > default
         if base_url:
@@ -47,7 +47,7 @@ class OllamaBackend(BaseBackend):
         else:
             super().__init__(BackendConfig())
         
-        # Set API mode (resp = OpenResponses/native, comp = Chat-Completions)
+        # Set API mode (openre = OpenResponses, openai = Chat-Completions)
         if isinstance(api_mode, str):
             api_mode = ApiMode(api_mode.lower())
         self._api_mode = api_mode
@@ -137,7 +137,7 @@ class OllamaBackend(BaseBackend):
             **kwargs: Additional options passed to Ollama
         """
         # Dispatch based on api_mode
-        if self._api_mode == ApiMode.COMPLETIONS:
+        if self._api_mode == ApiMode.OPENAI:
             if os.environ.get("AGENTNOVA_DEBUG"):
                 print(f"  [Ollama] Dispatching to OpenAI-compatible API (mode={self._api_mode.value})")
             return self.generate_completions(

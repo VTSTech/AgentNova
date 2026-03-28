@@ -314,7 +314,7 @@ class Agent:
     @property
     def _is_comp_mode(self) -> bool:
         """Check if backend is using Chat-Completions (comp) API mode."""
-        return hasattr(self.backend, 'api_mode') and self.backend.api_mode == ApiMode.COMPLETIONS
+        return hasattr(self.backend, 'api_mode') and self.backend.api_mode == ApiMode.OPENAI
 
     def _log_openresponses(self, msg: str) -> None:
         """Log OpenResponses debug message only when not in comp mode."""
