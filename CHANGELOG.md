@@ -135,6 +135,59 @@ Resolved 9 issues identified in the R03.7 Spec Compliance Audit (30 FAIL + 55 WA
 
 ---
 
+### Spec Compliance Audit — Low-Priority WARN/INFO Fixes
+
+Resolved 5 additional WARN/INFO findings identified in the R03.8 Spec Compliance Audit. These address code quality, correctness, and CLI usability gaps that were deferred from the initial R03.7 release.
+
+### Fixed
+
+#### [W-06] ACP `_format_target()` Uses Wrong Key for File Tools (`acp_plugin.py`)
+- **Bug**: `_format_target()` used `"path"` as the argument key for `read_file`, `write_file`, and `edit_file` tools, but the AgentNova tool definitions use `"file_path"` as the primary key. This caused ACP activity targets to show `"unknown"` instead of the actual file path.
+- **Fix**: Changed to check `file_path` first with `path` as a fallback for backward compatibility.
+- **Impact**: ACP activity log now correctly displays file paths for all file-tool operations
+
+#### [W-02] Skills Loader Name/Directory Mismatch Only Warns (`skills/loader.py`)
+- **Bug**: When a skill's SKILL.md `name` field didn't match its directory name, `SkillLoader.load()` only printed a warning (`⚠️ Warning: ...`) and continued. This could lead to silent misconfiguration where a skill is registered under the wrong name.
+- **Fix**: Now raises `ValueError` with a clear message indicating the mismatch and the requirement that the `name` field must match the directory name.
+- **Impact**: Skills with mismatched names are now rejected at load time, preventing subtle runtime bugs
+
+#### [W-03] Skills Loader `metadata` Type Hint Incorrect (`skills/loader.py`)
+- **Bug**: The `Skill.metadata` field was typed as `Dict[str, str]`, but the YAML frontmatter parser produces `Dict[str, Any]` — metadata values can be nested dicts (from indented YAML sub-keys) or other complex types. This caused type checker false positives and could mislead developers.
+- **Fix**: Changed type hint from `Dict[str, str]` to `Dict[str, Any]` to match actual runtime behavior.
+- **Impact**: Type hints now accurately reflect the data structure; no runtime behavior change
+
+#### [W-11] Sandboxed REPL `SystemExit(0)` Passes Silently (`tools/sandboxed_repl.py`)
+- **Bug**: When user code in the sandboxed REPL called `sys.exit(0)` or `raise SystemExit(0)`, the sandbox runner caught it but produced no output. A user might believe their code executed normally when it actually attempted to exit the process.
+- **Fix**: The `SystemExit` handler now prints `[Sandbox] SystemExit(0) intercepted — sandbox exit blocked` when the exit code is `0` or `None`, making it clear that the exit attempt was detected and blocked.
+- **Impact**: All sandbox exit attempts are now visible in output, improving transparency and debuggability
+
+#### [W-14] CLI `--stream` Flag Parsed but Silently Ignored (`cli.py`)
+- **Bug**: The `run` command accepted `--stream` as a CLI argument but never passed it to `agent.run()`. Users passing `--stream` expected streaming output but always received buffered output.
+- **Fix**: `cmd_run()` now passes `stream=getattr(args, 'stream', False)` to `agent.run()`, wiring the CLI flag to the agent's streaming capability.
+- **Impact**: `agentnova run --stream "prompt"` now correctly enables streaming mode
+
+### File Changes Summary
+
+| Action | File | Changes |
+|--------|------|:-------:|
+| Updated | `agentnova/acp_plugin.py` | +3 −3 |
+| Updated | `agentnova/skills/loader.py` | +4 −2 |
+| Updated | `agentnova/tools/sandboxed_repl.py` | +2 −1 |
+| Updated | `agentnova/cli.py` | +1 −1 |
+| **Total** | **4 files** | **+10 −7** |
+
+### Updated Audit Status
+
+| Priority | Total (R03.8) | Fixed | Remaining |
+|----------|:-------------:|:-----:|:---------:|
+| Critical | 0 | — | 0 |
+| High | 0 | — | 0 |
+| Medium | 0 | — | 0 |
+| Low (WARN) | 17 | 5 | 12 (deferred) |
+| Info | 3 | — | 3 (deferred) |
+
+---
+
 ## [R03.7] - 2026-03-28 11:57:44 AM
 
 ### API Mode Naming Cleanup
