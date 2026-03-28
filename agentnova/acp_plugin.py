@@ -1093,11 +1093,11 @@ class ACPPlugin:
         """Format tool arguments as a target string for ACP."""
         # Tool-specific formatting
         if tool_name == "read_file":
-            return args.get("path", "unknown")
+            return args.get("file_path", args.get("path", "unknown"))
         elif tool_name == "write_file":
-            return args.get("path", "unknown")
+            return args.get("file_path", args.get("path", "unknown"))
         elif tool_name == "edit_file":
-            return args.get("path", "unknown")
+            return args.get("file_path", args.get("path", "unknown"))
         elif tool_name == "shell":
             return args.get("command", "")[:100]
         elif tool_name == "calculator":

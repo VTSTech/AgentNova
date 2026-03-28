@@ -290,9 +290,11 @@ except KeyboardInterrupt:
     print("[Sandbox] Execution interrupted")
 
 except SystemExit as e:
-    # Allow sys.exit() with small codes
+    # Always report SystemExit — even code 0 may indicate unintended sandbox escape
     if e.code is not None and e.code != 0:
         print(f"[Sandbox] Script exited with code {{e.code}}")
+    else:
+        print(f"[Sandbox] SystemExit({{e.code}}) intercepted — sandbox exit blocked")
 
 except Exception as e:
     import traceback

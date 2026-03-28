@@ -151,7 +151,7 @@ class Skill:
     path: Path
     license: Optional[str] = None
     compatibility: Optional[str] = None
-    metadata: Dict[str, str] = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
     allowed_tools: List[str] = field(default_factory=list)
     _license_valid: bool = field(default=False, repr=False)
     _license_warning: str = field(default="", repr=False)
@@ -465,7 +465,10 @@ class SkillLoader:
         
         # Validate name matches directory
         if skill.name != skill_name:
-            print(f"⚠️ Warning: Skill name '{skill.name}' doesn't match directory '{skill_name}'")
+            raise ValueError(
+                f"Skill name '{skill.name}' doesn't match directory '{skill_name}'. "
+                f"The 'name' field in SKILL.md frontmatter must match the directory name."
+            )
         
         self._cache[skill_name] = skill
         return skill

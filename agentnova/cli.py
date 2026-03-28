@@ -402,7 +402,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     # Log to ACP
 
-    result = agent.run(args.prompt)
+    result = agent.run(args.prompt, stream=getattr(args, 'stream', False))
     print(result.final_answer)
 
     # Log result to ACP
