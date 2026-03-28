@@ -180,8 +180,8 @@ class SoulLoader:
         
         manifest = self._parse_manifest(data, soul_dir)
         
-        # Validate
-        issues = manifest.validate()
+        # Validate (pass soul_dir for file existence checks)
+        issues = manifest.validate(soul_dir=soul_dir)
         if issues and self.strict:
             raise ValueError(f"Validation errors: {issues}")
         
@@ -365,7 +365,7 @@ class SoulLoader:
                 manifest.identity_content = identity_path.read_text(encoding="utf-8")
     
     def _load_level_3(self, manifest: SoulManifest, soul_dir: Path) -> None:
-        """Load Level 3 files: AGENTS.md, STYLE.md, HEARTBEAT.md, examples."""
+        """Load Level 3 files: AGENTS.md, STYLE.md, HEARTBEAT.md, USER_TEMPLATE.md, examples, avatar."""
         # Load AGENTS.md
         if manifest.files.agents:
             agents_path = soul_dir / manifest.files.agents
@@ -383,6 +383,29 @@ class SoulLoader:
             heartbeat_path = soul_dir / manifest.files.heartbeat
             if heartbeat_path.exists():
                 manifest.heartbeat_content = heartbeat_path.read_text(encoding="utf-8")
+        
+        # Load USER_TEMPLATE.md (v0.5 spec)
+        if manifest.files.user_template:
+            template_path = soul_dir / manifest.files.user_template
+            if template_path.exists():
+                manifest.user_template_content = template_path.read_text(encoding="utf-8")
+        
+        # Load calibration examples (v0.5 spec)
+        if manifest.examples:
+            if manifest.examples.good:
+                good_path = soul_dir / manifest.examples.good
+                if good_path.exists():
+                    manifest.examples_good_content = good_path.read_text(encoding="utf-8")
+            if manifest.examples.bad:
+                bad_path = soul_dir / manifest.examples.bad
+                if bad_path.exists():
+                    manifest.examples_bad_content = bad_path.read_text(encoding="utf-8")
+        
+        # Resolve avatar path (v0.5 spec)
+        if manifest.files.avatar:
+            avatar_path = soul_dir / manifest.files.avatar
+            if avatar_path.exists():
+                manifest.avatar_path = str(avatar_path)
     
     def build_system_prompt(
         self,
@@ -428,6 +451,18 @@ class SoulLoader:
             
             if manifest.heartbeat_content:
                 parts.append(f"\n\n## Heartbeat\n\n{manifest.heartbeat_content}")
+            
+            # User template for message formatting
+            if manifest.user_template_content:
+                parts.append(f"\n\n## User Message Template\n\n{manifest.user_template_content}")
+            
+            # Calibration examples (good and bad outputs)
+            if manifest.examples_good_content or manifest.examples_bad_content:
+                parts.append("\n\n## Calibration Examples")
+                if manifest.examples_good_content:
+                    parts.append(f"\n\n### Good Outputs\n\n{manifest.examples_good_content}")
+                if manifest.examples_bad_content:
+                    parts.append(f"\n\n### Outputs to Avoid\n\n{manifest.examples_bad_content}")
         
         # Add constraints for embodied agents
         if manifest.environment != Environment.VIRTUAL:

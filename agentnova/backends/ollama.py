@@ -596,6 +596,7 @@ class OllamaBackend(BaseBackend):
 
             with urllib.request.urlopen(req, timeout=self.config.timeout) as response:
                 buffer = ""
+                last_finish_reason = None
                 for line in response:
                     line = line.decode("utf-8")
                     
@@ -605,6 +606,13 @@ class OllamaBackend(BaseBackend):
                         
                         # Check for end of stream
                         if data_str == "[DONE]":
+                            # Yield final chunk with finish_reason if not already sent
+                            if last_finish_reason is None:
+                                yield {
+                                    "delta": "",
+                                    "finish_reason": "stop",  # Default to "stop" when [DONE] received
+                                    "tool_calls": None,
+                                }
                             break
                         
                         try:
@@ -618,6 +626,10 @@ class OllamaBackend(BaseBackend):
                         
                         delta = choices[0].get("delta", {})
                         finish_reason = choices[0].get("finish_reason")
+                        
+                        # Track last finish_reason for final chunk
+                        if finish_reason:
+                            last_finish_reason = finish_reason
                         
                         # Extract text content from delta
                         text_delta = delta.get("content", "")

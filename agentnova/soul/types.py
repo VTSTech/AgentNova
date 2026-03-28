@@ -200,6 +200,10 @@ class SoulManifest:
     agents_content: Optional[str] = None
     style_content: Optional[str] = None
     heartbeat_content: Optional[str] = None
+    user_template_content: Optional[str] = None  # USER_TEMPLATE.md content
+    examples_good_content: Optional[str] = None  # Good calibration examples
+    examples_bad_content: Optional[str] = None   # Bad calibration examples
+    avatar_path: Optional[str] = None            # Resolved path to avatar file
     
     def validate(self) -> list[str]:
         """
@@ -239,7 +243,14 @@ class SoulManifest:
             if not self.safety or not self.safety.physical:
                 issues.append("Embodied souls should have safety.physical configuration")
         
-        # Check full-contact has justification (would need soul_content to check)
+        # Check full-contact has justification in soul_content
+        if self.safety and self.safety.physical:
+            if self.safety.physical.contact_policy == ContactPolicy.FULL_CONTACT:
+                if self.soul_content:
+                    # Look for justification keywords in SOUL.md
+                    content_lower = self.soul_content.lower()
+                    if "full-contact" not in content_lower and "physical interaction" not in content_lower:
+                        issues.append("Full-contact policy requires justification in SOUL.md (mention 'full-contact' or 'physical interaction')")
         
         return issues
     
