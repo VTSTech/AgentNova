@@ -181,6 +181,12 @@ def create_parser() -> argparse.ArgumentParser:
                            help="Soul progressive disclosure level (1=quick, 2=full, 3=deep)")
     run_parser.add_argument("--num-ctx", type=int, default=None, dest="num_ctx",
                            help="Context window size in tokens (Ollama default is 2048)")
+    run_parser.add_argument("--num-predict", type=int, default=None, dest="num_predict",
+                           help="Maximum tokens to generate (default: model-specific)")
+    run_parser.add_argument("--temperature", type=float, default=None,
+                           help="Sampling temperature 0.0-2.0 (default: model-specific)")
+    run_parser.add_argument("--top-p", type=float, default=None, dest="top_p",
+                           help="Nucleus sampling probability 0.0-1.0 (default: model-specific)")
     run_parser.add_argument("--timeout", type=int, default=None,
                            help="Request timeout in seconds (default: 120)")
     run_parser.add_argument("--force-react", action="store_true", help="Force ReAct mode for tool calling")
@@ -205,6 +211,12 @@ def create_parser() -> argparse.ArgumentParser:
                            help="Soul progressive disclosure level (1=quick, 2=full, 3=deep)")
     chat_parser.add_argument("--num-ctx", type=int, default=None, dest="num_ctx",
                            help="Context window size in tokens (Ollama default is 2048)")
+    chat_parser.add_argument("--num-predict", type=int, default=None, dest="num_predict",
+                           help="Maximum tokens to generate (default: model-specific)")
+    chat_parser.add_argument("--temperature", type=float, default=None,
+                           help="Sampling temperature 0.0-2.0 (default: model-specific)")
+    chat_parser.add_argument("--top-p", type=float, default=None, dest="top_p",
+                           help="Nucleus sampling probability 0.0-1.0 (default: model-specific)")
     chat_parser.add_argument("--timeout", type=int, default=None,
                            help="Request timeout in seconds (default: 120)")
     chat_parser.add_argument("--acp", action="store_true", help="Enable ACP logging to Agent Control Panel")
@@ -228,6 +240,12 @@ def create_parser() -> argparse.ArgumentParser:
                            help="Soul progressive disclosure level (1=quick, 2=full, 3=deep)")
     agent_parser.add_argument("--num-ctx", type=int, default=None, dest="num_ctx",
                            help="Context window size in tokens (Ollama default is 2048)")
+    agent_parser.add_argument("--num-predict", type=int, default=None, dest="num_predict",
+                           help="Maximum tokens to generate (default: model-specific)")
+    agent_parser.add_argument("--temperature", type=float, default=None,
+                           help="Sampling temperature 0.0-2.0 (default: model-specific)")
+    agent_parser.add_argument("--top-p", type=float, default=None, dest="top_p",
+                           help="Nucleus sampling probability 0.0-1.0 (default: model-specific)")
     agent_parser.add_argument("--timeout", type=int, default=None,
                            help="Request timeout in seconds (default: 120)")
     agent_parser.add_argument("--acp", action="store_true", help="Enable ACP logging to Agent Control Panel")
@@ -263,6 +281,12 @@ def create_parser() -> argparse.ArgumentParser:
                              help="Use the model's Modelfile system prompt instead of custom test prompts")
     test_parser.add_argument("--num-ctx", type=int, default=None, dest="num_ctx",
                            help="Context window size in tokens (Ollama default is 2048)")
+    test_parser.add_argument("--num-predict", type=int, default=None, dest="num_predict",
+                           help="Maximum tokens to generate (default: model-specific)")
+    test_parser.add_argument("--temperature", type=float, default=None,
+                           help="Sampling temperature 0.0-2.0 (default: model-specific)")
+    test_parser.add_argument("--top-p", type=float, default=None, dest="top_p",
+                           help="Nucleus sampling probability 0.0-1.0 (default: model-specific)")
     test_parser.add_argument("--timeout", type=int, default=None,
                            help="Request timeout in seconds (default: 120)")
     test_parser.add_argument("--warmup", action="store_true",
@@ -363,6 +387,9 @@ def cmd_run(args: argparse.Namespace) -> int:
         soul=getattr(args, 'soul', None),
         soul_level=getattr(args, 'soul_level', 2),
         num_ctx=getattr(args, 'num_ctx', None) or config.num_ctx,
+        temperature=getattr(args, 'temperature', None),
+        top_p=getattr(args, 'top_p', None),
+        num_predict=getattr(args, 'num_predict', None),
     )
 
     # Log to ACP
@@ -413,6 +440,9 @@ def cmd_chat(args: argparse.Namespace) -> int:
         soul=getattr(args, 'soul', None),
         soul_level=getattr(args, 'soul_level', 2),
         num_ctx=getattr(args, 'num_ctx', None) or config.num_ctx,
+        temperature=getattr(args, 'temperature', None),
+        top_p=getattr(args, 'top_p', None),
+        num_predict=getattr(args, 'num_predict', None),
     )
 
     print_banner()
@@ -508,6 +538,9 @@ def cmd_agent(args: argparse.Namespace) -> int:
         soul=getattr(args, 'soul', None),
         soul_level=getattr(args, 'soul_level', 2),
         num_ctx=getattr(args, 'num_ctx', None) or config.num_ctx,
+        temperature=getattr(args, 'temperature', None),
+        top_p=getattr(args, 'top_p', None),
+        num_predict=getattr(args, 'num_predict', None),
     )
 
     agent_mode = AgentMode(agent, verbose=True)

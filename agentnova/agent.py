@@ -110,6 +110,10 @@ class Agent:
         soul: str = "nova-helper",
         soul_level: int = 3,
         num_ctx: int | None = None,
+        # Generation parameters
+        temperature: float | None = None,
+        top_p: float | None = None,
+        num_predict: int | None = None,
         # OpenResponses parameters
         tool_choice: str | ToolChoice = "auto",  # Default per OpenResponses spec
         allowed_tools: list[str] | None = None,
@@ -129,6 +133,9 @@ class Agent:
             soul: Path to Soul Spec package (default: "nova-helper")
             soul_level: Progressive disclosure level for soul (1-3)
             num_ctx: Context window size in tokens (default: 4096)
+            temperature: Sampling temperature (default: model-specific)
+            top_p: Nucleus sampling probability (default: model-specific)
+            num_predict: Maximum tokens to generate (default: model-specific)
             tool_choice: Control tool invocation ("auto", "required", "none", or specific tool name)
             allowed_tools: List of tools the model is allowed to invoke (subset of tools)
             **kwargs: Additional configuration
@@ -142,6 +149,11 @@ class Agent:
         else:
             config = get_config()
             self.num_ctx = config.num_ctx if config.num_ctx else 4096
+
+        # Generation parameters (use model defaults if not specified)
+        self._temperature = temperature
+        self._top_p = top_p
+        self._num_predict = num_predict
 
         # Initialize backend
         if backend is None:
@@ -1061,19 +1073,31 @@ Final Answer: <the answer>
         backend_kwargs = {"think": think}
         if self.num_ctx is not None:
             backend_kwargs["num_ctx"] = self.num_ctx
-            if self.debug:
-                print(f"  [DEBUG] num_ctx: {self.num_ctx}")
+        if self._num_predict is not None:
+            backend_kwargs["num_predict"] = self._num_predict
 
         # Pass tools for native tool calling (OpenResponses/ChatCompletions compliant)
         # ReAct parsing remains as fallback for models without native support
         tools_for_backend = self.tools.all() if self.tools and len(self.tools) > 0 else None
 
+        # Get generation parameters (use overrides or model defaults)
+        gen_temperature = self._temperature if self._temperature is not None else self.model_config.default_temperature
+        gen_max_tokens = self._num_predict if self._num_predict is not None else self.model_config.default_max_tokens
+        gen_top_p = self._top_p if self._top_p is not None else self.model_config.default_top_p
+
+        if self.debug:
+            params_str = f"temp={gen_temperature}, top_p={gen_top_p}, max_tokens={gen_max_tokens}, num_ctx={self.num_ctx}"
+            if think is not None:
+                params_str += f", think={think}"
+            print(f"  [DEBUG] Model params: {params_str}")
+
         response = self.backend.generate(
             model=self.model,
             messages=messages,
             tools=tools_for_backend,  # Native tool calling support
-            temperature=self.model_config.default_temperature,
-            max_tokens=self.model_config.default_max_tokens,
+            temperature=gen_temperature,
+            max_tokens=gen_max_tokens,
+            top_p=gen_top_p,
             **backend_kwargs,
         )
 

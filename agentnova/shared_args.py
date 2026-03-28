@@ -46,6 +46,8 @@ class SharedConfig:
     acp_url: Optional[str] = None
     num_ctx: Optional[int] = None
     num_predict: Optional[int] = None
+    temperature: Optional[float] = None
+    top_p: Optional[float] = None
     fast: bool = False
     extra_args: dict = field(default_factory=dict)
 
@@ -65,6 +67,10 @@ class SharedConfig:
             opts["num_ctx"] = self.num_ctx
         if self.num_predict is not None:
             opts["num_predict"] = self.num_predict
+        if self.temperature is not None:
+            opts["temperature"] = self.temperature
+        if self.top_p is not None:
+            opts["top_p"] = self.top_p
         return opts
 
 
@@ -122,6 +128,21 @@ def add_shared_args(parser: argparse.ArgumentParser) -> None:
         help="Maximum tokens to generate",
     )
     parser.add_argument(
+        "--temperature",
+        type=float,
+        default=None,
+        metavar="TEMP",
+        help="Sampling temperature 0.0-2.0 (default: model-specific)",
+    )
+    parser.add_argument(
+        "--top-p",
+        type=float,
+        default=None,
+        dest="top_p",
+        metavar="P",
+        help="Nucleus sampling probability 0.0-1.0 (default: model-specific)",
+    )
+    parser.add_argument(
         "--fast",
         action="store_true",
         help="Fast mode: num_ctx=2048, num_predict=256",
@@ -146,6 +167,8 @@ def parse_shared_args(args) -> SharedConfig:
         acp_url=getattr(args, "acp_url", None) or os.environ.get("AGENTNOVA_ACP_URL"),
         num_ctx=getattr(args, "num_ctx", None) or _env_int("AGENTNOVA_NUM_CTX"),
         num_predict=getattr(args, "num_predict", None) or _env_int("AGENTNOVA_NUM_PREDICT"),
+        temperature=getattr(args, "temperature", None) or _env_float("AGENTNOVA_TEMPERATURE"),
+        top_p=getattr(args, "top_p", None) or _env_float("AGENTNOVA_TOP_P"),
         fast=getattr(args, "fast", False) or os.environ.get("AGENTNOVA_FAST", "0") == "1",
     )
 
@@ -156,6 +179,17 @@ def _env_int(name: str) -> Optional[int]:
     if val:
         try:
             return int(val)
+        except ValueError:
+            pass
+    return None
+
+
+def _env_float(name: str) -> Optional[float]:
+    """Read a float from an environment variable."""
+    val = os.environ.get(name)
+    if val:
+        try:
+            return float(val)
         except ValueError:
             pass
     return None
