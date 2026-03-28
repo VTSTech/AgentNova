@@ -28,10 +28,10 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 | Rank | Model | Score | Time | Soul | Tool Mode | Q1 | Q2 | Q3 | Q4 | Q5 | Notes |
 |:----:|-------|------:|-----:|:----:|:---------:|:--:|:--:|:--:|:--:|:--:|-------|
-| 🥇 | **`granite4:350m`** | **5/5 (100%)** | 188.3s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Native tools working! |
-| 🥇 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 130.2s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Perfect score! Fastest! |
-| 🥇 | **`deepseek-r1:1.5b`** | **5/5 (100%)** | 304.7s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Perfect score! Reasoning model |
+| 🥇 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 169.5s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Perfect score! Fastest! |
 | 🥇 | **`qwen2.5-coder:0.5b`** | **5/5 (100%)** | 184.1s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Coder model joins 100% club! |
+| 🥇 | **`granite4:350m`** | **5/5 (100%)** | 188.3s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Native tools working! |
+| 🥇 | **`deepseek-r1:1.5b`** | **5/5 (100%)** | 304.7s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Perfect score! Reasoning model |
 | 🥉 | `gemma3:270m` | **4/5 (80%)** | 425.2s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ❌ 1024 | Q5 reasoning error, improved! |
 | 🥉 | `qwen3.5:0.8b` | 4/5 (80%) | 625.8s | nova-helper | native | ❌ empty | ✅ | ✅ | ✅ | ✅ | Q1 empty, very slow |
 | 🥉 | `granite3.1-moe:1b` | **4/5 (80%)** | 225.4s | nova-helper | **native** | ✅ | ❌ 53 | ✅ | ✅ | ✅ | Q2 reasoning error, MoE model |
