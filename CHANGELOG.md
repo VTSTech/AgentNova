@@ -4,12 +4,6 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-# Changelog
-
-All notable changes to AgentNova will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
-
 ## [R03.8] - 2026-03-28 4:03:37 PM
 
 ### Spec Compliance Audit — Critical, High & Medium Fixes
