@@ -18,7 +18,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 ---
 
-### OpenResponses Mode Results (R03.6-dev - resp API Mode)
+### OpenResponses Mode Results (R03.6 - resp API Mode)
 
 > Testing with `--api resp` (default) uses Ollama's native OpenResponses API (`/api/chat`)
 
@@ -31,9 +31,9 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | 🥇 | **`granite4:350m`** | **5/5 (100%)** | 136.3s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Native tools working! |
 | 🥇 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 130.2s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Perfect score! Fastest! |
 | 🥇 | **`deepseek-r1:1.5b`** | **5/5 (100%)** | 304.7s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Perfect score! Reasoning model |
+| 🥉 | `gemma3:270m` | **4/5 (80%)** | 425.2s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ❌ 1024 | Q5 reasoning error, improved! |
 | 🥉 | `qwen2.5-coder:0.5b` | 4/5 (80%) | 120.3s | nova-helper | native | ✅ | ✅ | ✅ | ❌ 5 | ✅ | Q4 reasoning error |
 | 🥉 | `qwen3.5:0.8b` | 4/5 (80%) | 625.8s | nova-helper | native | ❌ empty | ✅ | ✅ | ✅ | ✅ | Q1 empty, very slow |
-| 5 | `gemma3:270m` | 3/5 (60%) | 374.7s | nova-helper | native | ✅ | ✅ | ✅ | ❌ empty | ❌ 120 | Q4 empty, Q5 reasoning error |
 | 5 | `dolphin3.0-qwen2.5:0.5b` | 3/5 (60%) | 114.3s | nova-helper | native | ✅ | ❌ 4 | ✅ | ✅ | ❌ 6 | Q2 reasoning error, Q5 wrong |
 | 5 | `qwen2:0.5b` | 3/5 (60%) | 116.8s | nova-helper | native | ✅ | ✅ | ✅ | ❌ code | ❌ 30 | Writes Python instead of calculator |
 | 5 | `qwen3:0.6b` | 3/5 (60%) | 231.3s | nova-helper | native | ❌ empty | ❌ 49 | ✅ | ✅ | ✅ | Q1 empty, Q2 reasoning error |
@@ -42,8 +42,8 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 **Summary:**
 - **3 models achieve 100%**: `granite4:350m`, `qwen2.5:0.5b`, `deepseek-r1:1.5b`
-- **2 models at 80%**: `qwen2.5-coder:0.5b`, `qwen3.5:0.8b`
-- **5 models at 60%**: `gemma3:270m`, `dolphin3.0-qwen2.5:0.5b`, `qwen2:0.5b`, `qwen3:0.6b`, `qwen:0.5b`
+- **3 models at 80%**: `gemma3:270m`, `qwen2.5-coder:0.5b`, `qwen3.5:0.8b`
+- **4 models at 60%**: `dolphin3.0-qwen2.5:0.5b`, `qwen2:0.5b`, `qwen3:0.6b`, `qwen:0.5b`
 - **1 model at 20%**: `functiongemma:270m`
 
 **deepseek-r1:1.5b Details:**
@@ -59,6 +59,12 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 - Q3 (Division): ❌ Expected 4.25, Got: "The result is 1024"
 - Q4 (Word Problem): ❌ Asked for more info instead of calculating
 - Q5 (Time Calc): ❌ Refused - claimed inability to assist with business operations
+
+**gemma3:270m Details:**
+- Warmup: 1.9s
+- Q1-Q4: ✅ ~77-79s each (consistent timing)
+- Q5 (Time Calc): ❌ Expected 8, Got: 1024 (reasoning error)
+- **Improved from 60% to 80%!**
 
 ---
 
@@ -150,14 +156,15 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 ---
 
-### Key Findings (R03.6-dev)
+### Key Findings (R03.6)
 
 1. **deepseek-r1:1.5b joins the 100% club!** - Reasoning model with excellent tool usage
 2. **3 models now achieve 100%** - granite4:350m, qwen2.5:0.5b, deepseek-r1:1.5b
-3. **Native tool calling fully working** - All models with native support can use tools
-4. **Soul persona critical** - All tests used nova-helper soul for consistency
-5. **resp mode significantly outperforms comp** for qwen family (40-80% gap)
-6. **functiongemma:270m struggles** - Reasoning errors and refusals
+3. **gemma3:270m improves to 80%!** - Up from 60%, only Q5 failed
+4. **Native tool calling fully working** - All models with native support can use tools
+5. **Soul persona critical** - All tests used nova-helper soul for consistency
+6. **resp mode significantly outperforms comp** for qwen family (40-80% gap)
+7. **functiongemma:270m struggles** - Reasoning errors and refusals
 
 ---
 
@@ -248,7 +255,7 @@ agentnova models --tool_support
 
 Example output:
 ```
-⚛️ AgentNova R03.6-dev Models
+⚛️ AgentNova R03.6 Models
   Model                                      Family       Context    Tool Support
   ──────────────────────────────────────────────────────────────────────────────
   gemma3:270m                                gemma3       32K        ○ none
