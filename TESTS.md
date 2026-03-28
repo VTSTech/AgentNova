@@ -108,14 +108,6 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 ---
 
-### API Mode Comparison (R03.3 - resp vs comp)
-
-> Comparing OpenResponses (resp) vs ChatCompletions (comp) API modes
-
-Pending...
-
----
-
 ### Tool Mode Comparison (R03.3)
 
 | Tool Mode | Best Score | Best Model | Description |
@@ -188,91 +180,6 @@ Pending...
 
 ---
 
-## Test 16 Agent Mode Test (Autonomous Tasks)
-
-> **Updated:** 2026-03-23 - New test suite for autonomous task execution
-
-Test 16 evaluates autonomous task execution capabilities: multi-step planning, tool orchestration, and file operations.
-
-**Usage:**
-```bash
-agentnova test 16 --model qwen2.5-coder:0.5b
-agentnova test 16 --model all --debug
-```
-
-### Test 16 Results (R02.5)
-
-| Model | Score | Time | Tool Support | Notes |
-|-------|------:|-----:|:------------:|-------|
-| `qwen2.5-coder:0.5b` | 5/7 (71%) | 324.1s | react | Multi-tool planning issue |
-
-### Test Categories (7 Tests)
-
-| Test | Purpose | Expected | qwen2.5-coder |
-|------|---------|----------|:-------------:|
-| **Simple Reasoning** | Pure logic (5-2-1=?) | 2 | ❌ Got 4 |
-| **Knowledge Recall** | Fact retrieval | Paris | ✅ |
-| **Calculator Chain** | Multi-step math (15×8+42) | 162 | ✅ |
-| **File Write** | Create file with content | File created | ✅ |
-| **Shell Echo** | Execute shell command | Message echoed | ✅ |
-| **Python REPL** | Calculate 2^20 | 1048576 | ✅ |
-| **Multi-Tool** | Calculate then write file | File with 100 | ❌ Didn't write |
-
----
-
-## Test 07 Benchmark Results (15-Test Suite with Debug)
-
-> **Updated:** 2026-03-23 - R02.5 module refactoring verified, updated prompts
-
-Test 07 uses the 15-test benchmark with debug output showing tool support detection, ReAct parsing, and family-specific configuration.
-
-### All Models Combined (R02.5 - Latest)
-
-| Rank | Model | Params | Score | Time | Tool Support | Δ vs R02.2 |
-|:----:|-------|-------:|------:|-----:|:-----------:|:--------:|
-| 🥇 | **`qwen:0.5b`** | 500M | **14/15 (93%)** | 45.7s | none | **+20%** ✅ |
-| 🥈 | **`dolphin3.0-qwen2.5:0.5b`** | 500M | **14/15 (93%)** | 53.0s | none | **+20%** ✅ |
-| 🥉 | **`granite3.1-moe:1b`** | 1B MoE | **14/15 (93%)** | 128.6s | react | = |
-| 4 | `llama3.2:1b` | 1.2B | 13/15 (87%) | 174.5s | native | = |
-| 5 | `qwen2.5:0.5b` | 500M | 11/15 (73%) | 85.7s | native | = |
-| 6 | `dolphin3.0-llama3:1b` | 1B | 10/15 (67%) | 70.1s | none | N/A |
-| 7 | `granite4:350m` | 350M | 10/15 (67%) | 70.2s | native | -13% |
-| 7 | `tinydolphin:1.1b` | 1.1B | 10/15 (67%) | 137.2s | none | +7% |
-| 7 | `qwen3:0.6b` | 600M | 10/15 (67%) | 196.1s | react | = |
-| 10 | `gemma3:270m` | 270M | 9/15 (60%) | 33.9s | none | = |
-| 10 | `qwen2.5-coder:0.5b` | 494M | 9/15 (60%) | 132.2s | react | = |
-| 12 | `tinyllama:1.1b` | 1.1B | 8/15 (53%) | 134.9s | none | = |
-| 13 | `functiongemma:270m` | 270M | 4/15 (27%) | 52.6s | native | -53% |
-
----
-
-## Recommendations
-
-| Use Case | Recommended Model | Why |
-|----------|-------------------|-----|
-| **🏆 BEST OVERALL** | **`granite4:350m`** | **100% in both API modes** - native tools, 350M params! |
-| **Best Both Modes** | **`qwen2.5:0.5b`** | **100% in both API modes** - native tools work everywhere! |
-| **Best Native Tools** | **`functiongemma:270m`** | **100% in 23.7s** - fastest perfect, native tools! |
-| **Best with Soul** | **`qwen2.5-coder:0.5b-instruct-q4_k_m`** + nova-helper | **100% in resp, 80% in comp** - 2x faster with soul! |
-| **Best Qwen3** | **`qwen3:0.6b`** + nova-helper | **100% in 102.3s** - newest Qwen family! |
-| **Best ChatCompletions** | **`granite4:350m`** or **`qwen2.5:0.5b`** | **Both 100%** with native tools! |
-| **Smallest 100%** | `gemma3:270m` + nova-helper | **100%** - 270M params with soul! |
-| **Large context** | `llama3.2:1b` | **128k context window**, 87% accuracy |
-| **CPU-only** | `BitNet-b1.58-2B-4T` | Efficient ternary weights |
-
----
-
-## Tool Support Quick Reference
-
-| Tool Support | Description | Prompt Strategy | Best Score | Best Model |
-|--------------|-------------|-----------------|:----------:|------------|
-| `native` | Ollama API tool-calling | Standard prompt + tools via API | **100%** | granite4:350m, qwen2.5:0.5b |
-| `react` | Text-based ReAct parsing | Standard prompt + ReAct suffix | **80%** | qwen2.5-coder:0.5b |
-| `fallback` | Auto-fallback when rejected | ReAct mode after error | **40%** | gemma3:270m, functiongemma:270m |
-| `none` | No tool support | Pure reasoning prompt | **40%** | dolphin3.0-qwen2.5:0.5b |
-
----
-
 ## Soul Persona System
 
 > **R03.3:** Soul personas dramatically improve small model performance
@@ -303,22 +210,16 @@ ollama pull qwen2.5:0.5b
 # List all available examples
 agentnova test --list
 
-# Quick test suite (recommended first run - skips long benchmarks)
-agentnova test quick
-
-# Full test suite (all examples)
-agentnova test all
-
 # Run GSM8K benchmark (50 math questions)
-agentnova test 14 --timeout 6400
+agentnova test 04 --timeout 6400
 
 # Run with debug output
 agentnova test 08 --debug --num-ctx 4096
 
-# Run a specific example
-agentnova test 01          # Basic agent demo
-agentnova test 02          # Tool agent demo
-agentnova test 04_acp      # Comprehensive test with ACP tracking
+# Run with nova-helper SOUL.md, 16k context, ChatCompletions API, Debug Output and 9999 timeout
+
+agentnova test 01 --soul nova-helper --num-ctx 16384 --api comp --timeout 9999 --debug
+
 ```
 
 ---
