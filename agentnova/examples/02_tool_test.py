@@ -442,9 +442,16 @@ def run_phase1() -> tuple[int, int]:
 # ============================================================================
 
 def normalize_number(text: str) -> str:
-    """Extract first number from text."""
-    match = re.search(r'-?\d+\.?\d*', text.replace(',', ''))
-    return match.group(0) if match else ""
+    """Extract the last number from text.
+
+    Uses the last number because model final answers typically restate
+    the question before giving the result, e.g.:
+      "The result of 15 times 8 is 120."  →  "120" (not "15")
+    For single-number inputs (expected values, tool results) the first
+    and last number are the same, so this is safe everywhere.
+    """
+    matches = re.findall(r'-?\d+(?:\.\d+)?', text.replace(',', ''))
+    return matches[-1] if matches else ""
 
 
 def numbers_match(expected_str: str, actual_str: str, tolerance: float = 0.01) -> bool:
