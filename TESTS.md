@@ -2,8 +2,6 @@
 
 ## Test 01 Quick Diagnostic (5 Questions)
 
-> **Updated:** 2026-03-28 - R03.8 testing in progress
-
 Test 01 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
 
 **Usage:**
@@ -32,6 +30,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | 🥇 | **`qwen2.5-coder:0.5b`** | **5/5 (100%)** | 184.1s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Coder model joins 100% club! |
 | 🥇 | **`granite4:350m`** | **5/5 (100%)** | 188.3s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Native tools working! |
 | 🥇 | **`deepseek-r1:1.5b`** | **5/5 (100%)** | 304.7s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Perfect score! Reasoning model |
+| 🥇 | **`llama3.2:1b`** | **5/5 (100%)** | 732.8s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 100%! Q1 Final Answer Enforcement triggered |
 | 🥉 | `gemma3:270m` | **4/5 (80%)** | 425.2s | nova-helper | **native** | ✅ | ✅ | ✅ | ✅ | ❌ 1024 | Q5 reasoning error, improved! |
 | 🥉 | `qwen3.5:0.8b` | 4/5 (80%) | 625.8s | nova-helper | native | ❌ empty | ✅ | ✅ | ✅ | ✅ | Q1 empty, very slow |
 | 🥉 | `granite3.1-moe:1b` | **4/5 (80%)** | 225.4s | nova-helper | **native** | ✅ | ❌ 53 | ✅ | ✅ | ✅ | Q2 reasoning error, MoE model |
@@ -42,7 +41,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | 11 | `functiongemma:270m` | 1/5 (20%) | 237.5s | nova-helper | native | ✅ | ❌ 51 | ❌ 1024 | ❌ refused | ❌ refused | Reasoning errors, Q5 refusal |
 
 **Summary:**
-- **4 models achieve 100%**: `granite4:350m`, `qwen2.5:0.5b`, `deepseek-r1:1.5b`, `qwen2.5-coder:0.5b`
+- **5 models achieve 100%**: `granite4:350m`, `qwen2.5:0.5b`, `deepseek-r1:1.5b`, `qwen2.5-coder:0.5b`, `llama3.2:1b`
 - **3 models at 80%**: `gemma3:270m`, `qwen3.5:0.8b`, `granite3.1-moe:1b`
 - **2 models at 60%**: `qwen2:0.5b`, `qwen3:0.6b`
 - **2 models at 40%**: `qwen:0.5b`, `nchapman/dolphin3.0-qwen2.5:0.5b`
@@ -308,7 +307,7 @@ agentnova test 03 --model granite4:350m --timeout 9999
 
 | Tool Mode | Best Score | Best Model | Description |
 |-----------|:----------:|------------|-------------|
-| **Native** | **100%** | granite4:350m, qwen2.5:0.5b, deepseek-r1:1.5b, qwen2.5-coder:0.5b | Model uses API tool_calls directly |
+| **Native** | **100%** | granite4:350m, qwen2.5:0.5b, deepseek-r1:1.5b, qwen2.5-coder:0.5b, llama3.2:1b | Model uses API tool_calls directly |
 | **ReAct** | **80%** | qwen2.5:0.5b | Parser extracts Action/Action Input from text |
 | **Fallback** | **40%** | gemma3:270m, functiongemma:270m | Auto-fallback when model rejects tools |
 
@@ -329,7 +328,7 @@ agentnova test 03 --model granite4:350m --timeout 9999
 ### Key Findings (R03.6)
 
 1. **qwen2.5-coder:0.5b joins the 100% club!** - Coder model improved from 80% to perfect score!
-2. **4 models now achieve 100%** - granite4:350m, qwen2.5:0.5b, deepseek-r1:1.5b, qwen2.5-coder:0.5b
+2. **5 models now achieve 100%** - granite4:350m, qwen2.5:0.5b, deepseek-r1:1.5b, qwen2.5-coder:0.5b, llama3.2:1b
 3. **3 models at 80%** - gemma3:270m (improved!), qwen3.5:0.8b, granite3.1-moe:1b
 4. **granite3.1-moe:1b debuts at 80%** - MoE architecture with native tools
 5. **Native tool calling fully working** - All models with native support can use tools
