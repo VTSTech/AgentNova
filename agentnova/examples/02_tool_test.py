@@ -395,6 +395,14 @@ def run_phase1() -> tuple[int, int]:
     print(f"# Testing tool handlers without model")
     print(f"{'#'*60}")
     
+    # Show backend info (Phase 1 includes HTTP tests that hit the network)
+    try:
+        config = get_config()
+        backend_name = os.environ.get('AGENTNOVA_BACKEND', config.backend)
+        print(f"   Backend: {backend_name}")
+    except Exception:
+        pass
+    
     total_passed = 0
     total_tests = 0
     
@@ -1044,5 +1052,3 @@ def main():
     print(f"   ─────────────────────────")
     print(f"   TOTAL: {total_passed}/{total_tests} ({100*total_passed//total_tests if total_tests > 0 else 0}%)")
     print(f"{'='*60}")
-    
-    return 0
