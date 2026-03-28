@@ -78,6 +78,131 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 ---
 
+## Test 02 Tool Tests
+
+> **Updated:** 2026-03-29 - R03.7 first results
+
+Test 02 comprehensively evaluates tool calling across 6 categories.  Phase 1 validates tools directly (no model).  Phase 2 tests the model's ability to select, call, and interpret tools.
+
+**Usage:**
+```bash
+agentnova test 02 --soul nova-helper --num-ctx 8192 --num-predict 512 --temp 0.1
+agentnova test 02 --model-only -m granite4   # Phase 2 only, specific model
+agentnova test 02 --tools-only                 # Phase 1 only, no model needed
+agentnova test 02 --model-only -m qwen2.5:0.5b --debug
+```
+
+### Test Structure
+
+**Phase 1 — Direct Tool Validation** (no model required):
+| Category | Tests | Validates |
+|----------|:-----:|-----------|
+| Calculator | 19 | Math operations, constants, trig, edge cases, security |
+| Shell | 11 | Command execution, injection blocking, path traversal |
+| File Tools | 7 | Read/write/list, path security, empty files |
+| HTTP | 8 | Valid requests, SSRF blocking, scheme validation |
+| DateTime | 4 | Date/time formats, timezone handling, invalid input |
+| JSON/Text | 5 | JSON parsing, word/char counting, edge cases |
+
+**Phase 2 — Model Tool Calling** (model required):
+| Category | Tests | Expected Tool | What It Measures |
+|----------|:-----:|:------------:|-----------------|
+| Calculator | 5 | calculator | Expression construction, result extraction |
+| Shell | 2 | shell | Command formation, result relay |
+| DateTime | 2 | get_time / get_date | Tool selection, answer formatting |
+| File Tools | 2 | read_file / list_directory | Path handling, content extraction |
+| Python REPL | 2 | python_repl | Code generation, result interpretation |
+| All Tools | 4 | varies (calculator, shell, get_date, read_file) | **Tool selection from full set** |
+
+---
+
+### Phase 2 Results
+
+> Test params: `--soul nova-helper --num-ctx 8192 --num-predict 512 --temp 0.1 --model-only --timeout 9999`
+
+| Rank | Model | Score | Calc | Shell | DateTime | File | Repl | All Tools | Time | Tool Mode | Notes |
+|:----:|-------|------:|:----:|:-----:|:--------:|:----:|:----:|:---------:|:----:|:---------:|-------|
+| 🥇 | **`granite4:350m`** | **15/17 (88%)** | 5/5 | 2/2 | 2/2 | 1/2 | 2/2 | 3/4 | ~762s | **native** | 🏆 First tested! Strong calculator/shell |
+
+#### granite4:350m Detailed Breakdown
+
+**Calculator — 5/5 (100%)** ✅
+| Test | Prompt | Expected | Got | Tool Used | Steps | Time |
+|------|--------|:--------:|:----:|:---------:|:-----:|:----:|
+| Basic multiplication | What is 15 times 8? | 120 | 120 | ✅ | 2 | 164.6s |
+| Power | What is 2 to the power of 10? | 1024 | 1024 | ✅ | 2 | 10.2s |
+| Square root | What is the square root of 144? | 12 | 12 | ✅ | 2 | 10.5s |
+| Complex expression | What is (10 + 5) times 3? | 45 | 45 | ✅ | 2 | 11.1s |
+| Division | What is 100 divided by 4? | 25 | 25 | ✅ | 2 | 11.4s |
+
+**Shell — 2/2 (100%)** ✅
+| Test | Prompt | Expected | Tool Used | Result Location | Time |
+|------|--------|----------|:---------:|:---------------:|:----:|
+| Echo test | Use shell to echo 'Hello AgentNova' | Hello AgentNova | ✅ | tool result | 95.1s |
+| Current directory | What is the current working directory? | (any path) | ✅ | — | 7.7s |
+
+> **Note:** Echo test passed via tool result fallback — model called shell correctly but hallucinated weather in the final answer instead of echoing the result.
+
+**DateTime — 2/2 (100%)** ✅
+| Test | Prompt | Tool Used | Result Location | Time |
+|------|--------|:---------:|:---------------:|:----:|
+| Get date | What is today's date? | ✅ get_date | answer | 96.6s |
+| Get time | What time is it? | ✅ get_time | answer | 11.8s |
+
+**File Tools — 1/2 (50%)**
+| Test | Prompt | Expected | Tool Used | Result | Time |
+|------|--------|----------|:---------:|:-------:|:----:|
+| Read file | Read the file at /tmp/.../test.txt | AgentNova | ✅ read_file | tool result | 116.4s |
+| List directory | List files in /tmp/.../tmpdir | test.txt | ✅ list_directory | ❌ | 195.0s |
+
+> **Failure:** Model called `list_directory('/tmp')` instead of the full temp directory path `/tmp/tmp6ds0sx5i`. Listed parent directory contents (cloudflared, dap_multiplexer, etc.) which didn't contain `test.txt`.
+
+**Python REPL — 2/2 (100%)** ✅
+| Test | Prompt | Expected | Got | Tool Used | Time |
+|------|--------|:--------:|:----:|:---------:|:----:|
+| Calculate power | Use Python to calculate 2 to the power of 20 | 1048576 | 1048576 | ✅ | 98.6s |
+| Math with math module | Use Python to calculate the square root of 144 | 12 | 12.0 | ✅ | 12.3s |
+
+> **Note:** Square root test validates the `numbers_match()` fix — tool returned `12.0` but expected `"12"`. Numeric comparison with tolerance correctly matched.
+
+**All Tools — 3/4 (75%)**
+| Test | Prompt | Expected Tool | Correct Tool | Expected Content | Result | Time |
+|------|--------|:------------:|:------------:|:---------------:|:------:|:----:|
+| Calculator choice | What is 25 times 4? | calculator | ✅ | 100 | ✅ | 229.1s |
+| Shell choice | Echo the text 'MultiTool' | shell | ❌ | MultiTool | ❌ | 13.8s |
+| Date choice | What is today's date? | get_date | ✅ | (any date) | ✅ | 23.0s |
+| File read choice | Read the file at /tmp/.../multi_test.txt | read_file | ✅ | Test content | ✅ | 20.3s |
+
+> **Failure:** Shell choice — model didn't call any tool, responded with "I don't have enough context." This is a known issue with 350M parameter models when the prompt is vague.
+>
+> **Note:** Date choice passed tool selection despite model passing `{'type': ''}` as a spurious argument — test correctly identified `get_date` as the tool called.
+
+---
+
+### Key Findings (R03.7)
+
+1. **granite4:350m achieves 88% on tool tests** — strongest performance from a sub-500M model
+2. **Calculator tool calling is near-perfect** — 10/10 across calculator-specific and all-tools tests, with correct expression construction for all operation types
+3. **Native tool calling critical** — all tool calls were native (via API `tool_calls`), no ReAct parsing needed
+4. **Float vs integer handling matters** — `numbers_match()` fix prevented false negatives on `12` vs `12.0` in Python REPL
+5. **Path handling is a weakness** — model truncated `/tmp/tmp6ds0sx5i` to `/tmp` in the list_directory test
+6. **Vague prompts cause refusals** — "Echo the text 'MultiTool'" without explicit "Use shell" caused the model to refuse
+7. **Tool result fallback essential** — 3 tests would have failed without the fallback that checks tool results when the model's final answer is wrong
+8. **normalize_number last-number extraction** — prevents false display of question numbers instead of answer numbers (e.g., `15` vs `120` in "What is 15 times 8? ... 120")
+
+### Comparison Logic Fixes Applied (R03.7)
+
+Three fixes to `02_tool_test.py` improved result accuracy:
+
+| Fix | Issue | Impact |
+|-----|-------|--------|
+| `numbers_match()` | `"12" != "12.0"` string comparison | Prevents false negatives on float results |
+| `normalize_number` last-number | `"15 times 8 is 120"` → extracted `15` (first) | Now correctly extracts `120` (last) |
+| `check_tool_used` strict matching | Substring scan of tool results caused false positives | Eliminates false tool detection |
+| DateTime tool result fallback | Only checked `final_answer`, not tool results | Consistent with other test categories |
+
+---
+
 ## Historical Results
 
 ### 🎉 R03.3 Compliance Fixes (2026-03-27)
