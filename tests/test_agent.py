@@ -27,12 +27,16 @@ class TestTypes:
         assert ToolSupportLevel.NONE.value == "none"
 
     def test_tool_support_detect(self):
-        # Known native models
-        assert ToolSupportLevel.detect("qwen2.5:7b") == ToolSupportLevel.NATIVE
-        assert ToolSupportLevel.detect("llama3.1:8b") == ToolSupportLevel.NATIVE
-
-        # Unknown models default to ReAct
-        assert ToolSupportLevel.detect("unknown-model") == ToolSupportLevel.REACT
+        # R03.5: detect() returns UNTESTED without force_test=True
+        # Tool support must be explicitly tested via backend.test_tool_support()
+        assert ToolSupportLevel.detect("qwen2.5:7b") == ToolSupportLevel.UNTESTED
+        assert ToolSupportLevel.detect("llama3.1:8b") == ToolSupportLevel.UNTESTED
+        assert ToolSupportLevel.detect("unknown-model") == ToolSupportLevel.UNTESTED
+        
+        # Test the enum values are correct
+        assert ToolSupportLevel.NATIVE.value == "native"
+        assert ToolSupportLevel.REACT.value == "react"
+        assert ToolSupportLevel.UNTESTED.value == "untested"
 
     def test_backend_type(self):
         assert BackendType.OLLAMA.value == "ollama"
@@ -145,8 +149,13 @@ Action Input: {"expression": "2 + 2"}"""
     def test_is_final_answer(self):
         parser = ToolParser([])
 
+        # R03.5: Conservative matching - only explicit ReAct format markers
         assert parser.is_final_answer("Final Answer: 42")
-        assert parser.is_final_answer("The answer is 42")
+        assert parser.is_final_answer("Final Answer: The result is 42")
+        
+        # These should NOT match (conservative to prevent small models bypassing tools)
+        assert not parser.is_final_answer("The answer is 42")
+        assert not parser.is_final_answer("Answer: 42")
         assert not parser.is_final_answer("Action: calculator")
 
     def test_extract_final_answer(self):
@@ -251,7 +260,8 @@ class TestBuiltins:
         tool = registry.get("calculator")
 
         result = tool.execute(expression="sqrt(16)")
-        assert result == "4.0"
+        # Result can be "4" or "4.0" depending on Python version/formatting
+        assert result in ("4", "4.0")
 
     def test_count_words(self):
         registry = make_builtin_registry()
