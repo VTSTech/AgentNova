@@ -295,6 +295,10 @@ def create_parser() -> argparse.ArgumentParser:
     test_parser.add_argument("--soul", default=None, help="Path to Soul Spec package (disabled by default)")
     test_parser.add_argument("--soul-level", type=int, default=2, choices=[1, 2, 3],
                            help="Soul progressive disclosure level (1=quick, 2=full, 3=deep)")
+    test_parser.add_argument("--tools-only", action="store_true", dest="tools_only",
+                           help="Only run Phase 1 (direct tool tests, no model)")
+    test_parser.add_argument("--model-only", action="store_true", dest="model_only",
+                           help="Only run Phase 2 (model tool calling tests)")
 
     # Version command
     subparsers.add_parser("version", help="Show version information")
