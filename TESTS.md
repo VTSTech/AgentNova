@@ -63,7 +63,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | 🥉 | `granite3.1-moe:1b` | **4/5 (80%)** | 220.2s | nova-helper | **native** | ✅ | ❌ 53 | ✅ | ✅ | ✅ | Q2 reasoning error, MoE model |
 | 🥉 | `gemma3:270m` | **4/5 (80%)** | 424.7s | nova-helper | native | ✅ | ✅ | ✅ | ✅ | ❌ 1024 | Q5 reasoning error, improved! |
 | 4 | `qwen3:0.6b` | 3/5 (60%) | 476.9s | nova-helper | native | ❌ timeout | ❌ timeout | ✅ | ✅ | ✅ | Q1/Q2 timeouts |
-| 4 | `qwen2:0.5b` | 3/5 (60%) | 127.7s | nova-helper | native | ✅ | ✅ | ✅ | ❌ code | ❌ code | Wrote Python instead |
+| 4 | `qwen2:0.5b` | 3/5 (60%) | 164.5s | nova-helper | native | ✅ | ✅ | ✅ | ❌ text | ❌ 24 | Q4/Q5 explanation text instead of tools |
 | 6 | `nchapman/dolphin3.0-qwen2.5:0.5b` | 2/5 (40%) | 282.8s | nova-helper | native | ❌ empty | ❌ empty | ❌ empty | ✅ | ✅ | Q1-Q3 empty responses |
 | 6 | `dolphin3.0-qwen2.5:0.5b` | 2/5 (40%) | 105.7s | nova-helper | ReAct | ✅ | ❌ 4 | ✅ | ❌ 12 | ❌ 10 | Reasoning errors |
 | 8 | `functiongemma:270m` | 1/5 (20%) | 225.0s | nova-helper | fallback | ✅ | ❌ calc | ❌ 1024 | ❌ refused | ❌ refused | Reasoning errors, Q5 refusal |
