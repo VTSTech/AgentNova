@@ -439,45 +439,69 @@ class OllamaBackend(BaseBackend):
                 "raw": result,
             }
 
-        choice = choices[0]
-        message = choice.get("message", {})
-        content = message.get("content", "")
-        tool_calls = message.get("tool_calls", [])
-        finish_reason = choice.get("finish_reason")  # Extract for API spec completeness
+        # Helper function to parse a single choice
+        def _parse_choice(choice: dict) -> dict:
+            """Parse a single choice from OpenAI format response."""
+            message = choice.get("message", {})
+            content = message.get("content", "")
+            tool_calls = message.get("tool_calls", [])
+            finish_reason = choice.get("finish_reason")
+
+            # Parse tool calls from OpenAI format
+            # OpenAI format: {"id": "...", "type": "function", "function": {"name": "...", "arguments": "{...}"}}
+            parsed_tool_calls = []
+            for tc in tool_calls:
+                func = tc.get("function", {})
+                args = func.get("arguments", "{}")
+                # OpenAI returns arguments as JSON string, parse it
+                if isinstance(args, str):
+                    try:
+                        args = json.loads(args)
+                    except json.JSONDecodeError:
+                        args = {}
+                parsed_tool_calls.append({
+                    "id": tc.get("id", ""),
+                    "name": func.get("name", ""),
+                    "arguments": args,
+                })
+
+            # Extract logprobs if present
+            choice_logprobs = None
+            if logprobs:
+                choice_logprobs = choice.get("logprobs")
+
+            return {
+                "content": content,
+                "tool_calls": parsed_tool_calls,
+                "finish_reason": finish_reason,
+                "logprobs": choice_logprobs,
+            }
+
+        usage = result.get("usage", {})
+
+        # OpenAI Chat Completions API v1.0: Handle multiple completions (n > 1)
+        # When n > 1, process ALL choices and return them under "choices" (plural) key
+        # Maintain backward compatibility by also including first choice under existing keys
+        num_choices = len(choices)
+        parsed_choices = [_parse_choice(choice) for choice in choices]
+
+        # First choice for backward-compatible keys
+        first_choice = parsed_choices[0]
+        content = first_choice["content"]
+        parsed_tool_calls = first_choice["tool_calls"]
+        finish_reason = first_choice["finish_reason"]
+        logprobs_result = first_choice["logprobs"]
 
         # Debug output
         if os.environ.get("AGENTNOVA_DEBUG"):
-            print(f"  [OpenAI-Comp] Content: {content[:1024] if content else '(empty)'}")
-            print(f"  [OpenAI-Comp] Tool calls: {tool_calls}")
+            print(f"  [OpenAI-Comp] Choices: {num_choices}")
+            print(f"  [OpenAI-Comp] Content[0]: {content[:1024] if content else '(empty)'}")
+            print(f"  [OpenAI-Comp] Tool calls[0]: {parsed_tool_calls}")
 
-        # Parse tool calls from OpenAI format
-        # OpenAI format: {"id": "...", "type": "function", "function": {"name": "...", "arguments": "{...}"}}
-        parsed_tool_calls = []
-        for tc in tool_calls:
-            func = tc.get("function", {})
-            args = func.get("arguments", "{}")
-            # OpenAI returns arguments as JSON string, parse it
-            if isinstance(args, str):
-                try:
-                    args = json.loads(args)
-                except json.JSONDecodeError:
-                    args = {}
-            parsed_tool_calls.append({
-                "id": tc.get("id", ""),
-                "name": func.get("name", ""),
-                "arguments": args,
-            })
-
-        usage = result.get("usage", {})
-        
-        # Extract logprobs if present (OpenAI API spec completeness)
-        logprobs_result = None
-        if logprobs:
-            logprobs_result = choice.get("logprobs")
-
-        return {
-            "content": content,
-            "tool_calls": parsed_tool_calls,
+        # Build response dict
+        response = {
+            "content": content,  # Backward compatible: first choice content
+            "tool_calls": parsed_tool_calls,  # Backward compatible: first choice tool calls
             "finish_reason": finish_reason,  # OpenAI API spec: "stop", "length", "tool_calls", "content_filter"
             "usage": {
                 "prompt_tokens": usage.get("prompt_tokens", 0),
@@ -488,6 +512,12 @@ class OllamaBackend(BaseBackend):
             "logprobs": logprobs_result,
             "raw": result,
         }
+
+        # When n > 1, include all choices under "choices" key (OpenAI API spec compliance)
+        if num_choices > 1:
+            response["choices"] = parsed_choices
+
+        return response
 
     def generate_completions_stream(
         self,
@@ -518,6 +548,7 @@ class OllamaBackend(BaseBackend):
             - "delta": text delta from the model
             - "finish_reason": None or "stop" when complete
             - "tool_calls": incremental tool call data (if any)
+            - "logprobs": log probability data (when logprobs=True)
         
         Args:
             model: Model name
@@ -538,7 +569,7 @@ class OllamaBackend(BaseBackend):
             **kwargs: Additional options
             
         Yields:
-            Dict with "delta", "finish_reason", and optionally "tool_calls"
+            Dict with "delta", "finish_reason", and optionally "tool_calls" and "logprobs"
         """
         import urllib.request
         import urllib.error
@@ -637,11 +668,22 @@ class OllamaBackend(BaseBackend):
                         # Extract tool calls if present
                         tool_calls_delta = delta.get("tool_calls", None)
                         
-                        yield {
+                        # Extract logprobs if present (OpenAI API spec completeness)
+                        # In streaming mode, logprobs are returned per-chunk in choices[0].logprobs
+                        logprobs_data = choices[0].get("logprobs") if logprobs else None
+                        
+                        # Build yield dict with required fields
+                        yield_chunk = {
                             "delta": text_delta,
                             "finish_reason": finish_reason,
                             "tool_calls": tool_calls_delta,
                         }
+                        
+                        # Include logprobs in yield when available
+                        if logprobs_data is not None:
+                            yield_chunk["logprobs"] = logprobs_data
+                        
+                        yield yield_chunk
                         
                         if finish_reason:
                             break

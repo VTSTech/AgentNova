@@ -42,6 +42,7 @@ from .core.openresponses import (
     RequestConfig, Error,
     create_message_item, create_function_call_item, create_function_call_output,
     create_function_call_output_item,
+    stream_response_events,
 )
 from .tools import ToolRegistry, make_builtin_registry
 from .backends import BaseBackend, get_default_backend
@@ -851,6 +852,143 @@ Final Answer: <the answer>
             tool_calls=tool_calls,
             success=bool(final_answer),
         )
+
+    def run_stream(self, prompt: str) -> Generator[str, None, None]:
+        """
+        Run the agent on a prompt with streaming OpenResponses SSE events.
+
+        This method implements the agentic loop with streaming output following
+        OpenResponses specification. It yields Server-Sent Events (SSE) that
+        describe the response lifecycle and content deltas.
+
+        SSE Event Sequence (per OpenResponses spec):
+            1. response.queued - Response is queued
+            2. response.in_progress - Response started
+            3. response.output_item.added - New output item added
+            4. response.content_part.added - New content part added
+            5. response.output_text.delta - Text deltas (multiple)
+            6. response.output_text.done - Text completed
+            7. response.content_part.done - Content part completed
+            8. response.output_item.done - Output item completed
+            9. response.completed - Response finished
+
+        Args:
+            prompt: User prompt
+
+        Yields:
+            SSE-formatted strings (event: ...\\ndata: ...\\n\\n)
+
+        Example:
+            agent = Agent(model="qwen2.5:0.5b")
+            for sse_event in agent.run_stream("Hello!"):
+                print(sse_event)  # SSE formatted event
+        """
+        # Create OpenResponses Response object
+        response = Response(
+            model=self.model,
+            status=ResponseStatus.QUEUED,
+            tool_choice=self.tool_choice,
+            allowed_tools=self._allowed_tools or [],
+        )
+
+        if self.debug and not self._is_comp_mode:
+            print(f"\n[OpenResponses] Response created: id={response.id}")
+            print(f"[OpenResponses] Response status: {response.status.value}")
+
+        # Add user prompt to memory
+        self.memory.add("user", prompt)
+
+        # Add input item
+        user_item = create_message_item("user", prompt)
+        response.input.append(user_item)
+
+        if self.debug and not self._is_comp_mode:
+            print(f"[OpenResponses] Input item added: id={user_item.id}, type={user_item.type}, role={user_item.role}")
+
+        if self.debug:
+            print(f"\n[AgentNova] Model: {self.model}")
+            print(f"[AgentNova] Backend: {self.backend.base_url}")
+            print(f"[AgentNova] tool_choice: {self.tool_choice.type.value}")
+            print(f"[AgentNova] Tools: {self.tools.names()}")
+            print(f"[AgentNova] Prompt (streaming): {prompt}\n")
+
+        # Get text chunks from backend streaming
+        text_chunks = self._generate_stream_chunks(prompt)
+
+        # Wrap with OpenResponses SSE events using stream_response_events()
+        for sse_event in stream_response_events(response, text_chunks, debug=self.debug):
+            yield sse_event
+
+    def _generate_stream_chunks(self, prompt: str) -> Generator[str, None, None]:
+        """
+        Generate streaming text chunks from the backend.
+
+        This is a helper method that wraps the backend's streaming functionality
+        and yields raw text chunks for the OpenResponses event generator.
+
+        Args:
+            prompt: User prompt (unused, memory already has the prompt)
+
+        Yields:
+            Text chunks from the model
+        """
+        messages = self.memory.get_messages()
+
+        if self.debug:
+            print(f"  [DEBUG] Streaming {len(messages)} messages")
+
+        # Check if model needs thinking disabled (qwen3, deepseek-r1, etc.)
+        think = None
+        if self.model_family:
+            from .core.model_family_config import needs_no_think_directive
+            if needs_no_think_directive(self.model_family):
+                think = False
+
+        # Build kwargs for backend
+        backend_kwargs = {"think": think}
+        if self.num_ctx is not None:
+            backend_kwargs["num_ctx"] = self.num_ctx
+
+        # Check if backend has streaming support
+        if hasattr(self.backend, 'generate_stream'):
+            # Use native Ollama streaming
+            for chunk in self.backend.generate_stream(
+                model=self.model,
+                messages=messages,
+                tools=self.tools.all() if self.tools and len(self.tools) > 0 else None,
+                temperature=self.model_config.default_temperature,
+                max_tokens=self.model_config.default_max_tokens,
+                **backend_kwargs,
+            ):
+                yield chunk
+        elif hasattr(self.backend, 'generate_completions_stream'):
+            # Use OpenAI-compatible streaming
+            for chunk_dict in self.backend.generate_completions_stream(
+                model=self.model,
+                messages=messages,
+                tools=self.tools.all() if self.tools and len(self.tools) > 0 else None,
+                temperature=self.model_config.default_temperature,
+                max_tokens=self.model_config.default_max_tokens,
+                **backend_kwargs,
+            ):
+                delta = chunk_dict.get("delta", "")
+                if delta:
+                    yield delta
+        else:
+            # Fallback: non-streaming with simulated streaming
+            result = self.backend.generate(
+                model=self.model,
+                messages=messages,
+                tools=self.tools.all() if self.tools and len(self.tools) > 0 else None,
+                temperature=self.model_config.default_temperature,
+                max_tokens=self.model_config.default_max_tokens,
+                **backend_kwargs,
+            )
+            content = result.get("content", "")
+            # Yield content in chunks for consistent behavior
+            chunk_size = 20
+            for i in range(0, len(content), chunk_size):
+                yield content[i:i + chunk_size]
 
     def create_response(
         self,
