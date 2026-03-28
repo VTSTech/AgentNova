@@ -59,7 +59,7 @@ def get_backend(name: str, timeout: int | None = None, api_mode: ApiMode | str |
     return backend_class(**kwargs)
 
 
-def get_default_backend(name: str | None = None, api_mode: ApiMode | str | None = None) -> BaseBackend:
+def get_default_backend(name: str | None = None, api_mode: ApiMode | str | None = None, timeout: int | None = None) -> BaseBackend:
     """
     Get a default backend instance.
 
@@ -67,13 +67,14 @@ def get_default_backend(name: str | None = None, api_mode: ApiMode | str | None 
 
     Args:
         name: Backend name (optional, uses env var if not provided)
-        api_mode: API mode ("resp" for OpenResponses/native, "comp" for Chat-Completions)
+        api_mode: API mode ("openre" for OpenResponses/native, "openai" for Chat-Completions)
+        timeout: Request timeout in seconds (default: 120)
 
     Returns:
         Backend instance with default configuration
     """
     backend_name = name or AGENTNOVA_BACKEND
-    return get_backend(backend_name, api_mode=api_mode)
+    return get_backend(backend_name, api_mode=api_mode, timeout=timeout)
 
 
 def register_backend(name: str, backend_class: type[BaseBackend]) -> None:
