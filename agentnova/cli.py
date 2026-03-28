@@ -386,7 +386,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         force_react=getattr(args, 'force_react', False),
         soul=getattr(args, 'soul', None),
         soul_level=getattr(args, 'soul_level', 2),
-        num_ctx=getattr(args, 'num_ctx', None) or config.num_ctx,
+        num_ctx=getattr(args, 'num_ctx', None) if getattr(args, 'num_ctx', None) is not None else config.num_ctx,
         temperature=getattr(args, 'temperature', None),
         top_p=getattr(args, 'top_p', None),
         num_predict=getattr(args, 'num_predict', None),
@@ -439,7 +439,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
         debug=args.debug,
         soul=getattr(args, 'soul', None),
         soul_level=getattr(args, 'soul_level', 2),
-        num_ctx=getattr(args, 'num_ctx', None) or config.num_ctx,
+        num_ctx=getattr(args, 'num_ctx', None) if getattr(args, 'num_ctx', None) is not None else config.num_ctx,
         temperature=getattr(args, 'temperature', None),
         top_p=getattr(args, 'top_p', None),
         num_predict=getattr(args, 'num_predict', None),
@@ -537,7 +537,7 @@ def cmd_agent(args: argparse.Namespace) -> int:
         force_react=getattr(args, 'force_react', False),
         soul=getattr(args, 'soul', None),
         soul_level=getattr(args, 'soul_level', 2),
-        num_ctx=getattr(args, 'num_ctx', None) or config.num_ctx,
+        num_ctx=getattr(args, 'num_ctx', None) if getattr(args, 'num_ctx', None) is not None else config.num_ctx,
         temperature=getattr(args, 'temperature', None),
         top_p=getattr(args, 'top_p', None),
         num_predict=getattr(args, 'num_predict', None),
@@ -1014,7 +1014,7 @@ def cmd_test(args: argparse.Namespace) -> int:
         print(f"{dim('Model:')} {cyan(models_to_test[0])}")
     else:
         print(f"{dim('Models:')} {cyan(str(len(models_to_test)))} matching '{model_pattern}'")
-    num_ctx_val = getattr(args, 'num_ctx', None) or config.num_ctx
+    num_ctx_val = getattr(args, 'num_ctx', None) if getattr(args, 'num_ctx', None) is not None else config.num_ctx
     if num_ctx_val:
         ctx_display = f"{num_ctx_val // 1024}K" if num_ctx_val >= 1024 else str(num_ctx_val)
         print(f"{dim('Context:')} {yellow(ctx_display)}")

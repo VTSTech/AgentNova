@@ -452,7 +452,10 @@ def check_tool_used(run, tool_name: str) -> bool:
 
 
 def test_calculator_model(model: str, backend, debug: bool = False,
-                           soul: str = None, soul_level: int = 2) -> tuple[int, int]:
+                           soul: str = None, soul_level: int = 2,
+                           force_react: bool = False,
+                           num_ctx: int = None, num_predict: int = None,
+                           temperature: float = None, top_p: float = None) -> tuple[int, int]:
     """Test model's ability to call calculator tool."""
     print(f"\n{'='*60}")
     print(f"🧮 Calculator Tool - Model Calling")
@@ -483,6 +486,11 @@ def test_calculator_model(model: str, backend, debug: bool = False,
             debug=debug,
             soul=soul,
             soul_level=soul_level,
+            force_react=force_react,
+            num_ctx=num_ctx,
+            num_predict=num_predict,
+            temperature=temperature,
+            top_p=top_p,
         )
         
         t0 = time.time()
@@ -511,7 +519,10 @@ def test_calculator_model(model: str, backend, debug: bool = False,
 
 
 def test_shell_model(model: str, backend, debug: bool = False,
-                     soul: str = None, soul_level: int = 2) -> tuple[int, int]:
+                     soul: str = None, soul_level: int = 2,
+                     force_react: bool = False,
+                     num_ctx: int = None, num_predict: int = None,
+                     temperature: float = None, top_p: float = None) -> tuple[int, int]:
     """Test model's ability to call shell tool."""
     print(f"\n{'='*60}")
     print(f"🖥️ Shell Tool - Model Calling")
@@ -540,6 +551,11 @@ def test_shell_model(model: str, backend, debug: bool = False,
             debug=debug,
             soul=soul,
             soul_level=soul_level,
+            force_react=force_react,
+            num_ctx=num_ctx,
+            num_predict=num_predict,
+            temperature=temperature,
+            top_p=top_p,
         )
         
         t0 = time.time()
@@ -589,7 +605,10 @@ def test_shell_model(model: str, backend, debug: bool = False,
 
 
 def test_datetime_model(model: str, backend, debug: bool = False,
-                        soul: str = None, soul_level: int = 2) -> tuple[int, int]:
+                        soul: str = None, soul_level: int = 2,
+                        force_react: bool = False,
+                        num_ctx: int = None, num_predict: int = None,
+                        temperature: float = None, top_p: float = None) -> tuple[int, int]:
     """Test model's ability to call datetime tools."""
     print(f"\n{'='*60}")
     print(f"📅 DateTime Tools - Model Calling")
@@ -617,6 +636,11 @@ def test_datetime_model(model: str, backend, debug: bool = False,
             debug=debug,
             soul=soul,
             soul_level=soul_level,
+            force_react=force_react,
+            num_ctx=num_ctx,
+            num_predict=num_predict,
+            temperature=temperature,
+            top_p=top_p,
         )
         
         t0 = time.time()
@@ -642,7 +666,10 @@ def test_datetime_model(model: str, backend, debug: bool = False,
 
 
 def test_file_model(model: str, backend, debug: bool = False,
-                    soul: str = None, soul_level: int = 2) -> tuple[int, int]:
+                    soul: str = None, soul_level: int = 2,
+                    force_react: bool = False,
+                    num_ctx: int = None, num_predict: int = None,
+                    temperature: float = None, top_p: float = None) -> tuple[int, int]:
     """Test model's ability to call file tools."""
     print(f"\n{'='*60}")
     print(f"📁 File Tools - Model Calling")
@@ -681,6 +708,11 @@ def test_file_model(model: str, backend, debug: bool = False,
                 debug=debug,
                 soul=soul,
                 soul_level=soul_level,
+                force_react=force_react,
+                num_ctx=num_ctx,
+                num_predict=num_predict,
+                temperature=temperature,
+                top_p=top_p,
             )
             
             t0 = time.time()
@@ -718,7 +750,10 @@ def test_file_model(model: str, backend, debug: bool = False,
 
 
 def test_python_repl_model(model: str, backend, debug: bool = False,
-                           soul: str = None, soul_level: int = 2) -> tuple[int, int]:
+                           soul: str = None, soul_level: int = 2,
+                           force_react: bool = False,
+                           num_ctx: int = None, num_predict: int = None,
+                           temperature: float = None, top_p: float = None) -> tuple[int, int]:
     """Test model's ability to call python_repl tool."""
     print(f"\n{'='*60}")
     print(f"🐍 Python REPL Tool - Model Calling")
@@ -746,6 +781,11 @@ def test_python_repl_model(model: str, backend, debug: bool = False,
             debug=debug,
             soul=soul,
             soul_level=soul_level,
+            force_react=force_react,
+            num_ctx=num_ctx,
+            num_predict=num_predict,
+            temperature=temperature,
+            top_p=top_p,
         )
         
         t0 = time.time()
@@ -777,7 +817,10 @@ def test_python_repl_model(model: str, backend, debug: bool = False,
 
 
 def test_all_tools_model(model: str, backend, debug: bool = False,
-                         soul: str = None, soul_level: int = 2) -> tuple[int, int]:
+                         soul: str = None, soul_level: int = 2,
+                         force_react: bool = False,
+                         num_ctx: int = None, num_predict: int = None,
+                         temperature: float = None, top_p: float = None) -> tuple[int, int]:
     """Test model's ability to choose correct tools when all are available."""
     print(f"\n{'='*60}")
     print(f"🧰 All Tools - Model Calling")
@@ -816,6 +859,11 @@ def test_all_tools_model(model: str, backend, debug: bool = False,
                 debug=debug,
                 soul=soul,
                 soul_level=soul_level,
+                force_react=force_react,
+                num_ctx=num_ctx,
+                num_predict=num_predict,
+                temperature=temperature,
+                top_p=top_p,
             )
             
             t0 = time.time()
@@ -850,7 +898,10 @@ def test_all_tools_model(model: str, backend, debug: bool = False,
 
 
 def run_phase2(model: str, backend, debug: bool,
-               soul: str = None, soul_level: int = 2) -> tuple[int, int]:
+               soul: str = None, soul_level: int = 2,
+               force_react: bool = False,
+               num_ctx: int = None, num_predict: int = None,
+               temperature: float = None, top_p: float = None) -> tuple[int, int]:
     """Run all Phase 2 (model tool calling) tests."""
     print(f"\n{'#'*60}")
     print(f"# PHASE 2: Model Tool Calling")
@@ -861,28 +912,40 @@ def run_phase2(model: str, backend, debug: bool,
     total_tests = 0
     
     # Test each tool category separately
-    p, t = test_calculator_model(model, backend, debug, soul=soul, soul_level=soul_level)
+    p, t = test_calculator_model(model, backend, debug, soul=soul, soul_level=soul_level,
+                                 force_react=force_react, num_ctx=num_ctx,
+                                 num_predict=num_predict, temperature=temperature, top_p=top_p)
     total_passed += p
     total_tests += t
     
-    p, t = test_shell_model(model, backend, debug, soul=soul, soul_level=soul_level)
+    p, t = test_shell_model(model, backend, debug, soul=soul, soul_level=soul_level,
+                            force_react=force_react, num_ctx=num_ctx,
+                            num_predict=num_predict, temperature=temperature, top_p=top_p)
     total_passed += p
     total_tests += t
     
-    p, t = test_datetime_model(model, backend, debug, soul=soul, soul_level=soul_level)
+    p, t = test_datetime_model(model, backend, debug, soul=soul, soul_level=soul_level,
+                               force_react=force_react, num_ctx=num_ctx,
+                               num_predict=num_predict, temperature=temperature, top_p=top_p)
     total_passed += p
     total_tests += t
     
-    p, t = test_file_model(model, backend, debug, soul=soul, soul_level=soul_level)
+    p, t = test_file_model(model, backend, debug, soul=soul, soul_level=soul_level,
+                            force_react=force_react, num_ctx=num_ctx,
+                            num_predict=num_predict, temperature=temperature, top_p=top_p)
     total_passed += p
     total_tests += t
     
-    p, t = test_python_repl_model(model, backend, debug, soul=soul, soul_level=soul_level)
+    p, t = test_python_repl_model(model, backend, debug, soul=soul, soul_level=soul_level,
+                                  force_react=force_react, num_ctx=num_ctx,
+                                  num_predict=num_predict, temperature=temperature, top_p=top_p)
     total_passed += p
     total_tests += t
     
     # Test with ALL tools available (model must choose correct tool)
-    p, t = test_all_tools_model(model, backend, debug, soul=soul, soul_level=soul_level)
+    p, t = test_all_tools_model(model, backend, debug, soul=soul, soul_level=soul_level,
+                                force_react=force_react, num_ctx=num_ctx,
+                                num_predict=num_predict, temperature=temperature, top_p=top_p)
     total_passed += p
     total_tests += t
     
@@ -917,6 +980,7 @@ def main():
         model = args.model or config.default_model
         backend_name = args.backend or config.backend
         api_mode = getattr(args, 'api_mode', 'resp')
+        timeout = getattr(args, 'timeout', None)
         backend = get_default_backend(backend_name, api_mode=api_mode)
         
         if not backend.is_running():
@@ -930,9 +994,22 @@ def main():
                 print(f"   API Mode: {api_mode}")
             if args.soul:
                 print(f"   Soul: {args.soul}")
+            num_ctx = getattr(args, 'num_ctx', None)
+            if num_ctx is None:
+                num_ctx = getattr(config, 'num_ctx', None)
+            if num_ctx:
+                ctx_display = f"{num_ctx // 1024}K" if num_ctx >= 1024 else str(num_ctx)
+                print(f"   Context: {ctx_display}")
             
-            phase2_passed, phase2_total = run_phase2(model, backend, args.debug,
-                                                     soul=args.soul, soul_level=args.soul_level)
+            phase2_passed, phase2_total = run_phase2(
+                model, backend, args.debug,
+                soul=args.soul, soul_level=args.soul_level,
+                force_react=getattr(args, 'force_react', False),
+                num_ctx=num_ctx,
+                num_predict=getattr(args, 'num_predict', None),
+                temperature=getattr(args, 'temperature', None),
+                top_p=getattr(args, 'top_p', None)
+            )
             total_passed += phase2_passed
             total_tests += phase2_total
     
@@ -947,9 +1024,3 @@ def main():
     print(f"   ─────────────────────────")
     print(f"   TOTAL: {total_passed}/{total_tests} ({100*total_passed//total_tests if total_tests > 0 else 0}%)")
     print(f"{'='*60}")
-    
-    return 0 if total_passed == total_tests else 1
-
-
-if __name__ == "__main__":
-    sys.exit(main())

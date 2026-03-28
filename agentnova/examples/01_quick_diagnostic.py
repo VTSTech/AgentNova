@@ -252,7 +252,9 @@ def main():
         print(f"   Force ReAct: True")
     if args.soul:
         print(f"   Soul: {args.soul}")
-    num_ctx = getattr(args, 'num_ctx', None) or getattr(config, 'num_ctx', None)
+    num_ctx = getattr(args, 'num_ctx', None)
+    if num_ctx is None:
+        num_ctx = getattr(config, 'num_ctx', None)
     if num_ctx:
         ctx_display = f"{num_ctx // 1024}K" if num_ctx >= 1024 else str(num_ctx)
         print(f"   Context: {ctx_display}")
