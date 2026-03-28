@@ -258,12 +258,10 @@ def create_parser() -> argparse.ArgumentParser:
     # Models command
     models_parser = subparsers.add_parser("models", help="List available models")
     models_parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None, help="Backend to use")
-    models_parser.add_argument("--api", choices=["openre", "openai"], default=None, dest="api_mode",
-                           help="API mode for tool support testing (default: test both)")
-    models_parser.add_argument("--acp", action="store_true", help="Log tool support tests to ACP")
-    models_parser.add_argument("--acp-url", default=None, help="ACP server URL (default: from config)")
-    models_parser.add_argument("--tool-support", action="store_true", help="Force re-test tool calling support (both API modes)")
+    models_parser.add_argument("--tool-support", action="store_true", help="Force re-test tool calling support")
     models_parser.add_argument("--no-cache", action="store_true", help="Ignore cached tool support results")
+    models_parser.add_argument("--acp", action="store_true", help="Enable ACP logging to Agent Control Panel")
+    models_parser.add_argument("--acp-url", default=None, help="ACP server URL (default: from config)")
 
     # Tools command
     subparsers.add_parser("tools", help="List available tools")
@@ -708,53 +706,15 @@ def _save_tool_cache(cache: dict) -> None:
         print(f"Warning: Could not save tool cache: {e}", file=sys.stderr)
 
 
-def _tool_status(status: str) -> str:
-    """Format a tool support status with color."""
-    if status == "native":
-        return bright_green("✓ native")
-    elif status == "react":
-        return yellow("○ react")
-    elif status == "none":
-        return red("✗ none")
-    elif status == "error":
-        return red("✗ error")
-    return dim("? untested")
-
-
 def cmd_models(args: argparse.Namespace) -> int:
     """Execute the models command."""
     from .core.tool_cache import cache_tool_support, get_cached_tool_support
-    from .core.types import ToolSupportLevel, ApiMode
+    from .core.types import ToolSupportLevel
     
     config = get_config()
     backend_name = args.backend or config.backend
-    api_mode_arg = getattr(args, 'api_mode', None)  # None = both modes
 
-    # Which modes to test?  --api openai → only openai; otherwise both
-    modes_to_test = [api_mode_arg] if api_mode_arg else ["openre", "openai"]
-    # Always display both columns
-    modes_display = ["openre", "openai"]
-
-    # Initialize ACP if requested (only meaningful with --tool-support)
-    acp = None
-    if getattr(args, 'acp', False):
-        try:
-            from .acp_plugin import ACPPlugin
-            acp_url = getattr(args, 'acp_url', None) or config.acp_base_url
-            acp = ACPPlugin(
-                base_url=acp_url,
-                agent_name="AgentNova-Models",
-                model_name="tool-support-scan",
-                debug=False,
-            )
-            bootstrap = acp.bootstrap()
-            if bootstrap.get("stop_flag"):
-                print(f"{red('Error:')} ACP STOP flag is set: {bootstrap.get('warnings')}")
-                return 1
-        except Exception as e:
-            print(f"{yellow('Warning:')} Failed to connect to ACP: {e}")
-
-    backend = get_backend(backend_name, api_mode="openre")  # default for list_models etc.
+    backend = get_backend(backend_name)
 
     if not isinstance(backend, OllamaBackend):
         print(f"Models command works best with Ollama backend (current: {backend_name})")
@@ -774,23 +734,41 @@ def cmd_models(args: argparse.Namespace) -> int:
             print("Pull one with: ollama pull qwen2.5:0.5b")
         return 0
 
+    # Initialize ACP plugin if requested
+    acp = None
+    if getattr(args, 'acp', False):
+        try:
+            from .acp_plugin import ACPPlugin
+            acp_url = getattr(args, 'acp_url', None) or config.acp_base_url
+            acp = ACPPlugin(
+                base_url=acp_url,
+                agent_name="AgentNova-Models",
+                model_name=None,
+                debug=False,
+            )
+            bootstrap_result = acp.bootstrap()
+            if bootstrap_result.get("stop_flag"):
+                print(f"{red('Error:')} ACP STOP flag is set")
+                return 1
+        except Exception as e:
+            print(f"{yellow('Warning:')} Failed to connect to ACP: {e}")
+            acp = None
+
     # Column widths
     NAME_W = 36
     SIZE_W = 8
-    CTX_W = 7
-    TOOLS_W = 12  # fits "✓ native"
+    CTX_W = 12  # Wider for "2K/32K" format
+    TOOLS_W = 10
     FAMILY_W = 12
-    sep_len = 4 + NAME_W + SIZE_W + CTX_W + TOOLS_W + TOOLS_W + FAMILY_W + 10
-
+    
     print()
     print(f"{bright_cyan('⚛ AgentNova')} - Available Models")
     print(dim(f"  Backend: {backend.base_url}"))
-    if args.tool_support:
-        mode_label = ", ".join(modes_to_test)
-        print(dim(f"  Testing: {mode_label}"))
-    print(dim("-" * sep_len))
-    print(f"  {'Name':<{NAME_W}} {'Size':>{SIZE_W}}  {'Ctx':>{CTX_W}}  {'openre':>{TOOLS_W}}  {'openai':>{TOOLS_W}}  {'Family':<{FAMILY_W}}")
-    print(dim("-" * sep_len))
+    if acp:
+        print(f"{dim('ACP:')} {green('✓ Connected')} ({acp.base_url})")
+    print(dim("-" * (4 + NAME_W + SIZE_W + CTX_W + TOOLS_W + FAMILY_W + 8)))
+    print(f"  {'Name':<{NAME_W}} {'Size':>{SIZE_W}}  {'Context':>{CTX_W}}  {'Tools':>{TOOLS_W}}  {'Family':<{FAMILY_W}}")
+    print(dim("-" * (4 + NAME_W + SIZE_W + CTX_W + TOOLS_W + FAMILY_W + 8)))
 
     for m in models:
         name = m.get("name", "unknown")
@@ -798,85 +776,108 @@ def cmd_models(args: argparse.Namespace) -> int:
         size_gb = size / (1024**3) if size else 0
         family = m.get("details", {}).get("family", "unknown")
         
-        # Max context for this model
+        # Get both runtime and max context
+        runtime_ctx = backend.get_model_runtime_context(name)
         max_ctx = backend.get_model_max_context(name, family=family)
         
-        # Fixed columns
-        name_col = pad_colored(cyan(name), NAME_W)
-        size_col = f"{size_gb:>6.2f} GB"
-        ctx_col = pad_colored(dim(str(max_ctx)), CTX_W, 'right')
-
-        if isinstance(backend, OllamaBackend):
-            results = {}  # mode -> status string
-
-            if args.tool_support:
-                # Test each requested mode
-                modes_label = " + ".join(modes_to_test)
-                print(f"  {dim('Testing:')} {cyan(name)} [{dim(modes_label)}]...", end="", flush=True)
-                for mode in modes_to_test:
-                    backend.api_mode = ApiMode(mode)
-                    try:
-                        support = backend.test_tool_support(name, family=family, force_test=True)
-                        cache_tool_support(name, support, family=family, api_mode=mode)
-                        results[mode] = support.value
-                    except Exception as e:
-                        cache_tool_support(name, ToolSupportLevel.NONE, family=family,
-                                           error=str(e)[:100], api_mode=mode)
-                        results[mode] = "error"
-
-                # Fill untested display modes from cache
-                for mode in modes_display:
-                    if mode not in results and not args.no_cache:
-                        cached = get_cached_tool_support(name, api_mode=mode)
-                        if cached is not None:
-                            results[mode] = cached.value
-
-                # Log to ACP if connected
-                if acp:
-                    summary = f"{name} ({family}): " + ", ".join(
-                        f"{m}={results.get(m, '?')}" for m in modes_display
-                    )
-                    acp.log_shell(
-                        command=f"test_tool_support --model {name}",
-                        output_preview=summary,
-                        error=any(v in ("error", "none") for v in results.values()),
-                    )
-
-                # Overwrite the "Testing..." line with the final row
-                tool_re = pad_colored(_tool_status(results.get("openre")), TOOLS_W, 'right')
-                tool_ai = pad_colored(_tool_status(results.get("openai")), TOOLS_W, 'right')
-                print(f"\r  {name_col} {size_col}  {ctx_col}  {tool_re}  {tool_ai}  {dim('(' + family + ')')}")
-            else:
-                # Read from cache for both display modes
-                for mode in modes_display:
-                    if not args.no_cache:
-                        cached = get_cached_tool_support(name, api_mode=mode)
-                        if cached is not None:
-                            results[mode] = cached.value
-                # Format missing modes as untested
-                tool_re = pad_colored(_tool_status(results.get("openre")), TOOLS_W, 'right')
-                tool_ai = pad_colored(_tool_status(results.get("openai")), TOOLS_W, 'right')
-                print(f"  {name_col} {size_col}  {ctx_col}  {tool_re}  {tool_ai}  {dim('(' + family + ')')}")
+        # Format context size: "2K/32K" format
+        def format_ctx(n):
+            if n >= 1000000:
+                return f"{n // 1000}K"
+            elif n >= 1000:
+                return f"{n // 1000}K"
+            return str(n)
+        
+        if runtime_ctx == max_ctx:
+            # Runtime matches max (explicitly set or same)
+            ctx_str = format_ctx(runtime_ctx)
+        elif runtime_ctx == 2048:
+            # Using Ollama default - show "2K / 32K max"
+            ctx_str = f"{format_ctx(runtime_ctx)}/{format_ctx(max_ctx)}"
         else:
-            tool_na_re = pad_colored(dim("? n/a"), TOOLS_W, 'right')
-            tool_na_ai = pad_colored(dim("? n/a"), TOOLS_W, 'right')
-            print(f"  {name_col} {size_col}  {dim(pad_colored(ctx_str, CTX_W, 'right'))}  {tool_na_re}  {tool_na_ai}  {dim('(' + family + ')')}")
+            # Custom runtime setting
+            ctx_str = f"{format_ctx(runtime_ctx)}/{format_ctx(max_ctx)}"
+        
+        # Get tool support level (from cache or test)
+        if isinstance(backend, OllamaBackend):
+            cached_support = get_cached_tool_support(name) if not args.no_cache else None
+            
+            if args.tool_support:
+                # Force test: actually call the model to test tool support
+                print(f"  {dim('Testing:')} {cyan(name)}...", end="", flush=True)
+                try:
+                    support = backend.test_tool_support(name, family=family, force_test=True)
+                    cache_tool_support(name, support, family=family)
+                    status = support.value
+                except Exception as e:
+                    # If test fails, still cache as error to avoid re-testing
+                    cache_tool_support(name, ToolSupportLevel.NONE, family=family, error=str(e)[:100])
+                    status = "error"
+                
+                # Overwrite the "Testing..." line
+                name_col = pad_colored(cyan(name), NAME_W)
+                size_col = f"{size_gb:>6.2f} GB"
+                ctx_col = pad_colored(yellow(ctx_str) if runtime_ctx == 2048 else dim(ctx_str), CTX_W, 'right')
+                print(f"\r  {name_col} {size_col}  {ctx_col}  ", end="")
+                if status == "native":
+                    tool_col = pad_colored(bright_green("✓ native"), TOOLS_W, 'right')
+                elif status == "error":
+                    tool_col = pad_colored(red("✗ error"), TOOLS_W, 'right')
+                else:
+                    tool_col = pad_colored(yellow("○ react"), TOOLS_W, 'right')
+                print(f"{tool_col}  {dim('(' + family + ')')}")
 
-    print(dim("-" * sep_len))
+                # Log per-model test result to ACP
+                if acp:
+                    acp.log_shell(
+                        f"agentnova models --tool-support {name}",
+                        status="completed" if status != "error" else "error",
+                        output_preview=f"{name} ({family}): {status} | {size_gb:.2f} GB | ctx {max_ctx}",
+                    )
+            elif cached_support is not None:
+                # Use cached value
+                status = cached_support.value
+                if status == "native":
+                    tool_col = pad_colored(bright_green("✓ native"), TOOLS_W, 'right')
+                elif status == "react":
+                    tool_col = pad_colored(yellow("○ react"), TOOLS_W, 'right')
+                elif status == "none":
+                    tool_col = pad_colored(red("✗ none"), TOOLS_W, 'right')
+                else:
+                    tool_col = pad_colored(dim("? untested"), TOOLS_W, 'right')
+                name_col = pad_colored(cyan(name), NAME_W)
+                size_col = f"{size_gb:>6.2f} GB"
+                ctx_col = pad_colored(yellow(ctx_str) if runtime_ctx == 2048 else dim(ctx_str), CTX_W, 'right')
+                print(f"  {name_col} {size_col}  {ctx_col}  {tool_col}  {dim('(' + family + ')')}")
+            else:
+                # No cache entry - show as untested
+                name_col = pad_colored(cyan(name), NAME_W)
+                size_col = f"{size_gb:>6.2f} GB"
+                ctx_col = pad_colored(yellow(ctx_str) if runtime_ctx == 2048 else dim(ctx_str), CTX_W, 'right')
+                tool_col = pad_colored(dim("? untested"), TOOLS_W, 'right')
+                print(f"  {name_col} {size_col}  {ctx_col}  {tool_col}  {dim('(' + family + ')')}")
+        else:
+            name_col = pad_colored(cyan(name), NAME_W)
+            size_col = f"{size_gb:>6.2f} GB"
+            ctx_col = pad_colored(dim(ctx_str), CTX_W, 'right')
+            tool_col = pad_colored(dim("? n/a"), TOOLS_W, 'right')
+            print(f"  {name_col} {size_col}  {ctx_col}  {tool_col}  {dim('(' + family + ')')}")
+
+    print(dim("-" * (4 + NAME_W + SIZE_W + CTX_W + TOOLS_W + FAMILY_W + 8)))
     print(f"Total: {bright_green(str(len(models)))} models")
+    
+    # Note: cache_tool_support() already saves each entry, so no need to save again here
     
     # Show legend
     print(f"\n{dim('Legend:')} {bright_green('✓ native')} (API tools) | {yellow('○ react')} (text parsing) | {red('✗ none')} (no tools) | {dim('? untested')}")
-    print(f"{dim('Ctx: max context window (default num_ctx is 8192).')}")
-    print(f"{dim('Tool support columns show openre (OpenResponses) and openai (Chat-Completions) results.')}")
-    print(f"{dim('Use')} {cyan('--tool-support')} {dim('to test both API modes.')} {cyan('--tool-support --api openai')} {dim('to test only Chat-Completions.')}")
-    if acp:
-        print(f"{dim('ACP:')} {bright_green('● connected')} {dim(f'({acp.base_url})')}")
-    elif getattr(args, 'acp', False):
-        print(f"{dim('ACP:')} {red('● failed')} {dim('(tool support results not logged)')}")
-    else:
-        print(f"{dim('Use')} {cyan('--acp')} {dim('to log results to Agent Control Panel.')}")
+    print(f"{dim('Context:')} {yellow('2K/32K')} = runtime/max (Ollama defaults to 2K unless num_ctx is set)")
+    print(f"{dim('Tool support depends on model template, not family. Use')} {cyan('--tool-support')} {dim('to test each model.')}")
 
+    # Log summary to ACP and clean up
+    if acp:
+        if args.tool_support:
+            acp.log_chat("assistant", f"Tool-support scan complete: {len(models)} models tested")
+        acp.a2a_unregister()
 
     return 0
 
