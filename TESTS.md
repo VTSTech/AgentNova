@@ -1,8 +1,8 @@
-# ⚛️ AgentNova R03.6
+# ⚛️ AgentNova R03.8
 
 ## Test 01 Quick Diagnostic (5 Questions)
 
-> **Updated:** 2026-03-28 - R03.6 testing in progress
+> **Updated:** 2026-03-28 - R03.8 testing in progress
 
 Test 01 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
 
@@ -80,7 +80,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 ## Test 02 Tool Tests
 
-> **Updated:** 2026-03-29 - R03.7 first results
+> **Updated:** 2026-03-28 - R03.7 first results
 
 Test 02 comprehensively evaluates tool calling across 6 categories.  Phase 1 validates tools directly (no model).  Phase 2 tests the model's ability to select, call, and interpret tools.
 
@@ -200,6 +200,60 @@ Three fixes to `02_tool_test.py` improved result accuracy:
 | `normalize_number` last-number | `"15 times 8 is 120"` → extracted `15` (first) | Now correctly extracts `120` (last) |
 | `check_tool_used` strict matching | Substring scan of tool results caused false positives | Eliminates false tool detection |
 | DateTime tool result fallback | Only checked `final_answer`, not tool results | Consistent with other test categories |
+
+---
+
+## Test 03 Reasoning Tests
+
+> **Updated:** 2026-03-28 - R03.8 first results
+
+Test 03 evaluates pure reasoning capability across 8 categories (14 questions). No tools are used — this tests the model's ability to reason, deduce, and solve problems through language alone.
+
+**Usage:**
+```bash
+agentnova test 03 --model deepseek-r1:1.5b
+agentnova test 03 --model granite4:350m --timeout 9999
+```
+
+### Test Structure
+
+| Category | Tests | What It Measures |
+|----------|:-----:|-----------------|
+| Logical Deduction | 2 | Formal logic, syllogisms, deductive validity |
+| Common Sense | 2 | Everyday knowledge, pragmatic reasoning |
+| Multi-step | 2 | Chain-of-thought, sequential reasoning |
+| Pattern | 2 | Sequence recognition, abstraction |
+| Counter-intuitive | 2 | Overcoming cognitive biases, lateral thinking |
+| Spatial | 2 | Mental rotation, geometric reasoning |
+| Causal | 1 | Cause-and-effect identification |
+| Comparative | 1 | Relative comparison and analysis |
+
+---
+
+### Results
+
+> Test params: `--timeout 9999`
+
+| Rank | Model | Score | Logical | Common | Multi | Pattern | Counter | Spatial | Causal | Compa | Time |
+|:----:|-------|------:|:-------:|:------:|:-----:|:-------:|:-------:|:-------:|:------:|:-----:|:----:|
+| 🥇 | **`deepseek-r1:1.5b`** | **13/14 (93%)** | 2/2 | 2/2 | 2/2 | 2/2 | 2/2 | 1/2 | 1/1 | 1/1 | 759.3s |
+| 🥈 | `granite3.1-moe:1b` | **8/14 (57%)** | 1/2 | 2/2 | 1/2 | 1/2 | 0/2 | 1/2 | 1/1 | 1/1 | 369.7s |
+| 🥉 | `nchapman/dolphin3.0-qwen2.5:0.5b` | **7/14 (50%)** | 2/2 | 0/2 | 1/2 | 1/2 | 0/2 | 2/2 | 1/1 | 0/1 | 212.8s |
+| 4 | `granite4:350m` | **6/14 (43%)** | 0/2 | 1/2 | 0/2 | 1/2 | 1/2 | 1/2 | 1/1 | 1/1 | 217.5s |
+| 5 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **5/14 (36%)** | 0/2 | 1/2 | 0/2 | 1/2 | 0/2 | 1/2 | 1/1 | 1/1 | 169.3s |
+| 6 | `functiongemma:270m` | **3/14 (21%)** | 0/2 | 1/2 | 0/2 | 1/2 | 0/2 | 0/2 | 1/1 | 0/1 | 453.2s |
+| 7 | `gemma3:270m` | **1/14 (7%)** | 0/2 | 0/2 | 0/2 | 0/2 | 0/2 | 0/2 | 1/1 | 0/1 | 756.0s |
+
+**Summary:**
+- **deepseek-r1:1.5b dominates at 93%** — only missed 1 spatial question; reasoning model shows clear advantage
+- **granite3.1-moe:1b leads the non-reasoning pack at 57%** — MoE architecture benefits complex reasoning
+- **dolphin3.0 at 50%** — strong logical deduction and spatial, but weak common sense
+- **Causal reasoning is the easiest category** — all 7 models scored 1/1 (100%)
+- **Comparative reasoning is near-universal** — 6/7 models scored 1/1 (only dolphin3.0 missed)
+- **Logical deduction separates tiers** — only deepseek-r1 and dolphin3.0 achieved 2/2
+- **Counter-intuitive reasoning is the hardest** — most models scored 0/2; only deepseek-r1 (2/2) and granite4 (1/2) passed any
+- **gemma3:270m struggles with reasoning** — only causal question passed (7%), despite achieving 80-100% on tool tests
+- **No clear correlation between tool proficiency (Test 01/02) and reasoning ability (Test 03)**
 
 ---
 
