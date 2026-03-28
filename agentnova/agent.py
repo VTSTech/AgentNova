@@ -40,6 +40,7 @@ from .core.openresponses import (
     MessageItem, FunctionCallItem, FunctionCallOutputItem, ReasoningItem,
     OutputText, InputText,
     RequestConfig, Error,
+    EventType, ResponseEvent, OutputItemEvent,
     create_message_item, create_function_call_item, create_function_call_output,
     create_function_call_output_item,
     stream_response_events,
@@ -440,6 +441,31 @@ Final Answer: <the answer>
             native_tool_calls = gen_response.get("tool_calls", [])
             tokens = gen_response.get("usage", {}).get("total_tokens", 0)
             total_tokens += tokens
+
+            # OpenResponses: Handle finish_reason from backend
+            finish_reason = gen_response.get("_finish_reason", "stop")
+            if finish_reason == "length":
+                # Token budget exhausted — response is incomplete
+                if self.debug:
+                    print(f"  [OpenResponses] finish_reason='length' — marking incomplete")
+                steps.append(StepResult(
+                    type=StepResultType.MAX_STEPS,
+                    content="Response truncated: token limit reached",
+                    tokens_used=tokens,
+                ))
+                response.mark_incomplete()
+                break
+            elif finish_reason == "content_filter":
+                # Content was filtered — response failed
+                if self.debug:
+                    print(f"  [OpenResponses] finish_reason='content_filter' — marking failed")
+                steps.append(StepResult(
+                    type=StepResultType.ERROR,
+                    error="Response blocked by content filter",
+                    tokens_used=tokens,
+                ))
+                response.mark_failed({"message": "Content filtered by provider", "type": "content_filter"})
+                break
 
             if self.debug:
                 print(f"  Content: {content[:200] if content else '(empty)'}...")
@@ -873,6 +899,10 @@ Final Answer: <the answer>
         OpenResponses specification. It yields Server-Sent Events (SSE) that
         describe the response lifecycle and content deltas.
 
+        IMPORTANT: The agentic loop is fully supported during streaming.
+        When the model produces a tool call, it is executed and the loop
+        continues, streaming the next model response.
+
         SSE Event Sequence (per OpenResponses spec):
             1. response.queued - Response is queued
             2. response.in_progress - Response started
@@ -895,6 +925,8 @@ Final Answer: <the answer>
             for sse_event in agent.run_stream("Hello!"):
                 print(sse_event)  # SSE formatted event
         """
+        start_time = time.time()
+
         # Create OpenResponses Response object
         response = Response(
             model=self.model,
@@ -903,9 +935,8 @@ Final Answer: <the answer>
             allowed_tools=self._allowed_tools or [],
         )
 
-        if self.debug and not self._is_comp_mode:
-            print(f"\n[OpenResponses] Response created: id={response.id}")
-            print(f"[OpenResponses] Response status: {response.status.value}")
+        if self.debug:
+            print(f"\n[OpenResponses stream] Response created: id={response.id}")
 
         # Add user prompt to memory
         self.memory.add("user", prompt)
@@ -914,22 +945,190 @@ Final Answer: <the answer>
         user_item = create_message_item("user", prompt)
         response.input.append(user_item)
 
-        if self.debug and not self._is_comp_mode:
-            print(f"[OpenResponses] Input item added: id={user_item.id}, type={user_item.type}, role={user_item.role}")
-
         if self.debug:
-            print(f"\n[AgentNova] Model: {self.model}")
-            print(f"[AgentNova] Backend: {self.backend.base_url}")
-            print(f"[AgentNova] tool_choice: {self.tool_choice.type.value}")
-            print(f"[AgentNova] Tools: {self.tools.names()}")
-            print(f"[AgentNova] Prompt (streaming): {prompt}\n")
+            print(f"\n[AgentNova stream] Model: {self.model}")
+            print(f"[AgentNova stream] Backend: {self.backend.base_url}")
+            print(f"[AgentNova stream] tool_choice: {self.tool_choice.type.value}")
+            print(f"[AgentNova stream] Tools: {self.tools.names()}")
+            print(f"[AgentNova stream] Prompt: {prompt}\n")
 
-        # Get text chunks from backend streaming
-        text_chunks = self._generate_stream_chunks(prompt)
+        # OpenResponses: Agentic Loop (streaming variant)
+        # Stream model output, check for tool calls, execute them, repeat.
+        _expecting_final_answer = False
+        _last_successful_result = None
+        tool_call_count = 0
 
-        # Wrap with OpenResponses SSE events using stream_response_events()
-        for sse_event in stream_response_events(response, text_chunks, debug=self.debug):
-            yield sse_event
+        for step_num in range(self.max_steps):
+            if self.debug:
+                print(f"[Stream Step {step_num + 1}]")
+
+            # Collect the full streamed response
+            full_content = ""
+
+            # Stream model response, collecting content for tool-call detection
+            try:
+                for chunk in self._generate_stream_chunks(prompt):
+                    full_content += chunk
+            except Exception as e:
+                if self.debug:
+                    print(f"  [Stream] ERROR: {e}")
+                # Emit failure event
+                response.mark_failed({"message": str(e), "type": "stream_error"})
+                fail_event = ResponseEvent(
+                    type=EventType.RESPONSE_FAILED,
+                    response=response,
+                )
+                yield fail_event.to_sse()
+                return
+
+            # Parse for tool calls (ReAct format)
+            tool_calls_found = []
+
+            if full_content:
+                parsed_calls = self._parser.parse(full_content)
+                for call in parsed_calls:
+                    if hasattr(call, 'thought') and call.thought:
+                        reasoning_item = ReasoningItem(
+                            content=[OutputText(text=call.thought)]
+                        )
+                        reasoning_item.status = ItemStatus.COMPLETED
+                        response.add_output_item(reasoning_item)
+
+                    tool_calls_found.append({
+                        "name": call.name,
+                        "arguments": call.arguments,
+                        "id": "",
+                        "final_answer": getattr(call, 'final_answer', None),
+                    })
+
+            # ---- Execute tool calls if found ----
+            if tool_calls_found:
+                # Final Answer enforcement (same logic as run())
+                if _expecting_final_answer and _last_successful_result is not None:
+                    text_chunks_gen = iter([_last_successful_result])
+                    for sse_event in stream_response_events(
+                        Response(model=self.model, status=ResponseStatus.IN_PROGRESS,
+                                tool_choice=self.tool_choice, allowed_tools=self._allowed_tools or []),
+                        text_chunks_gen, debug=self.debug,
+                    ):
+                        yield sse_event
+                    return
+
+                pending_final_answer = None
+                self.memory.add("assistant", full_content)
+
+                for tc in tool_calls_found:
+                    tool_name = tc["name"]
+                    tool_args = tc["arguments"]
+
+                    if tc.get("final_answer"):
+                        pending_final_answer = tc["final_answer"]
+
+                    # Check allowed_tools
+                    if self._allowed_tools and tool_name not in self._allowed_tools:
+                        error_msg = f"Tool '{tool_name}' not in allowed_tools: {self._allowed_tools}"
+                        self.memory.add("user", f"Observation: Error: {error_msg}")
+                        continue
+
+                    # Fuzzy match
+                    tool_name = self._parser._fuzzy_match_tool(tool_name)
+
+                    # Create FunctionCallItem and emit SSE events
+                    fc_item = create_function_call_item(tool_name, tool_args)
+                    fc_item.status = ItemStatus.IN_PROGRESS
+                    response.add_output_item(fc_item)
+                    output_index = len(response.output) - 1
+
+                    fc_added = OutputItemEvent(
+                        type=EventType.OUTPUT_ITEM_ADDED,
+                        item=fc_item,
+                        output_index=output_index,
+                    )
+                    yield fc_added.to_sse()
+
+                    # Execute the tool
+                    result = self._execute_tool(tool_name, tool_args, prompt)
+                    tool_call_count += 1
+
+                    fc_item.status = ItemStatus.COMPLETED
+
+                    fc_done = OutputItemEvent(
+                        type=EventType.OUTPUT_ITEM_DONE,
+                        item=fc_item,
+                        output_index=output_index,
+                    )
+                    yield fc_done.to_sse()
+
+                    # Create function_call_output
+                    fco_item = create_function_call_output(fc_item.call_id, str(result))
+                    response.add_output_item(fco_item)
+
+                    # Build observation and add to memory
+                    is_error = is_error_result(str(result))
+                    observation_msg = build_enhanced_observation(
+                        tool_name=tool_name,
+                        result=str(result),
+                        tracker=self._error_tracker,
+                        available_tools=self.tools.names(),
+                        is_error=is_error,
+                    )
+
+                    if is_error:
+                        _expecting_final_answer = False
+                    else:
+                        _expecting_final_answer = True
+                        _last_successful_result = str(result)
+
+                    self.memory.add("user", observation_msg)
+
+                # Check for pending final answer
+                if pending_final_answer:
+                    text_chunks_gen = iter([pending_final_answer])
+                    for sse_event in stream_response_events(
+                        Response(model=self.model, status=ResponseStatus.IN_PROGRESS,
+                                tool_choice=self.tool_choice, allowed_tools=self._allowed_tools or []),
+                        text_chunks_gen, debug=self.debug,
+                    ):
+                        yield sse_event
+                    return
+
+                # Continue the agentic loop (next streaming iteration)
+                continue
+
+            # ---- No tool calls — stream final response ----
+            # Check for Final Answer format
+            if self._parser.is_final_answer(full_content):
+                answer = self._parser.extract_final_answer(full_content)
+                text_chunks_gen = iter([answer])
+            else:
+                text_chunks_gen = iter([full_content])
+
+            # Stream the final response with proper OpenResponses events
+            final_response = Response(
+                model=self.model,
+                status=ResponseStatus.IN_PROGRESS,
+                tool_choice=self.tool_choice,
+                allowed_tools=self._allowed_tools or [],
+            )
+            # Carry over any items from previous loop iterations
+            final_response.output = response.output
+            final_response.input = response.input
+            final_response.usage = response.usage
+
+            for sse_event in stream_response_events(final_response, text_chunks_gen, debug=self.debug):
+                yield sse_event
+
+            # Only one pass needed when there are no tool calls
+            return
+
+        else:
+            # Max steps reached
+            response.mark_incomplete()
+            incomplete_event = ResponseEvent(
+                type=EventType.RESPONSE_INCOMPLETE,
+                response=response,
+            )
+            yield incomplete_event.to_sse()
 
     def _generate_stream_chunks(self, prompt: str) -> Generator[str, None, None]:
         """
@@ -1076,6 +1275,11 @@ Final Answer: <the answer>
         if self._num_predict is not None:
             backend_kwargs["num_predict"] = self._num_predict
 
+        # OpenResponses: Forward tool_choice to backend API
+        # This allows the backend to enforce tool invocation constraints natively
+        if self.tool_choice and self.tool_choice.type != ToolChoiceType.AUTO:
+            backend_kwargs["tool_choice"] = self.tool_choice.to_dict()
+
         # Pass tools for native tool calling (OpenResponses/ChatCompletions compliant)
         # ReAct parsing remains as fallback for models without native support
         tools_for_backend = self.tools.all() if self.tools and len(self.tools) > 0 else None
@@ -1100,6 +1304,17 @@ Final Answer: <the answer>
             top_p=gen_top_p,
             **backend_kwargs,
         )
+
+        # OpenResponses / Chat Completions: Handle finish_reason
+        # Per spec, finish_reason affects response status:
+        #   "stop"      → normal completion (default)
+        #   "length"    → incomplete — token budget exhausted
+        #   "content_filter" → failed — content was filtered
+        finish_reason = response.get("finish_reason", "stop")
+        if self.debug:
+            print(f"  [DEBUG] finish_reason: {finish_reason}")
+        # Store for caller to consume
+        response["_finish_reason"] = finish_reason
 
         if self.debug:
             print(f"  [DEBUG] Response keys: {list(response.keys())}")

@@ -308,32 +308,39 @@ def validate_path(path: str, allowed_dirs: list[str] | None = None) -> tuple[boo
     if not path:
         return False, "Path cannot be empty"
 
-    # Normalize path
+    # Normalize path (resolve . and .. components)
     try:
         normalized = os.path.normpath(path)
     except Exception as e:
         return False, f"Invalid path format: {e}"
 
-    # Check for path traversal (going up directories)
-    if "../" in path or "..\\" in path:
-        return False, "Path traversal detected: parent directory access not allowed"
-
     # Check for UNC paths (Windows network paths)
-    if path.startswith("\\\\"):
+    if path.startswith("\\\\") or normalized.startswith("\\\\"):
         return False, "UNC paths not allowed"
 
-    # Relative paths are generally allowed if they don't traverse
-    if not os.path.isabs(path):
-        return True, ""
+    # Resolve to absolute path for consistent security checks
+    # This ensures relative paths like "../../../etc/passwd" are properly evaluated
+    try:
+        resolved = os.path.abspath(path)
+    except Exception:
+        resolved = normalized
 
-    # For absolute paths, check against sensitive system directories (platform-specific)
+    # Check the NORMALIZED path for traversal (not just raw path)
+    # normpath collapses ".." but we still need to detect the raw pattern
+    if "../" in path or "..\\" in path:
+        return False, "Path traversal detected: parent directory access not allowed"
+    # Also check the resolved path doesn't escape expected boundaries
+    # (normpath on a raw ".." input produces "." which is safe, but deeper
+    #  traversal like "../../etc" needs the raw check above)
+
+    # Check resolved path against sensitive system directories (platform-specific)
+    # This applies to BOTH relative and absolute paths after resolution
     if os.name == "nt":  # Windows
-        # Windows critical directories
         windir = os.environ.get("WINDIR", "C:\\Windows").lower()
         program_files = os.environ.get("ProgramFiles", "C:\\Program Files").lower()
         program_files_x86 = os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)").lower()
         
-        normalized_lower = normalized.lower()
+        resolved_lower = resolved.lower()
         critical_paths = [
             windir,
             program_files,
@@ -344,33 +351,34 @@ def validate_path(path: str, allowed_dirs: list[str] | None = None) -> tuple[boo
             "c:\\programdata",
         ]
         for critical in critical_paths:
-            if critical and normalized_lower.startswith(critical.lower()):
-                return False, f"Access to system directory denied"
+            if critical and resolved_lower.startswith(critical.lower()):
+                return False, "Access to system directory denied"
     else:  # Unix-like
         critical_system_dirs = ["/etc", "/root", "/var", "/usr", "/bin", "/sbin", "/boot", "/dev", "/proc", "/sys"]
         for critical in critical_system_dirs:
-            if normalized.startswith(critical):
+            if resolved.startswith(critical):
                 return False, f"Access to system directory denied: {critical}"
 
     # Allow system temp directories (cross-platform)
     system_temps = _get_system_temp_dirs()
     for temp_dir in system_temps:
         try:
-            if normalized.lower().startswith(temp_dir.lower()) if os.name == "nt" else normalized.startswith(temp_dir):
+            temp_abs = os.path.abspath(temp_dir)
+            if resolved.lower().startswith(temp_abs.lower()) if os.name == "nt" else resolved.startswith(temp_abs):
                 return True, ""
         except Exception:
             pass
 
-    # Allow /tmp and /home for file operations (Unix)
-    if normalized.startswith("/tmp") or normalized.startswith("/var/tmp") or normalized.startswith("/home"):
+    # Allow /tmp and /home for file operations (Unix) — check RESOLVED path
+    if resolved.startswith("/tmp") or resolved.startswith("/var/tmp") or resolved.startswith("/home"):
         return True, ""
 
-    # Check against allowed directories
+    # Check against allowed directories — check RESOLVED path
     allowed = allowed_dirs or list(ALLOWED_PATH_PATTERNS)
     for allowed_dir in allowed:
         try:
             abs_allowed = os.path.abspath(allowed_dir)
-            if normalized.lower().startswith(abs_allowed.lower()) if os.name == "nt" else normalized.startswith(abs_allowed):
+            if resolved.lower().startswith(abs_allowed.lower()) if os.name == "nt" else resolved.startswith(abs_allowed):
                 return True, ""
         except Exception:
             pass
@@ -447,6 +455,13 @@ def sanitize_command(command: str) -> tuple[bool, str, str]:
         if base_cmd == blocked:
             return False, f"Blocked command: {blocked}", ""
 
+    # Strip newlines and carriage returns before checking (shell interprets
+    # them as command separators).  A command like "ls\ncat /etc/passwd"
+    # would execute two separate commands — reject the entire input.
+    stripped_command = command.replace("\n", " ").replace("\r", " ")
+    if stripped_command != command:
+        return False, "Newline characters detected: potential command injection", ""
+
     # Check for shell injection attempts
     injection_patterns = [
         r";\s*\w+",  # Command chaining
@@ -458,6 +473,9 @@ def sanitize_command(command: str) -> tuple[bool, str, str]:
         r"\$\{[^}]+\}",  # Variable expansion
         r">\s*\S+",  # Output redirection
         r"<\s*\S+",  # Input redirection
+        # Bare pipe without space (e.g. "|cat") — \s* allows zero spaces
+        # already covered by r"\|\s*\w+" above, but guard against edge cases
+        r"\|(?=[^\s|])",  # Pipe followed by non-whitespace (catch |cmd)
     ]
 
     for pattern in injection_patterns:

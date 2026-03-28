@@ -281,6 +281,10 @@ class ACPPlugin:
             "get_note": "READ",
             "list_notes": "READ",
             "list_directory": "READ",
+            # ACP v1.0.4: A2A agent-to-agent communication
+            "a2a_send": "A2A",
+            "a2a_request": "A2A",
+            "a2a_response": "A2A",
         }
 
         # v1.0.4: Auto-derive capabilities from tool action map if not explicitly provided

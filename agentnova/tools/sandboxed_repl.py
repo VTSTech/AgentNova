@@ -115,9 +115,6 @@ SAFE_MODULES = {
     # Type hints
     'typing', 'typing_extensions', 'types', 'dataclasses', 'enum',
 
-    # Pathlib (read-only safe operations)
-    'pathlib', 'os.path',
-
     # Other safe modules
     'contextlib', 'io', 'stringio', 'struct', 'codecs',
     'inspect', 'dis', 'ast', 'tokenize', 'keyword', 'token',

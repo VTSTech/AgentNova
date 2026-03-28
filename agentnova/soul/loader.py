@@ -541,10 +541,18 @@ def load_soul(path: Union[str, Path], level: int = 2, reload: bool = False) -> S
     """
     loader = get_soul_loader()
     if reload:
-        # Clear just this soul from cache
-        cache_key = f"{path}:{level}"
-        if cache_key in loader._cache:
-            del loader._cache[cache_key]
+        # Resolve the path first to match the cache key format used in SoulLoader.load()
+        # which stores entries as f"{resolved_soul_dir}:{level}"
+        resolved = loader._resolve_soul_path(Path(path))
+        if resolved is not None:
+            cache_key = f"{resolved}:{level}"
+            if cache_key in loader._cache:
+                del loader._cache[cache_key]
+        else:
+            # If path can't be resolved, fall back to clearing all entries with this path
+            stale_keys = [k for k in loader._cache if k.startswith(f"{path}:")]
+            for k in stale_keys:
+                del loader._cache[k]
     return loader.load(path, level=level)
 
 
