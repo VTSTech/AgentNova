@@ -828,10 +828,11 @@ def cmd_models(args: argparse.Namespace) -> int:
 
                 # Log per-model test result to ACP
                 if acp:
+                    acp.model_name = name
                     re_status = results.get('openre', '?')
                     ai_status = results.get('openai', '?')
-                    acp.log_chat("user", f"[{name}] Testing tool support...")
-                    acp.log_chat("assistant", f"[{name}] ({family}) openre={re_status} openai={ai_status} | {size_gb:.2f} GB | ctx {max_ctx}")
+                    acp.log_chat("user", f"Testing tool support...")
+                    acp.log_chat("assistant", f"openre={re_status} openai={ai_status} | {size_gb:.2f} GB | ctx {max_ctx}")
             else:
                 # Read from cache for both display modes
                 for mode in modes_display:
