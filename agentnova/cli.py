@@ -242,7 +242,7 @@ def create_parser() -> argparse.ArgumentParser:
                            help="Context window size in tokens (Ollama default is 2048)")
     agent_parser.add_argument("--num-predict", type=int, default=None, dest="num_predict",
                            help="Maximum tokens to generate (default: model-specific)")
-    agent_parser.add_argument("--temperature", type=float, default=None,
+    agent_parser.add_argument("--temp", "--temperature", type=float, default=None, dest="temperature",
                            help="Sampling temperature 0.0-2.0 (default: model-specific)")
     agent_parser.add_argument("--top-p", type=float, default=None, dest="top_p",
                            help="Nucleus sampling probability 0.0-1.0 (default: model-specific)")
