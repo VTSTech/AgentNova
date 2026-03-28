@@ -1081,6 +1081,10 @@ def cmd_test(args: argparse.Namespace) -> int:
                     test_argv.extend(["--temp", str(args.temperature)])
                 if getattr(args, 'top_p', None) is not None:
                     test_argv.extend(["--top-p", str(args.top_p)])
+                if getattr(args, 'tools_only', False):
+                    test_argv.append("--tools-only")
+                if getattr(args, 'model_only', False):
+                    test_argv.append("--model-only")
                 
                 # Override sys.argv for the test module's argparse
                 old_argv = sys.argv
