@@ -693,10 +693,6 @@ def cmd_models(args: argparse.Namespace) -> int:
             print("Pull one with: ollama pull qwen2.5:0.5b")
         return 0
 
-    # Load tool support cache
-    cache = {} if args.no_cache else load_tool_cache()
-    cache_updated = False
-    
     # Column widths
     NAME_W = 36
     SIZE_W = 8
@@ -749,7 +745,6 @@ def cmd_models(args: argparse.Namespace) -> int:
                 try:
                     support = backend.test_tool_support(name, family=family, force_test=True)
                     cache_tool_support(name, support, family=family)
-                    cache_updated = True
                     status = support.value
                 except Exception as e:
                     # If test fails, still cache as error to avoid re-testing
