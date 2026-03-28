@@ -34,7 +34,7 @@ import argparse
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agentnova import Agent, get_config, __version__, __status__
-from agentnova.backends import get_backend, get_default_backend
+from agentnova.backends import get_backend
 from agentnova.tools import make_builtin_registry
 
 
@@ -91,7 +91,8 @@ def extract_number(text: str) -> str | None:
 
 
 def run_diagnostic(model: str, backend, debug: bool = False, force_react: bool = False,
-                   soul: str = None, soul_level: int = 2) -> dict:
+                   soul: str = None, soul_level: int = 2, timeout: int = None,
+                   num_ctx: int = None) -> dict:
     """Run diagnostic tests for a model."""
     print(f"\n{'='*60}")
     print(f"🧪 Quick Diagnostic: {model}")
@@ -126,6 +127,7 @@ After getting the result, provide the final answer as a number."""
                 system_prompt=system_prompt,
                 soul=soul,
                 soul_level=soul_level,
+                num_ctx=num_ctx,
             )
             
             t0 = time.time()
@@ -239,7 +241,7 @@ def main():
         print(f"   Force ReAct: True")
     if args.soul:
         print(f"   Soul: {args.soul}")
-    num_ctx = getattr(args, 'num_ctx', None) or config.num_ctx
+    num_ctx = getattr(args, 'num_ctx', None) or getattr(config, 'num_ctx', None)
     if num_ctx:
         ctx_display = f"{num_ctx // 1024}K" if num_ctx >= 1024 else str(num_ctx)
         print(f"   Context: {ctx_display}")
@@ -252,31 +254,6 @@ def main():
     result = run_diagnostic(model, backend, debug=args.debug, force_react=args.force_react,
                            soul=args.soul, soul_level=args.soul_level, timeout=timeout,
                            num_ctx=num_ctx)
-    
-    # Return granular results for test runner, exit_code for direct execution
-    result["exit_code"] = 0 if result["passed"] == result["total"] else 1
-    return result server")
-        return {"passed": 0, "total": 1, "time": 0, "exit_code": 1}
-    
-    # Convert 0.3.3 to R03.3 format for display
-    parts = __version__.split('.')
-    display_version = f"R{int(parts[1]):02d}.{parts[2]}" if len(parts) >= 2 else __version__
-    
-    print(f"\n⚛️ AgentNova {display_version} [{__status__}] Quick Diagnostic (5 questions)")
-    print(f"   Backend: {backend_name} ({backend.base_url})")
-    print(f"   Model: {model}")
-    api_mode_display = {
-        'resp': '[OpenAI] OpenResponses (2025)',
-        'comp': '[OpenAI] ChatCompletions (2023)'
-    }.get(api_mode, api_mode)
-    print(f"   API Mode: {api_mode_display}")
-    if args.force_react:
-        print(f"   Force ReAct: True")
-    if args.soul:
-        print(f"   Soul: {args.soul}")
-    
-    result = run_diagnostic(model, backend, debug=args.debug, force_react=args.force_react,
-                           soul=args.soul, soul_level=args.soul_level)
     
     # Return granular results for test runner, exit_code for direct execution
     result["exit_code"] = 0 if result["passed"] == result["total"] else 1
