@@ -188,6 +188,53 @@ Resolved 5 additional WARN/INFO findings identified in the R03.8 Spec Compliance
 
 ---
 
+### Spec Compliance Audit — Phase 2 WARN Fixes
+
+Resolved 3 additional findings: a runtime crash in CLI, an unwired CLI flag, and missing test files that were claimed in the CHANGELOG.
+
+### Fixed
+
+#### [W-16] Undefined `model` Variable in `cmd_chat()` and `cmd_agent()` (`cli.py`)
+- **Bug**: Both `cmd_chat()` and `cmd_agent()` referenced `model` (an undefined bare name) instead of `agent.model` in their banner print statements. This would cause a `NameError` at runtime when starting Chat or Agent mode.
+- **Fix**: Changed `{cyan(model)}` to `{cyan(agent.model)}` in both functions.
+- **Impact**: Chat and Agent mode banners now correctly display the model name
+
+#### [W-15] `--response-format` CLI Flag Not Wired to Backend (`agent.py`)
+- **Bug**: The `--response-format` flag was parsed by `run`, `chat`, and `agent` commands and passed to `_create_agent()`, but the `Agent.__init__()` did not accept a `response_format` parameter. Even though the value was absorbed by `**kwargs`, it was silently discarded — the backend `_generate()` method never received it.
+- **Fix**: Added `response_format` parameter to `Agent.__init__()`, stored as `self._response_format`, and forwarded to `backend_kwargs` in `_generate()`. String values like `"json"` are converted to `{"type": "json_object"}` automatically; `"text"` is treated as the default (no override).
+- **Impact**: `agentnova run --response-format json "prompt"` now correctly enables JSON mode in the backend API
+
+#### [F-01/F-02] Missing `test_security.py` and `test_builtins.py` (`tests/`)
+- **Bug**: The CHANGELOG claimed that `tests/test_security.py` and `tests/test_builtins.py` existed with 79 tests (40 security + 40 builtins − 1 xfail), but neither file was present in the repository.
+- **Fix**: Created both test files:
+  - `test_security.py` — 80 tests covering path traversal (relative, absolute, encoded, UNC), shell injection (pipe, semicolon, backtick, `$()`, newline, redirect, `&&`/`||`), blocked commands, safe commands, SSRF (localhost, private networks, cloud metadata, decimal/hex IP), and URL scheme validation
+  - `test_builtins.py` — 63 tests covering calculator (basic ops, edge cases, sandbox limits, no builtins), shell blocked/safe commands, file system access (allowed/blocked/traversal), HTTP SSRF blocking, and tool registry completeness
+- **Known gaps documented as xfail**: IPv6 SSRF (W-SEC04), `mkfs.ext4` subcommand gap (F-SEC02)
+- **Impact**: All 193 tests pass (140 new + 53 existing), with 1 skip and 2 expected failures
+
+### File Changes Summary
+
+| Action | File | Changes |
+|--------|------|:-------:|
+| Updated | `agentnova/cli.py` | +2 −2 |
+| Updated | `agentnova/agent.py` | +15 −1 |
+| Created | `tests/test_security.py` | +397 |
+| Created | `tests/test_builtins.py` | +283 |
+| Updated | `Architecture.md` | +1 −1 |
+| **Total** | **5 files** | **+698 −4** |
+
+### Updated Audit Status
+
+| Priority | Total (R03.8) | Fixed | Remaining |
+|----------|:-------------:|:-----:|:---------:|
+| Critical | 0 | — | 0 |
+| High | 0 | — | 0 |
+| Medium | 0 | — | 0 |
+| Low (WARN) | 17 | 7 | 10 (deferred) |
+| Info | 3 | — | 3 (deferred) |
+
+---
+
 ## [R03.7] - 2026-03-28 11:57:44 AM
 
 ### API Mode Naming Cleanup
