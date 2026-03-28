@@ -667,9 +667,7 @@ def _save_tool_cache(cache: dict) -> None:
 
 def cmd_models(args: argparse.Namespace) -> int:
     """Execute the models command."""
-    from .core.tool_cache import (
-        load_tool_cache, save_tool_cache, cache_tool_support, get_cached_tool_support
-    )
+    from .core.tool_cache import cache_tool_support, get_cached_tool_support
     from .core.types import ToolSupportLevel
     
     config = get_config()
