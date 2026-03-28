@@ -6,6 +6,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [R03.8] - 2026-03-28 4:03:37 PM
 
+### CLI & Backend Enhancements
+
+Dual API mode tool-support testing, context display cleanup, ACP integration for models command.
+
+### Added
+
+#### `--acp` / `--acp-url` on Models Command (`cli.py`)
+- **`--acp` flag** — Enables ACP logging when running `agentnova models --tool-support`
+- **`--acp-url` flag** — Custom ACP server URL (falls back to config default)
+- Uses existing `_init_acp()` helper for consistent bootstrap behavior
+- Shows `ACP: ✓ Connected (url)` in the header when active
+
+#### Per-Model ACP Activity Logging (`cli.py`)
+- After each model's tool-support test, logs a user/assistant CHAT pair to ACP:
+  - `User: Testing tool support...`
+  - `Assistant: openre=native openai=react | 0.96 GB | ctx 262144`
+- Sets `acp.model_name = name` before each log so the ACP feed shows the tested model (e.g., `AgentNova-Models · qwen3.5:0.8b`) instead of the default agent model
+- Logs a summary message at the end: `"Tool-support scan complete: N models tested"`
+- Calls `a2a_unregister()` for clean shutdown
+
+### Changed
+
+#### Context Column Shows Plain Int (`cli.py`)
+- Replaced the `format_ctx()` / `2K/32K` runtime/max format with `str(max_ctx)`
+- Context values now display as clean integers: `32768`, `131072`, `262144`
+- Eliminated the misleading Ollama-default `2K` prefix — the max context window from the API is what matters
+- Updated legend text: `"Max context window from model API"`
+
+### File Changes Summary (this update)
+
+| Action | File | Changes |
+|--------|------|:-------:|
+| Updated | `agentnova/cli.py` | +25 −14 |
+
+---
+
 ### Spec Compliance Audit — Critical, High & Medium Fixes
 
 Resolved 9 issues identified in the R03.7 Spec Compliance Audit (30 FAIL + 55 WARN items). All Critical (4), High (3), and Medium (2) priority issues have been addressed.

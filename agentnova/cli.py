@@ -773,7 +773,7 @@ def cmd_models(args: argparse.Namespace) -> int:
         mode_label = ", ".join(modes_to_test)
         print(dim(f"  Testing: {mode_label}"))
     if acp:
-        print(f"{dim('ACP:')} {green('✓ Connected')} ({acp.base_url})")
+        print(f"  {dim('ACP:')} {green('✓ Connected')} ({acp.base_url})")
     print(dim("-" * sep_len))
     print(f"  {'Name':<{NAME_W}} {'Size':>{SIZE_W}}  {'Context':>{CTX_W}}  {'openre':>{TOOLS_W}}  {'openai':>{TOOLS_W}}  {'Family':<{FAMILY_W}}")
     print(dim("-" * sep_len))
