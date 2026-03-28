@@ -133,7 +133,7 @@ class Agent:
             system_prompt: Custom system prompt (overrides soul)
             soul: Path to Soul Spec package (default: "nova-helper")
             soul_level: Progressive disclosure level for soul (1-3)
-            num_ctx: Context window size in tokens (default: 4096)
+            num_ctx: Context window size in tokens (default: 8192)
             temperature: Sampling temperature (default: model-specific)
             top_p: Nucleus sampling probability (default: model-specific)
             num_predict: Maximum tokens to generate (default: model-specific)
@@ -144,12 +144,12 @@ class Agent:
         self.model = model
         self.max_steps = max_steps
         self.debug = debug
-        # Get num_ctx from: explicit param > config/env > default 4096
+        # Get num_ctx from: explicit param > config/env > default 8192
         if num_ctx is not None:
             self.num_ctx = num_ctx
         else:
             config = get_config()
-            self.num_ctx = config.num_ctx if config.num_ctx else 4096
+            self.num_ctx = config.num_ctx if config.num_ctx else 8192
 
         # Generation parameters (use model defaults if not specified)
         self._temperature = temperature
