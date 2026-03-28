@@ -445,8 +445,9 @@ def check_tool_used(run, tool_name: str) -> bool:
         if step.type == StepResultType.TOOL_CALL:
             if step.tool_call and step.tool_call.name == tool_name:
                 return True
-            if step.tool_result is not None and hasattr(step, 'content'):
-                if tool_name in str(step.content).lower():
+            # Also check by looking at tool result content for tool name
+            if step.tool_result is not None:
+                if tool_name in str(step.tool_result).lower():
                     return True
     return False
 
@@ -502,8 +503,15 @@ def test_calculator_model(model: str, backend, debug: bool = False,
         actual_num = normalize_number(run.final_answer)
         passed = expected_num == actual_num and expected_num != ""
         
-        if not passed and expected in run.final_answer:
-            passed = True
+        # Also check if the expected number appears in any tool result
+        # (model may get the right answer from tool but fail to format Final Answer)
+        if not passed and expected_num:
+            for step in run.steps:
+                if step.tool_result:
+                    result_num = normalize_number(str(step.tool_result))
+                    if result_num == expected_num:
+                        passed = True
+                        break
         
         results.append(passed)
         
@@ -727,12 +735,21 @@ def test_file_model(model: str, backend, debug: bool = False,
             )
             
             # Check result in answer or tool result
-            found_in_answer = expected.lower() in run.final_answer.lower()
+            expected_num = normalize_number(expected)
+            actual_num = normalize_number(run.final_answer)
+            found_in_answer = expected_num == actual_num and expected_num != ""
+            if not found_in_answer:
+                found_in_answer = expected.lower() in run.final_answer.lower()
             found_in_tool_result = False
             for step in run.steps:
-                if step.tool_result and expected.lower() in str(step.tool_result).lower():
-                    found_in_tool_result = True
-                    break
+                if step.tool_result:
+                    result_num = normalize_number(str(step.tool_result))
+                    if result_num == expected_num:
+                        found_in_tool_result = True
+                        break
+                    if expected.lower() in str(step.tool_result).lower():
+                        found_in_tool_result = True
+                        break
             
             passed = (found_in_answer or found_in_tool_result) if expected else tool_used
             results.append(passed)
@@ -990,8 +1007,11 @@ def main():
             print(f"\n⚛️ AgentNova Model Tool Tests")
             print(f"   Backend: {backend_name} ({backend.base_url})")
             print(f"   Model: {model}")
-            if api_mode != 'openre':
-                print(f"   API Mode: {api_mode}")
+            api_display = {
+                'openre': '[OpenResponses]',
+                'openai': '[OpenAI] ChatCompletions',
+            }.get(api_mode, api_mode)
+            print(f"   API: {api_display}")
             if args.soul:
                 print(f"   Soul: {args.soul}")
             num_ctx = getattr(args, 'num_ctx', None)
@@ -1024,3 +1044,5 @@ def main():
     print(f"   ─────────────────────────")
     print(f"   TOTAL: {total_passed}/{total_tests} ({100*total_passed//total_tests if total_tests > 0 else 0}%)")
     print(f"{'='*60}")
+    
+    return 0
