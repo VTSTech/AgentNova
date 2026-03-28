@@ -55,6 +55,12 @@ def parse_args():
                        help="Send warmup request before testing (avoids cold start timeout)")
     parser.add_argument("--num-ctx", type=int, default=None,
                        help="Context window size in tokens")
+    parser.add_argument("--num-predict", type=int, default=None,
+                       help="Maximum tokens to generate")
+    parser.add_argument("--temp", type=float, default=None, dest="temperature",
+                       help="Sampling temperature 0.0-2.0")
+    parser.add_argument("--top-p", type=float, default=None, dest="top_p",
+                       help="Nucleus sampling probability 0.0-1.0")
     return parser.parse_args()
 
 
