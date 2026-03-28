@@ -756,7 +756,7 @@ def cmd_models(args: argparse.Namespace) -> int:
     # Column widths
     NAME_W = 36
     SIZE_W = 8
-    CTX_W = 12
+    CTX_W = 7
     TOOLS_W = 12  # fits "✓ native"
     FAMILY_W = 12
     sep_len = 4 + NAME_W + SIZE_W + CTX_W + TOOLS_W + TOOLS_W + FAMILY_W + 10
@@ -768,7 +768,7 @@ def cmd_models(args: argparse.Namespace) -> int:
         mode_label = ", ".join(modes_to_test)
         print(dim(f"  Testing: {mode_label}"))
     print(dim("-" * sep_len))
-    print(f"  {'Name':<{NAME_W}} {'Size':>{SIZE_W}}  {'Context':>{CTX_W}}  {'openre':>{TOOLS_W}}  {'openai':>{TOOLS_W}}  {'Family':<{FAMILY_W}}")
+    print(f"  {'Name':<{NAME_W}} {'Size':>{SIZE_W}}  {'Ctx':>{CTX_W}}  {'openre':>{TOOLS_W}}  {'openai':>{TOOLS_W}}  {'Family':<{FAMILY_W}}")
     print(dim("-" * sep_len))
 
     for m in models:
@@ -777,27 +777,13 @@ def cmd_models(args: argparse.Namespace) -> int:
         size_gb = size / (1024**3) if size else 0
         family = m.get("details", {}).get("family", "unknown")
         
-        # Get both runtime and max context
-        runtime_ctx = backend.get_model_runtime_context(name)
+        # Max context for this model
         max_ctx = backend.get_model_max_context(name, family=family)
-        
-        # Format context size
-        def format_ctx(n):
-            if n >= 1000000:
-                return f"{n // 1000}K"
-            elif n >= 1000:
-                return f"{n // 1000}K"
-            return str(n)
-        
-        if runtime_ctx == max_ctx:
-            ctx_str = format_ctx(runtime_ctx)
-        else:
-            ctx_str = f"{format_ctx(runtime_ctx)}/{format_ctx(max_ctx)}"
         
         # Fixed columns
         name_col = pad_colored(cyan(name), NAME_W)
         size_col = f"{size_gb:>6.2f} GB"
-        ctx_col = pad_colored(yellow(ctx_str) if runtime_ctx == 2048 else dim(ctx_str), CTX_W, 'right')
+        ctx_col = pad_colored(dim(str(max_ctx)), CTX_W, 'right')
 
         if isinstance(backend, OllamaBackend):
             results = {}  # mode -> status string
@@ -849,7 +835,7 @@ def cmd_models(args: argparse.Namespace) -> int:
     
     # Show legend
     print(f"\n{dim('Legend:')} {bright_green('✓ native')} (API tools) | {yellow('○ react')} (text parsing) | {red('✗ none')} (no tools) | {dim('? untested')}")
-    print(f"{dim('Context:')} {yellow('2K/32K')} = runtime/max (Ollama defaults to 2K unless num_ctx is set)")
+    print(f"{dim('Ctx: max context window (default num_ctx is 8192).')}")
     print(f"{dim('Tool support columns show openre (OpenResponses) and openai (Chat-Completions) results.')}")
     print(f"{dim('Use')} {cyan('--tool-support')} {dim('to test both API modes.')} {cyan('--tool-support --api openai')} {dim('to test only Chat-Completions.')}")
 
