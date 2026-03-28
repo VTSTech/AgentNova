@@ -262,6 +262,8 @@ def create_parser() -> argparse.ArgumentParser:
                            help="API mode for tool support testing (default: test both)")
     models_parser.add_argument("--tool-support", action="store_true", help="Force re-test tool calling support (both API modes)")
     models_parser.add_argument("--no-cache", action="store_true", help="Ignore cached tool support results")
+    models_parser.add_argument("--acp", action="store_true", help="Enable ACP logging to Agent Control Panel")
+    models_parser.add_argument("--acp-url", default=None, help="ACP server URL (default: from config)")
 
     # Tools command
     subparsers.add_parser("tools", help="List available tools")
@@ -753,6 +755,9 @@ def cmd_models(args: argparse.Namespace) -> int:
             print("Pull one with: ollama pull qwen2.5:0.5b")
         return 0
 
+    # Initialize ACP plugin if requested
+    acp, _ = _init_acp(args, config, "AgentNova-Models")
+
     # Column widths
     NAME_W = 36
     SIZE_W = 8
@@ -767,6 +772,8 @@ def cmd_models(args: argparse.Namespace) -> int:
     if args.tool_support:
         mode_label = ", ".join(modes_to_test)
         print(dim(f"  Testing: {mode_label}"))
+    if acp:
+        print(f"{dim('ACP:')} {green('✓ Connected')} ({acp.base_url})")
     print(dim("-" * sep_len))
     print(f"  {'Name':<{NAME_W}} {'Size':>{SIZE_W}}  {'Context':>{CTX_W}}  {'openre':>{TOOLS_W}}  {'openai':>{TOOLS_W}}  {'Family':<{FAMILY_W}}")
     print(dim("-" * sep_len))
@@ -828,6 +835,14 @@ def cmd_models(args: argparse.Namespace) -> int:
                 tool_re = pad_colored(_tool_status(results.get("openre")), TOOLS_W, 'right')
                 tool_ai = pad_colored(_tool_status(results.get("openai")), TOOLS_W, 'right')
                 print(f"\r  {name_col} {size_col}  {ctx_col}  {tool_re}  {tool_ai}  {dim('(' + family + ')')}")
+
+                # Log per-model test result to ACP
+                if acp:
+                    acp.log_shell(
+                        f"agentnova models --tool-support {name}",
+                        status="completed" if "error" not in results.values() else "error",
+                        output_preview=f"{name} ({family}): openre={results.get('openre','?')} openai={results.get('openai','?')} | {size_gb:.2f} GB | ctx {max_ctx}",
+                    )
             else:
                 # Read from cache for both display modes
                 for mode in modes_display:
@@ -852,6 +867,12 @@ def cmd_models(args: argparse.Namespace) -> int:
     print(f"{dim('Context:')} {yellow('2K/32K')} = runtime/max (Ollama defaults to 2K unless num_ctx is set)")
     print(f"{dim('Tool support columns show openre (OpenResponses) and openai (Chat-Completions) results.')}")
     print(f"{dim('Use')} {cyan('--tool-support')} {dim('to test both API modes.')} {cyan('--tool-support --api openai')} {dim('to test only Chat-Completions.')}")
+
+    # Log summary to ACP and clean up
+    if acp:
+        if args.tool_support:
+            acp.log_chat("assistant", f"Tool-support scan complete: {len(models)} models tested")
+        acp.a2a_unregister()
 
     return 0
 
