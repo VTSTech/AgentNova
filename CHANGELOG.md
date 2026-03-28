@@ -4,6 +4,144 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [R03.6] - 2026-03-28 12:12:16 AM
+
+### Code Quality Improvements
+
+Major refactoring to eliminate code duplication and reduce repository size.
+
+### Changed
+
+#### Color Functions Consolidated into Shared Module (`colors.py`)
+- **New module**: `agentnova/colors.py` - Centralized ANSI color utilities
+  - `Color` class with all ANSI codes (basic, bright, styles)
+  - Color functions: `c`, `dim`, `bold`, `cyan`, `green`, `yellow`, `red`, `magenta`, `blue`
+  - Bright variants: `bright_cyan`, `bright_green`, `bright_yellow`, `bright_magenta`, `bright_red`
+  - Utility functions: `visible_len`, `pad_colored`, `is_color_enabled`, `set_color_enabled`
+- **Updated `cli.py`**: Removed 130+ lines of duplicate color definitions, now imports from `colors.py`
+- **Updated `agent_mode.py`**: Removed duplicate `dim`, `green`, `yellow`, `cyan` functions, now imports from `colors.py`
+- **Removed unused imports**: Cleaned up `re` import from `cli.py`
+
+#### Orchestrator Modules Merged (`orchestrator.py`)
+- **Merged `orchestrator_enhanced.py` into `orchestrator.py`**
+  - Combined features from both versions into single unified module
+  - Added `OrchestratorResult` dataclass with `print_summary()` method
+  - True parallel execution with `ThreadPoolExecutor`
+  - Timeout handling per agent
+  - Fault tolerance with fallback agents
+  - LLM-based routing (optional, when `router_model` is set)
+  - Result merging strategies: `concat`, `first`, `vote`, `best`
+  - Enhanced `AgentCard` with `priority`, `timeout`, `fallback` fields
+- **Deleted `orchestrator_enhanced.py`** - No longer needed, all features merged
+
+### Removed
+
+#### Audit Directory Cleanup
+- **Removed `audit/` directory** with 40 PNG files across 5 subdirectories
+  - R00/, R03/, R024/, R033/, and root level
+  - PNG files were generated audit reports no longer needed
+  - Repository size reduced significantly
+
+### Migration Guide
+
+**Color Functions** - No changes needed for external usage:
+```python
+# Internal imports updated, external API unchanged
+from agentnova import Agent  # Still works
+
+# Colors module now available for direct use
+from agentnova.colors import green, yellow, cyan, is_color_enabled
+print(green("Success!"))
+```
+
+**Orchestrator** - Enhanced features now in main module:
+```python
+from agentnova import Orchestrator, AgentCard
+
+# New AgentCard fields (all optional)
+card = AgentCard(
+    name="math_agent",
+    description="Math specialist",
+    capabilities=["calculate", "math"],
+    tools=["calculator"],
+    priority=2,         # NEW: Higher priority for routing
+    timeout=30.0,       # NEW: Max seconds this agent can run
+    fallback=True,      # NEW: Use as fallback if others fail
+)
+
+# Orchestrator with LLM-based routing (optional)
+orchestrator = Orchestrator(
+    mode="router",
+    router_model="qwen2.5:0.5b",  # NEW: LLM decides which agent to use
+    merge_strategy="best",         # NEW: How to merge parallel results
+    timeout=120.0,
+)
+
+# Result now includes more details
+result = orchestrator.run("Calculate 15 * 8")
+result.print_summary()  # NEW: Print formatted summary
+print(f"Chosen agent: {result.chosen_agent}")
+print(f"Total time: {result.total_ms:.0f}ms")
+```
+
+### File Changes Summary
+
+| Action | File | Lines Changed |
+|--------|------|---------------|
+| Created | `agentnova/colors.py` | +160 |
+| Updated | `agentnova/cli.py` | -140 |
+| Updated | `agentnova/agent_mode.py` | -20 |
+| Merged | `agentnova/orchestrator.py` | +400 |
+| Deleted | `agentnova/orchestrator_enhanced.py` | -394 |
+| Deleted | `audit/` (40 PNG files) | - |
+
+### Technical Details
+
+**Consolidated Color Module Structure**:
+```python
+# agentnova/colors.py
+class Color:
+    RESET, BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE
+    BRIGHT_BLACK, BRIGHT_RED, BRIGHT_GREEN, BRIGHT_YELLOW, ...
+    BOLD, DIM, ITALIC, UNDERLINE
+    
+    @classmethod
+    def supports_color(cls) -> bool: ...
+
+# Global state
+_COLOR_ENABLED = Color.supports_color()
+
+# Public API
+def c(text: str, *colors: str) -> str: ...
+def dim(text: str) -> str: ...
+def green(text: str) -> str: ...
+# ... etc
+```
+
+**Unified Orchestrator Modes**:
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Orchestrator                              │
+├─────────────────────────────────────────────────────────────┤
+│  Router Mode:                                               │
+│    - Keyword matching (default)                             │
+│    - LLM-based routing (optional, set router_model)         │
+│    - Fallback agents on failure                             │
+├─────────────────────────────────────────────────────────────┤
+│  Pipeline Mode:                                             │
+│    - Sequential execution                                   │
+│    - Each agent receives previous output                    │
+│    - Context accumulation                                    │
+├─────────────────────────────────────────────────────────────┤
+│  Parallel Mode:                                             │
+│    - ThreadPoolExecutor for true parallelism                │
+│    - Configurable timeout                                   │
+│    - Merge strategies: concat, first, vote, best            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## [R03.6] - 2026-03-27 11:32:25 PM
 
 ### Runtime-Based Tool Support Detection

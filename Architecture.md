@@ -58,7 +58,16 @@ agentnova/
 ├── acp_plugin.py             # ACP v1.0.5 integration
 │                             # - Status reporting, activity logging
 │                             # - Batch context manager for atomic operations
-├── orchestrator.py           # Multi-agent orchestration
+├── orchestrator.py           # Multi-agent orchestration (R03.7)
+│                             # - Router, Pipeline, Parallel modes
+│                             # - LLM-based routing (optional)
+│                             # - True parallel execution with ThreadPoolExecutor
+│                             # - Fallback agents, timeout handling
+│                             # - Result merging strategies
+├── colors.py                 # Shared ANSI color utilities (R03.7)
+│                             # - Color class with ANSI codes
+│                             # - Color functions: green, yellow, cyan, etc.
+│                             # - Utility: visible_len, pad_colored
 └── cli.py                    # Command-line interface
 ```
 
@@ -84,6 +93,78 @@ The main Agent class implements the **OpenResponses Agentic Loop**:
 - Dynamic tool injection into system prompt
 - Default context window: 4096 tokens
 - Debug output with OpenResponses item tracking
+
+### Orchestrator (`orchestrator.py`)
+
+Multi-agent orchestration with three execution modes (enhanced in R03.7):
+
+**Execution Modes**:
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| `router` | Routes task to best matching agent | Task dispatch to specialists |
+| `pipeline` | Sequential execution, output chaining | Multi-step transformations |
+| `parallel` | Simultaneous execution, result merging | Ensemble/consensus tasks |
+
+**Key Features**:
+- **LLM-based routing** - Optional router model decides which agent to use
+- **True parallelism** - ThreadPoolExecutor for concurrent agent execution
+- **Fault tolerance** - Fallback agents when primary fails
+- **Timeout handling** - Per-agent timeouts prevent hanging
+- **Result merging** - Strategies: `concat`, `first`, `vote`, `best`
+
+```python
+from agentnova import Orchestrator, AgentCard, Agent
+from agentnova.tools import make_builtin_registry
+
+# Create specialized agents
+tools = make_builtin_registry()
+
+math_card = AgentCard(
+    name="math_agent",
+    description="Handles mathematical calculations",
+    capabilities=["calculate", "math", "compute"],
+    tools=["calculator"],
+    priority=2,         # Higher priority for math tasks
+    timeout=30.0,       # 30 second timeout
+)
+
+code_card = AgentCard(
+    name="code_agent", 
+    description="Writes and executes code",
+    capabilities=["code", "python", "script"],
+    tools=["shell", "write_file"],
+    fallback=True,      # Use as fallback if others fail
+)
+
+# Create orchestrator
+orchestrator = Orchestrator(
+    mode="router",
+    router_model="qwen2.5:0.5b",  # Optional LLM routing
+    merge_strategy="best",
+)
+orchestrator.register(math_card)
+orchestrator.register(code_card)
+
+# Run task
+result = orchestrator.run("Calculate 15 * 8")
+print(result.final_answer)
+print(f"Agent used: {result.chosen_agent}")
+result.print_summary()
+```
+
+**OrchestratorResult Fields**:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `mode` | str | Execution mode used |
+| `chosen_agent` | str | Agent selected (router mode) |
+| `agents_used` | list | All agents that ran |
+| `final_answer` | str | Merged/selected result |
+| `agent_results` | dict | Results by agent name |
+| `agent_times` | dict | Execution times by agent |
+| `total_ms` | float | Total orchestration time |
+| `success` | bool | Whether execution succeeded |
 
 ### OpenResponses Specification (`core/openresponses.py`)
 
