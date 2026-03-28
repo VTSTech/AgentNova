@@ -168,22 +168,25 @@ def _extract_tool_from_json(obj: dict, debug: bool = False) -> tuple[str | None,
                     args = {"input": potential_args}
                 break
 
-    # Handle bare argument objects
+    # Handle bare argument objects - ONLY if the JSON looks like a tool call
+    # CRITICAL: "query" is removed because models often output JSON with "query"
+    # as a general key (e.g., {"query": "...", "response": "...", "method": "..."})
+    # which should NOT be interpreted as a web-search tool call.
+    # Only "expression" and "command" are unambiguous indicators of tool usage.
     if not name:
         arg_to_tool = {
-            "expression": "calculator",
-            "command": "shell",
-            "code": "python_repl",
-            "path": "read_file",
-            "content": "write_file",
-            "query": "web-search",
-            "url": "http_get",
+            "expression": "calculator",  # Only unambiguous calculator indicator
+            "command": "shell",          # Only unambiguous shell indicator
         }
-        for key in obj.keys():
-            if key in arg_to_tool:
-                name = arg_to_tool[key]
-                args = obj
-                break
+        # Only map to tool if the object has ONLY tool-related keys (not response/method/etc)
+        obj_keys = set(obj.keys())
+        non_tool_keys = {"response", "method", "answer", "result", "explanation", "output", "text"}
+        if not obj_keys.intersection(non_tool_keys):
+            for key in obj.keys():
+                if key in arg_to_tool:
+                    name = arg_to_tool[key]
+                    args = obj
+                    break
 
     if not name or not isinstance(args, dict):
         if debug:
