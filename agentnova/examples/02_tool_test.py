@@ -53,8 +53,8 @@ def parse_args():
     parser.add_argument("-m", "--model", default=None, help="Model to test")
     parser.add_argument("--debug", action="store_true", help="Enable debug output")
     parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None)
-    parser.add_argument("--api", choices=["resp", "comp"], default="resp", dest="api_mode",
-                       help="API mode: 'resp' (OpenResponses/native) or 'comp' (Chat-Completions)")
+    parser.add_argument("--api", choices=["openre", "openai"], default="openre", dest="api_mode",
+                       help="API mode: 'openre' (OpenResponses) or 'openai' (Chat-Completions (OpenAI))")
     parser.add_argument("--tools-only", action="store_true", help="Only run Phase 1 (direct tool tests)")
     parser.add_argument("--model-only", action="store_true", help="Only run Phase 2 (model tool calling)")
     parser.add_argument("--soul", default=None, help="Path to Soul Spec package (ignored for tool tests)")
