@@ -98,7 +98,8 @@ def extract_number(text: str) -> str | None:
 
 def run_diagnostic(model: str, backend, debug: bool = False, force_react: bool = False,
                    soul: str = None, soul_level: int = 2, timeout: int = None,
-                   num_ctx: int = None) -> dict:
+                   num_ctx: int = None, num_predict: int = None,
+                   temperature: float = None, top_p: float = None) -> dict:
     """Run diagnostic tests for a model."""
     print(f"\n{'='*60}")
     print(f"🧪 Quick Diagnostic: {model}")
@@ -124,7 +125,6 @@ After getting the result, provide the final answer as a number."""
             
             agent = Agent(
                 model=model,
-                temp=0.0,
                 tools=tool_registry,
                 backend=backend,
                 max_steps=5,
@@ -134,6 +134,9 @@ After getting the result, provide the final answer as a number."""
                 soul=soul,
                 soul_level=soul_level,
                 num_ctx=num_ctx,
+                temperature=temperature,
+                top_p=top_p,
+                num_predict=num_predict,
             )
             
             t0 = time.time()
@@ -188,7 +191,7 @@ def run_warmup(model: str, backend, timeout: int = None) -> bool:
     Uses a direct backend call with minimal prompt to avoid loading
     the full soul (saves ~8000 chars of system prompt processing).
     """
-    print("🔥 Warming up model...", end="\n", flush=True)
+    print("🔥 Warming up model...", end=" ", flush=True)
     try:
         t0 = time.time()
         # Direct backend call - no Agent, no soul, minimal overhead
