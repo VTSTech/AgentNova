@@ -60,7 +60,7 @@ All remaining specification compliance gaps have been resolved. Overall complian
   
 ### Compliance Summary
 
-| Specification | R03.5 Score | R03.6 Score | Improvement |
+| Specification | R03.4 Score | R03.5 Score | Improvement |
 |---------------|-------------|-------------|-------------|
 | OpenResponses API | 100% | 100% | - |
 | Chat Completions API | 99% | **100%** | +1% |
