@@ -38,11 +38,22 @@ def parse_args():
     parser.add_argument("-m", "--model", default=None, help="Model to test")
     parser.add_argument("--debug", action="store_true", help="Enable debug output")
     parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None)
+    parser.add_argument("--api", choices=["resp", "comp"], default="resp", dest="api_mode",
+                       help="API mode: 'resp' (OpenResponses/native) or 'comp' (Chat-Completions)")
     parser.add_argument("--use-mf-sys", action="store_true", dest="use_modelfile_system",
                         help="Use the model's Modelfile system prompt instead of custom prompt")
     parser.add_argument("--soul", default=None, help="Path to Soul Spec package")
     parser.add_argument("--soul-level", type=int, default=2, choices=[1, 2, 3],
                        help="Soul progressive disclosure level")
+    parser.add_argument("--num-ctx", type=int, default=None,
+                       help="Context window size in tokens")
+    parser.add_argument("--num-predict", type=int, default=None,
+                       help="Maximum tokens to generate")
+    parser.add_argument("--temp", type=float, default=None, dest="temperature",
+                       help="Sampling temperature 0.0-2.0")
+    parser.add_argument("--top-p", type=float, default=None, dest="top_p",
+                       help="Nucleus sampling probability 0.0-1.0")
+    parser.add_argument("--force-react", action="store_true", help="Force ReAct mode for tool calling")
     return parser.parse_args()
 
 
@@ -313,7 +324,11 @@ def check_answer(response: str, expected: str, check_type: str) -> bool:
     return False
 
 
-def run_tests(model: str, backend, debug: bool = False, use_mf_sys: bool = False) -> dict:
+def run_tests(model: str, backend, debug: bool = False, use_mf_sys: bool = False,
+              soul: str = None, soul_level: int = 2,
+              force_react: bool = False,
+              num_ctx: int = None, num_predict: int = None,
+              temperature: float = None, top_p: float = None) -> dict:
     """Run reading comprehension tests for a model."""
     print(f"\n{'='*60}")
     print(f"📖 Reading Comprehension Tests: {model}")
@@ -348,6 +363,13 @@ Instructions:
             "backend": backend,
             "max_steps": 1,
             "debug": debug,
+            "soul": soul,
+            "soul_level": soul_level,
+            "force_react": force_react,
+            "num_ctx": num_ctx,
+            "num_predict": num_predict,
+            "temperature": temperature,
+            "top_p": top_p,
         }
         if not use_mf_sys:
             agent_kwargs["system_prompt"] = comprehension_prompt
@@ -397,7 +419,13 @@ def main():
     else:
         print(f"   System Prompt: Custom (reading comprehension)")
     
-    result = run_tests(model, backend, args.debug, args.use_modelfile_system)
+    result = run_tests(model, backend, args.debug, args.use_modelfile_system,
+                       soul=args.soul, soul_level=args.soul_level,
+                       force_react=getattr(args, 'force_react', False),
+                       num_ctx=getattr(args, 'num_ctx', None),
+                       num_predict=getattr(args, 'num_predict', None),
+                       temperature=getattr(args, 'temperature', None),
+                       top_p=getattr(args, 'top_p', None))
     
     print(f"\n{'='*60}")
     print("📊 Results by Category")

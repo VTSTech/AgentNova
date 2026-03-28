@@ -44,9 +44,20 @@ def parse_args():
     parser.add_argument("--limit", type=int, default=50, help="Number of questions")
     parser.add_argument("--debug", action="store_true", help="Enable debug output")
     parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None)
+    parser.add_argument("--api", choices=["resp", "comp"], default="resp", dest="api_mode",
+                       help="API mode: 'resp' (OpenResponses/native) or 'comp' (Chat-Completions)")
     parser.add_argument("--soul", default=None, help="Path to Soul Spec package")
     parser.add_argument("--soul-level", type=int, default=2, choices=[1, 2, 3],
                        help="Soul progressive disclosure level")
+    parser.add_argument("--num-ctx", type=int, default=None,
+                       help="Context window size in tokens")
+    parser.add_argument("--num-predict", type=int, default=None,
+                       help="Maximum tokens to generate")
+    parser.add_argument("--temp", type=float, default=None, dest="temperature",
+                       help="Sampling temperature 0.0-2.0")
+    parser.add_argument("--top-p", type=float, default=None, dest="top_p",
+                       help="Nucleus sampling probability 0.0-1.0")
+    parser.add_argument("--force-react", action="store_true", help="Force ReAct mode for tool calling")
     return parser.parse_args()
 
 
@@ -120,7 +131,11 @@ def extract_number(text: str) -> str:
     return match.group(0) if match else ""
 
 
-def run_benchmark(model: str, backend, questions: list, debug: bool = False) -> dict:
+def run_benchmark(model: str, backend, questions: list, debug: bool = False,
+                   soul: str = None, soul_level: int = 2,
+                   force_react: bool = False,
+                   num_ctx: int = None, num_predict: int = None,
+                   temperature: float = None, top_p: float = None) -> dict:
     """Run benchmark for a single model."""
     print(f"\n{'='*60}")
     print(f"🧮 GSM8K Benchmark: {model}")
@@ -135,6 +150,13 @@ def run_benchmark(model: str, backend, questions: list, debug: bool = False) -> 
         backend=backend,
         max_steps=5,
         debug=debug,
+        soul=soul,
+        soul_level=soul_level,
+        force_react=force_react,
+        num_ctx=num_ctx,
+        num_predict=num_predict,
+        temperature=temperature,
+        top_p=top_p,
     )
     
     correct = 0
@@ -203,7 +225,13 @@ def main():
     
     all_results = []
     for model in models:
-        result = run_benchmark(model, backend, questions, args.debug)
+        result = run_benchmark(model, backend, questions, args.debug,
+                              soul=args.soul, soul_level=args.soul_level,
+                              force_react=getattr(args, 'force_react', False),
+                              num_ctx=getattr(args, 'num_ctx', None),
+                              num_predict=getattr(args, 'num_predict', None),
+                              temperature=getattr(args, 'temperature', None),
+                              top_p=getattr(args, 'top_p', None))
         all_results.append(result)
     
     # Summary for multiple models
