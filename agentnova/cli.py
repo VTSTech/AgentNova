@@ -260,6 +260,8 @@ def create_parser() -> argparse.ArgumentParser:
     models_parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None, help="Backend to use")
     models_parser.add_argument("--api", choices=["openre", "openai"], default=None, dest="api_mode",
                            help="API mode for tool support testing (default: test both)")
+    models_parser.add_argument("--acp", action="store_true", help="Log tool support tests to ACP")
+    models_parser.add_argument("--acp-url", default=None, help="ACP server URL (default: from config)")
     models_parser.add_argument("--tool-support", action="store_true", help="Force re-test tool calling support (both API modes)")
     models_parser.add_argument("--no-cache", action="store_true", help="Ignore cached tool support results")
 
@@ -733,6 +735,25 @@ def cmd_models(args: argparse.Namespace) -> int:
     # Always display both columns
     modes_display = ["openre", "openai"]
 
+    # Initialize ACP if requested (only meaningful with --tool-support)
+    acp = None
+    if getattr(args, 'acp', False):
+        try:
+            from .acp_plugin import ACPPlugin
+            acp_url = getattr(args, 'acp_url', None) or config.acp_base_url
+            acp = ACPPlugin(
+                base_url=acp_url,
+                agent_name="AgentNova-Models",
+                model_name="tool-support-scan",
+                debug=False,
+            )
+            bootstrap = acp.bootstrap()
+            if bootstrap.get("stop_flag"):
+                print(f"{red('Error:')} ACP STOP flag is set: {bootstrap.get('warnings')}")
+                return 1
+        except Exception as e:
+            print(f"{yellow('Warning:')} Failed to connect to ACP: {e}")
+
     backend = get_backend(backend_name, api_mode="openre")  # default for list_models etc.
 
     if not isinstance(backend, OllamaBackend):
@@ -810,6 +831,17 @@ def cmd_models(args: argparse.Namespace) -> int:
                         if cached is not None:
                             results[mode] = cached.value
 
+                # Log to ACP if connected
+                if acp:
+                    summary = f"{name} ({family}): " + ", ".join(
+                        f"{m}={results.get(m, '?')}" for m in modes_display
+                    )
+                    acp.log_shell(
+                        command=f"test_tool_support --model {name}",
+                        output_preview=summary,
+                        error=any(v in ("error", "none") for v in results.values()),
+                    )
+
                 # Overwrite the "Testing..." line with the final row
                 tool_re = pad_colored(_tool_status(results.get("openre")), TOOLS_W, 'right')
                 tool_ai = pad_colored(_tool_status(results.get("openai")), TOOLS_W, 'right')
@@ -838,6 +870,13 @@ def cmd_models(args: argparse.Namespace) -> int:
     print(f"{dim('Ctx: max context window (default num_ctx is 8192).')}")
     print(f"{dim('Tool support columns show openre (OpenResponses) and openai (Chat-Completions) results.')}")
     print(f"{dim('Use')} {cyan('--tool-support')} {dim('to test both API modes.')} {cyan('--tool-support --api openai')} {dim('to test only Chat-Completions.')}")
+    if acp:
+        print(f"{dim('ACP:')} {bright_green('● connected')} {dim(f'({acp.base_url})')}")
+    elif getattr(args, 'acp', False):
+        print(f"{dim('ACP:')} {red('● failed')} {dim('(tool support results not logged)')}")
+    else:
+        print(f"{dim('Use')} {cyan('--acp')} {dim('to log results to Agent Control Panel.')}")
+
 
     return 0
 
