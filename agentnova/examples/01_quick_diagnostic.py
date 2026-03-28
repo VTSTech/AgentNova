@@ -43,8 +43,8 @@ def parse_args():
     parser.add_argument("-m", "--model", default=None, help="Model to test")
     parser.add_argument("--debug", action="store_true", help="Enable debug output")
     parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None)
-    parser.add_argument("--api", choices=["resp", "comp"], default="resp", dest="api_mode",
-                       help="API mode: 'resp' (OpenResponses/native) or 'comp' (Chat-Completions)")
+    parser.add_argument("--api", choices=["openre", "openai"], default="openre", dest="api_mode",
+                       help="API mode: 'openre' (OpenResponses) or 'openai' (Chat-Completions (OpenAI))")
     parser.add_argument("--force-react", action="store_true", help="Force ReAct mode for tool calling")
     parser.add_argument("--soul", default=None, help="Path to Soul Spec package")
     parser.add_argument("--soul-level", type=int, default=2, choices=[1, 2, 3],
@@ -222,7 +222,7 @@ def main():
     
     # Get backend with timeout
     backend_name = args.backend or config.backend
-    api_mode = getattr(args, 'api_mode', 'resp')
+    api_mode = getattr(args, 'api_mode', 'openre')
     timeout = getattr(args, 'timeout', None)
     backend = get_backend(backend_name, timeout=timeout, api_mode=api_mode)
     
@@ -242,8 +242,8 @@ def main():
     print(f"   Backend: {backend_name} ({backend.base_url})")
     print(f"   Model: {model}")
     api_mode_display = {
-        'resp': '[OpenAI] OpenResponses (2025)',
-        'comp': '[OpenAI] ChatCompletions (2023)'
+        'openre': '[OpenResponses]',
+        'openai': '[OpenAI] ChatCompletions'
     }.get(api_mode, api_mode)
     print(f"   API Mode: {api_mode_display}")
     if timeout:
@@ -277,4 +277,3 @@ def main():
 
 if __name__ == "__main__":
     result = main()
-    sys.exit(result.get("exit_code", 0))
