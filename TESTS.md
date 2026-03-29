@@ -26,7 +26,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 > ⏳ **Partial results** — 9 of 10 models tested; remaining 1 pending
 
 | Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R03.6 | Notes |
-|:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|:---------:|-------|
+|:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|:---------:|-------|-------|
 | 🥇 | **`granite4:350m`** | **5/5 (100%)** | 44.2s | ✅ | ✅ | ✅ | ✅ | ✅ | Same ✅ | 🏆 Perfect score! **4× faster** (183→44s) |
 | 🥈 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 99.9s | ✅ | ✅ | ✅ | ✅ | ❌ hall. | N/A 🆕 | **With `--soul`**; 0/5 without — heavily soul-dependent |
 | 🥉 | `nchapman/dolphin3.0-qwen2.5:0.5b` | **3/5 (60%)** | 31.6s | ✅ | ❌ 49 | ✅ | ✅ | ❌ 10 | +1 | Improved even without soul; Q2/Q5 reasoning |
