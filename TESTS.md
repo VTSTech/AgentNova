@@ -1,8 +1,10 @@
-# ⚛️ AgentNova R03.8
+# ⚛️ AgentNova R03.9
 
 ## Test 01 Quick Diagnostic (5 Questions)
 
 Test 01 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
+
+> **Updated:** 2026-03-29 - R03.9 OpenAI (ChatCompletions) results added (6/10 models)
 
 **Usage:**
 ```bash
@@ -74,6 +76,54 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 - **resp mode**: 100% (5/5) ✅
 - **comp mode**: 0% (0/5) ❌ - Empty responses on all questions
 - Possible tool calling format incompatibility between OpenResponses and ChatCompletions APIs
+
+---
+
+### Chat Completions Mode Results (R03.9 - openai API Mode)
+
+> Testing with `--api openai` uses OpenAI-compatible Chat Completions API (`/v1/chat/completions`)
+> Test params: `--api openai` (no soul, no custom generation params — default settings)
+> ⏳ **Partial results** — 6 of 10 models tested; remaining 4 pending
+
+| Rank | Model | Score | Time | Soul | Q1 | Q2 | Q3 | Q4 | Q5 | R03.6 Δ | Notes |
+|:----:|-------|------:|-----:|:----:|:--:|:--:|:--:|:--:|:--:|:-------:|-------|
+| 🥇 | **`granite4:350m`** | **5/5 (100%)** | 44.2s | — | ✅ | ✅ | ✅ | ✅ | ✅ | — | 🏆 Perfect score! **4× faster** than R03.6 (183→44s) |
+| 3 | `nchapman/dolphin3.0-qwen2.5:0.5b` | **3/5 (60%)** | 31.6s | — | ✅ | ❌ 49 | ✅ | ✅ | ❌ 10 | **+1** 🟢 | Q2 reasoning error, Q5 15:00-17:00 math |
+| 3 | `qwen2:0.5b` | **3/5 (60%)** | 22.1s | — | ✅ | ✅ | ❌ 4.03% | ✅ | ❌ 6 | — | Q3 division precision, Q5 time calc |
+| 3 | `gemma3:270m` | **3/5 (60%)** | 14.8s | — | ✅ | ❌ Q1 bleed | ✅ | ✅ | ❌ 10 | **-1** 🔴 | Q2 answered Q1's value (context bleed) |
+| 6 | `qwen2.5:0.5b` | **2/5 (40%)** | 45.7s | — | ❌ empty | ✅ | ❌ empty | ✅ | ❌ text | **-3** 🔴 | Q1/Q3 empty, Q5 verbose no number |
+| 7 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **0/5 (0%)** | 197.8s | — | ❌ schema | ❌ empty | ❌ empty | ❌ empty | ❌ empty | N/A 🆕 | ⚠️ Q1 dumped tool schema as answer |
+
+#### Comparison with R03.6 ChatCompletions (comp mode)
+
+| Model | R03.6 Score | R03.9 Score | Δ | Notes |
+|-------|:-----------:|:-----------:|:-:|-------|
+| `granite4:350m` | 5/5 (100%) | 5/5 (100%) | — | Maintained perfect score; **4× faster** (183s → 44s) |
+| `qwen2.5:0.5b` | 5/5 (100%) | 2/5 (40%) | **-3** 🔴 | Major regression; Q1/Q3 return empty, Q5 no numeric answer |
+| `qwen2.5-coder:0.5b` | 5/5 (100%) | — | — | Not yet tested in R03.9 |
+| `granite3.1-moe:1b` | 4/5 (80%) | — | — | Not yet tested in R03.9 |
+| `gemma3:270m` | 4/5 (80%) | 3/5 (60%) | **-1** 🔴 | Q2 context bleed from Q1 (no soul) |
+| `qwen3:0.6b` | 3/5 (60%) | — | — | Not yet tested in R03.9 |
+| `qwen2:0.5b` | 3/5 (60%) | 3/5 (60%) | — | Same score; different failure pattern |
+| `nchapman/dolphin3.0-qwen2.5:0.5b` | 2/5 (40%) | 3/5 (60%) | **+1** 🟢 | Improved; Q1-Q3 empty responses fixed |
+| `functiongemma:270m` | 1/5 (20%) | — | — | Not yet tested in R03.9 |
+| `qwen:0.5b` | 1/5 (20%) | — | — | Not yet tested in R03.9 |
+| `qwen3.5:0.8b` | 0/5 (0%) | — | — | Not yet tested in R03.9 |
+| `deepseek-r1:1.5b` | 0/5 (0%) | — | — | Not yet tested in R03.9 |
+
+#### Notable Observations
+
+1. **granite4:350m speed improvement is dramatic** — 183s → 44.2s (4.1× faster) with no soul and default params, vs R03.6's `--soul nova-helper --num-predict 128 --temp 0.0`. This suggests R03.9's reduced overhead (fuzzy matching removal, consolidated ModelFamilyConfig) is yielding real performance gains even before accounting for parameter differences.
+
+2. **dolphin3.0 improved from 2/5 → 3/5** (+1) — The R03.6 empty response problem on Q1-Q3 is resolved. However, Q2 still has a reasoning error (got 49 instead of 51) and Q5 shows a confused time calculation using 15:00-17:00 instead of 17:00-9:00.
+
+3. **qwen2.5:0.5b regressed from 5/5 → 2/5** (-3) — Significant regression. Q1 and Q3 return empty responses, and Q5 produces verbose text without a numeric answer. The R03.6 test used `--soul nova-helper --num-predict 128 --temp 0.0` which may have been critical for this model. **Needs re-test with soul and constrained params.**
+
+4. **qwen2.5-coder:0.5b-instruct-q4_k_m at 0/5** — This is a different quantized variant than the R03.6 `qwen2.5-coder:0.5b` (which scored 5/5). Q1's response was the raw tool JSON schema dumped as text instead of a tool call, suggesting the quantized variant doesn't properly handle OpenAI tool calling format. All subsequent answers were empty.
+
+5. **gemma3:270m dropped from 4/5 → 3/5** (-1) — The R03.6 test used `--soul nova-helper` which likely helped with context isolation. Without a soul, the 270M model bleeds context between questions (Q2 answered with Q1's value). **Needs re-test with soul to isolate framework vs. model capability.**
+
+6. **Test parameter differences** — R03.6 tests used `--soul nova-helper --timeout 9999 --warmup --num-predict 128 --num-ctx 4096 --temp 0.0`. R03.9 tests used defaults only. The missing soul and relaxed generation params may explain some regressions. Direct comparison should be made cautiously.
 
 ---
 
@@ -438,4 +488,3 @@ Example output:
   functiongemma:270m                         gemma3       32K        ✓ native
   nchapman/dolphin3.0-qwen2.5:0.5b           qwen2        32K        ○ none
   deepseek-r1:1.5b                           deepseek     128K       ✓ native
-```
