@@ -4,7 +4,7 @@
 
 Test 01 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
 
-> **Updated:** 2026-03-30 - R03.9 OpenAI (ChatCompletions) with-soul results added (9/10 models)
+> **Updated:** 2026-03-29 - R03.9 OpenAI (ChatCompletions) with-soul results complete (10/10 models)
 
 **Usage:**
 ```bash
@@ -24,7 +24,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 > 🎯 **Soul used** — `--soul nova-helper` enabled. Direct comparison with R03.6 comp mode (also with soul) is valid.
 > Test params: `--api openai --soul nova-helper --num-ctx 32768 --timeout 9999`
 > ⚠️ **Note:** 32K context (8× larger than R03.6's 4K) may benefit models with longer reasoning chains
-> ⏳ **Partial results** — 9 of 10 models tested; remaining 1 pending (`qwen:0.5b`)
+> ✅ **Complete** — All 10 models tested
 
 | Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R03.6 | Notes |
 |:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|:---------:|-------|-------|
@@ -36,7 +36,8 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | 🥉 | `qwen2:0.5b` | **3/5 (60%)** | 256.6s | ✅ | ✅ | ❌ 3.5 | ✅ | ❌ 14h | Same | Q3 division rounding, Q5 time calc error |
 | 5 | `qwen3.5:0.8b` | **3/5 (60%)** | 552.2s | ❌ empty | ❌ empty | ✅ | ✅ | ✅ | +3 🆕 | Massive improvement! Q1/Q2 empty, Q3–Q5 all correct |
 | 6 | `gemma3:270m` | **2/5 (40%)** | 613.2s | ❌ 405 | ❌ 3 | ✅ | ✅ | ❌ 1024 | -2 | Regression; Q1/Q2 wrong, very slow (613s) |
-| 7 | `functiongemma:270m` | **1/5 (20%)** | 344.9s | ✅ | ❌ hall. | ❌ 120 | ❌ refused | ❌ refused | Same | Q2 hallucinated success, Q3 wrong calc, Q4/Q5 refusals |
+| 8 | `functiongemma:270m` | **1/5 (20%)** | 344.9s | ✅ | ❌ hall. | ❌ 120 | ❌ refused | ❌ refused | Same | Q2 hallucinated success, Q3 wrong calc, Q4/Q5 refusals |
+| 8 | `qwen:0.5b` | **1/5 (20%)** | 279.5s | ❌ 32 | ❌ 41 | ❌ 26 | ❌ 14 | ✅ | Same | Base model too small; Q1–Q4 all wrong despite verbose reasoning |
 
 ---
 
@@ -371,15 +372,31 @@ agentnova models --tool_support
 
 Example output:
 ```
-⚛️ AgentNova R03.6 Models
-  Model                                      Family       Context    Tool Support
-  ──────────────────────────────────────────────────────────────────────────────
-  gemma3:270m                                gemma3       32K        ○ none
-  granite4:350m                              granite      32K        ✓ native
-  granite3.1-moe:1b                          granite      32K        ✓ native
-  qwen2.5:0.5b                               qwen2        32K        ✓ native
-  qwen3:0.6b                                 qwen3        32K        ReAct
-  functiongemma:270m                         gemma3       32K        ✓ native
-  nchapman/dolphin3.0-qwen2.5:0.5b           qwen2        32K        ○ none
-  deepseek-r1:1.5b                           deepseek     128K       ✓ native
+⚛ AgentNova - Available Models
+  Backend: http://localhost:11434
+----------------------------------------------------------------------------------------------------------
+  Name                                     Size       Context        openre        openai  Family      
+----------------------------------------------------------------------------------------------------------
+  gemma3:270m                            0.27 GB         32768       ○ react       ○ react  (gemma3)
+  functiongemma:270m                     0.28 GB         32768      ✓ native      ✓ native  (gemma3)
+  qwen2.5:0.5b                           0.37 GB         32768      ✓ native      ✓ native  (qwen2)
+  granite4:350m                          0.66 GB         32768      ✓ native      ✓ native  (granite)
+  qwen:0.5b                              0.37 GB         32768       ○ react       ○ react  (qwen2)
+  qwen2:0.5b                             0.33 GB         32768       ○ react       ○ react  (qwen2)
+  qwen2.5-coder:0.5b-instruct-q4_k_m     0.37 GB         32768       ○ react       ○ react  (qwen2)
+  nchapman/dolphin3.0-qwen2.5:0.5b       0.37 GB         32768       ○ react       ○ react  (qwen2)
+  nchapman/dolphin3.0-llama3:1b          0.75 GB        131072    ? untested    ? untested  (llama)
+  llama3.2:1b                            1.23 GB        131072    ? untested    ? untested  (llama)
+  granite3.1-moe:1b                      1.32 GB        131072    ? untested    ? untested  (granitemoe)
+  deepseek-coder:1.3b                    0.72 GB         16384    ? untested    ? untested  (llama)
+  deepseek-r1:1.5b                       1.04 GB        131072    ? untested    ? untested  (qwen2)
+  qwen3.5:0.8b                           0.96 GB        262144      ✓ native      ✓ native  (qwen35)
+  qwen3:0.6b                             0.49 GB         40960       ○ react       ○ react  (qwen3)
+----------------------------------------------------------------------------------------------------------
+Total: 15 models
+
+Legend: ✓ native (API tools) | ○ react (text parsing) | ✗ none (no tools) | ? untested
+Context: Max context window from model API
+Tool support columns show openre (OpenResponses) and openai (Chat-Completions) results.
+Use --tool-support to test both API modes. --tool-support --api openai to test only Chat-Completions.
 ```
