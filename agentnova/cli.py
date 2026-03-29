@@ -568,7 +568,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
             acp.log_chat("user", user_input)
 
         result = agent.run(user_input)
-        print(f"\n{bright_magenta('Assistant')}: {result.final_answer}\n")
+        print(f"\n{bright_magenta('Agent Nova')}: {result.final_answer}\n")
 
         # Log assistant response to ACP
         if acp:
