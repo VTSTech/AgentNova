@@ -4,6 +4,94 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [R04.0] - 03-29-2026 6:47:06 PM
+
+### AgentSkills Integration, Web Search Tool & Skill Testing
+
+Major update adding full CLI integration for the AgentSkills system, a built-in web search tool, a test-harness skill, a nova-skills soul for skill-guided testing, and comprehensive skill system tests. The datetime and web-search skills were removed in favor of equivalent built-in tools, and the ACP skill was removed since `--acp` covers its functionality.
+
+### Added
+
+#### `--skills` CLI Flag (`cli.py`, `agent.py`)
+- **`--skills` flag** on `run`, `chat`, and `agent` commands — accepts comma-separated skill names (e.g., `--skills acp,test-harness`)
+- **`_load_skills_prompt()` helper** — lazy-loads skills via `SkillLoader` + `SkillRegistry`, returns formatted system prompt addition or None
+- Each skill is loaded individually with error handling; missing skills produce a warning without crashing
+- **`skills_prompt` parameter** on `Agent.__init__()` — appends skill prompt to system prompt after tools section
+- Debug output shows `[Skills] Appended skills prompt to system prompt (N chars)` when active
+- **`cmd_skills` help text** — improved to show cyan formatting and list all supported commands
+
+#### Web Search Tool (`tools/builtins.py`)
+- **`web_search()` function** — searches the web using DuckDuckGo Lite (HTML version, no API key required)
+- Falls back to `html.duckduckgo.com` if Lite returns no results
+- Parameters: `query` (required), `num_results` (optional, default 5, max 10)
+- Configurable: `MAX_SEARCH_RESULTS`, `MAX_SEARCH_SNIPPET` constants
+- Returns formatted results with titles, URLs, and snippets
+- Error handling: HTTP errors, connection errors, and generic exceptions
+- **Registered as `web-search`** in `BUILTIN_REGISTRY` under the `network` category
+
+#### Test Harness Skill (`skills/test-harness/`)
+- **Diagnostic skill** for validating the skill system and tool pipeline
+- 8 individual tests (T1–T8): Skill Loaded, Tool Inventory, Calculator, Shell, DateTime, Web Search, File Roundtrip, Full Suite
+- Structured response format: `TEST: <name>`, `STATUS: PASS|FAIL`, `DETAIL: <result>`
+- Rules: no fabrication, no skipping, use only skill-referenced tools
+- Declares `allowed-tools` for calculator, shell, get_time, get_date, web-search, read_file, write_file, list_directory, python_repl, parse_json, count_words, count_chars, http_get
+
+#### Nova-Skills Soul (`souls/nova-skills/`)
+- **`nova-skills` soul** — lightweight soul designed for skill-guided testing
+- Defers all behavior to the active skill: no tool reference table, no Action/Action Input format, no Final Answer enforcement
+- System prompt ~800 chars (vs nova-helper's ~7,960 chars) — leaves more context for skill instructions and model output
+- Core directives: follow skill instructions, use tools as directed, structured responses, be concise
+- **`soul.json`** recommends `test-harness` and `skill-creator` skills, declares no `allowedTools` (skills decide)
+- Companion files: `IDENTITY.md` (Skill-Guided Task Assistant), `STYLE.md` (follow skill format or give short answers)
+
+#### Skill System Tests (`tests/test_skills.py`)
+- **~530 tests** covering the full skill infrastructure:
+  - `TestSPDXValidation` (10 tests): valid/invalid/explicit licenses, empty, case insensitive, OR combinations, full SPDX set
+  - `TestCompatibilityParsing` (5 tests): Python version, runtimes, combined, empty, raw preserved
+  - `TestSkill` (9 tests): valid creation, all fields, name/description validation, license warnings
+  - `TestSkillLoader` (10 tests): list, empty dir, no SKILL.md, load, cache, name mismatch, load_all, descriptions, cache management
+  - `TestSkillRegistry` (8 tests): empty, add/remove/get/has, system prompt format, multiple skills
+  - `TestBuiltinSkills` (7 tests): dir exists, load acp/skill-creator/test-harness, removed skills not present, allowed tools, instructions content
+  - `TestWebSearchTool` (4 tests): import, registry, description, params
+- All tests require no model — test skill infrastructure directly
+
+### Removed
+
+#### Datetime Skill (`skills/datetime/`)
+- Removed `SKILL.md` — replaced by built-in `get_time` and `get_date` tools which provide the same functionality with proper argument handling and timezone support
+
+#### Web Search Skill (`skills/web-search/`)
+- Removed `SKILL.md` — replaced by built-in `web-search` tool which provides DuckDuckGo search without requiring a skill wrapper
+
+#### ACP Skill (`skills/acp/`)
+- Removed `SKILL.md` — replaced by `--acp` CLI flag and `ACPPlugin` which handle ACP integration natively with proper bootstrap, activity logging, and session management
+
+### Changed
+
+#### Chat Mode Colors (`cli.py`)
+- **`You:` prompt** changed to dim/grey (`dim('You:')`)
+- **`Agent Nova:` label** changed from bright magenta to bright green (`bright_green('Agent Nova')`)
+
+### File Changes Summary
+
+| Action | File | Changes |
+|--------|------|:-------:|
+| Updated | `agentnova/cli.py` | +71 −1 |
+| Updated | `agentnova/agent.py` | +9 |
+| Updated | `agentnova/tools/builtins.py` | +164 |
+| Created | `agentnova/skills/test-harness/SKILL.md` | +122 |
+| Created | `agentnova/souls/nova-skills/SOUL.md` | +26 |
+| Created | `agentnova/souls/nova-skills/IDENTITY.md` | +14 |
+| Created | `agentnova/souls/nova-skills/STYLE.md` | +21 |
+| Created | `agentnova/souls/nova-skills/soul.json` | +30 |
+| Created | `tests/test_skills.py` | +530 |
+| Deleted | `agentnova/skills/datetime/SKILL.md` | −25 |
+| Deleted | `agentnova/skills/web-search/SKILL.md` | −74 |
+| Deleted | `agentnova/skills/acp/SKILL.md` | −328 |
+| **Total** | **12 files** | **+987 −428** |
+
+---
+
 ## [R03.9] - 03-29-2026 1:16:34 PM
 
 ### Tool Detection, Support & Prompting Logic Fixes

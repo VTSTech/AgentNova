@@ -4,7 +4,7 @@ AgentNova is a modular agent framework designed for local LLMs with tool-calling
 
 **Specification Compliance**: 100% (R03.5+) ✅
 
-**Version**: R03.8
+**Version**: R04.0
 - OpenResponses API: 100%
 - Chat Completions API: 100%
 - Soul Spec v0.5: 100%
@@ -26,7 +26,7 @@ agentnova/
 │
 ├── tools/
 │   ├── registry.py           # Tool registry with decorator-based registration
-│   ├── builtins.py           # Built-in tools (calculator, shell, file ops, http)
+│   ├── builtins.py           # Built-in tools (calculator, shell, file ops, http, web-search)
 │   └── sandboxed_repl.py     # Sandboxed Python REPL execution
 │
 ├── backends/
@@ -40,14 +40,20 @@ agentnova/
 │   │                         # - SPDX license validation
 │   │                         # - Compatibility parsing
 │   │                         # - Environment compatibility checks
-│   └── ...                   # Various skills (web-search, datetime, etc.)
+│   └── test-harness/         # Diagnostic skill for testing skill system
+│       └── SKILL.md
 │
 ├── soul/
 │   ├── types.py              # Soul Spec v0.5 data structures
 │   └── loader.py             # SoulLoader with progressive disclosure + dynamic tools
 │
 ├── souls/
-│   └── nova-helper/          # Default diagnostic assistant soul
+│   ├── nova-helper/          # Diagnostic assistant soul (skill-less LLM testing)
+│   │   ├── soul.json         # Manifest
+│   │   ├── SOUL.md           # Persona definition (concise)
+│   │   ├── IDENTITY.md       # Identity (concise)
+│   │   └── STYLE.md          # Communication style (concise)
+│   └── nova-skills/          # Skill-guided assistant soul (for use with --skills)
 │       ├── soul.json         # Manifest
 │       ├── SOUL.md           # Persona definition (concise)
 │       ├── IDENTITY.md       # Identity (concise)
@@ -900,6 +906,7 @@ agentnova agent --acp --acp-url https://tunnel.example.com
 | `models` | List available models (with tool support status) |
 | `tools` | List available tools |
 | `test` | Run diagnostic tests |
+| `skills` | List available skills |
 | `soul` | Inspect a Soul Spec package |
 | `config` | Show current configuration |
 | `version` | Show version info |
@@ -910,6 +917,7 @@ agentnova agent --acp --acp-url https://tunnel.example.com
 |--------|----------|-------------|
 | `-m, --model` | run, chat, agent, test | Model to use |
 | `--tools` | run, chat, agent | Comma-separated tool list |
+| `--skills` | run, chat, agent | Comma-separated skill names to load |
 | `--backend` | all | Backend (ollama, bitnet) |
 | `--api` | run, chat, agent, test | API mode: `openre` (OpenResponses) or `openai` (OpenAI Chat-Completions) |
 | `--response-format` | run, chat, agent | Response format: `text` or `json` (Chat-Completions mode) |
