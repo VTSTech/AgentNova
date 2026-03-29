@@ -118,6 +118,8 @@ class Agent:
         # OpenResponses parameters
         tool_choice: str | ToolChoice = "auto",  # Default per OpenResponses spec
         allowed_tools: list[str] | None = None,
+        # Skills injection
+        skills_prompt: str | None = None,
         **kwargs,
     ):
         """
@@ -139,6 +141,7 @@ class Agent:
             num_predict: Maximum tokens to generate (default: model-specific)
             tool_choice: Control tool invocation ("auto", "required", "none", or specific tool name)
             allowed_tools: List of tools the model is allowed to invoke (subset of tools)
+            skills_prompt: Optional skill instructions to append to the system prompt
             **kwargs: Additional configuration
         """
         self.model = model
@@ -293,6 +296,12 @@ class Agent:
                 from .soul.loader import _build_tool_section
                 tool_section = _build_tool_section(self.tools.all())
                 self._custom_system_prompt = f"{self._custom_system_prompt}\n\n{tool_section}"
+
+        # Append skills prompt if provided
+        if skills_prompt:
+            self._custom_system_prompt = f"{self._custom_system_prompt}\n{skills_prompt}"
+            if debug:
+                print(f"[Skills] Appended skills prompt to system prompt ({len(skills_prompt)} chars)")
 
         # Initialize tool parser
         self._parser = ToolParser(self.tools.names())

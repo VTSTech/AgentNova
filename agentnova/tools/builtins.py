@@ -437,6 +437,148 @@ def get_date() -> str:
 
 
 # ============================================================================
+# Web Search Tool
+# ============================================================================
+
+# Maximum number of search results to return
+MAX_SEARCH_RESULTS = 5
+
+# Maximum length per result snippet
+MAX_SEARCH_SNIPPET = 300
+
+
+def web_search(query: str, num_results: int | None = None) -> str:
+    """
+    Search the web using DuckDuckGo Lite (HTML version, no API key required).
+
+    Args:
+        query: Search query string
+        num_results: Maximum number of results to return (default: 5, max: 10)
+
+    Returns:
+        Formatted search results with titles, URLs, and snippets,
+        or an error message if the search fails.
+    """
+    import urllib.request
+    import urllib.error
+    import urllib.parse
+    import json
+    import re
+
+    if num_results is None:
+        num_results = MAX_SEARCH_RESULTS
+    num_results = max(1, min(num_results, 10))
+
+    try:
+        # Use DuckDuckGo Lite — the HTML version that works without JavaScript
+        encoded_query = urllib.parse.urlencode({"q": query})
+        url = f"https://lite.duckduckgo.com/lite/?{encoded_query}"
+
+        req = urllib.request.Request(url, method="GET")
+        req.add_header("User-Agent", "AgentNova/1.0")
+
+        with urllib.request.urlopen(req, timeout=15) as response:
+            html = response.read().decode("utf-8", errors="replace")
+
+        # DuckDuckGo Lite returns results in <a> tags with class="result-link"
+        # and snippets in regular text near each link.
+        # Parse the HTML to extract results.
+        results = []
+
+        # Pattern 1: DuckDuckGo Lite HTML results
+        # Results are in <a class="result-link" href="URL">TITLE</a>
+        # followed by a <td class="result-snippet">SNIPPET</td>
+        link_pattern = re.compile(
+            r'<a[^>]+class="result-link"[^>]+href="([^"]+)"[^>]*>(.*?)</a>',
+            re.DOTALL | re.IGNORECASE,
+        )
+        snippet_pattern = re.compile(
+            r'<td[^>]+class="result-snippet"[^>]*>(.*?)</td>',
+            re.DOTALL | re.IGNORECASE,
+        )
+
+        links = link_pattern.findall(html)
+
+        for i, (result_url, title_raw) in enumerate(links):
+            if i >= num_results:
+                break
+
+            # Clean HTML from title
+            title = re.sub(r"<[^>]+>", "", title_raw).strip()
+            if not title:
+                title = f"Result {i + 1}"
+
+            # Try to find a snippet near this link
+            snippet = ""
+            # Find the snippet that appears after this link
+            link_end = html.find(result_url) + len(result_url)
+            remaining = html[link_end:link_end + 2000]
+            snippet_match = snippet_pattern.search(remaining)
+            if snippet_match:
+                snippet = re.sub(r"<[^>]+>", "", snippet_match.group(1)).strip()
+                snippet = snippet[:MAX_SEARCH_SNIPPET]
+                # Collapse whitespace
+                snippet = re.sub(r"\s+", " ", snippet)
+
+            # Skip empty/useless results
+            if not snippet and not title:
+                continue
+
+            results.append({
+                "title": title,
+                "url": result_url,
+                "snippet": snippet,
+            })
+
+        # If no results from Lite, try the regular endpoint
+        if not results:
+            ddg_url = f"https://html.duckduckgo.com/html/?{encoded_query}"
+            req2 = urllib.request.Request(ddg_url, method="GET")
+            req2.add_header("User-Agent", "AgentNova/1.0")
+            with urllib.request.urlopen(req2, timeout=15) as response:
+                html2 = response.read().decode("utf-8", errors="replace")
+
+            # Parse HTML results from regular DDG
+            result_blocks = re.split(r'<div class="result results_links results_links_deep web-result', html2)
+            for block in result_blocks[1:num_results + 1]:
+                title_match = re.search(r'<a[^>]+class="result__a"[^>]*>(.*?)</a>', block, re.DOTALL | re.IGNORECASE)
+                url_match = re.search(r'<a[^>]+class="result__a"[^>]+href="([^"]+)"', block)
+                snippet_match = re.search(r'<a[^>]+class="result__snippet"[^>]*>(.*?)</a>', block, re.DOTALL | re.IGNORECASE)
+
+                title = re.sub(r"<[^>]+>", "", title_match.group(1)).strip() if title_match else ""
+                result_url = url_match.group(1) if url_match else ""
+                snippet = re.sub(r"<[^>]+>", "", snippet_match.group(1)).strip() if snippet_match else ""
+
+                if result_url and (title or snippet):
+                    results.append({
+                        "title": title or "Result",
+                        "url": result_url,
+                        "snippet": snippet[:MAX_SEARCH_SNIPPET] if snippet else "",
+                    })
+
+        if not results:
+            return f"No results found for: {query}"
+
+        # Format output
+        parts = [f"Web search results for \"{query}\":\n"]
+        for i, r in enumerate(results, 1):
+            parts.append(f"{i}. {r['title']}")
+            parts.append(f"   URL: {r['url']}")
+            if r["snippet"]:
+                parts.append(f"   {r['snippet']}")
+            parts.append("")
+
+        return "\n".join(parts).strip()
+
+    except urllib.error.HTTPError as e:
+        return f"HTTP error {e.code}: {e.reason}"
+    except urllib.error.URLError as e:
+        return f"Connection error: {e.reason} — web search requires internet access"
+    except Exception as e:
+        return f"Search error: {e}"
+
+
+# ============================================================================
 # JSON Tool
 # ============================================================================
 
@@ -616,6 +758,28 @@ def make_builtin_registry() -> ToolRegistry:
         params=[ToolParam(name="json_string", type="string", description="JSON string to parse")],
         handler=parse_json,
         category="utility",
+    ))
+
+    # Web Search
+    registry.register_tool(Tool(
+        name="web-search",
+        description=(
+            "Search the web for current information using DuckDuckGo. "
+            "Returns titles, URLs, and snippets. Use for news, current events, "
+            "real-time data, or any information that may have changed recently."
+        ),
+        params=[
+            ToolParam(name="query", type="string", description="Search query"),
+            ToolParam(
+                name="num_results",
+                type="integer",
+                description="Max results to return (1-10, default 5)",
+                required=False,
+                default=5,
+            ),
+        ],
+        handler=web_search,
+        category="network",
     ))
 
     # Text
