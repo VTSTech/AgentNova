@@ -35,8 +35,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | 7 | `qwen3.5:0.8b` | **0/5 (0%)** | 91.0s | ❌ empty | ❌ empty | ❌ empty | ❌ empty | ❌ empty | Same | All empty; was 0/5 even with soul in R03.6 |
 | 7 | `qwen3:0.6b` | **0/5 (0%)** | 138.4s | ❌ empty | ❌ empty | ❌ empty | ❌ empty | ❌ 6 | -3 | Soul-dependent; was 3/5 with soul |
 | 7 | `qwen:0.5b` | **0/5 (0%)** | 37.3s | ❌ 32 | ❌ 10 | ❌ 10 | ❌ 8 | ❌ 42h | -1 | All wrong; base model too small |
-| 7 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **0/5 (0%)** | 197.8s | ❌ schema | ❌ empty | ❌ empty | ❌ empty | ❌ empty | N/A 🆕 | Different variant (q4_k_m); schema dump on Q1 |
-| 7 | `qwen2.5-coder:0.5b-instruct-q4_k_m` ⚡ | **4/5 (80%)** | 99.9s | ✅ | ✅ | ✅ | ✅ | ❌ hall. | N/A 🆕 | **With `--soul`**; Q5 hallucinated tools, error loop (see #10) |
+| 6 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 99.9s | ✅ | ✅ | ✅ | ✅ | ❌ hall. | N/A 🆕 | **With `--soul`**; 0/5 without — heavily soul-dependent |
 
 ---
 
