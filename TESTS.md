@@ -4,7 +4,7 @@
 
 Test 01 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
 
-> **Updated:** 2026-03-30 - R03.9 OpenAI (ChatCompletions) with-soul results added (7/10 models)
+> **Updated:** 2026-03-30 - R03.9 OpenAI (ChatCompletions) with-soul results added (9/10 models)
 
 **Usage:**
 ```bash
@@ -24,13 +24,14 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 > 🎯 **Soul used** — `--soul nova-helper` enabled. Direct comparison with R03.6 comp mode (also with soul) is valid.
 > Test params: `--api openai --soul nova-helper --num-ctx 32768 --timeout 9999`
 > ⚠️ **Note:** 32K context (8× larger than R03.6's 4K) may benefit models with longer reasoning chains
-> ⏳ **Partial results** — 8 of 10 models tested; remaining 2 pending
+> ⏳ **Partial results** — 9 of 10 models tested; remaining 1 pending (`qwen:0.5b`)
 
 | Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R03.6 | Notes |
 |:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|:---------:|-------|-------|
 | 🥇 | **`granite4:350m`** | **5/5 (100%)** | 293.3s | ✅ | ✅ | ✅ | ✅ | ✅ | Same ✅ | 🏆 Perfect score! Consistent across all modes |
 | 🥈 | **`qwen2.5:0.5b`** | **4/5 (80%)** | 260.9s | ✅ | ✅ | ✅ | ✅ | ❌ text | -1 | Q5 verbose explanation instead of numeric answer |
 | 🥈 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 293.5s | ✅ | ✅ | ✅ | ✅ | ❌ empty | N/A 🆕 | Q5 empty response; instruct quant variant |
+| 🥈 | **`qwen3:0.6b`** | **4/5 (80%)** | 1140.6s | ✅ | ❌ 54 | ✅ | ✅ | ✅ | +1 | Q2 off-by-3 (got 54 vs 51); slow (1140s) |
 | 🥉 | `nchapman/dolphin3.0-qwen2.5:0.5b` | **3/5 (60%)** | 203.0s | ✅ | ❌ 43 | ✅ | ✅ | ❌ 17h | +1 | Improved! Q2 off-by-one, Q5 reasoning error |
 | 🥉 | `qwen2:0.5b` | **3/5 (60%)** | 256.6s | ✅ | ✅ | ❌ 3.5 | ✅ | ❌ 14h | Same | Q3 division rounding, Q5 time calc error |
 | 5 | `qwen3.5:0.8b` | **3/5 (60%)** | 552.2s | ❌ empty | ❌ empty | ✅ | ✅ | ✅ | +3 🆕 | Massive improvement! Q1/Q2 empty, Q3–Q5 all correct |
