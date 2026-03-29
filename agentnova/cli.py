@@ -533,7 +533,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
 
     while True:
         try:
-            user_input = input(f"{dim('You:')}: ").strip()
+            user_input = input(f"{dim('You:')} ").strip()
         except (EOFError, KeyboardInterrupt):
             print("\n👋 Goodbye!")
             break
