@@ -4,7 +4,7 @@
 
 Test 01 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
 
-> **Updated:** 2026-03-29 - R03.9 OpenAI (ChatCompletions) results added (6/10 models)
+> **Updated:** 2026-03-30 - R03.9 OpenAI (ChatCompletions) with-soul results added (7/10 models)
 
 **Usage:**
 ```bash
@@ -36,6 +36,26 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | 7 | `qwen3.5:0.8b` | **0/5 (0%)** | 91.0s | ❌ empty | ❌ empty | ❌ empty | ❌ empty | ❌ empty | Same | All empty; was 0/5 even with soul in R03.6 |
 | 7 | `qwen3:0.6b` | **0/5 (0%)** | 138.4s | ❌ empty | ❌ empty | ❌ empty | ❌ empty | ❌ 6 | -3 | Soul-dependent; was 3/5 with soul |
 | 7 | `qwen:0.5b` | **0/5 (0%)** | 37.3s | ❌ 32 | ❌ 10 | ❌ 10 | ❌ 8 | ❌ 42h | -1 | All wrong; base model too small |
+
+---
+
+### Chat Completions Mode Results (R03.9 - openai API Mode, WITH SOUL)
+
+> Testing with `--api openai --soul nova-helper` uses OpenAI-compatible Chat Completions API (`/v1/chat/completions`) with the nova-helper soul persona
+> 🎯 **Soul used** — `--soul nova-helper` enabled. Direct comparison with R03.6 comp mode (also with soul) is valid.
+> Test params: `--api openai --soul nova-helper --num-ctx 32768 --timeout 9999`
+> ⚠️ **Note:** 32K context (8× larger than R03.6's 4K) may benefit models with longer reasoning chains
+> ⏳ **Partial results** — 7 of 10 models tested; remaining 3 pending
+
+| Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R03.6 | Notes |
+|:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|:---------:|-------|-------|
+| 🥇 | **`granite4:350m`** | **5/5 (100%)** | 293.3s | ✅ | ✅ | ✅ | ✅ | ✅ | Same ✅ | 🏆 Perfect score! Consistent across all modes |
+| 🥈 | **`qwen2.5:0.5b`** | **4/5 (80%)** | 260.9s | ✅ | ✅ | ✅ | ✅ | ❌ text | -1 | Q5 verbose explanation instead of numeric answer |
+| 🥈 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 293.5s | ✅ | ✅ | ✅ | ✅ | ❌ empty | N/A 🆕 | Q5 empty response; instruct quant variant |
+| 🥉 | `nchapman/dolphin3.0-qwen2.5:0.5b` | **3/5 (60%)** | 203.0s | ✅ | ❌ 43 | ✅ | ✅ | ❌ 17h | +1 | Improved! Q2 off-by-one, Q5 reasoning error |
+| 🥉 | `qwen2:0.5b` | **3/5 (60%)** | 256.6s | ✅ | ✅ | ❌ 3.5 | ✅ | ❌ 14h | Same | Q3 division rounding, Q5 time calc error |
+| 6 | `gemma3:270m` | **2/5 (40%)** | 613.2s | ❌ 405 | ❌ 3 | ✅ | ✅ | ❌ 1024 | -2 | Regression; Q1/Q2 wrong, very slow (613s) |
+| 7 | `functiongemma:270m` | **1/5 (20%)** | 344.9s | ✅ | ❌ hall. | ❌ 120 | ❌ refused | ❌ refused | Same | Q2 hallucinated success, Q3 wrong calc, Q4/Q5 refusals |
 
 ---
 
@@ -279,107 +299,6 @@ agentnova test 03 --model granite4:350m --timeout 9999
 
 ---
 
-## Historical Results
-
-### 🎉 R03.3 Compliance Fixes (2026-03-27)
-
-**Critical fixes for OpenResponses and ChatCompletions compliance:**
-
-| Issue | Before | After |
-|-------|--------|-------|
-| Tools not passed to backend | `tools=None` always | ✅ `tools=tool_list` for native calling |
-| Arguments not JSON string | `{"expression": "..."}` object | ✅ `'{"expression": "..."}'` string |
-| Models without tool support | ❌ HTTP 400 error | ✅ Automatic ReAct fallback |
-
-**Impact:**
-- `granite4:350m`: Error → **100% (5/5)** with native tools
-- `gemma3:270m`: Error → **40% (2/5)** with ReAct fallback
-- `functiongemma:270m`: Error → **40% (2/5)** with ReAct fallback
-
----
-
-### 🐛 R03.4 Bug Fix: Ollama Native API Arguments Format (2026-03-27)
-
-**Critical fix for resp mode (native `/api/chat` endpoint):**
-
-| Issue | Before | After |
-|-------|--------|-------|
-| `tool_calls[].function.arguments` format | JSON **string**: `'{"expression": "..."}'` | **Object**: `{"expression": "..."}` |
-| `granite4:350m` resp mode | ❌ HTTP 400 parse error | ✅ **100% (5/5)** |
-
-**Root cause:** OpenAI ChatCompletions API expects `arguments` as a JSON string, but Ollama's native `/api/chat` expects it as an object. The code was sending OpenAI format to both endpoints.
-
-**Fix:** Added `_convert_messages_to_ollama_format()` to parse JSON string arguments back to objects for the native endpoint.
-
----
-
-### Before Compliance Fixes (Historical)
-
-| Rank | Model | Score | Time | Soul | Status |
-|:----:|-------|------:|-----:|:----:|--------|
-| 1 | `granite4:350m` | 4/5 (80%) | 82.1s | nova-helper | ❌ JSON unmarshal error on Q2+ |
-| 2 | `qwen2.5:0.5b` | 3/5 (60%) | 70.2s | nova-helper | ReAct only, no native tools |
-| 3 | `gemma3:270m` | 0/5 (0%) | - | nova-helper | ❌ "does not support tools" error |
-| 4 | `functiongemma:270m` | 0/5 (0%) | - | nova-helper | ❌ "does not support tools" error |
-
----
-
-## Reference
-
-### Tool Mode Comparison (R03.6)
-
-| Tool Mode | Best Score | Best Model | Description |
-|-----------|:----------:|------------|-------------|
-| **Native** | **100%** | granite4:350m, qwen2.5:0.5b, deepseek-r1:1.5b, qwen2.5-coder:0.5b, llama3.2:1b | Model uses API tool_calls directly |
-| **ReAct** | **80%** | qwen2.5:0.5b | Parser extracts Action/Action Input from text |
-| **Fallback** | **40%** | gemma3:270m, functiongemma:270m | Auto-fallback when model rejects tools |
-
----
-
-### Test Questions (5 Targeted Tests)
-
-| Q# | Test | Purpose | Expected |
-|----|------|---------|----------|
-| Q1 | Simple Math | Basic calculator tool usage | 42 |
-| Q2 | Multi-step | Observation handling (8×7 then -5) | 51 |
-| Q3 | Division | Fraction/precision handling | 4.25 |
-| Q4 | Word Problem | Natural language → expression | 10 |
-| Q5 | Time Calc | Store hours calculation | 8 |
-
----
-
-### Key Findings (R03.6)
-
-1. **qwen2.5-coder:0.5b joins the 100% club!** - Coder model improved from 80% to perfect score!
-2. **5 models now achieve 100%** - granite4:350m, qwen2.5:0.5b, deepseek-r1:1.5b, qwen2.5-coder:0.5b, llama3.2:1b
-3. **3 models at 80%** - gemma3:270m (improved!), qwen3.5:0.8b, granite3.1-moe:1b
-4. **granite3.1-moe:1b debuts at 80%** - MoE architecture with native tools
-5. **Native tool calling fully working** - All models with native support can use tools
-6. **Soul persona critical** - All tests used nova-helper soul for consistency
-7. **resp mode significantly outperforms comp** for qwen family (40-80% gap)
-8. **qwen:0.5b regressed to 40%** - Reasoning errors on Q2/Q3/Q5
-9. **dolphin3.0 at 40%** - Empty responses on Q1-Q3, may need investigation
-10. **functiongemma:270m struggles** - Reasoning errors and refusals
-
----
-
-### R03.3 Bug Fixes Summary
-
-| Issue | Before | After |
-|-------|--------|-------|
-| `--num-ctx` ignored in test command | ❌ Reset to default 4096 | ✅ Properly applies from CLI |
-| Config cached before env vars set | ❌ Old config used | ✅ Config reloads after env var set |
-| Agent ignored config num_ctx | ❌ Hardcoded 4096 | ✅ Reads from config when not specified |
-| Soul mode accepting wrong answers | ❌ Accepted model's guess | ✅ Tries synthesis first |
-| Tool support source not visible | ❌ Just showed "none" | ✅ Shows "none (source: cache/detected)" |
-| Fallback synthesis only for REACT | ❌ Skipped for NONE mode | ✅ Works for all modes |
-| Wrong Final Answer accepted | ❌ Model guess used | ✅ Calculator result overrides |
-| **Tools not passed to backend** | ❌ `tools=None` always | ✅ Passed for native calling |
-| **Arguments not JSON string** | ❌ Object format | ✅ JSON string format |
-| **Models without tool support** | ❌ HTTP 400 error | ✅ Automatic ReAct fallback |
-
----
-
 ### Soul Persona Impact Analysis
 
 > **R03.3:** Soul personas dramatically improve small model performance
@@ -461,3 +380,4 @@ Example output:
   functiongemma:270m                         gemma3       32K        ✓ native
   nchapman/dolphin3.0-qwen2.5:0.5b           qwen2        32K        ○ none
   deepseek-r1:1.5b                           deepseek     128K       ✓ native
+```
