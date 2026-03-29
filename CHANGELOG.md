@@ -79,6 +79,75 @@ Resolved 4 critical and 1 moderate issue identified in the external Tool Detecti
 
 ---
 
+### Tool Parsing, Alias Safety & Caching Fixes
+
+Resolved 6 additional issues identified in the Tool Detection, Support & Prompting Logic Analysis. Fixes address schema detection for multi-line dumps, answer extraction consistency, error recovery tracking completeness, alias safety for small models, and automatic tool support caching.
+
+### Fixed
+
+#### [Moderate] `_looks_like_tool_schema()` Does Not Handle Multi-Line Schemas (`core/tool_parse.py`)
+- **Bug**: The function only checked for a single outer JSON object by finding the first `{` and last `}` in the stripped text. For models that dump entire tool schema arrays (e.g., `[{"type":"function",...}, ...]`), this approach could incorrectly parse the outer array brackets as part of a JSON object, or fail to detect the schema if other JSON-like structures appeared before or after the schema dump.
+- **Fix**: Added JSON array detection before the existing object check. The function now first attempts to parse `[...]` content, checking for arrays where items contain `"type":"function"` or objects with `"name"` + `"parameters"/"arguments"/"args"` keys. Falls back to the original single-object detection if no array is found.
+- **Impact**: Models that dump their entire tool schema as a JSON array (e.g., granite3.1-moe) are now correctly detected and filtered, preventing the schema text from being misinterpreted as a final answer
+
+#### [Moderate] `extract_final_answer()` Uses Broader Patterns Than `is_final_answer()` (`core/tool_parse.py`)
+- **Bug**: `is_final_answer()` conservatively matches only `"Final Answer:"` for good reason — overly broad patterns cause small models to bypass tool calling. However, `extract_final_answer()` matched `"Answer:"`, `"Result:"`, or `"Final Answer:"`, a much broader set. This inconsistency meant content that correctly passed `is_final_answer()` could extract a different answer than what `extract_final_answer()` returns, because `"Answer:"` matches earlier text in the content. Since `is_final_answer()` gates the loop exit but `extract_final_answer()` produces the actual returned value, mismatched extraction could produce wrong answers.
+- **Fix**: `extract_final_answer()` now tries `"Final Answer:"` first (matching `is_final_answer()`'s conservative marker). Falls back to `"Answer:"` and `"Result:"` only if no explicit `"Final Answer:"` marker is found in the text. This ensures that when the gate passes on `"Final Answer:"`, the extracted answer corresponds to the same marker.
+- **Impact**: Answer extraction is now consistent with the final-answer gate. Prevents cases where an earlier `"Answer:"` in reasoning text is extracted instead of the intended `"Final Answer:"` value
+
+#### [Moderate] Success Tracking Not Integrated with ErrorRecoveryTracker (`agent.py`)
+- **Bug**: `ErrorRecoveryTracker` has a `record_success()` method and a `last_success_tool` field, but the agentic loop never called it. The success check at line 669 used `str(result).startswith("Error")` independently of the `is_error_result()` check at line 603, creating two inconsistencies: (1) the consecutive failure counter was never reset by successes, so a model alternating between success and failure would accumulate failures without benefit of the reset mechanism; (2) `startswith("Error")` is case-sensitive while `is_error_result()` is case-insensitive, so results like `"error: ..."` or `"security error: ..."` would be tracked as failures but also added to `successful_results`.
+- **Fix**:
+  - Added `self._error_tracker.record_success(tool_name)` in the `else` branch when `is_error` is `False`, resetting the consecutive failure counter for that tool
+  - Changed `successful_results` append to use the existing `is_error` boolean instead of its own `startswith("Error")` check, eliminating the case-sensitivity inconsistency
+- **Impact**: Error recovery tracking is now complete — consecutive failures are properly reset on success, and the `successful_results` list uses the same error detection logic as the tracker
+
+#### [Moderate] `TOOL_ARG_ALIASES` Maps Divergent Meanings to Same Parameter (`core/prompts.py`, `core/helpers.py`)
+- **Bug**: The `shell` tool mapped `"text"`, `"input"`, `"arg"`, `"args"`, `"str"`, and `"value"` all to `"command"`. While intentional for small model support, mapping such generic parameter names risks misinterpreting legitimate model output. Similarly, the `calculator` aliases mapped `"n"`, `"p"`, `"exp"` to `"_combine_power"`, which could conflict with mathematical notation where a model describes a calculation involving variables named `n`, `p`, or `exp`. A model outputting `{"input": "ls", "command": "pwd"}` would have `input` silently remapped to `command`, potentially overriding the correct value.
+- **Fix**:
+  - Added `CONTEXTUAL_ALIASES` dict in `prompts.py` listing the most generic alias keys per tool that should only be applied when no other parameters already matched
+  - Updated `normalize_args()` in `helpers.py` with a two-pass approach: first pass identifies which keys map to expected params via unambiguous means (direct match, case-insensitive match, non-contextual alias), second pass skips contextual aliases when other keys have already matched an expected param
+  - Contextual aliases are applied only when the args dict has no other parameters that matched — preventing them from overriding correct values
+- **Impact**: Generic alias mappings like `"text"→"command"` and `"value"→"expression"` are no longer applied when legitimate parameter names exist alongside them. Prevents misinterpretation of model output while preserving small-model support for single-argument calls
+
+#### [Moderate] `test_tool_support()` Does Not Cache Results (`backends/ollama.py`)
+- **Bug**: `test_tool_support()` made a live API call every time it was invoked with `force_test=True` but did not automatically cache the result. The `tool_cache` module existed with `cache_tool_support()` and `get_cached_tool_support()` functions, but caching was the caller's responsibility. If the caller forgot, the expensive test probe (which loads a model and sends a request) was repeated on every invocation. Additionally, when `force_test=False`, the method always returned `UNTESTED` without checking the cache, meaning previously-tested results were ignored.
+- **Fix**:
+  - When `force_test=False`, the method now checks the cache first via `get_cached_tool_support()`. Returns the cached result if available, or `UNTESTED` only if no cache entry exists
+  - When `force_test=True`, the method automatically calls `cache_tool_support()` at every return point after a live test, using `self._api_mode.value` for correct cache namespacing
+  - Error messages are truncated to 100 characters in cache entries, consistent with the existing cache format
+- **Impact**: Tool support results are now automatically cached after every live test. Callers never need to remember to cache manually, and previously-tested results are returned even without `force_test=True`
+
+#### [Moderate] `ToolRegistry.subset()` Silently Drops Unmatched Names (`tools/registry.py`)
+- **Bug**: The `subset()` method silently skipped any name that didn't exactly match a registered tool. When `allowed_tools` filtering produced an intersection that dropped a name (e.g., due to a typo or a tool that was never registered), there was no indication that the tool was excluded. This made debugging configuration issues difficult.
+- **Fix**: Added a `warn` parameter (default `True`) that prints a debug warning when a name in the subset list doesn't match any registered tool. Warnings are only shown when `AGENTNOVA_DEBUG` environment variable is set, avoiding noise in production.
+- **Impact**: Debugging tool filtering issues is now easier. When debug mode is enabled, any name that doesn't match a registered tool produces a clear warning with the available tool names
+
+### File Changes Summary
+
+| Action | File | Changes |
+|--------|------|:-------:|
+| Updated | `agentnova/core/tool_parse.py` | +44 −6 |
+| Updated | `agentnova/core/prompts.py` | +12 −1 |
+| Updated | `agentnova/core/helpers.py` | +38 −3 |
+| Updated | `agentnova/agent.py` | +5 −1 |
+| Updated | `agentnova/backends/ollama.py` | +31 −4 |
+| Updated | `agentnova/tools/registry.py` | +12 −1 |
+| **Total** | **6 files** | **+142 −16** |
+
+### Issue Resolution Summary
+
+| ID | Priority | Issue | Status |
+|----|----------|-------|:------:|
+| M2 | Moderate | `_looks_like_tool_schema()` does not handle multi-line schemas | Fixed |
+| M3 | Moderate | `subset()` silent name dropping (debug warnings added) | Fixed |
+| M4 | Moderate | `record_success()` never called in agentic loop | Fixed |
+| M5 | Moderate | `extract_final_answer()` broader than `is_final_answer()` | Fixed |
+| M6 | Moderate | `TOOL_ARG_ALIASES` maps divergent meanings | Fixed |
+| M7 | Moderate | `test_tool_support()` does not auto-cache | Fixed |
+
+---
+
 ## [R03.8] - 03-28-2026 4:03:37 PM
 
 ### CLI & Backend Enhancements
