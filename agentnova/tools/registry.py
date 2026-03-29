@@ -7,6 +7,7 @@ Written by VTSTech — https://www.vts-tech.org
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
@@ -102,12 +103,17 @@ class ToolRegistry:
         """Get all tool names."""
         return list(self._tools.keys())
 
-    def subset(self, names: list[str]) -> "ToolRegistry":
+    def subset(self, names: list[str], warn: bool = True) -> "ToolRegistry":
         """
         Create a new registry with only the specified tools.
 
+        Uses exact name matching only (no fuzzy matching) to ensure
+        deterministic behavior. Names that don't match any registered
+        tool are silently skipped, with an optional warning.
+
         Args:
             names: List of tool names to include
+            warn: If True, print a warning for names that don't match
 
         Returns:
             New ToolRegistry with subset of tools
@@ -117,6 +123,11 @@ class ToolRegistry:
             tool = self.get(name)
             if tool:
                 tools.append(tool)
+            elif warn:
+                available = list(self._tools.keys())
+                if os.environ.get("AGENTNOVA_DEBUG"):
+                    print(f"[ToolRegistry] subset: '{name}' not found in registry "
+                          f"(available: {available})")
         return ToolRegistry(tools)
 
     def to_json_schema(self) -> list[dict]:
