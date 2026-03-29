@@ -20,10 +20,15 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 ### Chat Completions Mode Results (R03.9 - openai API Mode, NO SOUL)
 
+> Testing with `--api openai` uses OpenAI-compatible Chat Completions API (`/v1/chat/completions`)
+> ⚠️ **No soul used** — R03.6 tests used `--soul nova-helper`. Scores below reflect bare model capability without persona guidance. Direct comparison with R03.6 is **not apples-to-apples**.
+> Test params: `--api openai` only (default settings, no soul)
+> ⏳ **Partial results** — 9 of 10 models tested; remaining 1 pending
 
 | Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R03.6 | Notes |
 |:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|:---------:|-------|
 | 🥇 | **`granite4:350m`** | **5/5 (100%)** | 44.2s | ✅ | ✅ | ✅ | ✅ | ✅ | Same ✅ | 🏆 Perfect score! **4× faster** (183→44s) |
+| 🥈 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 99.9s | ✅ | ✅ | ✅ | ✅ | ❌ hall. | N/A 🆕 | **With `--soul`**; 0/5 without — heavily soul-dependent |
 | 🥉 | `nchapman/dolphin3.0-qwen2.5:0.5b` | **3/5 (60%)** | 31.6s | ✅ | ❌ 49 | ✅ | ✅ | ❌ 10 | +1 | Improved even without soul; Q2/Q5 reasoning |
 | 🥉 | `qwen2:0.5b` | **3/5 (60%)** | 22.1s | ✅ | ✅ | ❌ 4.03% | ✅ | ❌ 6 | Same | Stable; different failure pattern |
 | 🥉 | `gemma3:270m` | **3/5 (60%)** | 14.8s | ✅ | ❌ Q1 bleed | ✅ | ✅ | ❌ 10 | -1 | Q2 context bleed (no soul isolation) |
@@ -31,7 +36,6 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | 7 | `qwen3.5:0.8b` | **0/5 (0%)** | 91.0s | ❌ empty | ❌ empty | ❌ empty | ❌ empty | ❌ empty | Same | All empty; was 0/5 even with soul in R03.6 |
 | 7 | `qwen3:0.6b` | **0/5 (0%)** | 138.4s | ❌ empty | ❌ empty | ❌ empty | ❌ empty | ❌ 6 | -3 | Soul-dependent; was 3/5 with soul |
 | 7 | `qwen:0.5b` | **0/5 (0%)** | 37.3s | ❌ 32 | ❌ 10 | ❌ 10 | ❌ 8 | ❌ 42h | -1 | All wrong; base model too small |
-| 6 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 99.9s | ✅ | ✅ | ✅ | ✅ | ❌ hall. | N/A 🆕 | **With `--soul`**; 0/5 without — heavily soul-dependent |
 
 ---
 
