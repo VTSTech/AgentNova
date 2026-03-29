@@ -4,7 +4,82 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [R03.8] - 2026-03-28 4:03:37 PM
+## [R03.9] - 03-29-2026 1:16:34 PM
+
+### Tool Detection, Support & Prompting Logic Fixes
+
+Resolved 4 critical and 1 moderate issue identified in the external Tool Detection, Support & Prompting Logic Analysis. Fixes address OpenResponses spec compliance, multi-step workflow correctness, type safety, shell security, and configuration architecture.
+
+### Fixed
+
+#### [Critical] Fuzzy Matching Active at Execution Layer Despite "Deprecated" at Parse Layer (`agent.py`, `core/tool_parse.py`, `tools/registry.py`)
+- **Bug**: `_fuzzy_match_tool()` in `ToolParser` was documented as deprecated and returned names unchanged, but `_execute_tool()` in `agent.py` (line 1333) still imported and called `_fuzzy_match_tool_name()` directly, performing real fuzzy matching at execution time. This meant a hallucinated tool name like `"calc"` for `"calculator"` would pass through parsing unchanged (per OpenResponses spec) but silently get remapped at execution time, masking the hallucination from error recovery tracking and producing `FunctionCallItem` records with different names than what was actually executed. Additionally, `ToolRegistry.subset()` used `get_fuzzy()` for name resolution, creating a paradox: `allowed_tools` checking used exact match but the registry was filtered using fuzzy matching.
+- **Fix**:
+  - Removed `_fuzzy_match_tool()` deprecated no-op method from `ToolParser`
+  - Removed `_fuzzy_match_tool_name()` import and call from `_execute_tool()` — now uses exact `self.tools.get(name)` lookup
+  - Removed dead `_fuzzy_match_tool()` calls from both `run()` (line 588) and `run_stream()` (line 1034)
+  - Changed `ToolRegistry.subset()` to use exact `.get()` instead of `.get_fuzzy()` for deterministic `allowed_tools` filtering
+  - Removed `_fuzzy_match_tool_name` from `tool_parse.__all__`
+- **Impact**: Tool name matching is now consistently strict across the entire pipeline. Hallucinated tool names are properly rejected by the registry and routed to error recovery for guidance hints, per OpenResponses spec requirements
+
+#### [Critical] Final Answer Enforcement Risks Incorrect Results for Multi-Step Workflows (`agent.py`)
+- **Bug**: The `_expecting_final_answer` flag was set to `True` after every successful tool call, regardless of whether the task required multiple steps. If a model correctly tried to call a second tool after a successful first call (e.g., "read config.json, then extract the port"), the enforcement logic intercepted it and forced the raw result of the first tool call as the final answer. This broke all multi-step workflows. The `_is_simple_result()` function existed to distinguish terminal from intermediate results but was only used in observation prompting, never in the enforcement guard.
+- **Fix**: The `_expecting_final_answer` flag is now only set when the tool is a **terminal tool** (produces a direct answer), determined by importing `_is_simple_result()` from `error_recovery.py`. Terminal tools include `calculator`, `get_time`, `get_date`, `count_words`, `count_chars`, plus heuristics on result length and format. Complex/intermediate tools (`read_file`, `shell`, `list_directory`, etc.) no longer trigger enforcement, allowing multi-step workflows to proceed normally. Applied consistently to both `run()` and `run_stream()`.
+- **Impact**: Multi-step workflows (file read → data extraction, multiple calculations chained together, etc.) now work correctly. Simple single-tool queries still benefit from final answer enforcement to prevent looping
+
+#### [Critical] Duplicate ToolCall Classes Create Type Confusion (`core/models.py`, `core/tool_parse.py`, `core/__init__.py`)
+- **Bug**: Two separate `ToolCall` dataclasses existed with different field sets — `core/models.py` (4 fields: `name`, `arguments`, `raw`, `confidence`) and `core/tool_parse.py` (6 fields: same plus `final_answer`, `thought`). The `agent.py` imported `models.ToolCall` for `StepResult.tool_call` creation but used `ToolParser` which returned `tool_parse.ToolCall` instances. This meant `final_answer` and `thought` data captured during parsing was silently lost when stored in step results, and `core/__init__.py` exported `tool_parse.ToolCall` which could cause `AttributeError` when code accessed `final_answer`/`thought` on a `models.ToolCall` instance.
+- **Fix**:
+  - Consolidated to a single `ToolCall` dataclass (6 fields) in `core/models.py` as the canonical source
+  - `core/tool_parse.py` now imports `ToolCall` from `core/models.py` instead of defining its own
+  - `core/__init__.py` imports `ToolCall` from `core/models.py`
+  - Removed `ToolCall` from `tool_parse.__all__`
+- **Impact**: Single source of truth eliminates type confusion. All `ToolCall` instances in the pipeline carry `final_answer` and `thought` data, and `StepResult.tool_call` preserves parsing context
+
+#### [Critical] Shell Command Sanitization Has Dangerous Edge Cases (`tools/builtins.py`)
+- **Bug**: The shell command pre-processing (lines 146-150) attempted to fix malformed model outputs like `="pwd"` but the second check aggressively split on `=` for any command containing `=` that didn't start with `echo`. This destroyed legitimate shell environment variable assignments: `FOO=bar echo hello` → `bar echo hello`, `PATH=/usr/bin ls` → `/usr/bin ls`, `LANG=en_US.UTF-8 python script.py` → `en_US.UTF-8 python script.py`. The guard condition (`not any(c in parts[0] for c in ' \t$')`) failed for simple env var names like `FOO`, `PATH`, and `LANG`.
+- **Fix**: Removed the aggressive `=` splitting logic entirely. Only the leading `=` fix is preserved (line 142-143), which addresses the well-documented tiny-model hallucination pattern of `="pwd"` instead of `"pwd"`. The `sanitize_command()` function in `helpers.py` already handles injection patterns as a validator.
+- **Impact**: Shell commands with environment variable assignments (`FOO=bar`, `PATH=...`, `LANG=...`) now execute correctly
+
+#### [Moderate] Duplicate ModelFamilyConfig Classes Across Two Files (`core/model_family_config.py`, `core/model_config.py`, `agent.py`, `core/__init__.py`)
+- **Bug**: Two separate files defined `ModelFamilyConfig` dataclasses with overlapping but different fields. `model_family_config.py` had `start_tokens`, `stop_tokens`, `tool_format`, `needs_think_directive`, `prefers_few_shot`, etc. while `model_config.py` had `default_temperature`, `default_top_p`, `default_max_tokens`, `supports_streaming`, `strip_think_tags`, `think_tag`, etc. Both were imported in `agent.py` and `core/__init__.py`, with `core/__init__.py` line 22 silently shadowing the `model_family_config.py` version. The `detect_family()` function used priority-ordered substring matching while `get_model_config()` used simple dict iteration, meaning model names with multiple family substrings (e.g., a hypothetical `"qwen3-llama"`) could resolve differently depending on which function was called.
+- **Fix**:
+  - Merged both classes into a single unified `ModelFamilyConfig` with 25 fields in `model_family_config.py`, adding all missing fields: `default_temperature`, `default_top_p`, `default_max_tokens`, `supports_streaming`, `supports_vision`, `think_tag`, `strip_think_tags`, `needs_empty_system`, `prefers_user_system`
+  - Added unified `get_model_config()` to `model_family_config.py` that uses `detect_family()` for consistent family resolution
+  - Updated all `FAMILY_CONFIGS` entries with new fields where they differ from defaults (e.g., `deepseek` and `deepseek-r1` have `think_tag="think"` and `strip_think_tags=True`; `gemma3` has `needs_empty_system=True`)
+  - Deprecated `model_config.py` — it now re-exports from `model_family_config.py` with a `DeprecationWarning` for backward compatibility
+  - Updated `agent.py` to import `get_model_config` from `model_family_config`
+  - Updated `core/__init__.py` to import `ModelFamilyConfig` and `get_model_config` from `model_family_config`
+- **Impact**: Single source of truth for all model-family-specific configuration. Family resolution is consistent between `detect_family()` and `get_model_config()`. Existing code importing from `model_config` continues to work with a deprecation warning
+
+### File Changes Summary
+
+| Action | File | Changes |
+|--------|------|:-------:|
+| Updated | `agentnova/agent.py` | +18 −12 |
+| Updated | `agentnova/core/tool_parse.py` | +2 −23 |
+| Updated | `agentnova/core/models.py` | +4 −1 |
+| Updated | `agentnova/core/__init__.py` | +4 −3 |
+| Updated | `agentnova/core/model_family_config.py` | +40 −8 |
+| Updated | `agentnova/core/model_config.py` | +22 −239 |
+| Updated | `agentnova/tools/builtins.py` | +1 −8 |
+| Updated | `agentnova/tools/registry.py` | +1 −1 |
+| **Total** | **8 files** | **+92 −295** |
+
+### Issue Resolution Summary
+
+| ID | Priority | Issue | Status |
+|----|----------|-------|:------:|
+| C1 | Critical | Fuzzy matching inconsistency across parse/execute layers | Fixed |
+| C2 | Critical | Final Answer enforcement breaks multi-step workflows | Fixed |
+| C3 | Critical | Duplicate ToolCall classes with different field sets | Fixed |
+| C4 | Critical | Shell `=` stripping destroys env var assignments | Fixed |
+| M1 | Moderate | Duplicate ModelFamilyConfig across two files | Fixed |
+| M3 | Moderate | `subset()` uses fuzzy matching for `allowed_tools` filtering | Fixed (bundled with C1) |
+
+---
+
+## [R03.8] - 03-28-2026 4:03:37 PM
 
 ### CLI & Backend Enhancements
 

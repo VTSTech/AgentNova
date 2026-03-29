@@ -9,22 +9,10 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
 from typing import Any, Optional
 
-
-@dataclass
-class ToolCall:
-    """Represents a parsed tool call from model output.
-    
-    OpenResponses Enhancement: Includes thought capture for ReasoningItem.
-    """
-    name: str
-    arguments: dict[str, Any]
-    raw: str = ""  # Original text that was parsed
-    confidence: float = 1.0  # Confidence of parsing (for fuzzy matches)
-    final_answer: str | None = None  # OpenResponses: Final answer if present in same content
-    thought: str | None = None  # OpenResponses: Captured reasoning for ReasoningItem
+# Import canonical ToolCall from models.py (single source of truth)
+from .models import ToolCall
 
 
 # ------------------------------------------------------------------ #
@@ -605,20 +593,6 @@ class ToolParser:
 
         return calls
 
-    def _fuzzy_match_tool(self, name: str) -> str:
-        """
-        DEPRECATED: Fuzzy matching removed for OpenResponses strict compliance.
-        
-        OpenResponses Spec Requirement:
-        "allowed_tools: Hard constraint on which tools can be invoked.
-        Server MUST reject/suppress calls to tools not in this list."
-        
-        This method now returns the name unchanged.
-        Error recovery module provides hints to guide the model instead.
-        """
-        # OpenResponses: No fuzzy matching - return name exactly as provided
-        return name
-
     def has_tool_call(self, text: str) -> bool:
         """Check if text contains a tool call."""
         return bool(self.parse(text))
@@ -658,10 +632,8 @@ class ToolParser:
 
 
 __all__ = [
-    "ToolCall",
     "ToolParser",
     "_parse_react",
-    "_fuzzy_match_tool_name",
     "_extract_python_code",
     "_sanitize_model_json",
 ]

@@ -21,25 +21,49 @@ _PLATFORM_DIR_CMD = "cd" if _IS_WINDOWS else "pwd"
 
 @dataclass
 class ModelFamilyConfig:
-    """Configuration for a specific model family."""
+    """Configuration for a specific model family.
+    
+    Unified configuration combining prompting, formatting, tool handling,
+    and generation defaults. Single source of truth for all model-family-
+    specific settings.
+    """
     family: str
+    # Prompting & formatting
     start_tokens: dict = field(default_factory=dict)
     stop_tokens: list[str] = field(default_factory=list)
     tool_format: Literal["native", "xml", "json", "none"] = "native"
     tool_call_start: str = ""
     tool_call_end: str = ""
     supports_native_tools: bool = True
-    system_prompt_style: Literal["separate", "first_user", "template"] = "separate"
+    system_prompt_style: Literal["separate", "first_user", "template", "default", "react", "minimal"] = "separate"
+    # Generation defaults
     preferred_temperature: float = 0.7
+    default_temperature: float = 0.7  # Used by agent.py for generation
+    default_top_p: float = 0.9
+    default_max_tokens: int = 8192
+    # Model behavior
     needs_think_directive: bool = False
     prefers_few_shot: bool = True
     few_shot_style: Literal["react", "native", "compact"] = "react"
     reasoning_hints: list[str] = field(default_factory=list)
+    # Streaming / capabilities
+    supports_streaming: bool = True
+    supports_vision: bool = False
+    # Think tag handling (e.g., <think/> for DeepSeek)
+    think_tag: str | None = None
+    strip_think_tags: bool = False
     # Special behaviors
     has_schema_dump_issue: bool = False  # Some models dump tool schema as text
     truncate_json_args: bool = False  # Some models truncate JSON in ReAct
+    needs_empty_system: bool = False  # Some models break with empty system
+    prefers_user_system: bool = False  # Put system prompt in first user message
     # Override system prompt for models without tool support (pure reasoning)
     no_tools_system_prompt: str | None = None
+
+    def get_stop_sequences(self) -> list[str]:
+        """Get stop sequences for this model family."""
+        stops = list(self.stop_tokens)
+        return stops
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -57,6 +81,7 @@ FAMILY_CONFIGS: dict[str, ModelFamilyConfig] = {
         supports_native_tools=False,
         system_prompt_style="first_user",
         preferred_temperature=0.7,
+        needs_empty_system=True,
         prefers_few_shot=False,
         few_shot_style="compact",
         reasoning_hints=["Think step by step", "Show your work"],
@@ -262,6 +287,8 @@ Keep answers brief. One word when possible.""",
         preferred_temperature=0.6,
         needs_think_directive=True,  # DeepSeek-R1 has thinking mode
         prefers_few_shot=True,
+        think_tag="think",
+        strip_think_tags=True,
         few_shot_style="react",
         reasoning_hints=["Think step by step", "Show your reasoning"],
     ),
@@ -284,6 +311,8 @@ Keep answers brief. One word when possible.""",
         needs_think_directive=False,  # Standard DeepSeek models don't have thinking mode
         prefers_few_shot=True,
         few_shot_style="react",
+        think_tag="think",
+        strip_think_tags=True,
     ),
 }
 
@@ -441,6 +470,25 @@ def detect_family(model_name: str) -> str | None:
     return None
 
 
+def get_model_config(model_name: str) -> ModelFamilyConfig:
+    """
+    Get unified configuration for a model.
+    
+    This replaces the separate get_model_config() from model_config.py.
+    Uses detect_family() for consistent family resolution.
+    
+    Args:
+        model_name: Name of the model (e.g., "qwen2.5:7b")
+    
+    Returns:
+        ModelFamilyConfig for the model
+    """
+    family = detect_family(model_name)
+    if family and family in FAMILY_CONFIGS:
+        return FAMILY_CONFIGS[family]
+    return ModelFamilyConfig(family=family or "unknown")
+
+
 __all__ = [
     "ModelFamilyConfig",
     "FAMILY_CONFIGS",
@@ -456,5 +504,6 @@ __all__ = [
     "get_native_tool_hints",
     "get_no_tools_system_prompt",
     "detect_family",
+    "get_model_config",
     "needs_no_think_directive",
 ]

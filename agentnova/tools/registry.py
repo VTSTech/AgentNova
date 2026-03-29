@@ -114,7 +114,7 @@ class ToolRegistry:
         """
         tools = []
         for name in names:
-            tool = self.get_fuzzy(name)
+            tool = self.get(name)
             if tool:
                 tools.append(tool)
         return ToolRegistry(tools)

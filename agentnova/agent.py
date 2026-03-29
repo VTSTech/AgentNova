@@ -226,7 +226,7 @@ class Agent:
         self.memory = Memory(memory_config or MemoryConfig())
 
         # Get model configuration (for temperature, max_tokens defaults)
-        from .core.model_config import get_model_config
+        from .core.model_family_config import get_model_config
         self.model_config = get_model_config(model)
 
         # Detect model family (for backend-specific settings like think=False)
@@ -414,8 +414,11 @@ Final Answer: <the answer>
         # No synthesis or fallback mechanisms are used.
         
         # Track when we're expecting a Final Answer (after successful tool use)
+        # Only enforced for terminal tools (calculator, get_time, etc.) to avoid
+        # breaking multi-step workflows that need multiple tool calls.
         _expecting_final_answer = False
         _last_successful_result = None
+        _last_tool_name = None
         
         # Reset error tracker for new run
         self._error_tracker.reset()
@@ -584,9 +587,6 @@ Final Answer: <the answer>
                             self.memory.add("user", f"Observation: Error: {error_msg}")
                         continue
 
-                    # Fuzzy match tool name
-                    tool_name = self._parser._fuzzy_match_tool(tool_name)
-
                     # Create FunctionCallItem
                     fc_item = create_function_call_item(tool_name, tool_args, tool_call_id)
                     fc_item.status = ItemStatus.IN_PROGRESS
@@ -648,11 +648,21 @@ Final Answer: <the answer>
                         )
                         
                         # Update expecting_final_answer flag
+                        # Only enforce for terminal tools (simple, direct-answer tools)
+                        # to avoid breaking multi-step workflows
                         if is_error:
                             _expecting_final_answer = False
+                            _last_tool_name = None
                         else:
-                            _expecting_final_answer = True
-                            _last_successful_result = str(result)
+                            from .core.error_recovery import _is_simple_result
+                            if _is_simple_result(str(result), tool_name):
+                                _expecting_final_answer = True
+                                _last_successful_result = str(result)
+                                _last_tool_name = tool_name
+                            else:
+                                # Complex/intermediate result — allow more tool calls
+                                _expecting_final_answer = False
+                                _last_tool_name = None
                         
                         self.memory.add("user", observation_msg)
 
@@ -956,6 +966,7 @@ Final Answer: <the answer>
         # Stream model output, check for tool calls, execute them, repeat.
         _expecting_final_answer = False
         _last_successful_result = None
+        _last_tool_name = None
         tool_call_count = 0
 
         for step_num in range(self.max_steps):
@@ -1030,9 +1041,6 @@ Final Answer: <the answer>
                         self.memory.add("user", f"Observation: Error: {error_msg}")
                         continue
 
-                    # Fuzzy match
-                    tool_name = self._parser._fuzzy_match_tool(tool_name)
-
                     # Create FunctionCallItem and emit SSE events
                     fc_item = create_function_call_item(tool_name, tool_args)
                     fc_item.status = ItemStatus.IN_PROGRESS
@@ -1075,9 +1083,16 @@ Final Answer: <the answer>
 
                     if is_error:
                         _expecting_final_answer = False
+                        _last_tool_name = None
                     else:
-                        _expecting_final_answer = True
-                        _last_successful_result = str(result)
+                        from .core.error_recovery import _is_simple_result
+                        if _is_simple_result(str(result), tool_name):
+                            _expecting_final_answer = True
+                            _last_successful_result = str(result)
+                            _last_tool_name = tool_name
+                        else:
+                            _expecting_final_answer = False
+                            _last_tool_name = None
 
                     self.memory.add("user", observation_msg)
 
@@ -1330,12 +1345,7 @@ Final Answer: <the answer>
         OpenResponses: Tool execution is straightforward - no synthesis.
         Arguments must come from the model.
         """
-        from .core.tool_parse import _fuzzy_match_tool_name
-        matched_name = _fuzzy_match_tool_name(name, self.tools.names())
-        if matched_name:
-            name = matched_name
-        
-        tool = self.tools.get_fuzzy(name)
+        tool = self.tools.get(name)
 
         if tool is None:
             return f"Error: Unknown tool '{name}'. Available tools: {self.tools.names()}"
