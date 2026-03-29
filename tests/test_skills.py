@@ -260,7 +260,7 @@ class TestSkillLoader:
         no_skill_dir = tmp_path / "no_skill_md"
         no_skill_dir.mkdir()
         (no_skill_dir / "README.md").write_text("# Not a skill")
-        sl = SkillLoader(no_skill_md)
+        sl = SkillLoader(no_skill_dir)
         assert sl.list_skills() == []
 
     def test_load_valid_skill(self, loader):
@@ -394,7 +394,7 @@ class TestSkillRegistry:
         assert "# ⚡ ACTIVE SKILLS" in prompt
         assert "acp" in prompt
         assert "ACP Skill" in prompt
-        assert "Instructions for using skills" in prompt.lower()
+        assert "instructions for using skills" in prompt.lower()
 
     def test_to_system_prompt_addition_multiple(self, skills_dir):
         loader = SkillLoader(skills_dir)
