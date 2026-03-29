@@ -24,7 +24,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 > 🎯 **Soul used** — `--soul nova-helper` enabled. Direct comparison with R03.6 comp mode (also with soul) is valid.
 > Test params: `--api openai --soul nova-helper --num-ctx 32768 --timeout 9999`
 > ⚠️ **Note:** 32K context (8× larger than R03.6's 4K) may benefit models with longer reasoning chains
-> ⏳ **Partial results** — 7 of 10 models tested; remaining 3 pending
+> ⏳ **Partial results** — 8 of 10 models tested; remaining 2 pending
 
 | Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R03.6 | Notes |
 |:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|:---------:|-------|-------|
@@ -33,6 +33,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | 🥈 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 293.5s | ✅ | ✅ | ✅ | ✅ | ❌ empty | N/A 🆕 | Q5 empty response; instruct quant variant |
 | 🥉 | `nchapman/dolphin3.0-qwen2.5:0.5b` | **3/5 (60%)** | 203.0s | ✅ | ❌ 43 | ✅ | ✅ | ❌ 17h | +1 | Improved! Q2 off-by-one, Q5 reasoning error |
 | 🥉 | `qwen2:0.5b` | **3/5 (60%)** | 256.6s | ✅ | ✅ | ❌ 3.5 | ✅ | ❌ 14h | Same | Q3 division rounding, Q5 time calc error |
+| 5 | `qwen3.5:0.8b` | **3/5 (60%)** | 552.2s | ❌ empty | ❌ empty | ✅ | ✅ | ✅ | +3 🆕 | Massive improvement! Q1/Q2 empty, Q3–Q5 all correct |
 | 6 | `gemma3:270m` | **2/5 (40%)** | 613.2s | ❌ 405 | ❌ 3 | ✅ | ✅ | ❌ 1024 | -2 | Regression; Q1/Q2 wrong, very slow (613s) |
 | 7 | `functiongemma:270m` | **1/5 (20%)** | 344.9s | ✅ | ❌ hall. | ❌ 120 | ❌ refused | ❌ refused | Same | Q2 hallucinated success, Q3 wrong calc, Q4/Q5 refusals |
 

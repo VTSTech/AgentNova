@@ -43,12 +43,10 @@ Inspired by the architecture of OpenClaw, rebuilt from scratch for local-first o
 ## Installation
 
 ```bash
-# From source
-git clone https://github.com/VTSTech/AgentNova.git
-cd AgentNova
-pip install -e .
+# Latest Development Release
+pip install git+https://github.com/VTSTech/AgentNova.git --force-reinstall
 
-# Or from PyPI (when published)
+# Last Stable (as stable as Alpha can be) Release
 pip install agentnova
 ```
 
