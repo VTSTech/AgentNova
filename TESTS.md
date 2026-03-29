@@ -20,10 +20,6 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 ### Chat Completions Mode Results (R03.9 - openai API Mode, NO SOUL)
 
-> Testing with `--api openai` uses OpenAI-compatible Chat Completions API (`/v1/chat/completions`)
-> ⚠️ **No soul used** — R03.6 tests used `--soul nova-helper`. Scores below reflect bare model capability without persona guidance. Direct comparison with R03.6 is **not apples-to-apples**.
-> Test params: `--api openai` only (default settings, no soul)
-> ⏳ **Partial results** — 9 of 10 models tested; remaining 1 pending
 
 | Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R03.6 | Notes |
 |:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|:---------:|-------|
