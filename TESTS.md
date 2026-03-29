@@ -18,6 +18,21 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 ---
 
+### OpenResponses Mode Results (R03.9 - resp API Mode, WITH SOUL)
+
+> Testing with `--api openre --soul nova-helper` uses Ollama's native OpenResponses API (`/api/chat`) with the nova-helper soul persona
+> 🎯 **Soul used** — `--soul nova-helper` enabled. Direct comparison with R03.6 resp mode (also with soul) is valid.
+> Test params: `--api openre --soul nova-helper --num-ctx 32768 --timeout 9999`
+> ⚠️ **Note:** 32K context (8× larger than R03.6's 4K) — may benefit or hurt depending on model
+> ⏳ **Partial results** — 2 of 10 models tested; remaining 8 pending
+
+| Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R03.6 | Notes |
+|:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|:---------:|-------|-------|
+| 6 | `gemma3:270m` | **2/5 (40%)** | 578.7s | ❌ 405 | ❌ 3 | ✅ | ✅ | ❌ result | -2 | Regression; Q1/Q2/Q5 tool artifacts, very slow |
+| 7 | `functiongemma:270m` | **1/5 (20%)** | 335.3s | ✅ | ❌ hall. | ❌ 1024 | ❌ refused | ❌ refused | Same | Q2 hallucinated success, Q3 wrong calc, Q4/Q5 refusals |
+
+---
+
 ### Chat Completions Mode Results (R03.9 - openai API Mode, WITH SOUL)
 
 > Testing with `--api openai --soul nova-helper` uses OpenAI-compatible Chat Completions API (`/v1/chat/completions`) with the nova-helper soul persona
