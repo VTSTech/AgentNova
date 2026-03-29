@@ -1,4 +1,4 @@
-# ⚛️ AgentNova R03.9
+# ⚛️ AgentNova R04.0
 
 **Status: Alpha**
 
