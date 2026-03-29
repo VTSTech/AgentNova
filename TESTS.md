@@ -24,13 +24,16 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 > 🎯 **Soul used** — `--soul nova-helper` enabled. Direct comparison with R03.6 resp mode (also with soul) is valid.
 > Test params: `--api openre --soul nova-helper --num-ctx 32768 --timeout 9999`
 > ⚠️ **Note:** 32K context (8× larger than R03.6's 4K) — may benefit or hurt depending on model
-> ⏳ **Partial results** — 4 of 10 models tested; remaining 6 pending
+> ⏳ **Partial results** — 7 of 10 models tested; remaining 3 pending
 
 | Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R03.6 | Notes |
 |:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|:---------:|-------|-------|
 | 🥇 | **`granite4:350m`** | **5/5 (100%)** | 295.1s | ✅ | ✅ | ✅ | ✅ | ✅ | Same ✅ | 🏆 Perfect score! Consistent across all modes |
+| 🥇 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 249.5s | ✅ | ✅ | ✅ | ✅ | ✅ | Same ✅ | 🏆 Reclaims 100%! Fastest perfect score in resp mode |
 | 🥈 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 301.8s | ✅ | ✅ | ✅ | ✅ | ❌ empty | -1 | Q5 empty response; was 5/5 in R03.6 resp |
-| 6 | `gemma3:270m` | **2/5 (40%)** | 578.7s | ❌ 405 | ❌ 3 | ✅ | ✅ | ❌ result | -2 | Regression; Q1/Q2/Q5 tool artifacts, very slow |
+| 🥉 | `nchapman/dolphin3.0-qwen2.5:0.5b` | **3/5 (60%)** | 224.4s | ✅ | ❌ 3 | ✅ | ✅ | ❌ 21 | +1 | Improved! Q2 off-by-48, Q5 wrong calc |
+| 5 | `gemma3:270m` | **2/5 (40%)** | 578.7s | ❌ 405 | ❌ 3 | ✅ | ✅ | ❌ result | -2 | Regression; Q1/Q2/Q5 tool artifacts, very slow |
+| 5 | `qwen2:0.5b` | **2/5 (40%)** | 286.0s | ✅ | ✅ | ❌ empty | ❌ text | ❌ text | -1 | Q3 empty, Q4/Q5 verbose wrong reasoning |
 | 7 | `functiongemma:270m` | **1/5 (20%)** | 335.3s | ✅ | ❌ hall. | ❌ 1024 | ❌ refused | ❌ refused | Same | Q2 hallucinated success, Q3 wrong calc, Q4/Q5 refusals |
 
 ---
