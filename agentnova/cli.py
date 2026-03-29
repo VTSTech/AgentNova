@@ -533,7 +533,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
 
     while True:
         try:
-            user_input = input("You: ").strip()
+            user_input = input(f"{dim('You:')}: ").strip()
         except (EOFError, KeyboardInterrupt):
             print("\n👋 Goodbye!")
             break
@@ -568,7 +568,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
             acp.log_chat("user", user_input)
 
         result = agent.run(user_input)
-        print(f"\n{bright_magenta('Agent Nova')}: {result.final_answer}\n")
+        print(f"\n{bright_green('Agent Nova')}: {result.final_answer}\n")
 
         # Log assistant response to ACP
         if acp:
