@@ -131,10 +131,40 @@ def normalize_args(args: dict[str, Any], expected_params: list[str], tool_name: 
     power_parts = {}
     
     # Import tool-specific aliases
-    from .prompts import TOOL_ARG_ALIASES
+    from .prompts import TOOL_ARG_ALIASES, CONTEXTUAL_ALIASES
     
     # Get tool-specific aliases
     tool_aliases = TOOL_ARG_ALIASES.get(tool_name, {}) if tool_name else {}
+    contextual_aliases = CONTEXTUAL_ALIASES.get(tool_name, set()) if tool_name else set()
+
+    # First pass: identify which keys map to expected params via non-ambiguous means
+    # (direct match, case-insensitive match, or non-contextual alias)
+    matched_keys = set()
+
+    for key, value in args.items():
+        key_lower = key.lower().replace("-", "_")
+
+        # Direct match
+        if key in expected_set:
+            matched_keys.add(key_lower)
+            continue
+
+        # Case-insensitive match
+        for param in expected_params:
+            if param.lower() == key_lower:
+                matched_keys.add(key_lower)
+                break
+
+        # Non-contextual alias (safe to apply always)
+        if key_lower not in matched_keys and key_lower in tool_aliases:
+            alias_target = tool_aliases[key_lower]
+            if alias_target != "_combine_power" and alias_target in expected_set:
+                if key_lower not in contextual_aliases:
+                    matched_keys.add(key_lower)
+
+    # Second pass: build normalized dict with full resolution
+    normalized = {}
+    power_parts = {}
 
     for key, value in args.items():
         key_lower = key.lower().replace("-", "_")
@@ -148,8 +178,13 @@ def normalize_args(args: dict[str, Any], expected_params: list[str], tool_name: 
                 power_parts[key_lower] = value
                 continue
             elif alias_target in expected_set:
-                target_param = alias_target
-                target_pname = alias_target
+                # Contextual validation: only apply ambiguous aliases when
+                # no other key has already matched an expected param
+                if key_lower in contextual_aliases and matched_keys:
+                    pass  # Skip this ambiguous alias
+                else:
+                    target_param = alias_target
+                    target_pname = alias_target
         
         # Strategy 2: Direct match
         if target_param is None and key in expected_set:

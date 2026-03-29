@@ -25,7 +25,7 @@ TOOL_ARG_ALIASES = {
     "calculator": {
         # Common hallucinations for expression
         "a": "expression", "b": "expression", "x": "expression", "y": "expression",
-        "num": "expression", "number": "expression", "value": "expression",
+        "num": "expression", "number": "expression",
         "input": "expression", "formula": "expression", "math": "expression",
         "expr": "expression", "calc": "expression", "result": "expression",
         # Power operations - combine into expression
@@ -87,6 +87,19 @@ TOOL_ARG_ALIASES = {
         "source_currency": "from_currency", "target_currency": "to_currency",
         "money": "amount", "value": "amount", "price": "amount",
     },
+}
+
+# Aliases that are too generic and should only be applied when the args dict
+# has no other parameters that already matched a real expected param.
+# These are the aliases most likely to misinterpret legitimate model output.
+CONTEXTUAL_ALIASES = {
+    "calculator": {"value", "input", "result", "n", "p", "exp"},
+    "shell": {"text", "input", "arg", "args", "str", "value"},
+    "write_file": {"value", "string"},
+    "read_file": {"input"},
+    "web-search": {"text", "input"},
+    "python_repl": {"input", "expression", "expr"},
+    "convert_currency": {"value"},
 }
 
 # ------------------------------------------------------------------ #

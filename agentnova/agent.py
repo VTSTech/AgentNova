@@ -616,6 +616,9 @@ Final Answer: <the answer>
                             fc_item.status = ItemStatus.FAILED
                             response.mark_failed({"message": "Too many tool failures", "type": "error_recovery"})
                             break
+                    else:
+                        # Record success to reset consecutive failure counter
+                        self._error_tracker.record_success(tool_name)
 
                     # Update FunctionCallItem status
                     fc_item.status = ItemStatus.COMPLETED
@@ -666,7 +669,7 @@ Final Answer: <the answer>
                         
                         self.memory.add("user", observation_msg)
 
-                    if not str(result).startswith("Error"):
+                    if not is_error:
                         successful_results.append(f"{tool_name}: {result}")
 
                     steps.append(StepResult(

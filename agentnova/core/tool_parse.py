@@ -73,8 +73,40 @@ def _looks_like_tool_schema(text: str) -> bool:
     """
     Returns True if the text looks like the model outputting a JSON
     function-call schema rather than a real answer.
+
+    Handles both single-object schemas and array schemas like
+    [{"type":"function",...}, ...].
     """
     stripped = re.sub(r"```(?:json)?", "", text).strip().rstrip("`").strip()
+    if not stripped:
+        return False
+
+    # Try JSON array first — models sometimes dump entire tool schema arrays
+    arr_start = stripped.find("[")
+    if arr_start != -1:
+        arr_end = stripped.rfind("]")
+        if arr_end != -1 and arr_end > arr_start:
+            try:
+                arr = json.loads(stripped[arr_start:arr_end + 1])
+                if isinstance(arr, list) and len(arr) > 0:
+                    # Array of tool function schemas
+                    if any(
+                        isinstance(item, dict) and item.get("type") == "function"
+                        for item in arr
+                    ):
+                        return True
+                    # Array containing objects that look like tool schemas
+                    if any(
+                        isinstance(item, dict)
+                        and "name" in item
+                        and any(k in item for k in ("parameters", "arguments", "args"))
+                        for item in arr
+                    ):
+                        return True
+            except json.JSONDecodeError:
+                pass
+
+    # Try single JSON object
     start = stripped.find("{")
     end = stripped.rfind("}")
     if start == -1 or end == -1:
@@ -616,13 +648,19 @@ class ToolParser:
         return False
 
     def extract_final_answer(self, text: str) -> str:
-        """Extract final answer from text."""
-        # Try to find explicit answer marker
-        patterns = [
-            r"(?:Final Answer|Answer|Result):\s*([\s\S]+)",
-        ]
+        """Extract final answer from text.
 
-        for pattern in patterns:
+        Only extracts after the "Final Answer:" marker to stay consistent with
+        is_final_answer(). Falls back to "Answer:" and "Result:" only if no
+        "Final Answer:" marker is found, preferring the more specific match.
+        """
+        # Primary: use the same conservative marker as is_final_answer()
+        match = re.search(r"Final Answer:\s*([\s\S]+)", text, re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+
+        # Fallback: try broader patterns if no explicit Final Answer marker
+        for pattern in [r"Answer:\s*([\s\S]+)", r"Result:\s*([\s\S]+)"]:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 return match.group(1).strip()
@@ -630,10 +668,3 @@ class ToolParser:
         # Return entire text as answer
         return text.strip()
 
-
-__all__ = [
-    "ToolParser",
-    "_parse_react",
-    "_extract_python_code",
-    "_sanitize_model_json",
-]

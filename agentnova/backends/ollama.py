@@ -978,6 +978,9 @@ class OllamaBackend(BaseBackend):
         Key insight: "native" requires ACTUAL native tool_calls structure in API response.
         Models that output JSON as text are "react", not "native".
 
+        Results are automatically cached after each live test. If force_test is False,
+        the cache is checked first before returning UNTESTED.
+
         Args:
             model: Model name
             family: Optional family hint (unused, kept for API compatibility)
@@ -986,9 +989,16 @@ class OllamaBackend(BaseBackend):
         Returns:
             ToolSupportLevel (NATIVE, REACT, NONE, or UNTESTED if force_test=False)
         """
+        from ..core.tool_cache import get_cached_tool_support, cache_tool_support
+
+        # Determine API mode for cache namespacing
+        api_mode = self._api_mode.value if hasattr(self, "_api_mode") else "openre"
+
         if not force_test:
-            # Without force_test, we don't know - return UNTESTED
-            # The caller should use cache or show "untested"
+            # Check cache first, even without force_test
+            cached = get_cached_tool_support(model, api_mode=api_mode)
+            if cached is not None:
+                return cached
             return ToolSupportLevel.UNTESTED
 
         # Test tool: Weather (simple, commonly supported)
@@ -1032,20 +1042,33 @@ class OllamaBackend(BaseBackend):
                     if func_name == "get_weather":
                         # Check for reasonable arguments
                         if isinstance(args, dict) and ("location" in args or "city" in args or len(args) > 0):
-                            return ToolSupportLevel.NATIVE
+                            result = ToolSupportLevel.NATIVE
+                            break
                     # Native tool_calls exist but wrong function - still native capability
                     # (model might be confused but HAS native support)
                     elif func_name:  # Any function name = native structure
-                        return ToolSupportLevel.NATIVE
+                        result = ToolSupportLevel.NATIVE
+                        break
+                else:
+                    # tool_calls existed but no valid function found
+                    result = ToolSupportLevel.REACT
+            else:
+                result = None  # No native tool calls
+
+            if result is not None:
+                cache_tool_support(model, result, family=family or "", api_mode=api_mode)
+                return result
 
             # 3. Check for text-based tool calls in content
             # Models that output JSON like {"name": "get_weather", ...} as TEXT
             if self._contains_text_tool_call(content):
+                cache_tool_support(model, ToolSupportLevel.REACT, family=family or "", api_mode=api_mode)
                 return ToolSupportLevel.REACT
 
             # 4. API succeeded, no explicit rejection, no native tool_calls
             # Model accepted tools parameter but didn't use native calling
             # This is the "react" case - can still parse text-based tool calls
+            cache_tool_support(model, ToolSupportLevel.REACT, family=family or "", api_mode=api_mode)
             return ToolSupportLevel.REACT
 
         except Exception as e:
@@ -1053,9 +1076,13 @@ class OllamaBackend(BaseBackend):
 
             # 1. Check for explicit "does not support tools" rejection
             if "does not support tools" in error_str.lower():
+                cache_tool_support(model, ToolSupportLevel.NONE, family=family or "",
+                                   error=error_str[:100], api_mode=api_mode)
                 return ToolSupportLevel.NONE
 
             # Other HTTP errors or connection issues
+            cache_tool_support(model, ToolSupportLevel.REACT, family=family or "",
+                               error=error_str[:100], api_mode=api_mode)
             return ToolSupportLevel.REACT
 
         finally:
