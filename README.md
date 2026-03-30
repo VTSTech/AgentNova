@@ -22,7 +22,7 @@ Inspired by the architecture of OpenClaw, rebuilt from scratch for local-first o
 
 | Document | Description |
 |----------|-------------|
-| [Architecture.md](https://github.com/VTSTech/AgentNova/blob/main/Architecture.md) | Technical documentation for developers (directory structure, core design, orchestrator modes) |
+| [ARCH.md](https://github.com/VTSTech/AgentNova/blob/main/ARCH.md) | Technical documentation for developers (directory structure, core design, orchestrator modes) |
 | [CHANGELOG.md](https://github.com/VTSTech/AgentNova/blob/main/CHANGELOG.md) | Version history and release notes (includes LocalClaw history) |
 | [TESTS.md](https://github.com/VTSTech/AgentNova/blob/main/TESTS.md) | Benchmark results, model recommendations, and testing guide |
 | [CREDITS.md](https://github.com/VTSTech/AgentNova/blob/main/CREDITS.md) | Acknowledges every project, inspiration, API, model creator, and specification that makes AgentNova possible |
@@ -343,10 +343,5 @@ MIT License - See LICENSE file for details.
 
 ## Contributing
 
-Contributions welcome! Please read the contributing guidelines first.
+Contributions welcome!
 
-## Acknowledgments
-
-- Built for local inference with [Ollama](https://ollama.ai)
-- Optimized for small, efficient models
-- Inspired by ReAct and other agentic frameworks
