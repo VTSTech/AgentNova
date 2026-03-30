@@ -6,9 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [R04.1] - 03-30-2026
 
-### ATLAS-Inspired Performance Features
+### ATLAS-Inspired Performance Features & Speculative Decoding Removal
 
-Retry-with-error-feedback, inspired by the [ATLAS-Autonomous](https://github.com/itigges22/ATLAS) benchmark infrastructure.Retry-with-error-feedback gives the model a chance to correct failed tool calls before the agent gives up, improving success rates on error-prone tasks.
+Retry-with-error-feedback, inspired by the [ATLAS-Autonomous](https://github.com/itigges22/ATLAS) benchmark infrastructure, gives the model a chance to correct failed tool calls before the agent gives up, improving success rates on error-prone tasks. The speculative decoding feature (`--draft`, `num_draft`) was also removed this release — it required server-side draft model configuration in Ollama/llama.cpp and was never effective as a per-request parameter, adding unnecessary complexity without measurable benefit for the agentic loop.
 
 ### Added
 
@@ -39,18 +39,36 @@ Retry-with-error-feedback, inspired by the [ATLAS-Autonomous](https://github.com
 #### Error Recovery — Timeout Detection Gap (`error_recovery.py`)
 - **`is_error_result()`** now also detects `"timed out"` and `"timeout"` patterns in tool results, in addition to existing checks for `"error"`, `"failed"`, `"exception"`, and `"blocked"`. Previously, results like `"Command timed out after 0 seconds"` were not recognized as errors, causing retry context to be silently skipped.
 
+#### Version Bump (`__init__.py`)
+- Version bumped from `0.4.0` to `0.4.1-dev`
+
+### Removed
+
+#### Speculative Decoding (`config.py`, `backends/base.py`, `backends/ollama.py`, `backends/bitnet.py`, `cli.py`, `agent.py`)
+- **`--draft` CLI flag** removed from `run`, `chat`, and `agent` commands
+- **`AGENTNOVA_NUM_DRAFT` env var** and `NUM_DRAFT` constant removed from `config.py`
+- **`Config.num_draft` field** removed from `Config` dataclass
+- **`BackendConfig.num_draft` field** removed from `BackendConfig` in `backends/base.py`
+- **`num_draft` parameter** removed from `Agent.__init__()` and `self._num_draft` instance variable
+- **`num_draft` forwarding** to backend `backend_kwargs` removed from `_generate()` in `agent.py`
+- **Debug output** for speculative decoding removed from `OllamaBackend` (both `/api/chat` and `/v1/chat/completions` paths) and `BitNetBackend` (both `generate()` and `generate_stream()` methods)
+- **Rationale**: Speculative decoding required a draft model configured at the Ollama/llama.cpp server level via `--draft` flag. The per-request `num_draft` parameter was never functional as a client-side setting — it could only log a debug message noting server-side configuration was required. Removing it eliminates dead code and a misleading CLI flag without any functional impact.
+
 ### File Changes Summary
 
 | Action | File | Changes |
 |--------|------|:-------:|
-| Updated | `agentnova/config.py` | +28 |
-| Updated | `agentnova/backends/base.py` | +1 |
-| Updated | `agentnova/backends/ollama.py` | +8 |
-| Updated | `agentnova/backends/bitnet.py` | +14 |
-| Updated | `agentnova/agent.py` | +42 |
-| Updated | `agentnova/core/error_recovery.py` | +57 |
-| Updated | `agentnova/cli.py` | +21 |
-| **Total** | **7 files** | **+171** |
+| Updated | `agentnova/core/error_recovery.py` | +44 |
+| Updated | `agentnova/agent.py` | +23 −23 |
+| Updated | `agentnova/backends/ollama.py` | +9 −17 |
+| Updated | `agentnova/backends/bitnet.py` | −15 |
+| Updated | `agentnova/cli.py` | −9 |
+| Updated | `agentnova/config.py` | −13 |
+| Updated | `agentnova/backends/base.py` | −1 |
+| Updated | `agentnova/__init__.py` | +1 −1 |
+| Created | `CREDITS.md` | +228 |
+| Updated | `CHANGELOG.md` | +50 |
+| **Total** | **10 files** | **+355 −79** |
 
 ---
 
