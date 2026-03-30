@@ -8,20 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### ATLAS-Inspired Performance Features
 
-Speculative decoding support and retry-with-error-feedback, inspired by the [ATLAS-Autonomous](https://github.com/itigges22/ATLAS) benchmark infrastructure. Speculative decoding provides faster inference when a draft model is configured at the server level. Retry-with-error-feedback gives the model a chance to correct failed tool calls before the agent gives up, improving success rates on error-prone tasks.
+Retry-with-error-feedback, inspired by the [ATLAS-Autonomous](https://github.com/itigges22/ATLAS) benchmark infrastructure.Retry-with-error-feedback gives the model a chance to correct failed tool calls before the agent gives up, improving success rates on error-prone tasks.
 
 ### Added
-
-#### Speculative Decoding (`config.py`, `backends/base.py`, `backends/ollama.py`, `backends/bitnet.py`, `agent.py`)
-- **`--draft N` CLI flag** on `run`, `chat`, and `agent` commands — sets number of draft tokens for speculative decoding (e.g., `--draft 5`). Requires a draft model to be configured at the server/model level (e.g., Ollama's `OLLAMA_NUM_DRAFT` or llama.cpp's `--draft`)
-- **`AGENTNOVA_NUM_DRAFT` env var** — set a default draft token count without passing the CLI flag each time (default: 0 = disabled)
-- **`num_draft` parameter** on `Agent.__init__()` — programmatic control over speculative decoding
-- **`_generate()` passes `num_draft`** to backend via `backend_kwargs` when > 0
-- **Ollama native path** (`/api/chat`): `num_draft` flows through `**kwargs` → `body["options"]["num_draft"]` automatically via existing catch-all, with debug logging when active
-- **Ollama OpenAI-compat path** (`/v1/chat/completions`): Debug logging noting speculative decoding may be ignored in this API mode
-- **BitNet backend**: Accepts `num_draft` via `**kwargs` but logs a debug message noting that BitNet requires server-side `--draft` configuration — per-request control is not supported
-- **`BackendConfig.num_draft`** field in `base.py` — carries speculative decoding setting through backend config
-- **Debug output**: `[Agent] Speculative decoding: num_draft=N` on init, `[Ollama] Speculative decoding: num_draft=N` on each request
 
 #### Retry-with-Error-Feedback (`config.py`, `error_recovery.py`, `agent.py`)
 - **`--no-retry` CLI flag** on `run`, `chat`, and `agent` commands — disables retry context injection on tool failures, letting the model fail immediately
