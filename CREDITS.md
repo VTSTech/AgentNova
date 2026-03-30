@@ -41,6 +41,26 @@ The **retry-with-error-feedback** feature introduced in R04.1 was inspired by th
 
 ---
 
+## Development History
+
+AgentNova's origins are a testament to the power of rapid, iterative AI-assisted development — or as the kids call it, **vibe coding**.
+
+### LocalClaw Era — Vibe Coding with DeepSeek and Gemini
+
+The project began life as **LocalClaw**, a local-first reimagining of the OpenClaw agentic framework. In its earliest iterations, LocalClaw was written through an unconventional development workflow: **vibe coding sessions** with **DeepSeek** and **Google Gemini** acting as pair-programming assistants. Rather than writing detailed specifications and planning documents first, the approach was conversational and exploratory — describing the desired behavior in natural language, iterating rapidly on generated code, and refining through hands-on testing against real local models running on Ollama.
+
+This vibe coding process proved remarkably effective for a project of this nature. The agentic loop, tool-calling infrastructure, ReAct prompt parsing, security layer, and multi-backend architecture all emerged from these freeform coding sessions. DeepSeek excelled at generating the initial scaffolding and handling the more complex algorithmic components like the tool parser and error recovery system, while Gemini contributed to architectural decisions, the spec compliance layer, and the soul/skills system design. The result was a working agentic framework that, despite its unconventional genesis, maintained clean code quality, comprehensive test coverage, and strong architectural principles throughout.
+
+### The Pivot to AgentNova R00 — GLM-5 and Super-Z
+
+By the time the project reached its **R00 release milestone** and was renamed from LocalClaw to **AgentNova**, the development workflow shifted exclusively to **GLM-5** and its agentic platform persona, **Super-Z**. This transition marked a significant evolution in both the project's identity and its development methodology. Where the earlier vibe coding sessions were exploratory and multi-model, the AgentNova era brought a focused, sustained development relationship with a single AI pair-programmer that understood the full project context, architectural decisions, and design philosophy.
+
+Under the GLM-5/Super-Z collaboration, the project underwent substantial maturation: the OpenResponses specification was implemented with full compliance, the ACP integration reached v1.0.5, the Soul Spec v0.5 persona system was designed and shipped, the AgentSkills packaging format was defined, and the multi-agent orchestrator with router, pipeline, and parallel modes was built out. The comprehensive test suite — spanning reasoning benchmarks, tool-calling validation, security audits, and spec compliance checks — was also largely developed and maintained through this partnership.
+
+The progression from LocalClaw's freewheeling vibe coding origins to AgentNova's disciplined development under GLM-5 demonstrates that AI-assisted development can scale from rapid prototyping to production-grade software engineering. The entire codebase — thousands of lines of carefully structured Python with zero external dependencies, 600+ tests, and multi-spec compliance — stands as evidence that vibe coding is not just a meme but a legitimate and powerful development methodology when paired with the right AI collaborator.
+
+---
+
 ## Specifications & Standards
 
 AgentNova implements and complies with several open specifications and standards. These define how the framework handles API interactions, tool calling, persona management, agent monitoring, and skill packaging.
@@ -204,3 +224,5 @@ AgentNova proudly uses **zero external dependencies** at runtime. The entire fra
 ---
 
 *Last updated: 2026-03-30 (AgentNova R04.1)*
+
+*Development history section added: 2026-03-30*
