@@ -4,6 +4,67 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [R04.1] - 03-30-2026
+
+### ATLAS-Inspired Performance Features
+
+Speculative decoding support and retry-with-error-feedback, inspired by the [ATLAS-Autonomous](https://github.com/itigges22/ATLAS) benchmark infrastructure. Speculative decoding provides faster inference when a draft model is configured at the server level. Retry-with-error-feedback gives the model a chance to correct failed tool calls before the agent gives up, improving success rates on error-prone tasks.
+
+### Added
+
+#### Speculative Decoding (`config.py`, `backends/base.py`, `backends/ollama.py`, `backends/bitnet.py`, `agent.py`)
+- **`--draft N` CLI flag** on `run`, `chat`, and `agent` commands — sets number of draft tokens for speculative decoding (e.g., `--draft 5`). Requires a draft model to be configured at the server/model level (e.g., Ollama's `OLLAMA_NUM_DRAFT` or llama.cpp's `--draft`)
+- **`AGENTNOVA_NUM_DRAFT` env var** — set a default draft token count without passing the CLI flag each time (default: 0 = disabled)
+- **`num_draft` parameter** on `Agent.__init__()` — programmatic control over speculative decoding
+- **`_generate()` passes `num_draft`** to backend via `backend_kwargs` when > 0
+- **Ollama native path** (`/api/chat`): `num_draft` flows through `**kwargs` → `body["options"]["num_draft"]` automatically via existing catch-all, with debug logging when active
+- **Ollama OpenAI-compat path** (`/v1/chat/completions`): Debug logging noting speculative decoding may be ignored in this API mode
+- **BitNet backend**: Accepts `num_draft` via `**kwargs` but logs a debug message noting that BitNet requires server-side `--draft` configuration — per-request control is not supported
+- **`BackendConfig.num_draft`** field in `base.py` — carries speculative decoding setting through backend config
+- **Debug output**: `[Agent] Speculative decoding: num_draft=N` on init, `[Ollama] Speculative decoding: num_draft=N` on each request
+
+#### Retry-with-Error-Feedback (`config.py`, `error_recovery.py`, `agent.py`)
+- **`--no-retry` CLI flag** on `run`, `chat`, and `agent` commands — disables retry context injection on tool failures, letting the model fail immediately
+- **`--max-retries N` CLI flag** — sets maximum retries per tool call failure (default: 2)
+- **`AGENTNOVA_RETRY_ON_ERROR` env var** — enable/disable retry behavior globally (default: `true`)
+- **`AGENTNOVA_MAX_TOOL_RETRIES` env var** — set default max retries globally (default: 2)
+- **`retry_on_error` and `max_tool_retries` parameters** on `Agent.__init__()` — programmatic control
+- **`Config.retry_on_error` and `Config.max_tool_retries` fields** in `config.py`
+- **`DEFAULT_MAX_TOOL_RETRIES` and `DEFAULT_RETRY_ON_ERROR` constants** in `error_recovery.py`
+- **`build_retry_context()` function** — builds a lightweight retry hint string for native tool calling path (separate from `build_enhanced_observation()` which handles the ReAct path)
+- **Native tool call path** (`agent.py` `run()`): After `memory.add_tool_result()`, checks if the result was an error and retry is enabled. If so, injects a follow-up user message with `--- Retry Context ---` header, previous attempt args, and retry instruction. Respects `max_tool_retries` limit — stops injecting when exceeded
+- **ReAct text path** (`agent.py` `run()`): `build_enhanced_observation()` now accepts `retry_on_error` and `tool_args` parameters. When enabled and a tool fails, the observation includes the retry context block alongside existing error recovery hints
+- **Streaming path** (`agent.py` `run_stream()`): Same enhanced observation handling as ReAct path
+- **Retry context format**:
+  ```
+  --- Retry Context ---
+  Previous attempt: calculator({"expression": "10/0"})
+  Please try again with corrected arguments.
+  ```
+- After 2+ failures, the message changes to: `⚠️ This tool has failed N times. Consider using a different tool or approach.`
+- Retry context is **not injected** when retry count exceeds `max_tool_retries`, preventing infinite retry loops
+- Debug output: `[Agent] Retry on error: True, max_tool_retries: 2` on init, `[Retry Context] Adding retry hint for native tool call: <tool>` on each retry
+
+### Changed
+
+#### Error Recovery — Timeout Detection Gap (`error_recovery.py`)
+- **`is_error_result()`** now also detects `"timed out"` and `"timeout"` patterns in tool results, in addition to existing checks for `"error"`, `"failed"`, `"exception"`, and `"blocked"`. Previously, results like `"Command timed out after 0 seconds"` were not recognized as errors, causing retry context to be silently skipped.
+
+### File Changes Summary
+
+| Action | File | Changes |
+|--------|------|:-------:|
+| Updated | `agentnova/config.py` | +28 |
+| Updated | `agentnova/backends/base.py` | +1 |
+| Updated | `agentnova/backends/ollama.py` | +8 |
+| Updated | `agentnova/backends/bitnet.py` | +14 |
+| Updated | `agentnova/agent.py` | +42 |
+| Updated | `agentnova/core/error_recovery.py` | +57 |
+| Updated | `agentnova/cli.py` | +21 |
+| **Total** | **7 files** | **+171** |
+
+---
+
 ## [R04.0] - 03-29-2026 6:47:06 PM
 
 ### AgentSkills Integration, Web Search Tool & Skill Testing
