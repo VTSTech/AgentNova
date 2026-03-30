@@ -30,6 +30,7 @@ from .core.tool_parse import ToolParser
 from .core.error_recovery import (
     ErrorRecoveryTracker,
     build_enhanced_observation,
+    build_retry_context,
     is_error_result,
     DEFAULT_MAX_CONSECUTIVE_FAILURES,
     DEFAULT_MAX_TOTAL_FAILURES,
@@ -671,6 +672,18 @@ Final Answer: <the answer>
                             name=tool_name,
                             content=str(result),
                         )
+                        # Native tool calls also get retry context on error
+                        if is_error and self._retry_on_error:
+                            retry_msg = build_retry_context(
+                                tool_name=tool_name,
+                                tool_args=tool_args,
+                                tracker=self._error_tracker,
+                                max_tool_retries=self._max_tool_retries,
+                            )
+                            if retry_msg:
+                                if self.debug:
+                                    print(f"  [Retry Context] Adding retry hint for native tool call: {tool_name}")
+                                self.memory.add("user", retry_msg)
                     else:
                         # Use error recovery module for enhanced observation
                         observation_msg = build_enhanced_observation(

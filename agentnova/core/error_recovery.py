@@ -692,6 +692,47 @@ def _is_simple_result(result: str, tool_name: str) -> bool:
 # Utility Functions
 # ============================================================================
 
+def build_retry_context(
+    tool_name: str,
+    tool_args: dict | None,
+    tracker: ErrorRecoveryTracker,
+    max_tool_retries: int = DEFAULT_MAX_TOOL_RETRIES,
+) -> str:
+    """
+    Build a retry context message for failed tool calls.
+    
+    This is used by the native tool calling path, where the tool result is
+    already in memory via add_tool_result(). This function creates a follow-up
+    user message with retry context without duplicating the full observation.
+    
+    Args:
+        tool_name: Name of the tool that failed
+        tool_args: Previous tool call arguments
+        tracker: Error recovery tracker instance
+        max_tool_retries: Maximum retries before giving up
+    
+    Returns:
+        Retry context message string, or empty string if no retry needed
+    """
+    if not tool_args:
+        return ""
+    
+    retry_count = tracker.get_consecutive_failures(tool_name)
+    
+    if retry_count >= max_tool_retries:
+        return ""
+    
+    parts = ["--- Retry Context ---"]
+    parts.append(f"Previous attempt: {tool_name}({json.dumps(tool_args, default=str)})")
+    
+    if retry_count >= 2:
+        parts.append(f"\u26a0\ufe0f This tool has failed {retry_count} times. Consider using a different tool or approach.")
+    else:
+        parts.append("The tool returned an error. Please try again with corrected arguments.")
+    
+    return "\n".join(parts)
+
+
 def is_error_result(result: str) -> bool:
     """Check if a tool result indicates an error."""
     if not result:
@@ -738,6 +779,7 @@ __all__ = [
     
     # Functions
     "build_enhanced_observation",
+    "build_retry_context",
     "is_error_result",
     "extract_error_type",
     "get_tool_suggestion",
