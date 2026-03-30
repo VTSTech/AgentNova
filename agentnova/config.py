@@ -100,6 +100,26 @@ NUM_CTX = int(os.environ.get("OLLAMA_NUM_CTX") or os.environ.get("AGENTNOVA_NUM_
 # 0 means use Ollama's default (2048)
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# SPECULATIVE DECODING
+# ═══════════════════════════════════════════════════════════════════════════════
+# Number of draft tokens for speculative decoding (Ollama/llama.cpp)
+# Requires a draft model to be configured at the server/model level.
+# Set to 0 to disable (default). Typical values: 3-16.
+# Note: Only effective in Ollama native API mode (/api/chat).
+NUM_DRAFT = int(os.environ.get("AGENTNOVA_NUM_DRAFT") or "0")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ERROR RETRY SETTINGS
+# ═══════════════════════════════════════════════════════════════════════════════
+# Whether to automatically retry failed tool calls (default: enabled)
+RETRY_ON_ERROR = os.environ.get("AGENTNOVA_RETRY_ON_ERROR", "true").lower() in ("1", "true", "yes")
+
+# Maximum retries per tool call failure (default: 2)
+MAX_TOOL_RETRIES = int(os.environ.get("AGENTNOVA_MAX_TOOL_RETRIES") or "2")
+
+
 @dataclass
 class Config:
     """AgentNova configuration."""
@@ -132,6 +152,13 @@ class Config:
     allow_shell: bool = True
     allow_network: bool = True
     allowed_paths: list[str] = field(default_factory=lambda: ["./output", "./data", "/tmp"])
+
+    # Speculative decoding
+    num_draft: int = field(default_factory=lambda: NUM_DRAFT)
+
+    # Error retry
+    retry_on_error: bool = field(default_factory=lambda: RETRY_ON_ERROR)
+    max_tool_retries: int = field(default_factory=lambda: MAX_TOOL_RETRIES)
 
     # Debug
     debug: bool = field(default_factory=lambda: DEBUG)

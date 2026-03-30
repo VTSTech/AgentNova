@@ -33,6 +33,8 @@ from .core.error_recovery import (
     is_error_result,
     DEFAULT_MAX_CONSECUTIVE_FAILURES,
     DEFAULT_MAX_TOTAL_FAILURES,
+    DEFAULT_MAX_TOOL_RETRIES,
+    DEFAULT_RETRY_ON_ERROR,
 )
 from .core.openresponses import (
     Response, ResponseStatus, ItemStatus,
@@ -120,6 +122,11 @@ class Agent:
         allowed_tools: list[str] | None = None,
         # Skills injection
         skills_prompt: str | None = None,
+        # Speculative decoding
+        num_draft: int = 0,
+        # Retry-with-error-feedback
+        retry_on_error: bool = DEFAULT_RETRY_ON_ERROR,
+        max_tool_retries: int = DEFAULT_MAX_TOOL_RETRIES,
         **kwargs,
     ):
         """
@@ -142,6 +149,9 @@ class Agent:
             tool_choice: Control tool invocation ("auto", "required", "none", or specific tool name)
             allowed_tools: List of tools the model is allowed to invoke (subset of tools)
             skills_prompt: Optional skill instructions to append to the system prompt
+            num_draft: Number of draft tokens for speculative decoding (0 = disabled)
+            retry_on_error: Whether to retry failed tool calls with error feedback (default: True)
+            max_tool_retries: Maximum retries per tool call failure (default: 2)
             **kwargs: Additional configuration
         """
         self.model = model
@@ -158,6 +168,13 @@ class Agent:
         self._temperature = temperature
         self._top_p = top_p
         self._num_predict = num_predict
+
+        # Speculative decoding
+        self._num_draft = num_draft
+
+        # Retry-with-error-feedback
+        self._retry_on_error = retry_on_error
+        self._max_tool_retries = max_tool_retries
 
         # Initialize backend
         if backend is None:
@@ -320,6 +337,11 @@ class Agent:
             max_consecutive_failures=DEFAULT_MAX_CONSECUTIVE_FAILURES,
             max_total_failures=DEFAULT_MAX_TOTAL_FAILURES,
         )
+        
+        if self.debug:
+            if self._num_draft > 0:
+                print(f"[Agent] Speculative decoding: num_draft={self._num_draft}")
+            print(f"[Agent] Retry on error: {self._retry_on_error}, max_tool_retries: {self._max_tool_retries}")
 
     @property
     def _is_comp_mode(self) -> bool:
@@ -656,7 +678,9 @@ Final Answer: <the answer>
                             result=str(result),
                             tracker=self._error_tracker,
                             available_tools=self.tools.names(),
-                            is_error=is_error
+                            is_error=is_error,
+                            retry_on_error=self._retry_on_error,
+                            tool_args=tool_args,
                         )
                         
                         # Update expecting_final_answer flag
@@ -1091,6 +1115,8 @@ Final Answer: <the answer>
                         tracker=self._error_tracker,
                         available_tools=self.tools.names(),
                         is_error=is_error,
+                        retry_on_error=self._retry_on_error,
+                        tool_args=tool_args,
                     )
 
                     if is_error:
@@ -1301,6 +1327,8 @@ Final Answer: <the answer>
             backend_kwargs["num_ctx"] = self.num_ctx
         if self._num_predict is not None:
             backend_kwargs["num_predict"] = self._num_predict
+        if self._num_draft and self._num_draft > 0:
+            backend_kwargs["num_draft"] = self._num_draft
 
         # OpenResponses: Forward tool_choice to backend API
         # This allows the backend to enforce tool invocation constraints natively

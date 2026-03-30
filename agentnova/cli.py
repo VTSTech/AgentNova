@@ -198,6 +198,12 @@ def create_parser() -> argparse.ArgumentParser:
                            help="Truncation behavior for context overflow (default: auto)")
     run_parser.add_argument("--skills", default=None,
                            help="Comma-separated skill names to load (e.g., acp,skill-creator)")
+    run_parser.add_argument("--draft", type=int, default=None, dest="num_draft",
+                           help="Speculative decoding draft tokens (requires server-side draft model config, e.g., 5)")
+    run_parser.add_argument("--no-retry", action="store_true", dest="no_retry",
+                           help="Disable retry-with-error-feedback on tool failures")
+    run_parser.add_argument("--max-retries", type=int, default=None, dest="max_tool_retries",
+                           help="Maximum retries per tool call failure (default: 2)")
 
     # Chat command
     chat_parser = subparsers.add_parser("chat", help="Interactive chat mode")
@@ -229,6 +235,12 @@ def create_parser() -> argparse.ArgumentParser:
                            help="Truncation behavior for context overflow (default: auto)")
     chat_parser.add_argument("--skills", default=None,
                             help="Comma-separated skill names to load (e.g., acp,skill-creator)")
+    chat_parser.add_argument("--draft", type=int, default=None, dest="num_draft",
+                           help="Speculative decoding draft tokens (requires server-side draft model config, e.g., 5)")
+    chat_parser.add_argument("--no-retry", action="store_true", dest="no_retry",
+                           help="Disable retry-with-error-feedback on tool failures")
+    chat_parser.add_argument("--max-retries", type=int, default=None, dest="max_tool_retries",
+                           help="Maximum retries per tool call failure (default: 2)")
 
     # Agent command
     agent_parser = subparsers.add_parser("agent", help="Autonomous agent mode")
@@ -260,6 +272,12 @@ def create_parser() -> argparse.ArgumentParser:
                            help="Truncation behavior for context overflow (default: auto)")
     agent_parser.add_argument("--skills", default=None,
                              help="Comma-separated skill names to load (e.g., acp,skill-creator)")
+    agent_parser.add_argument("--draft", type=int, default=None, dest="num_draft",
+                           help="Speculative decoding draft tokens (requires server-side draft model config, e.g., 5)")
+    agent_parser.add_argument("--no-retry", action="store_true", dest="no_retry",
+                           help="Disable retry-with-error-feedback on tool failures")
+    agent_parser.add_argument("--max-retries", type=int, default=None, dest="max_tool_retries",
+                           help="Maximum retries per tool call failure (default: 2)")
 
     # Models command
     models_parser = subparsers.add_parser("models", help="List available models")
@@ -456,6 +474,9 @@ def cmd_run(args: argparse.Namespace) -> int:
         top_p=getattr(args, 'top_p', None),
         num_predict=getattr(args, 'num_predict', None),
         skills_prompt=skills_prompt,
+        num_draft=getattr(args, 'num_draft', None) or config.num_draft,
+        retry_on_error=not getattr(args, 'no_retry', False),
+        max_tool_retries=getattr(args, 'max_tool_retries', None) or config.max_tool_retries,
     )
 
     # Log to ACP
@@ -513,6 +534,9 @@ def cmd_chat(args: argparse.Namespace) -> int:
         top_p=getattr(args, 'top_p', None),
         num_predict=getattr(args, 'num_predict', None),
         skills_prompt=skills_prompt,
+        num_draft=getattr(args, 'num_draft', None) or config.num_draft,
+        retry_on_error=not getattr(args, 'no_retry', False),
+        max_tool_retries=getattr(args, 'max_tool_retries', None) or config.max_tool_retries,
     )
 
     print_banner()
@@ -615,6 +639,9 @@ def cmd_agent(args: argparse.Namespace) -> int:
         top_p=getattr(args, 'top_p', None),
         num_predict=getattr(args, 'num_predict', None),
         skills_prompt=skills_prompt,
+        num_draft=getattr(args, 'num_draft', None) or config.num_draft,
+        retry_on_error=not getattr(args, 'no_retry', False),
+        max_tool_retries=getattr(args, 'max_tool_retries', None) or config.max_tool_retries,
     )
 
     agent_mode = AgentMode(agent, verbose=True)

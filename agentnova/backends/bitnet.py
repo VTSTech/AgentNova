@@ -79,6 +79,14 @@ class BitNetBackend(BaseBackend):
             "stop": kwargs.get("stop", []),
         }
 
+        # Speculative decoding: BitNet/llama.cpp requires server-side --draft config
+        # Per-request num_draft is not supported. Log if requested but unavailable.
+        num_draft = kwargs.get("num_draft", 0)
+        if num_draft and num_draft > 0:
+            import os
+            if os.environ.get("AGENTNOVA_DEBUG"):
+                print(f"  [BitNet] Speculative decoding: num_draft={num_draft} requested but BitNet requires server-side --draft configuration")
+
         start_time = time.time()
 
         try:
@@ -139,6 +147,13 @@ class BitNetBackend(BaseBackend):
             "stream": True,
             "stop": kwargs.get("stop", []),
         }
+
+        # Speculative decoding: not supported per-request in BitNet
+        num_draft = kwargs.get("num_draft", 0)
+        if num_draft and num_draft > 0:
+            import os
+            if os.environ.get("AGENTNOVA_DEBUG"):
+                print(f"  [BitNet] Speculative decoding: num_draft={num_draft} requested but requires server-side --draft configuration")
 
         try:
             req = urllib.request.Request(

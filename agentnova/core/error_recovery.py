@@ -14,6 +14,7 @@ Written by VTSTech — https://www.vts-tech.org
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from typing import Any, Optional
@@ -28,6 +29,12 @@ DEFAULT_MAX_CONSECUTIVE_FAILURES = 3
 
 # Maximum total failures before terminating the loop
 DEFAULT_MAX_TOTAL_FAILURES = 5
+
+# Maximum retries per individual tool call before giving up
+DEFAULT_MAX_TOOL_RETRIES = 2
+
+# Default setting for retry-on-error behavior
+DEFAULT_RETRY_ON_ERROR = True
 
 
 # ============================================================================
@@ -567,10 +574,17 @@ def build_enhanced_observation(
     result: str,
     tracker: ErrorRecoveryTracker,
     available_tools: list[str],
-    is_error: bool = False
+    is_error: bool = False,
+    retry_on_error: bool = True,
+    tool_args: dict | None = None,
 ) -> str:
     """
     Build an enhanced observation message with tool-specific hints.
+    
+    When retry_on_error is True and a tool fails, includes:
+    - The previous attempt's arguments for context
+    - An explicit retry instruction for the model
+    - Per-tool retry count to prevent infinite loops
     
     Args:
         tool_name: Name of the tool that was executed
@@ -578,6 +592,8 @@ def build_enhanced_observation(
         tracker: Error recovery tracker instance
         available_tools: List of available tool names
         is_error: Whether the result is an error
+        retry_on_error: Whether to include retry instructions (default: True)
+        tool_args: Previous tool call arguments (for retry context)
         
     Returns:
         Enhanced observation message with contextual guidance
@@ -602,6 +618,17 @@ def build_enhanced_observation(
         else:
             # Generic error recovery
             observation = f"{observation}\n\nNote: Try a different approach. Check the tool arguments and try again."
+        
+        # ATLAS-inspired retry-with-error-feedback:
+        # Include previous attempt context and explicit retry instruction
+        if retry_on_error and tool_args:
+            retry_count = tracker.get_consecutive_failures(tool_name)
+            observation = f"{observation}\n\n--- Retry Context ---"
+            observation = f"{observation}\nPrevious attempt: {tool_name}({json.dumps(tool_args, default=str)})"
+            if retry_count >= 2:
+                observation = f"{observation}\n⚠️ This tool has failed {retry_count} times. Consider using a different tool or approach."
+            else:
+                observation = f"{observation}\nPlease try again with corrected arguments."
     else:
         # Success - record it and prompt for Final Answer
         tracker.record_success(tool_name)
@@ -722,4 +749,6 @@ __all__ = [
     "TOOL_ALTERNATIVES",
     "DEFAULT_MAX_CONSECUTIVE_FAILURES",
     "DEFAULT_MAX_TOTAL_FAILURES",
+    "DEFAULT_MAX_TOOL_RETRIES",
+    "DEFAULT_RETRY_ON_ERROR",
 ]

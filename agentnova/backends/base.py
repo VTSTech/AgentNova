@@ -23,6 +23,7 @@ class BackendConfig:
     timeout: int = 120
     max_retries: int = 3
     retry_delay: float = 1.0
+    num_draft: int = 0  # Speculative decoding: number of draft tokens (0 = disabled)
 
 
 class BaseBackend(ABC):
