@@ -744,9 +744,9 @@ def is_error_result(result: str) -> bool:
         result_lower.startswith("failed") or
         "error:" in result_lower or
         "exception" in result_lower or
-        result_lower.startswith("blocked")
         "timed out" in result_lower or
-        "timeout" in result_lower
+        "timeout" in result_lower or        
+        result_lower.startswith("blocked")
     )
 
 
