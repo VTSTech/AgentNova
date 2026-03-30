@@ -746,7 +746,7 @@ def is_error_result(result: str) -> bool:
         "exception" in result_lower or
         result_lower.startswith("blocked")
         "timed out" in result_lower or
-        "timeout" in result_lower or
+        "timeout" in result_lower
     )
 
 
