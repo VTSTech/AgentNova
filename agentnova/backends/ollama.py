@@ -381,7 +381,7 @@ class OllamaBackend(BaseBackend):
 
         # Debug output for request
         if os.environ.get("AGENTNOVA_DEBUG"):
-            print(f"  [OpenAI-Comp] Request: tools={len(tools) if tools else 0}, think={think})
+            print(f"  [OpenAI-Comp] Request: tools={len(tools) if tools else 0}, think={think}")
 
         # Make request
         start_time = time.time()

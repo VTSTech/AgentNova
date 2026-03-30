@@ -4,7 +4,7 @@ AgentNova is a modular agent framework designed for local LLMs with tool-calling
 
 **Specification Compliance**: 100% (R03.5+) ✅
 
-**Version**: R04.0
+**Version**: R04.1
 - OpenResponses API: 100%
 - Chat Completions API: 100%
 - Soul Spec v0.5: 100%
@@ -30,7 +30,7 @@ agentnova/
 │   └── sandboxed_repl.py     # Sandboxed Python REPL execution
 │
 ├── backends/
-│   ├── base.py               # Abstract BaseBackend class
+│   ├── base.py               # Abstract BaseBackend class, BackendConfig dataclass
 │   ├── ollama.py             # Ollama backend (dual API: openre + openai)
 │   └── bitnet.py             # BitNet backend
 │
@@ -76,7 +76,12 @@ agentnova/
 │                             # - Color class with ANSI codes
 │                             # - Color functions: green, yellow, cyan, etc.
 │                             # - Utility: visible_len, pad_colored
-└── cli.py                    # Command-line interface
+├── config.py                 # Configuration & environment variables
+│                             # - Backend URLs, model settings, retry config
+├── cli.py                    # Command-line interface
+├── model_discovery.py        # Ollama model listing and selection
+├── shared_args.py            # Shared CLI argument definitions
+└── CREDITS.md                # Credits, acknowledgments, and development history (R04.1)
 ```
 
 ---
@@ -928,6 +933,8 @@ agentnova agent --acp --acp-url https://tunnel.example.com
 | `--timeout` | run, chat, agent, test | Request timeout (seconds) |
 | `--acp` | run, chat, agent, test | Enable ACP logging |
 | `--acp-url` | run, chat, agent, test | ACP server URL |
+| `--no-retry` | run, chat, agent | Disable retry-with-error-feedback on tool failures (R04.1) |
+| `--max-retries N` | run, chat, agent | Maximum retries per tool call failure, default 2 (R04.1) |
 | `--debug` | run, chat, agent, test | Enable debug output |
 
 ## Models Command Options
@@ -1059,6 +1066,8 @@ Final Answer: 1024
 | `tool_choice` | "auto" | Tool invocation mode |
 | `soul_level` | 3 | Soul disclosure level |
 | `temperature` | 0.7 | Model temperature (varies by model) |
+| `retry_on_error` | `true` | Retry failed tool calls with error feedback (R04.1) |
+| `max_tool_retries` | 2 | Maximum retries per tool call failure (R04.1) |
 
 ### Model-Specific Configs
 
@@ -1070,6 +1079,55 @@ Model configurations are defined in `core/model_config.py`:
 Family-specific behavior in `core/model_family_config.py`:
 - Thinking mode (disabled for qwen3, deepseek-r1)
 - Format preferences
+
+---
+
+### Retry-with-Error-Feedback (R04.1)
+
+When a tool call fails, the agent can optionally inject a **retry context** message into the conversation, giving the model a chance to correct its arguments before giving up. This feature was inspired by the [ATLAS-Autonomous](https://github.com/itigges22/ATLAS) benchmark infrastructure.
+
+**How it works**:
+
+```
+Tool call fails → is_error_result() detects error
+                → build_retry_context() generates hint message
+                → Follow-up user message injected into memory
+                → Model receives previous attempt + correction instruction
+                → Model retries with corrected arguments (or tries different approach)
+```
+
+**Retry context format**:
+```
+--- Retry Context ---
+Previous attempt: calculator({"expression": "10/0"})
+The tool returned an error. Please try again with corrected arguments.
+```
+
+After 2+ failures on the same tool, the message escalates:
+```
+⚠️ This tool has failed N times. Consider using a different tool or approach.
+```
+
+**Configuration**:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `retry_on_error` | `true` | Enable/disable retry context injection |
+| `max_tool_retries` | `2` | Maximum retries before stopping retry injection |
+
+| Control | CLI Flag | Env Var | Programmatic |
+|---------|----------|---------|-------------|
+| Enable/disable | `--no-retry` | `AGENTNOVA_RETRY_ON_ERROR` | `Agent(retry_on_error=...)` |
+| Max retries | `--max-retries N` | `AGENTNOVA_MAX_TOOL_RETRIES` | `Agent(max_tool_retries=...)` |
+
+**Dual-path support**:
+- **Native tool calls**: After `memory.add_tool_result()`, retry context is injected as a follow-up user message
+- **ReAct text path**: Retry context is embedded within the enhanced observation via `build_enhanced_observation()`
+- **Streaming path**: Same enhanced observation handling as ReAct path
+
+**Guardrails**:
+- Retry context is not injected when consecutive failures exceed `max_tool_retries`, preventing infinite retry loops
+- Timeout detection (`is_error_result()`) catches both explicit errors and timeout patterns
 
 ---
 
