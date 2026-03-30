@@ -20,7 +20,8 @@
   "files": {
     "soul": "SOUL.md",
     "identity": "IDENTITY.md",
-    "style": "STYLE.md"
+    "style": "STYLE.md",
+    "agents": "AGENTS.md"
   },
   "disclosure": {
     "summary": "Skill-guided assistant for testing the AgentSkills system."
