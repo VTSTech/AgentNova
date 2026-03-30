@@ -123,8 +123,6 @@ class Agent:
         allowed_tools: list[str] | None = None,
         # Skills injection
         skills_prompt: str | None = None,
-        # Speculative decoding
-        num_draft: int = 0,
         # Retry-with-error-feedback
         retry_on_error: bool = DEFAULT_RETRY_ON_ERROR,
         max_tool_retries: int = DEFAULT_MAX_TOOL_RETRIES,
@@ -150,7 +148,6 @@ class Agent:
             tool_choice: Control tool invocation ("auto", "required", "none", or specific tool name)
             allowed_tools: List of tools the model is allowed to invoke (subset of tools)
             skills_prompt: Optional skill instructions to append to the system prompt
-            num_draft: Number of draft tokens for speculative decoding (0 = disabled)
             retry_on_error: Whether to retry failed tool calls with error feedback (default: True)
             max_tool_retries: Maximum retries per tool call failure (default: 2)
             **kwargs: Additional configuration
@@ -169,9 +166,6 @@ class Agent:
         self._temperature = temperature
         self._top_p = top_p
         self._num_predict = num_predict
-
-        # Speculative decoding
-        self._num_draft = num_draft
 
         # Retry-with-error-feedback
         self._retry_on_error = retry_on_error
@@ -340,8 +334,6 @@ class Agent:
         )
         
         if self.debug:
-            if self._num_draft > 0:
-                print(f"[Agent] Speculative decoding: num_draft={self._num_draft}")
             print(f"[Agent] Retry on error: {self._retry_on_error}, max_tool_retries: {self._max_tool_retries}")
 
     @property
@@ -1340,8 +1332,6 @@ Final Answer: <the answer>
             backend_kwargs["num_ctx"] = self.num_ctx
         if self._num_predict is not None:
             backend_kwargs["num_predict"] = self._num_predict
-        if self._num_draft and self._num_draft > 0:
-            backend_kwargs["num_draft"] = self._num_draft
 
         # OpenResponses: Forward tool_choice to backend API
         # This allows the backend to enforce tool invocation constraints natively

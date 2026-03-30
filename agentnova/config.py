@@ -101,16 +101,6 @@ NUM_CTX = int(os.environ.get("OLLAMA_NUM_CTX") or os.environ.get("AGENTNOVA_NUM_
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# SPECULATIVE DECODING
-# ═══════════════════════════════════════════════════════════════════════════════
-# Number of draft tokens for speculative decoding (Ollama/llama.cpp)
-# Requires a draft model to be configured at the server/model level.
-# Set to 0 to disable (default). Typical values: 3-16.
-# Note: Only effective in Ollama native API mode (/api/chat).
-NUM_DRAFT = int(os.environ.get("AGENTNOVA_NUM_DRAFT") or "0")
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
 # ERROR RETRY SETTINGS
 # ═══════════════════════════════════════════════════════════════════════════════
 # Whether to automatically retry failed tool calls (default: enabled)
@@ -152,9 +142,6 @@ class Config:
     allow_shell: bool = True
     allow_network: bool = True
     allowed_paths: list[str] = field(default_factory=lambda: ["./output", "./data", "/tmp"])
-
-    # Speculative decoding
-    num_draft: int = field(default_factory=lambda: NUM_DRAFT)
 
     # Error retry
     retry_on_error: bool = field(default_factory=lambda: RETRY_ON_ERROR)

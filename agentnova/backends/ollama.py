@@ -187,15 +187,9 @@ class OllamaBackend(BaseBackend):
             elif key not in ("model", "messages", "tools", "stream", "think"):
                 body["options"][key] = value
 
-        # Speculative decoding: log when num_draft > 0
-        num_draft = kwargs.get("num_draft", 0)
-        if num_draft and num_draft > 0:
-            if os.environ.get("AGENTNOVA_DEBUG"):
-                print(f"  [Ollama] Speculative decoding: num_draft={num_draft} (requires draft model at server level)")
-
         # Debug output for request
         if os.environ.get("AGENTNOVA_DEBUG"):
-            print(f"  [Ollama] Request: tools={len(tools) if tools else 0}, think={think}, draft={num_draft}")
+            print(f"  [Ollama] Request: tools={len(tools) if tools else 0}, think={think}")
             # Show messages being sent (truncated for readability)
             for i, msg in enumerate(body.get("messages", [])):
                 role = msg.get("role", "?")
@@ -385,16 +379,9 @@ class OllamaBackend(BaseBackend):
         if think is not None:
             body["think"] = think
 
-        # Speculative decoding: pass num_draft if provided
-        # Note: Only effective in native /api/chat mode; OpenAI-compat path may ignore it
-        sd_draft = kwargs.get("num_draft", 0)
-        if sd_draft and sd_draft > 0:
-            if os.environ.get("AGENTNOVA_DEBUG"):
-                print(f"  [OpenAI-Comp] Speculative decoding: num_draft={sd_draft} (may be ignored in OpenAI-compat mode)")
-
         # Debug output for request
         if os.environ.get("AGENTNOVA_DEBUG"):
-            print(f"  [OpenAI-Comp] Request: tools={len(tools) if tools else 0}, think={think}, draft={sd_draft}")
+            print(f"  [OpenAI-Comp] Request: tools={len(tools) if tools else 0}, think={think})
 
         # Make request
         start_time = time.time()
