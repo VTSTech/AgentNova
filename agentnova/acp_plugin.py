@@ -4,7 +4,7 @@
 This plugin connects AgentNova agents to an ACP (Agent Control Panel) server,
 enabling real-time monitoring, token tracking, and STOP/Resume control.
 
-ACP Specification: v1.0.5 (A2A Compliance)
+ACP Specification: v1.0.6 (A2A Compliance)
 Compliance: Full (mandatory requirements, hints, orphan handling, nudge support, batch ops, shutdown, A2A, JSON-RPC 2.0, primary agent nudge delivery)
 
 Features:
@@ -25,6 +25,11 @@ Features:
 - contextId tracking for session continuity (1.0.4)
 - primary_agent in /api/whoami response (1.0.5)
 - Nudges delivered only to primary agent (1.0.5)
+- CSRF protection optional, disabled by default (1.0.6)
+- CORS preflight support (1.0.6)
+- GET /api/nudge polling support (1.0.6)
+- POST /api/todos/toggle (1.0.6)
+- Bootstrap activity auto-completed (no orphans)
 
 Usage:
     from agentnova import Agent
@@ -246,6 +251,9 @@ class ACPPlugin:
         self._capabilities_override = capabilities  # Store for later, derive from tools if not provided
         self.endpoint = endpoint  # v1.0.4: A2A endpoint
 
+        # 1.0.6: CSRF disabled by default per spec §4.2
+        self._csrf_enabled: bool | None = None  # Unknown until first request
+
         self._csrf_token: str | None = None
         self._csrf_expiry: float = 0
         self._current_activity_id: str | None = None
@@ -339,7 +347,8 @@ class ACPPlugin:
             "Authorization": f"Basic {self.auth}",
             "Content-Type": "application/json",
         }
-        if method == "POST" and self._csrf_token:
+        # 1.0.6: Only send CSRF token if enabled (disabled by default per spec §4.2)
+        if method == "POST" and self._csrf_token and self._csrf_enabled:
             headers["X-CSRF-Token"] = self._csrf_token
 
         url = f"{self.base_url}{endpoint}"
@@ -377,6 +386,9 @@ class ACPPlugin:
         now = time.time()
         if self._csrf_token is None or (now - self._csrf_expiry) > 3000:
             resp = self._request("/api/csrf-token")
+            # 1.0.6: CSRF is optional and disabled by default per spec §4.2
+            # Track the enabled state so we can skip header when not needed
+            self._csrf_enabled = resp.get("csrf_enabled", False)
             token = resp.get("csrf_token")
             # If CSRF is disabled, use empty string sentinel so we don't re-fetch
             self._csrf_token = token if token else ""
@@ -889,11 +901,35 @@ class ACPPlugin:
             "metadata": metadata,
         })
 
+    def check_nudge(self) -> dict:
+        """
+        Check if a nudge is pending without logging a new activity.
+
+        1.0.6: GET /api/nudge returns {nudge, has_pending} for polling.
+        Useful for checking nudge status between steps without
+        triggering a full /api/action call.
+
+        Returns
+        -------
+        dict
+            Response with 'nudge' and 'has_pending' fields
+
+        Example
+        -------
+        >>> result = acp.check_nudge()
+        >>> if result.get("has_pending"):
+        ...     print(f"Pending nudge: {result['nudge'].get('message')}")
+        >>>     acp.ack_nudge()
+        """
+        return self._request("/api/nudge")
+
     def ack_nudge(self) -> dict:
         """
         Acknowledge a pending nudge.
 
         Call this after processing a nudge that had requires_ack=true.
+
+        1.0.6: Also clears the nudge by setting it to None server-side.
         """
         resp = self._request("/api/nudge/ack", "POST", {})
         self._pending_nudge = None
@@ -1635,6 +1671,67 @@ class ACPPlugin:
         """
         resp = self._request("/api/todos")
         return resp.get("todos", [])
+
+    def add_todo(self, content: str, priority: str = "medium", status: str = "pending") -> dict:
+        """
+        Add a single TODO item (1.0.6).
+
+        Unlike sync_todos() which replaces the entire list, this adds one item.
+
+        Parameters
+        ----------
+        content : str
+            Task description
+        priority : str
+            "high", "medium" (default), or "low"
+        status : str
+            "pending" (default), "in_progress", or "completed"
+
+        Returns
+        -------
+        dict
+            API response
+
+        Example
+        -------
+        >>> acp.add_todo("Fix the login bug", priority="high")
+        >>> acp.add_todo("Run tests", priority="low", status="in_progress")
+        """
+        metadata = self._build_metadata()
+        return self._request("/api/todos/add", "POST", {
+            "todo": {"content": content, "priority": priority, "status": status},
+            "agent_name": self.agent_name,
+        })
+
+    def toggle_todo(self, todo_id: str) -> dict:
+        """
+        Toggle a TODO item's status between pending and completed (1.0.6).
+
+        Uses POST /api/todos/toggle which flips a TODO between
+        pending ↔ completed in a single call.
+
+        Parameters
+        ----------
+        todo_id : str
+            The TODO item ID to toggle
+
+        Returns
+        -------
+        dict
+            Response with 'todo' and 'toggled' fields
+        """
+        return self._request("/api/todos/toggle", "POST", {
+            "id": todo_id,
+        })
+
+    def clear_completed_todos(self) -> dict:
+        """
+        Clear completed TODOs (1.0.6).
+
+        Removes all TODOs with status="completed" from the list.
+        """
+        return self._request("/api/todos/clear", "POST", {})
+
 
     def bootstrap(self, claim_primary: bool = True) -> dict:
         """
