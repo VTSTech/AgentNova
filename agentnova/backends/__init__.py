@@ -8,7 +8,8 @@ Written by VTSTech — https://www.vts-tech.org
 from .base import BaseBackend
 from .ollama import OllamaBackend
 from .bitnet import BitNetBackend
-from ..config import AGENTNOVA_BACKEND, OLLAMA_BASE_URL, BITNET_BASE_URL
+from .llama_server import LlamaServerBackend
+from ..config import AGENTNOVA_BACKEND, OLLAMA_BASE_URL, BITNET_BASE_URL, LLAMA_SERVER_BASE_URL
 from ..core.types import ApiMode
 
 
@@ -16,6 +17,8 @@ from ..core.types import ApiMode
 _BACKENDS: dict[str, type[BaseBackend]] = {
     "ollama": OllamaBackend,
     "bitnet": BitNetBackend,
+    "llama-server": LlamaServerBackend,
+    "llama_server": LlamaServerBackend,  # alias
 }
 
 
@@ -47,6 +50,8 @@ def get_backend(name: str, timeout: int | None = None, api_mode: ApiMode | str |
             kwargs["base_url"] = OLLAMA_BASE_URL
         elif name_lower == "bitnet":
             kwargs["base_url"] = BITNET_BASE_URL
+        elif name_lower in ("llama-server", "llama_server"):
+            kwargs["base_url"] = LLAMA_SERVER_BASE_URL
 
     # Create BackendConfig with timeout if specified
     if "config" not in kwargs and timeout is not None:
@@ -92,6 +97,7 @@ __all__ = [
     "BaseBackend",
     "OllamaBackend",
     "BitNetBackend",
+    "LlamaServerBackend",
     "get_backend",
     "get_default_backend",
     "register_backend",
