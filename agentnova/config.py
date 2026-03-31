@@ -47,6 +47,18 @@ if _remote_bitnet:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# LLAMA-SERVER CONFIGURATION (llama.cpp, llama-cpp-turboquant, etc.)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Default for local llama-server
+LLAMA_SERVER_BASE_URL = "http://localhost:8080"
+
+# Override via environment variable
+_llama_server_env = os.environ.get("LLAMA_SERVER_BASE_URL")
+if _llama_server_env:
+    LLAMA_SERVER_BASE_URL = _llama_server_env
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # ACP CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════════
 # Default for local ACP
@@ -70,7 +82,7 @@ ACP_PASS = os.environ.get("ACP_PASS", "secret")
 AGENTNOVA_BACKEND = os.environ.get("AGENTNOVA_BACKEND", "ollama").lower()
 
 # Validate backend value
-if AGENTNOVA_BACKEND not in ("ollama", "bitnet"):
+if AGENTNOVA_BACKEND not in ("ollama", "bitnet", "llama-server", "llama_server"):
     print(f"Warning: Invalid AGENTNOVA_BACKEND '{AGENTNOVA_BACKEND}', defaulting to 'ollama'")
     AGENTNOVA_BACKEND = "ollama"
 
@@ -83,6 +95,8 @@ if AGENTNOVA_BACKEND not in ("ollama", "bitnet"):
 # Ollama default: qwen2.5-coder:0.5b-instruct-q4_k_m
 if AGENTNOVA_BACKEND == "bitnet":
     DEFAULT_MODEL = os.environ.get("AGENTNOVA_MODEL", "bitnet-b1.58-2b-4t")
+elif AGENTNOVA_BACKEND in ("llama-server", "llama_server"):
+    DEFAULT_MODEL = os.environ.get("AGENTNOVA_MODEL", "default")
 else:
     DEFAULT_MODEL = os.environ.get("AGENTNOVA_MODEL", "qwen2.5:0.5b")
 
