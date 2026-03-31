@@ -170,7 +170,7 @@ def create_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("prompt", help="The prompt to process")
     run_parser.add_argument("-m", "--model", default=None, help="Model to use")
     run_parser.add_argument("--tools", default="calculator", help="Comma-separated tool list")
-    run_parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None, help="Backend to use")
+    run_parser.add_argument("--backend", choices=["ollama", "bitnet", "llama-server"], default=None, help="Backend to use")
     run_parser.add_argument("--api", choices=["openre", "openai"], default="openre", dest="api_mode",
                            help="API mode: 'openre' (OpenResponses) or 'openai' (Chat-Completions)")
     run_parser.add_argument("--stream", action="store_true", help="Stream output")
@@ -207,7 +207,7 @@ def create_parser() -> argparse.ArgumentParser:
     chat_parser = subparsers.add_parser("chat", help="Interactive chat mode")
     chat_parser.add_argument("-m", "--model", default=None, help="Model to use")
     chat_parser.add_argument("--tools", default="", help="Comma-separated tool list")
-    chat_parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None, help="Backend to use")
+    chat_parser.add_argument("--backend", choices=["ollama", "bitnet", "llama-server"], default=None, help="Backend to use")
     chat_parser.add_argument("--api", choices=["openre", "openai"], default="openre", dest="api_mode",
                            help="API mode: 'openre' (OpenResponses) or 'openai' (Chat-Completions)")
     chat_parser.add_argument("--debug", action="store_true", help="Enable debug output")
@@ -242,7 +242,7 @@ def create_parser() -> argparse.ArgumentParser:
     agent_parser = subparsers.add_parser("agent", help="Autonomous agent mode")
     agent_parser.add_argument("-m", "--model", default=None, help="Model to use")
     agent_parser.add_argument("--tools", default="calculator,shell,write_file", help="Comma-separated tool list")
-    agent_parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None, help="Backend to use")
+    agent_parser.add_argument("--backend", choices=["ollama", "bitnet", "llama-server"], default=None, help="Backend to use")
     agent_parser.add_argument("--api", choices=["openre", "openai"], default="openre", dest="api_mode",
                            help="API mode: 'openre' (OpenResponses) or 'openai' (Chat-Completions)")
     agent_parser.add_argument("--debug", action="store_true", help="Enable debug output")
@@ -275,7 +275,7 @@ def create_parser() -> argparse.ArgumentParser:
 
     # Models command
     models_parser = subparsers.add_parser("models", help="List available models")
-    models_parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None, help="Backend to use")
+    models_parser.add_argument("--backend", choices=["ollama", "bitnet", "llama-server"], default=None, help="Backend to use")
     models_parser.add_argument("--api", choices=["openre", "openai"], default=None, dest="api_mode",
                            help="API mode for tool support testing (default: test both)")
     models_parser.add_argument("--tool-support", action="store_true", help="Force re-test tool calling support (both API modes)")
@@ -292,7 +292,7 @@ def create_parser() -> argparse.ArgumentParser:
                              help="Test to run: 00, 01, 02, ... 11, or 'all' (default: all)")
     test_parser.add_argument("-m", "--model", default=None, 
                              help="Model to test (supports patterns: 'qwen', 'g', ':0.5b')")
-    test_parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None, help="Backend to use")
+    test_parser.add_argument("--backend", choices=["ollama", "bitnet", "llama-server"], default=None, help="Backend to use")
     test_parser.add_argument("--api", choices=["openre", "openai"], default="openre", dest="api_mode",
                            help="API mode: 'openre' (OpenResponses) or 'openai' (Chat-Completions)")
     test_parser.add_argument("--debug", action="store_true", help="Enable debug output")
@@ -332,7 +332,7 @@ def create_parser() -> argparse.ArgumentParser:
     # Modelfile command
     modelfile_parser = subparsers.add_parser("modelfile", help="Show model's Modelfile info")
     modelfile_parser.add_argument("-m", "--model", default=None, help="Model to inspect")
-    modelfile_parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None, help="Backend to use")
+    modelfile_parser.add_argument("--backend", choices=["ollama", "bitnet", "llama-server"], default=None, help="Backend to use")
 
     # Skills command
     subparsers.add_parser("skills", help="List available skills")
