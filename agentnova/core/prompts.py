@@ -87,6 +87,64 @@ TOOL_ARG_ALIASES = {
         "source_currency": "from_currency", "target_currency": "to_currency",
         "money": "amount", "value": "amount", "price": "amount",
     },
+    "grep": {
+        # Common hallucinations for pattern
+        "pattern": "pattern",  # correct
+        "query": "pattern", "search": "pattern", "q": "pattern",
+        "term": "pattern", "text": "pattern", "str": "pattern",
+        "string": "pattern", "regex": "pattern", "regexp": "pattern",
+        "find": "pattern", "match": "pattern", "look_for": "pattern",
+        "arg": "pattern", "input": "pattern", "value": "pattern",
+        # Common hallucinations for path
+        "path": "path",  # correct
+        "dir": "path", "directory": "path", "folder": "path",
+        "in": "path", "location": "path", "file": "path",
+        # Common hallucinations for include
+        "include": "include",  # correct
+        "filter": "include", "glob": "include", "extension": "include",
+        "file_type": "include", "filetype": "include", "type": "include",
+        # Common hallucinations for case_insensitive
+        "case_insensitive": "case_insensitive",  # correct
+        "ignore_case": "case_insensitive", "nocase": "case_insensitive",
+        "i": "case_insensitive", "case": "case_insensitive",
+    },
+    "edit_file": {
+        # Common hallucinations for file_path
+        "file_path": "file_path",  # correct
+        "path": "file_path", "filepath": "file_path", "file": "file_path",
+        "filename": "file_path", "source": "file_path",
+        # Common hallucinations for old_string
+        "old_string": "old_string",  # correct
+        "old": "old_string", "find": "old_string", "search": "old_string",
+        "replace": "old_string", "target": "old_string", "original": "old_string",
+        "before": "old_string", "from": "old_string", "match": "old_string",
+        "old_text": "old_string", "old_content": "old_string",
+        # Common hallucinations for new_string
+        "new_string": "new_string",  # correct
+        "new": "new_string", "replacement": "new_string", "with": "new_string",
+        "to": "new_string", "after": "new_string", "replacement_text": "new_string",
+        "new_text": "new_string", "new_content": "new_string",
+        # Common hallucinations for replace_all
+        "replace_all": "replace_all",  # correct
+        "all": "replace_all", "global": "replace_all", "everywhere": "replace_all",
+    },
+    "todo": {
+        # Common hallucinations for action
+        "action": "action",  # correct
+        "act": "action", "cmd": "action", "op": "action",
+        "command": "action", "do": "action", "type": "action",
+        # Common hallucinations for content
+        "content": "content",  # correct
+        "text": "content", "task": "content", "description": "content",
+        "desc": "content", "item": "content", "todo": "content",
+        "message": "content", "value": "content", "input": "content",
+        # Common hallucinations for task_id
+        "task_id": "task_id",  # correct
+        "id": "task_id", "todo_id": "task_id",
+        # Common hallucinations for priority
+        "priority": "priority",  # correct
+        "pri": "priority", "level": "priority", "importance": "priority",
+    },
 }
 
 # Aliases that are too generic and should only be applied when the args dict
@@ -100,6 +158,9 @@ CONTEXTUAL_ALIASES = {
     "web-search": {"text", "input"},
     "python_repl": {"input", "expression", "expr"},
     "convert_currency": {"value"},
+    "grep": {"arg", "input", "value", "text", "string", "str"},
+    "edit_file": {"old", "new", "file", "source", "target"},
+    "todo": {"text", "task", "item", "value", "input", "desc"},
 }
 
 # ------------------------------------------------------------------ #
