@@ -87,27 +87,6 @@ TOOL_ARG_ALIASES = {
         "source_currency": "from_currency", "target_currency": "to_currency",
         "money": "amount", "value": "amount", "price": "amount",
     },
-    "grep": {
-        # Common hallucinations for pattern
-        "pattern": "pattern",  # correct
-        "query": "pattern", "search": "pattern", "q": "pattern",
-        "term": "pattern", "text": "pattern", "str": "pattern",
-        "string": "pattern", "regex": "pattern", "regexp": "pattern",
-        "find": "pattern", "match": "pattern", "look_for": "pattern",
-        "arg": "pattern", "input": "pattern", "value": "pattern",
-        # Common hallucinations for path
-        "path": "path",  # correct
-        "dir": "path", "directory": "path", "folder": "path",
-        "in": "path", "location": "path", "file": "path",
-        # Common hallucinations for include
-        "include": "include",  # correct
-        "filter": "include", "glob": "include", "extension": "include",
-        "file_type": "include", "filetype": "include", "type": "include",
-        # Common hallucinations for case_insensitive
-        "case_insensitive": "case_insensitive",  # correct
-        "ignore_case": "case_insensitive", "nocase": "case_insensitive",
-        "i": "case_insensitive", "case": "case_insensitive",
-    },
     "edit_file": {
         # Common hallucinations for file_path
         "file_path": "file_path",  # correct
@@ -158,7 +137,6 @@ CONTEXTUAL_ALIASES = {
     "web-search": {"text", "input"},
     "python_repl": {"input", "expression", "expr"},
     "convert_currency": {"value"},
-    "grep": {"arg", "input", "value", "text", "string", "str"},
     "edit_file": {"old", "new", "file", "source", "target"},
     "todo": {"text", "task", "item", "value", "input", "desc"},
 }
