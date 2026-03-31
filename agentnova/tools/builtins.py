@@ -632,6 +632,408 @@ def count_chars(text: str) -> str:
 
 
 # ============================================================================
+# Grep Tool (content search across files)
+# ============================================================================
+
+# Maximum number of matching files to return
+MAX_GREP_FILES = 20
+# Maximum number of matching lines per file
+MAX_GREP_LINES = 50
+# Maximum bytes read from any single file during grep
+MAX_GREP_FILE_BYTES = 512 * 1024
+
+
+def grep(
+    pattern: str,
+    path: str = ".",
+    include: str | None = None,
+    exclude: str | None = None,
+    case_insensitive: bool = False,
+    max_files: int | None = None,
+    max_lines: int | None = None,
+) -> str:
+    """
+    Search for a regex pattern across files in a directory tree.
+
+    Searches file contents using Python regex. Returns matching lines with
+    file paths and line numbers. Respects .gitignore-style exclusions
+    for common non-text directories.
+
+    Args:
+        pattern: Regular expression pattern to search for
+        path: Root directory to search (default: current directory)
+        include: Comma-separated glob patterns to include (e.g., "*.py,*.ts")
+        exclude: Comma-separated glob patterns to exclude (e.g., "*.min.js,*.lock")
+        case_insensitive: If True, search ignores case
+        max_files: Maximum files to search (default: 20)
+        max_lines: Maximum matching lines per file (default: 50)
+
+    Returns:
+        Matching lines grouped by file, or an error/summary message
+    """
+    import re
+    import fnmatch
+
+    # Defaults
+    if max_files is None:
+        max_files = MAX_GREP_FILES
+    if max_lines is None:
+        max_lines = MAX_GREP_LINES
+
+    # Validate path
+    is_valid, error = validate_path(path)
+    if not is_valid:
+        return f"Security error: {error}"
+
+    # Validate regex
+    try:
+        flags = re.IGNORECASE if case_insensitive else 0
+        compiled = re.compile(pattern, flags)
+    except re.error as e:
+        return f"Invalid regex pattern: {e}"
+
+    # Parse include/exclude globs
+    include_globs = [g.strip() for g in include.split(",")] if include else None
+    exclude_globs = [g.strip() for g in exclude.split(",")] if exclude else None
+
+    # Directories to always skip
+    SKIP_DIRS = {
+        ".git", "__pycache__", "node_modules", ".venv", "venv",
+        ".env", ".tox", ".mypy_cache", ".pytest_cache", ".ruff_cache",
+        "dist", "build", ".eggs", "*.egg-info",
+    }
+
+    # Collect matches
+    results = []
+    files_searched = 0
+
+    try:
+        for root, dirs, files in os.walk(path):
+            # Skip non-text directories
+            dirs[:] = sorted(
+                d for d in dirs
+                if d not in SKIP_DIRS and not d.startswith(".")
+            )
+
+            for fname in files:
+                if files_searched >= max_files:
+                    break
+
+                full_path = os.path.join(root, fname)
+
+                # Skip non-regular files
+                if not os.path.isfile(full_path):
+                    continue
+
+                # Skip binary-looking extensions
+                skip_exts = {
+                    ".pyc", ".pyo", ".so", ".dll", ".dylib",
+                    ".a", ".o", ".exe", ".bin", ".dat",
+                    ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico",
+                    ".webp", ".svg", ".woff", ".woff2", ".ttf", ".eot",
+                    ".zip", ".tar", ".gz", ".bz2", ".xz", ".7z",
+                    ".mp3", ".mp4", ".avi", ".mov", ".pdf", ".doc",
+                    ".sqlite", ".sqlite3", ".db",
+                }
+                _, ext = os.path.splitext(fname)
+                if ext.lower() in skip_exts:
+                    continue
+
+                # Apply include/exclude filters
+                if include_globs and not any(fnmatch.fnmatch(fname, g) for g in include_globs):
+                    continue
+                if exclude_globs and any(fnmatch.fnmatch(fname, g) for g in exclude_globs):
+                    continue
+
+                files_searched += 1
+
+                # Read file (with size limit)
+                try:
+                    with open(full_path, "r", encoding="utf-8", errors="replace") as f:
+                        content = f.read(MAX_GREP_FILE_BYTES)
+                except (PermissionError, OSError):
+                    continue
+
+                # Search line by line
+                file_matches = []
+                for line_num, line in enumerate(content.splitlines(), 1):
+                    if compiled.search(line):
+                        file_matches.append((line_num, line.rstrip()))
+                        if len(file_matches) >= max_lines:
+                            break
+
+                if file_matches:
+                    results.append((full_path, file_matches))
+
+            if files_searched >= max_files:
+                break
+
+    except PermissionError:
+        return f"Permission denied: {path}"
+    except Exception as e:
+        return f"Error searching files: {e}"
+
+    if not results:
+        return f"No matches found for pattern '{pattern}' in {files_searched} files"
+
+    # Format output
+    parts = [f"Found {sum(len(m) for _, m in results)} matches in {len(results)} files:"]
+    for file_path, matches in results:
+        rel = os.path.relpath(file_path, path) if path != "." else file_path
+        parts.append(f"")
+        parts.append(f"{rel} ({len(matches)} matches)")
+        for line_num, line in matches:
+            parts.append(f"  {line_num}: {line}")
+
+    if files_searched >= max_files:
+        parts.append("")
+        parts.append(f"[Search limited to {max_files} files — more may exist]")
+
+    return "\n".join(parts)
+
+
+# ============================================================================
+# Edit File Tool (search-and-replace within files)
+# ============================================================================
+
+def edit_file(
+    file_path: str,
+    old_string: str,
+    new_string: str,
+    replace_all: bool = False,
+) -> str:
+    """
+    Edit a file by replacing a specific text segment with new content.
+
+    Unlike write_file which overwrites the entire file, this tool performs
+    a targeted search-and-replace. The old_string must be an exact match
+    within the file. This is safer for making small, precise edits.
+
+    Args:
+        file_path: Path to the file to edit
+        old_string: The exact text to find and replace
+        new_string: The text to replace it with
+        replace_all: If True, replace all occurrences (default: False, first only)
+
+    Returns:
+        Success message with change summary, or error message
+    """
+    is_valid, error = validate_path(file_path)
+    if not is_valid:
+        return f"Security error: {error}"
+
+    if not old_string:
+        return "Error: old_string cannot be empty. Provide the exact text to find."
+
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        if old_string not in content:
+            return (
+                f"Error: old_string not found in {file_path}. "
+                f"The text must match EXACTLY (including whitespace and indentation). "
+                f"Use read_file first to see the current content."
+            )
+
+        # Count occurrences
+        count = content.count(old_string)
+
+        if replace_all:
+            new_content = content.replace(old_string, new_string)
+            replaced = count
+        else:
+            new_content = content.replace(old_string, new_string, 1)
+            replaced = 1
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(new_content)
+
+        lines_added = new_string.count("\n") - old_string.count("\n")
+        chars_diff = len(new_string) - len(old_string)
+        direction = "+" if chars_diff >= 0 else ""
+
+        return (
+            f"Successfully edited {file_path}: "
+            f"replaced {replaced} of {count} occurrence(s), "
+            f"{direction}{chars_diff} chars ({lines_added:+d} lines)"
+        )
+
+    except FileNotFoundError:
+        return f"File not found: {file_path}"
+    except PermissionError:
+        return f"Permission denied: {file_path}"
+    except Exception as e:
+        return f"Error editing file: {e}"
+
+
+# ============================================================================
+# Todo Tool (in-memory task tracking)
+# ============================================================================
+
+# In-memory todo store — persists within a single agent session.
+# Each agent instance gets its own store via the closure in make_builtin_registry.
+_todo_store: list[dict] = []
+
+
+def todo_add(content: str, priority: str = "medium") -> str:
+    """
+    Add a task to the todo list.
+
+    Args:
+        content: Description of the task
+        priority: Priority level — 'high', 'medium', or 'low' (default: 'medium')
+
+    Returns:
+        Confirmation message with the task's position in the list
+    """
+    if not content or not content.strip():
+        return "Error: content cannot be empty"
+
+    priority = priority.lower().strip()
+    if priority not in ("high", "medium", "low"):
+        priority = "medium"
+
+    import uuid
+    task_id = uuid.uuid4().hex[:8]
+
+    _todo_store.append({
+        "id": task_id,
+        "content": content.strip(),
+        "status": "pending",
+        "priority": priority,
+    })
+
+    return f"Added todo [{task_id}] (priority: {priority}): {content.strip()}"
+
+
+def todo_list(status: str | None = None) -> str:
+    """
+    List all todos, optionally filtered by status.
+
+    Args:
+        status: Filter by status — 'pending', 'completed', or None for all (default: None)
+
+    Returns:
+        Formatted todo list
+    """
+    if status:
+        status = status.lower().strip()
+        items = [t for t in _todo_store if t["status"] == status]
+    else:
+        items = list(_todo_store)
+
+    if not items:
+        filter_msg = f" with status '{status}'" if status else ""
+        return f"No todos{filter_msg}"
+
+    lines = []
+    for i, t in enumerate(items, 1):
+        icon = "[ ]" if t["status"] == "pending" else "[x]"
+        pri = f" ({t['priority']})" if t.get("priority") != "medium" else ""
+        lines.append(f"{i}. {icon} [{t['id']}]{pri} {t['content']}")
+
+    pending = sum(1 for t in _todo_store if t["status"] == "pending")
+    completed = sum(1 for t in _todo_store if t["status"] == "completed")
+    lines.append(f"")
+    lines.append(f"Total: {len(_todo_store)} ({pending} pending, {completed} completed)")
+
+    return "\n".join(lines)
+
+
+def todo_complete(task_id: str) -> str:
+    """
+    Mark a todo as completed by its ID.
+
+    Args:
+        task_id: The 8-character task ID (from todo_list output)
+
+    Returns:
+        Confirmation or error message
+    """
+    for t in _todo_store:
+        if t["id"] == task_id:
+            if t["status"] == "completed":
+                return f"Todo [{task_id}] is already completed: {t['content']}"
+            t["status"] = "completed"
+            return f"Completed todo [{task_id}]: {t['content']}"
+
+    return f"Error: todo '{task_id}' not found. Use todo_list to see current tasks."
+
+
+def todo_remove(task_id: str) -> str:
+    """
+    Remove a todo by its ID.
+
+    Args:
+        task_id: The 8-character task ID (from todo_list output)
+
+    Returns:
+        Confirmation or error message
+    """
+    for i, t in enumerate(_todo_store):
+        if t["id"] == task_id:
+            removed = _todo_store.pop(i)
+            return f"Removed todo [{task_id}]: {removed['content']}"
+
+    return f"Error: todo '{task_id}' not found. Use todo_list to see current tasks."
+
+
+def todo_clear() -> str:
+    """
+    Remove all completed todos from the list.
+
+    Returns:
+        Summary of how many were cleared
+    """
+    before = len(_todo_store)
+    _todo_store[:] = [t for t in _todo_store if t["status"] != "completed"]
+    cleared = before - len(_todo_store)
+
+    if cleared == 0:
+        return "No completed todos to clear"
+
+    remaining = len(_todo_store)
+    return f"Cleared {cleared} completed todo(s). {remaining} remaining."
+
+
+# ============================================================================
+# Todo Dispatch (unified handler for the todo tool)
+# ============================================================================
+
+def _todo_dispatch(
+    action: str = "list",
+    content: str | None = None,
+    task_id: str | None = None,
+    priority: str = "medium",
+) -> str:
+    """Route todo actions to the appropriate handler."""
+    action = (action or "list").lower().strip()
+
+    if action == "add":
+        if not content:
+            return "Error: 'content' is required for the 'add' action"
+        return todo_add(content, priority)
+    elif action == "list":
+        return todo_list(status=None)
+    elif action == "complete":
+        if not task_id:
+            return "Error: 'task_id' is required for the 'complete' action. Use todo list to see task IDs."
+        return todo_complete(task_id)
+    elif action == "remove":
+        if not task_id:
+            return "Error: 'task_id' is required for the 'remove' action. Use todo list to see task IDs."
+        return todo_remove(task_id)
+    elif action == "clear":
+        return todo_clear()
+    else:
+        return (
+            f"Error: unknown todo action '{action}'. "
+            f"Valid actions: 'add', 'list', 'complete', 'remove', 'clear'"
+        )
+
+
+# ============================================================================
 # Build Registry
 # ============================================================================
 
@@ -702,6 +1104,66 @@ def make_builtin_registry() -> ToolRegistry:
         params=[ToolParam(name="path", type="string", description="Directory path to list", required=False, default=".")],
         handler=list_directory,
         category="file",
+    ))
+
+    # Grep — content search across files
+    registry.register_tool(Tool(
+        name="grep",
+        description=(
+            "Search for a regex pattern across files in a directory. "
+            "Returns matching lines with file paths and line numbers. "
+            "Skips binary files, .git, __pycache__, node_modules, etc. "
+            "Use include='*.py' to filter by file type."
+        ),
+        params=[
+            ToolParam(name="pattern", type="string", description="Regular expression pattern to search for"),
+            ToolParam(name="path", type="string", description="Root directory to search (default: current)", required=False, default="."),
+            ToolParam(name="include", type="string", description="Comma-separated glob patterns to include, e.g. '*.py,*.ts'", required=False),
+            ToolParam(name="exclude", type="string", description="Comma-separated glob patterns to exclude, e.g. '*.min.js'", required=False),
+            ToolParam(name="case_insensitive", type="boolean", description="Ignore case when matching", required=False, default=False),
+        ],
+        handler=grep,
+        category="file",
+    ))
+
+    # Edit file — search-and-replace within files
+    registry.register_tool(Tool(
+        name="edit_file",
+        description=(
+            "Edit a file by finding and replacing a specific text segment. "
+            "Unlike write_file (which overwrites the whole file), this performs "
+            "a targeted replacement. The old_string must match EXACTLY. "
+            "Use read_file first to see the current content, then use this to "
+            "make precise changes. Safer and more token-efficient for small edits."
+        ),
+        params=[
+            ToolParam(name="file_path", type="string", description="Path to the file to edit"),
+            ToolParam(name="old_string", type="string", description="The exact text to find and replace (must match exactly, including whitespace)"),
+            ToolParam(name="new_string", type="string", description="The replacement text"),
+            ToolParam(name="replace_all", type="boolean", description="Replace all occurrences (default: false, first only)", required=False, default=False),
+        ],
+        handler=edit_file,
+        dangerous=True,
+        category="file",
+    ))
+
+    # Todo — in-memory task tracking
+    registry.register_tool(Tool(
+        name="todo",
+        description=(
+            "Manage a task/todo list to track multi-step work. "
+            "Actions: 'add' (create task), 'list' (show tasks), 'complete' (mark done), "
+            "'remove' (delete task), 'clear' (remove completed). "
+            "Use this to plan and track progress on complex tasks."
+        ),
+        params=[
+            ToolParam(name="action", type="string", description="Action to perform: 'add', 'list', 'complete', 'remove', 'clear'"),
+            ToolParam(name="content", type="string", description="Task description (for 'add' action)", required=False),
+            ToolParam(name="task_id", type="string", description="Task ID from todo list output (for 'complete' and 'remove')", required=False),
+            ToolParam(name="priority", type="string", description="Priority: 'high', 'medium', or 'low' (default: 'medium', for 'add')", required=False, default="medium"),
+        ],
+        handler=_todo_dispatch,
+        category="utility",
     ))
 
     # HTTP
