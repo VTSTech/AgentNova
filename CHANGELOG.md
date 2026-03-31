@@ -4,6 +4,115 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [R04.2] - 03-31-2026 2:15:14 PM
+
+### Built-in Tools, Codebase Audit Skill, ACP Integration & llama-server Backend
+
+Two new built-in tools (edit_file, todo), a codebase-audit skill with brief template, ACP todo integration, soul spec AGENTS.md files, tool-argument aliases for small model support, and a new llama-server backend compatible with TurboQuant+ KV cache compression. Version bumped to 0.4.2-dev.
+
+### Added
+
+#### Edit File Tool (`tools/builtins.py`)
+- **`edit_file()` function** — search-and-replace within files without overwriting the entire file. Safer than `write_file` for making small, precise edits
+- Parameters: `file_path` (required), `old_string` (required, exact match), `new_string` (required), `replace_all` (optional, default False)
+- Security: validates path via `validate_path()` before any file access
+- Counts occurrences and reports change summary (chars and lines delta)
+- Error handling: not found, empty old_string, permission errors, file not found
+- **Registered as `edit_file`** in `BUILTIN_REGISTRY` under the `files` category
+
+#### Todo Tool (`tools/builtins.py`)
+- **`todo` tool** — in-memory task tracking with CRUD operations, dispatched through a single tool entry point
+- **`todo_add(content, priority)`** — add a task with `high`/`medium`/`low` priority; auto-generates 8-char hex ID
+- **`todo_list(status)`** — list all tasks, optionally filtered by `pending`/`completed`
+- **`todo_complete(task_id)`** — mark a task as completed by ID
+- **`todo_remove(task_id)`** — remove a task by ID
+- **`todo_clear()`** — clear all completed tasks from the list
+- Each agent instance gets its own store via closure in `make_builtin_registry`
+- **Registered as `todo`** in `BUILTIN_REGISTRY` under the `utility` category
+
+#### Codebase Audit Skill (`skills/codebase-audit/`)
+- **`codebase-audit` skill** — structured codebase analysis skill for producing intelligence briefs
+- **SKILL.md** (172 lines) — defines the audit methodology: exploration order, analysis phases, output format
+- **`references/brief-template.md`** (154 lines) — canonical brief template with all required sections
+- **`brief.md`** (500 lines) — generated example brief demonstrating the output format
+- Skill guides the agent through: project identity → architecture map → critical files → execution lifecycle → dependency graph → patterns → landmines → decisions → gaps
+- Declares `allowed-tools`: read_file, list_directory, grep, parse_json
+
+#### AGENTS.md Soul Spec Files (`souls/`)
+- **`nova-helper/AGENTS.md`** (98 lines) — agent persona definition for the nova-helper soul, covering identity, capabilities, constraints, and behavioral directives
+- **`nova-skills/AGENTS.md`** (112 lines) — agent persona definition for the nova-skills soul, focused on skill-guided task execution with minimal scaffolding
+- Both follow the Soul Spec v0.5 `AGENTS.md` convention for progressive agent disclosure
+
+#### ACP Todo Integration (`acp_plugin.py`)
+- **`ACPPlugin.check_nudge()`** — returns agent nudge configuration for ACP dashboard
+- **`ACPPlugin.add_todo(content, priority, status)`** — creates a todo item in the ACP system, syncable across sessions
+- **`ACPPlugin.toggle_todo(todo_id)`** — toggles a todo item between completed and pending
+- **`ACPPlugin.clear_completed_todos()`** — bulk-removes all completed todos
+
+#### Soul Configuration Updates
+- **`nova-helper/soul.json`** — added `edit_file`, `todo`, and `grep` to `allowedTools`
+- **`nova-skills/soul.json`** — added `edit_file`, `todo`, and `grep` to `allowedTools`
+
+#### Tool Argument Aliases (`core/prompts.py`)
+- Added `TOOL_ARG_ALIASES` entries for `edit_file` (old_string, new_string, replace_all, file_path) and `todo` (content, priority, action, task_id, status)
+- Prevents small models from hallucinating wrong parameter names when calling new tools
+
+#### LlamaServerBackend (`backends/llama_server.py`)
+- **New `LlamaServerBackend` class** — subclasses `OllamaBackend`, inherits full OpenAI Chat Completions pipeline
+- **OpenAI mode** (`--api openai`): Uses `/v1/chat/completions` — full tool calling, SSE streaming — all inherited from `OllamaBackend` with zero code duplication
+- **OpenRE mode** (`--api openre`): Uses llama.cpp native `/completion` endpoint — ReAct-mode inference with tools embedded in prompt, with streaming support
+- **Model discovery** via `GET /v1/models` — adapted to AgentNova's model list format; returns stub when server is unreachable
+- **Tool support detection** via live test on `/v1/chat/completions` — always tests via OpenAI endpoint regardless of configured `api_mode`; results cached with `openai` namespace
+- **Health check** via `GET /health` — with fallback to root URL probe
+- **`llama-server` and `llama_server` registry aliases** — both resolve to `LlamaServerBackend`
+
+#### Configuration (`config.py`)
+- **`LLAMA_SERVER_BASE_URL`** — default `http://localhost:8080`, override via `LLAMA_SERVER_BASE_URL` env var
+- **`llama-server` and `llama_server`** added to valid `AGENTNOVA_BACKEND` values
+
+#### CLI (`cli.py`)
+- **`--backend` choices** updated on all 6 subcommands (`run`, `chat`, `agent`, `models`, `test`, `modelfile`) to include `llama-server`
+- **`examples/`** — all 12 example scripts updated with `llama-server` in `--backend` choices
+
+#### Backend Registry (`backends/__init__.py`)
+- **`LlamaServerBackend`** imported, registered under `llama-server` and `llama_server`, added to `__all__`
+- **`get_backend()`** — passes `LLAMA_SERVER_BASE_URL` as default when backend is `llama-server`
+
+### Changed
+
+#### Version Bump (`__init__.py`, `pyproject.toml`, `README.md`)
+- Version bumped from `0.4.1` to `0.4.2-dev`
+- README header updated to R04.2
+
+#### Prompt Cleanup (`core/prompts.py`)
+- Added tool-argument aliases for `edit_file` and `todo` tools; removed in a later cleanup commit (aliases moved to merge-resolution approach)
+
+### File Changes Summary
+
+| Action | File | Changes |
+|--------|------|:-------:|
+| Created | `agentnova/backends/llama_server.py` | +350 |
+| Created | `agentnova/skills/codebase-audit/SKILL.md` | +172 |
+| Created | `agentnova/skills/codebase-audit/references/brief-template.md` | +154 |
+| Created | `agentnova/souls/nova-helper/AGENTS.md` | +98 |
+| Created | `agentnova/souls/nova-skills/AGENTS.md` | +112 |
+| Created | `brief.md` | +500 |
+| Updated | `agentnova/tools/builtins.py` | +281 −203 |
+| Updated | `agentnova/acp_plugin.py` | +99 −2 |
+| Updated | `agentnova/core/prompts.py` | +39 −22 |
+| Updated | `agentnova/souls/nova-helper/soul.json` | +4 −1 |
+| Updated | `agentnova/souls/nova-skills/soul.json` | +5 −1 |
+| Updated | `agentnova/backends/__init__.py` | +9 −4 |
+| Updated | `agentnova/config.py` | +12 −2 |
+| Updated | `agentnova/cli.py` | +6 −6 |
+| Updated | `agentnova/__init__.py` | +1 −1 |
+| Updated | `agentnova/examples/*.py` (12 files) | +12 −12 |
+| Updated | `pyproject.toml` | +1 −1 |
+| Updated | `README.md` | +1 −1 |
+| **Total** | **23 files** | **+1856 −256** |
+
+---
+
 ## [R04.1] - 03-29-2026 11:57:30 PM
 
 ### ATLAS-Inspired Performance Features & Speculative Decoding Removal
