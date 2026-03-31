@@ -37,7 +37,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="AgentNova Implicit Reasoning Tests")
     parser.add_argument("-m", "--model", default=None, help="Model to test")
     parser.add_argument("--debug", action="store_true", help="Enable debug output")
-    parser.add_argument("--backend", choices=["ollama", "bitnet"], default=None)
+    parser.add_argument("--backend", choices=["ollama", "bitnet", "llama-server"], default=None)
     parser.add_argument("--api", choices=["openre", "openai"], default="openre", dest="api_mode",
                        help="API mode: 'openre' (OpenResponses) or 'openai' (Chat-Completions (OpenAI))")
     parser.add_argument("--soul", default=None, help="Path to Soul Spec package")
