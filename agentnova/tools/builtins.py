@@ -632,6 +632,138 @@ def count_chars(text: str) -> str:
 
 
 # ============================================================================
+# Read File Lines Tool (read specific line ranges)
+# ============================================================================
+
+def read_file_lines(file_path: str, start_line: int = 1, end_line: int | None = None) -> str:
+    """
+    Read specific lines from a file by line range.
+
+    More token-efficient than read_file for large files when you only need
+    a specific section. Returns lines with line numbers.
+
+    Args:
+        file_path: Path to the file
+        start_line: First line to read (1-indexed, default: 1)
+        end_line: Last line to read (1-indexed, inclusive). If None, reads
+                  up to 100 lines from start_line.
+
+    Returns:
+        Lines with line numbers, or error message
+    """
+    is_valid, error = validate_path(file_path)
+    if not is_valid:
+        return f"Security error: {error}"
+
+    # Clamp and default
+    start_line = max(1, start_line)
+    if end_line is None:
+        end_line = start_line + 99  # Default: up to 100 lines
+    end_line = max(start_line, end_line)
+
+    # Safety: cap at 500 lines per read
+    if end_line - start_line + 1 > 500:
+        return "Error: cannot read more than 500 lines at once. Use a smaller range."
+
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            all_lines = f.readlines()
+
+        total_lines = len(all_lines)
+        # Convert to 1-indexed inclusive range
+        actual_start = start_line - 1
+        actual_end = min(end_line, total_lines)
+
+        if actual_start >= total_lines:
+            return f"File has {total_lines} lines. start_line {start_line} is beyond the end."
+
+        selected = all_lines[actual_start:actual_end]
+
+        # Format with line numbers (matching cat -n style)
+        lines = []
+        for i, line in enumerate(selected, start=start_line):
+            lines.append(f"{i:>6}\t{line}")
+
+        header = f"""Lines {start_line}-{actual_end} of {total_lines} in {file_path}:"""
+        return header + "\n" + "".join(lines)
+
+    except FileNotFoundError:
+        return f"File not found: {file_path}"
+    except IsADirectoryError:
+        return f"Path is a directory, not a file: {file_path}"
+    except PermissionError:
+        return f"Permission denied: {file_path}"
+    except Exception as e:
+        return f"Error reading file: {e}"
+
+
+# ============================================================================
+# Find Files Tool (recursive file search by glob pattern)
+# ============================================================================
+
+def find_files(pattern: str, path: str = ".", max_results: int = 50) -> str:
+    """
+    Recursively find files matching a glob pattern.
+
+    Uses simple filename matching (not full glob syntax). Searches
+    directory tree from the given path.
+
+    Args:
+        pattern: File pattern to match (supports * wildcard, e.g. "*.py", "test_*.py")
+        path: Root directory to search (default: current directory)
+        max_results: Maximum number of results to return (default: 50)
+
+    Returns:
+        List of matching file paths with sizes, or error message
+    """
+    import fnmatch
+
+    is_valid, error = validate_path(path)
+    if not is_valid:
+        return f"Security error: {error}"
+
+    if not pattern or not pattern.strip():
+        return "Error: pattern cannot be empty"
+
+    if not os.path.isdir(path):
+        return f"Not a directory: {path}"
+
+    try:
+        matches = []
+        # Walk directory tree
+        for root, dirs, files in os.walk(path):
+            # Skip hidden directories and common skips
+            dirs[:] = [d for d in dirs if not d.startswith('.')]
+
+            for filename in fnmatch.filter(files, pattern):
+                full_path = os.path.join(root, filename)
+                try:
+                    size = os.path.getsize(full_path)
+                    matches.append(f"{full_path}  ({size:,} bytes)")
+                except OSError:
+                    matches.append(f"{full_path}")
+
+                if len(matches) >= max_results:
+                    break
+
+            if len(matches) >= max_results:
+                break
+
+        if not matches:
+            return f"No files matching '{pattern}' found in {path}"
+
+        header = f"Found {len(matches)} file(s) matching '{pattern}' in {path}:"
+        if len(matches) >= max_results:
+            header += f" (truncated at {max_results})"
+        return header + "\n" + "\n".join(matches)
+
+    except PermissionError:
+        return f"Permission denied: {path}"
+    except Exception as e:
+        return f"Error searching files: {e}"
+
+
+# ============================================================================
 # Edit File Tool (search-and-replace within files)
 # ============================================================================
 
@@ -942,6 +1074,40 @@ def make_builtin_registry() -> ToolRegistry:
         description="List contents of a directory with file sizes",
         params=[ToolParam(name="path", type="string", description="Directory path to list", required=False, default=".")],
         handler=list_directory,
+        category="file",
+    ))
+
+    # Read file lines — read specific line ranges
+    registry.register_tool(Tool(
+        name="read_file_lines",
+        description=(
+            "Read specific lines from a file by line range. More token-efficient than "
+            "read_file when you only need a section of a large file. "
+            "Returns lines with line numbers. Use start_line and end_line to specify range."
+        ),
+        params=[
+            ToolParam(name="file_path", type="string", description="Path to the file"),
+            ToolParam(name="start_line", type="integer", description="First line to read (1-indexed, default: 1)", required=False, default=1),
+            ToolParam(name="end_line", type="integer", description="Last line to read, inclusive (default: start_line + 99)", required=False),
+        ],
+        handler=read_file_lines,
+        category="file",
+    ))
+
+    # Find files — recursive file search by pattern
+    registry.register_tool(Tool(
+        name="find_files",
+        description=(
+            "Recursively find files matching a glob pattern. "
+            "Use to locate files by name (e.g. '*.py', '*.json', 'test_*'). "
+            "Returns file paths with sizes."
+        ),
+        params=[
+            ToolParam(name="pattern", type="string", description="File pattern to match, e.g. '*.py' or 'config.json'"),
+            ToolParam(name="path", type="string", description="Root directory to search (default: current directory)", required=False, default="."),
+            ToolParam(name="max_results", type="integer", description="Max results (default: 50)", required=False, default=50),
+        ],
+        handler=find_files,
         category="file",
     ))
 

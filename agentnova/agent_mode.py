@@ -611,9 +611,20 @@ Example: [{{"description": "Step 1"}}, {{"description": "Step 2"}}]"""
         })
         
         try:
-            # Simple prompt - let the agent use its existing context
-            # This works better with Modelfile system prompts
-            step_prompt = step.description
+            # Build step prompt with plan context for multi-step awareness.
+            # The agent reuses the same memory instance across steps, so it
+            # already has access to previous step results. We add a brief
+            # context header so it knows where it is in the overall plan.
+            if self.plan and self.plan.total_steps > 1:
+                step_idx = self.plan.current_step_index + 1
+                step_count = self.plan.total_steps
+                step_prompt = (
+                    f"[Step {step_idx} of {step_count}] "
+                    f"Goal: {self.plan.goal}\n\n"
+                    f"{step.description}"
+                )
+            else:
+                step_prompt = step.description
             
             # Run the agent with the step prompt
             if self.verbose:
@@ -746,11 +757,16 @@ Example: [{{"description": "Step 1"}}, {{"description": "Step 2"}}]"""
     def _inject_context(self, message: str):
         """
         Inject a context message into the agent's memory.
-        Used to provide awareness prompts during long executions.
+
+        Used to provide awareness prompts during long executions so the
+        agent stays focused on the goal and knows where it is in the plan.
+        The message is added as a 'user' role message so the model
+        processes it on the next step.
         """
-        # This would add a system message to the agent's memory
-        # Implementation depends on Agent class internals
-        pass
+        try:
+            self.agent.memory.add("user", message)
+        except Exception:
+            pass  # Non-fatal — context injection is best-effort
 
 
 # ------------------------------------------------------------------ #
