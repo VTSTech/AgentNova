@@ -348,7 +348,48 @@ def create_parser() -> argparse.ArgumentParser:
     # Update command
     subparsers.add_parser("update", help="Update AgentNova to the latest version from GitHub")
 
+    # --confirm is added to every command that creates an Agent
+    for p in (run_parser, chat_parser, agent_parser):
+        p.add_argument("--confirm", action="store_true", dest="confirm_dangerous",
+                        help="Require confirmation before executing dangerous tools (shell, write_file, edit_file)")
+
     return parser
+
+
+def _make_confirm_callback(args: argparse.Namespace):
+    """
+    Build a confirm_dangerous callback from CLI --confirm flag.
+    
+    When --confirm is set, the user is prompted (y/n) before any
+    dangerous tool (shell, write_file, edit_file) executes.
+    Returns None if --confirm is not set (no confirmation needed).
+    """
+    if not getattr(args, 'confirm_dangerous', False):
+        return None
+
+    from .colors import yellow, dim, green, red
+
+    def _confirm(tool_name: str, args_dict: dict) -> bool:
+        # Format the args for display
+        arg_str = "  ".join(f"{k}={v}" for k, v in args_dict.items())
+        # Truncate very long values (e.g. file content)
+        if len(arg_str) > 200:
+            arg_str = arg_str[:200] + "..."
+        print(f"\n{yellow('⚠')}  Dangerous tool: {yellow(tool_name)}")
+        print(f"{dim('  ' + arg_str)}")
+        try:
+            choice = input(f"  {dim('Execute?')} [y/N] ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print(f"  {red('Blocked.')}")
+            return False
+        if choice == "y":
+            print(f"  {green('Allowed.')}")
+            return True
+        else:
+            print(f"  {red('Blocked.')}")
+            return False
+
+    return _confirm
 
 
 def _init_acp(args: argparse.Namespace, config, agent_name: str = "AgentNova") -> tuple:
@@ -473,6 +514,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         skills_prompt=skills_prompt,
         retry_on_error=not getattr(args, 'no_retry', False),
         max_tool_retries=getattr(args, 'max_tool_retries', None) or config.max_tool_retries,
+        confirm_dangerous=_make_confirm_callback(args),
     )
 
     # Log to ACP
@@ -532,6 +574,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
         skills_prompt=skills_prompt,
         retry_on_error=not getattr(args, 'no_retry', False),
         max_tool_retries=getattr(args, 'max_tool_retries', None) or config.max_tool_retries,
+        confirm_dangerous=_make_confirm_callback(args),
     )
 
     print_banner()
@@ -636,6 +679,7 @@ def cmd_agent(args: argparse.Namespace) -> int:
         skills_prompt=skills_prompt,
         retry_on_error=not getattr(args, 'no_retry', False),
         max_tool_retries=getattr(args, 'max_tool_retries', None) or config.max_tool_retries,
+        confirm_dangerous=_make_confirm_callback(args),
     )
 
     agent_mode = AgentMode(agent, verbose=True)
@@ -1625,7 +1669,7 @@ def cmd_soul(args: argparse.Namespace) -> int:
 
 def cmd_update(args: argparse.Namespace) -> int:
     """Update AgentNova to the latest version from GitHub."""
-    print(f"{bright_cyan('⚛ AgentNova')} - Updating to latest development version ...")
+    print(f"{bright_cyan('⚛ AgentNova')} - Updating from GitHub...")
     print(f"{dim('Running:')} pip install git+https://github.com/VTSTech/AgentNova.git --force-reinstall")
     print()
 

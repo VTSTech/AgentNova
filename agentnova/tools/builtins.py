@@ -7,14 +7,53 @@ Written by VTSTech — https://www.vts-tech.org
 
 from __future__ import annotations
 
+import json
 import math
 import os
 import subprocess
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from ..core.models import Tool, ToolParam
 from ..core.helpers import sanitize_command, validate_path, is_safe_url
 from .registry import ToolRegistry
+
+
+# ============================================================================
+# Audit Logging
+# ============================================================================
+
+def _get_agentnova_dir() -> Path:
+    """Get the AgentNova data directory (~/.agentnova)."""
+    d = Path.home() / ".agentnova"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _audit_log(tool_name: str, args: dict, outcome: str, detail: str = "") -> None:
+    """
+    Append an entry to the audit log at ~/.agentnova/audit.log.
+    
+    Each line is a JSON object with: timestamp, tool, args, outcome, detail.
+    outcome is one of: 'accepted', 'rejected', 'error'.
+    
+    This is fire-and-forget — failures are silently ignored so they never
+    disrupt the agentic loop.
+    """
+    try:
+        entry = {
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "tool": tool_name,
+            "args": args,
+            "outcome": outcome,
+            "detail": detail,
+        }
+        log_path = _get_agentnova_dir() / "audit.log"
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, default=str) + "\n")
+    except Exception:
+        pass  # audit must never break the agent loop
 
 
 # ============================================================================
@@ -147,6 +186,7 @@ def shell(command: str, timeout: int = 30) -> str:
     # inside sanitize_command, not from any transformation of the string.
     is_safe, error_msg, validated_cmd = sanitize_command(command)
     if not is_safe:
+        _audit_log("shell", {"command": command}, "rejected", error_msg)
         return f"Security error: {error_msg}"
 
     try:
@@ -162,20 +202,24 @@ def shell(command: str, timeout: int = 30) -> str:
         )
 
         output = result.stdout.strip()
-        if result.returncode != 0:
+        exit_code = result.returncode
+        if exit_code != 0:
             if output:
                 output += "\n"
-            output += f"[Exit code: {result.returncode}]"
+            output += f"[Exit code: {exit_code}]"
             stderr = result.stderr.strip()
             if stderr:
                 output += f"\nError: {stderr}"
 
+        _audit_log("shell", {"command": command}, "accepted", f"exit={exit_code}")
         return output or "(no output)"
 
     except subprocess.TimeoutExpired:
+        _audit_log("shell", {"command": command}, "error", f"timeout after {timeout}s")
         return f"Command timed out after {timeout} seconds"
 
     except Exception as e:
+        _audit_log("shell", {"command": command}, "error", str(e))
         return f"Error executing command: {e}"
 
 
@@ -244,11 +288,14 @@ def write_file(file_path: str, content: str) -> str:
 
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(content)
+        _audit_log("write_file", {"file_path": file_path, "size": len(content)}, "accepted")
         return f"Successfully wrote {len(content)} characters to {file_path}"
 
     except PermissionError:
+        _audit_log("write_file", {"file_path": file_path}, "error", "Permission denied")
         return f"Permission denied: {file_path}"
     except Exception as e:
+        _audit_log("write_file", {"file_path": file_path}, "error", str(e))
         return f"Error writing file: {e}"
 
 
@@ -824,6 +871,7 @@ def edit_file(
         chars_diff = len(new_string) - len(old_string)
         direction = "+" if chars_diff >= 0 else ""
 
+        _audit_log("edit_file", {"file_path": file_path, "replaced": replaced, "of": count}, "accepted")
         return (
             f"Successfully edited {file_path}: "
             f"replaced {replaced} of {count} occurrence(s), "
@@ -831,10 +879,13 @@ def edit_file(
         )
 
     except FileNotFoundError:
+        _audit_log("edit_file", {"file_path": file_path}, "error", "File not found")
         return f"File not found: {file_path}"
     except PermissionError:
+        _audit_log("edit_file", {"file_path": file_path}, "error", "Permission denied")
         return f"Permission denied: {file_path}"
     except Exception as e:
+        _audit_log("edit_file", {"file_path": file_path}, "error", str(e))
         return f"Error editing file: {e}"
 
 

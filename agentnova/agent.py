@@ -171,6 +171,13 @@ class Agent:
         self._retry_on_error = retry_on_error
         self._max_tool_retries = max_tool_retries
 
+        # Dangerous tool confirmation callback.
+        # When set, any tool with dangerous=True must be approved by
+        # this callback before execution. The callback receives
+        # (tool_name, args) and returns True (allow) or False (deny).
+        # If not set, dangerous tools execute without confirmation.
+        self._confirm_dangerous = kwargs.pop("confirm_dangerous", None)
+
         # Initialize backend
         if backend is None:
             self.backend = get_default_backend()
@@ -1387,11 +1394,23 @@ Final Answer: <the answer>
 
         OpenResponses: Tool execution is straightforward - no synthesis.
         Arguments must come from the model.
+
+        If the tool is marked dangerous=True and a confirm_dangerous
+        callback is set, the callback is invoked before execution.
+        Returning False from the callback blocks the tool call.
         """
         tool = self.tools.get(name)
 
         if tool is None:
             return f"Error: Unknown tool '{name}'. Available tools: {self.tools.names()}"
+
+        # Confirmation gate for dangerous tools
+        if getattr(tool, 'dangerous', False) and self._confirm_dangerous is not None:
+            if not self._confirm_dangerous(name, args):
+                return (
+                    f"Tool '{name}' was blocked by user confirmation. "
+                    f"The tool is marked as dangerous and was not approved."
+                )
 
         # Normalize arguments with tool-specific aliases
         expected_params = [p.name for p in tool.params]
