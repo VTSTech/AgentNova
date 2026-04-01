@@ -293,7 +293,7 @@ BLOCKED_URL_PATTERNS = {
 
 # Allowed file paths (whitelist approach)
 ALLOWED_PATH_PATTERNS = {
-    "/tmp", "/temp",
+    "/tmp", "/temp", "/content",
     "./output", "./data", "./files",
     "~/tmp", "~/temp",
 }
@@ -404,8 +404,9 @@ def validate_path(path: str, allowed_dirs: list[str] | None = None) -> tuple[boo
         except Exception:
             pass
 
-    # Allow /tmp and /home for file operations (Unix) — check RESOLVED path
-    if resolved.startswith("/tmp") or resolved.startswith("/var/tmp") or resolved.startswith("/home"):
+    # Allow /tmp, /home, and CWD for file operations (Unix) — check RESOLVED path
+    cwd = os.path.abspath(".")
+    if resolved.startswith("/tmp") or resolved.startswith("/var/tmp") or resolved.startswith("/home") or resolved.startswith(cwd):
         return True, ""
 
     # Check against allowed directories — check RESOLVED path
