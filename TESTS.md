@@ -39,7 +39,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 > ⏳ **Partial results** — 7 of 10 models tested; remaining 3 pending
 
 | Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | Notes |
-|:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|-------|
+|:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|-------|-------|
 | 1 | **`granite4:350m`** | **5/5 (100%)** | 295.1s | ✅ | ✅ | ✅ | ✅ | ✅ | Perfect score! Consistent across all modes |
 | 1 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 249.5s | ✅ | ✅ | ✅ | ✅ | ✅ | Reclaims 100%! Fastest perfect score in resp mode |
 | 3 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 301.8s | ✅ | ✅ | ✅ | ✅ | ❌ empty | Q5 empty response |
@@ -57,7 +57,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 > ✅ **Complete** — All 10 models tested
 
 | Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | Notes |
-|:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|-------|
+|:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|-------|-------|
 | 1 | **`granite4:350m`** | **5/5 (100%)** | 293.3s | ✅ | ✅ | ✅ | ✅ | ✅ | Perfect score! Consistent across all modes |
 | 2 | `qwen2.5:0.5b` | **4/5 (80%)** | 260.9s | ✅ | ✅ | ✅ | ✅ | ❌ text | Q5 verbose explanation instead of numeric answer |
 | 2 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 293.5s | ✅ | ✅ | ✅ | ✅ | ❌ empty | Q5 empty response; instruct quant variant |
@@ -79,7 +79,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 > ⏳ **Partial results** — 9 of 10 models tested; remaining 1 pending
 
 | Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | Notes |
-|:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|-------|
+|:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|-------|-------|
 | 1 | **`granite4:350m`** | **5/5 (100%)** | 44.2s | ✅ | ✅ | ✅ | ✅ | ✅ | Perfect score! 4x faster (183 to 44s) |
 | 2 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 99.9s | ✅ | ✅ | ✅ | ✅ | ❌ hall. | With --soul; 0/5 without — heavily soul-dependent |
 | 3 | `nchapman/dolphin3.0-qwen2.5:0.5b` | **3/5 (60%)** | 31.6s | ✅ | ❌ 49 | ✅ | ✅ | ❌ 10 | Improved even without soul; Q2/Q5 reasoning |
