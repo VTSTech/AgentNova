@@ -1,6 +1,6 @@
 # Codebase Intelligence Brief: AgentNova
 
-> Generated: 2026-03-31T15:00:00Z | Auditor: Super-Z-Alpha | Commit: e56447f (R04.2)
+> Generated: 2026-04-01 | Auditor: Super-Z-Alpha | Commit: f07ad23 (R04.4)
 
 ---
 
@@ -8,13 +8,13 @@
 
 | Field | Value |
 |-------|-------|
-| **Purpose** | Minimal, hackable agentic framework for running AI agents entirely locally with Ollama or BitNet backends |
-| **Tech Stack** | Python 3.9+, zero runtime dependencies (stdlib only: urllib, json, subprocess, dataclasses, threading) |
+| **Purpose** | Minimal, hackable agentic framework for running AI agents entirely locally with Ollama, BitNet, or llama-server backends |
+| **Tech Stack** | Python 3.9+, zero runtime dependencies (stdlib only: urllib, json, subprocess, dataclasses, threading, sqlite3) |
 | **Entry Point** | `agentnova/cli.py:main` (CLI) or `from agentnova import Agent` (Python API) |
 | **Build/Run** | `pip install -e ".[dev]"` (dev: pytest, black, ruff) |
 | **Test Command** | `pytest` (unit) or `python -m agentnova.examples.01_quick_diagnostic` (integration) |
 | **Package** | PyPI: `agentnova` · CLI entry points: `agentnova` + `localclaw` (backward-compat) |
-| **Version** | 0.4.2-dev (R04.2) · Status: Alpha |
+| **Version** | 0.4.4-dev (R04.4) · Status: Alpha |
 
 ---
 
@@ -22,28 +22,28 @@
 
 ```
 agentnova/
-├── core/           → Data types, models, memory, tool parsing, security helpers, OpenResponses spec implementation
-├── tools/          → Tool registry (decorator-based), 12 built-in tools, sandboxed Python REPL
-├── backends/       → LLM inference backends (Ollama, BitNet) with dual API (OpenResponses + OpenAI Chat-Completions)
+├── core/           → Data types, models, memory, tool parsing, security helpers, OpenResponses spec implementation, persistent memory (SQLite)
+├── tools/          → Tool registry (decorator-based), 17 built-in tools, sandboxed Python REPL
+├── backends/       → LLM inference backends (Ollama, BitNet, llama-server) with dual API (OpenResponses + OpenAI Chat-Completions)
 ├── skills/         → AgentSkills spec loader (YAML frontmatter, SPDX license validation, compatibility checking)
 ├── soul/           → Soul Spec v0.5 loader (persona packages with 3-level progressive disclosure)
 ├── souls/          → Pre-built soul packages: nova-helper (diagnostic), nova-skills (skill-guided)
 ├── examples/       → 12 benchmark/test suites (basic agent through analogical reasoning, GSM8K 50q)
 agent.py            → Core Agent class: OpenResponses agentic loop (prompt → tool → observe → repeat)
-agent_mode.py       → Autonomous agent mode: state machine (IDLE → RUNNING → PAUSED → STOPPING)
+agent_mode.py       → Autonomous agent mode: state machine (IDLE → WORKING → PAUSED → STOPPING) with rollback
 orchestrator.py     → Multi-agent orchestration: router (keyword/LLM), pipeline (sequential), parallel (threaded)
-acp_plugin.py       → ACP v1.0.5: status reporting, activity logging, A2A messaging, batch context manager
-cli.py              → Full CLI: run, chat, agent, models, tools, test, soul, config, version, modelfile, skills
+acp_plugin.py       → ACP v1.0.6: status reporting, activity logging, A2A messaging, batch context manager, health tracking
+cli.py              → Full CLI: run, chat, agent, models, tools, test, soul, config, version, modelfile, skills, sessions, update
 config.py           → Centralized config from env vars. Single source of truth for all URLs, defaults, security
+shared_args.py      → Shared CLI argument definitions (DRY for run/chat/agent parsers) + SharedConfig dataclass
 colors.py           → Shared ANSI color utilities (Color class, pad_colored, visible_len)
 model_discovery.py  → Ollama model listing, fuzzy model name matching, benchmark model selection
-shared_args.py      → Shared CLI argument definitions (DRY for run/chat/agent parsers)
 ```
 
 ### Skip List
 
 - `localclaw/`, `localclaw-redirect/` — legacy backward-compat redirects, just re-exports
-- `audit/` — referenced in docs but empty, not used in codebase
+- `audit/` — contains audit page images, not code
 - `tests/` — standard pytest unit tests, not critical for framework understanding
 - `.git/`, `AgentNova.ipynb` — Colab notebook, not core code
 - All `__pycache__/` directories
@@ -58,17 +58,18 @@ shared_args.py      → Shared CLI argument definitions (DRY for run/chat/agent 
 - **Key signatures**:
   ```python
   class Agent:
-      def __init__(self, model: str, tools=None, backend=None, max_steps=5,
+      def __init__(self, model, tools=None, backend=None, max_steps=5,
                    soul="nova-helper", soul_level=3, num_ctx=None,
                    temperature=None, tool_choice="auto", allowed_tools=None,
-                   skills_prompt=None, retry_on_error=True, max_tool_retries=2):
+                   skills_prompt=None, retry_on_error=True, max_tool_retries=2,
+                   **kwargs):  # kwargs: persistent, session_id, memory_db, confirm_dangerous, response_format
           ...
-
       def run(self, prompt: str, stream: bool = False) -> AgentRun:
           """Main agentic loop. Returns AgentRun with final_answer."""
   ```
-- **Critical internal state**: `_expecting_final_answer` (bool), `_last_successful_result` (str), `_error_tracker` (ErrorRecoveryTracker), `_response_history` (dict). These control the "Final Answer Enforcement" behavior where the agent forces a result if the model loops after a successful tool call.
-- **Gotchas**: The `tools` parameter accepts `ToolRegistry | list[str] | list[Tool] | None` — four different types. If passing a list of strings, they MUST match registered tool names exactly (no fuzzy matching at this level). Fuzzy matching happens inside the ToolParser.
+- **Critical kwargs** (via `**kwargs`): `response_format` (enables JSON mode, disables tools), `session_id` (activates PersistentMemory), `persistent`/`memory_db` (explicit persistent memory), `confirm_dangerous` (callback for dangerous tool approval)
+- **Critical internal state**: `_expecting_final_answer`, `_last_successful_result`, `_error_tracker`, `_response_history`, `_response_format`, `_confirm_dangerous`, `_is_persistent`
+- **Gotchas**: `tools` param accepts 4 types (`ToolRegistry | list[str] | list[Tool] | None`). `response_format` and tools are **mutually exclusive** — setting JSON mode clears all tools. `confirm_dangerous` is NOT wired to the `tools` parameter — it's an execution-time gate.
 
 ### `agentnova/core/tool_parse.py` — Tool Call Extraction
 - **Purpose**: Parses tool calls from model text output in 4+ formats. Central to how ReAct tool calling works.
@@ -77,148 +78,90 @@ shared_args.py      → Shared CLI argument definitions (DRY for run/chat/agent 
   ```python
   class ToolParser:
       def __init__(self, tool_names: list[str]):
-          self._names = tool_names  # Used for fuzzy matching
-
       def parse(self, content: str) -> list[ParsedCall]:
-          """Returns list of ParsedCall(name, arguments, final_answer, thought)"""
-
       def is_final_answer(self, content: str) -> bool:
-          """Checks for 'Final Answer:' pattern in text."""
-
       def extract_final_answer(self, content: str) -> str:
-          """Extracts everything after 'Final Answer:'."""
   ```
-- **Supported formats**: Plain ReAct (`Action: name\nAction Input: {json}`), JSON-wrapped ReAct (`{"action": "name", "actionInput": {...}}`), Markdown code block JSON, and simultaneous tool call + Final Answer.
-- **Gotchas**: The parser handles case-insensitive `Action`/`action`/`ACTION`, both `actionInput` and `action_input`. If the model outputs both a tool call AND a `Final Answer:` in the same response, the Final Answer takes priority (lines 726-762 in agent.py).
+- **Supported formats**: Plain ReAct (`Action: name\nAction Input: {json}`), JSON-wrapped ReAct, Markdown code block JSON, simultaneous tool call + Final Answer.
+- **Gotchas**: If model outputs both a tool call AND a `Final Answer:` in the same response, the Final Answer takes priority.
 
 ### `agentnova/core/helpers.py` — Fuzzy Matching, Arg Normalization, Security
-- **Purpose**: God-module for small model support. Fuzzy tool name matching, argument normalization, expression synthesis from natural language, security utilities (path validation, command blocklist, SSRF protection), repetition detection, small model heuristics.
-- **Blast radius**: Imported by `builtins.py` (security), `tool_parse.py` (fuzzy matching), `agent.py` (argument synthesis), and indirectly everything through transitive imports.
+- **Purpose**: God-module for small model support. Fuzzy tool name matching, argument normalization, expression synthesis from natural language, security utilities (path validation, command blocklist, SSRF protection), repetition detection.
+- **Blast radius**: Imported by `builtins.py` (security), `tool_parse.py` (fuzzy matching), `agent.py` (argument synthesis), and transitively everything.
 - **Key functions**:
   ```python
-  def fuzzy_match(query: str, candidates: list[str], threshold: float = 0.4) -> str | None:
-  def normalize_args(args: dict, expected_params: list[str], tool_name: str = "") -> dict:
-  def sanitize_command(command: str) -> tuple[bool, str, str]:
-  def validate_path(path: str, allowed_dirs: list[str] | None = None) -> tuple[bool, str]:
-  def is_safe_url(url: str, block_ssrf: bool = True) -> tuple[bool, str]:
-  def extract_calc_expression(user_input: str) -> str | None:
-  def synthesize_tool_args(tool_name: str, args: dict, user_input: str) -> dict:
+  def fuzzy_match(query, candidates, threshold=0.4) -> str | None
+  def normalize_args(args, expected_params, tool_name="") -> dict
+  def sanitize_command(command) -> tuple[bool, str, str]  # (safe, error, original)
+  def validate_path(path, allowed_dirs=None) -> tuple[bool, str]
+  def is_safe_url(url, block_ssrf=True) -> tuple[bool, str]
   ```
-- **BLOCKED_COMMANDS** (line 247): rm, sudo, curl, wget, pip, npm, kill, systemctl, chmod, etc. ~40 blocked commands.
-- **Gotchas**: `sanitize_command()` returns the original command UNMODIFIED — the security comes from rejection, not transformation. If the blocklist is bypassed, the command runs as-is via `shell=True`. The injection detection rejects `;`, `|`, `&&`, backticks, `$()`, `>${}`, but NOT pipes with zero spaces. `validate_path()` allows `/tmp`, `/home`, and system temp dirs. Config default allowed paths: `["./output", "./data", "/tmp"]`.
+- **Gotchas**: `sanitize_command()` returns the ORIGINAL command unmodified — security is purely rejection-based. `validate_path()` allows `/tmp`, `/home`, and system temp dirs. Config default: `["./output", "./data", "/tmp"]`.
+
+### `agentnova/core/persistent_memory.py` — SQLite-Backed Persistent Memory (NEW R04.3)
+- **Purpose**: `PersistentMemory(Memory)` subclass that persists all messages to `~/.agentnova/memory.db` via SQLite (WAL mode). Same sliding-window behavior as in-memory `Memory`, but full history retained in DB.
+- **Blast radius**: Used by `Agent.__init__()` when `session_id` or `persistent=True` is passed. Exported from `__init__.py` with graceful fallback.
+- **Key API**:
+  ```python
+  class PersistentMemory(Memory):
+      def __init__(self, session_id=None, db_path=None, config=None, auto_save=True):
+      def save(self) -> str:        # Idempotent, skips existing by (session_id, seq)
+      def load(self) -> int:         # Restores from DB, returns count
+      def close(self) -> None:       # Closes SQLite connection
+      def clear(self) -> None:       # Clears both memory AND DB rows
+      def list_sessions(db_path=None) -> list[dict]:    # Static
+      def delete_session(session_id, db_path=None) -> bool:  # Static
+  ```
+- **Schema**: `sessions` (session_id, model, created_at, updated_at, message_count, metadata) + `messages` (session_id, seq, role, content, tool_calls, tool_call_id, name, timestamp) with FK cascade.
+- **Gotchas**: `close()` must be called on exit or Ctrl+C to flush WAL journal. The `_build_agent()` helper in cli.py handles this for all exit paths. If `close()` is missed, the process exit handles it but risks WAL growth.
 
 ### `agentnova/backends/ollama.py` — Primary Backend
-- **Purpose**: Dual API backend supporting both OpenResponses (`/api/chat`) and OpenAI Chat-Completions (`/v1/chat/completions`). Handles streaming, tool support detection, and thinking model handling.
+- **Purpose**: Dual API backend supporting both OpenResponses (`/api/chat`) and OpenAI Chat-Completions (`/v1/chat/completions`). Handles streaming, tool support detection, thinking model handling.
 - **Blast radius**: Instantiated by `get_backend()` in cli.py and orchestrator.py. All model communication flows here.
-- **Key**: `OllamaBackend` extends `BaseBackend`. Has `api_mode` attribute that determines which endpoint format to use. All ReAct prompting happens here — tool definitions are NOT passed to the API; the model outputs tool calls in text format.
-- **Gotchas**: Tool support detection is per-model (NOT per-family). `qwen2.5:0.5b` has native tools but `qwen2.5-coder:0.5b` is ReAct-only despite being the same family. Cache lives at `~/.cache/agentnova/tool_support.json`.
+- **Gotchas**: Tool support detection is per-model (NOT per-family). `qwen2.5:0.5b` has native tools but `qwen2.5-coder:0.5b` is ReAct-only. Cache: `~/.cache/agentnova/tool_support.json`.
 
-### `agentnova/tools/builtins.py` — All 12 Built-in Tools
-- **Purpose**: Defines calculator, shell, read_file, write_file, list_directory, http_get, python_repl, get_time, get_date, web_search, parse_json, count_words, count_chars.
-- **Blast radius**: Instantiated via `make_builtin_registry()` which creates `BUILTIN_REGISTRY` singleton. Imported by cli.py for every command that uses tools.
-- **Key**:
-  ```python
-  def make_builtin_registry() -> ToolRegistry:
-      """Creates registry with all 12 tools. Returns ToolRegistry singleton (BUILTIN_REGISTRY)."""
-  ```
-- **Security notes**: Calculator uses `eval()` with `{"__builtins__": {}}` and MAX_EXPONENT=10,000. Shell uses `shell=True` with `sanitize_command()` blocklist. File ops use `validate_path()`. HTTP uses `is_safe_url()` for SSRF protection. Python REPL runs in a sandboxed subprocess with only math, json, re, datetime, collections, itertools available. Response size limits: files 512KB, HTTP 256KB.
+### `agentnova/backends/llama_server.py` — llama-server Backend (NEW R04.2)
+- **Purpose**: `LlamaServerBackend(OllamaBackend)` for llama.cpp / TurboQuant servers. Inherits full OpenAI Chat-Completions pipeline; adds native `/completion` endpoint for OpenRE mode.
+- **Registry aliases**: `llama-server` and `llama_server` both resolve here.
+- **Config**: `LLAMA_SERVER_BASE_URL` (default: `http://localhost:8080`).
+
+### `agentnova/tools/builtins.py` — All 17 Built-in Tools
+- **Purpose**: calculator, shell, read_file, write_file, list_directory, http_get, python_repl, get_time, get_date, web_search, parse_json, count_words, count_chars, read_file_lines, find_files, edit_file, todo.
+- **Blast radius**: Instantiated via `make_builtin_registry()` → `BUILTIN_REGISTRY`. Imported by cli.py for every command.
+- **Security notes**: Calculator uses `eval()` with `{"__builtins__": {}}`. Shell uses `shell=True` with `sanitize_command()`. File ops use `validate_path()`. HTTP uses `is_safe_url()`. Python REPL runs in sandboxed subprocess. Response limits: files 512KB, HTTP 256KB.
+- **Audit logging**: `shell()`, `write_file()`, `edit_file()` log to `~/.agentnova/audit.log` (JSON-lines, fire-and-forget).
+- **Todo tool**: Dispatch-based (`_todo_dispatch`) with actions: add, list, complete, remove, clear. Per-agent isolation via `_todo_store` closure.
+- **Dangerous flag**: `shell`, `write_file`, `edit_file` have `dangerous=True`. Enforced by `confirm_dangerous` callback in Agent.
 
 ### `agentnova/core/memory.py` — Conversation Memory
-- **Purpose**: Sliding window conversation history with token-based pruning. Preserves system prompt and recent messages.
-- **Key**:
-  ```python
-  class Memory:
-      def add(self, role: str, content: str, **kwargs) -> None:
-      def add_tool_call(self, role: str, content: str, tool_calls: list[dict]) -> None:
-      def add_tool_result(self, tool_call_id: str, name: str, content: str) -> None:
-      def get_messages(self) -> list[dict]:  # Includes system prompt first
-      def clear(self) -> None:  # Preserves system prompt if configured
-  ```
-  ```python
-  @dataclass
-  class MemoryConfig:
-      max_messages: int = 50
-      max_tokens: int = 4096
-      summarization_threshold: float = 0.8
-      keep_system: bool = True
-      keep_recent: int = 5
-  ```
-- **Gotchas**: `_prune_if_needed()` is called on every `add()`. It triggers when message count exceeds `max_messages * summarization_threshold` (default: 50 * 0.8 = 40 messages). It removes oldest non-system messages but always keeps the most recent 5 (`keep_recent`). Note: there is NO actual summarization implemented — pruning just drops old messages. `to_dict()` on `Message` converts internal tool_call format to OpenAI Chat-Completions format (arguments dict → JSON string).
+- **Purpose**: Sliding window conversation history with message-count pruning. Preserves system prompt and recent messages.
+- **Gotchas**: `_prune_if_needed()` triggers at `max_messages * 0.8` (default 40 messages). NO actual summarization — just drops old messages. `summarization_threshold` name is misleading.
 
 ### `agentnova/tools/registry.py` — Tool Registry
-- **Purpose**: Manages tool registration (including decorator-based), fuzzy lookup, subset creation, and JSON Schema generation.
-- **Key**:
-  ```python
-  class ToolRegistry:
-      def register(self, name=None, description="", params=None, dangerous=False, category="general") -> Callable:
-          """Decorator for registering tools. Auto-extracts params from function signature."""
-      def get_fuzzy(self, name: str, threshold: float = 0.6) -> Tool | None:
-      def subset(self, names: list[str]) -> ToolRegistry:
-          """Creates sub-registry. Uses EXACT name matching only (no fuzzy)."""
-      def to_json_schema(self) -> list[dict]:
-  ```
-- **Gotchas**: `subset()` uses exact matching only. `get_fuzzy()` has a default threshold of 0.6 (higher than helpers.py's 0.4). The `@tool` decorator at module level creates a NEW ToolRegistry instance each time — it's a convenience for standalone scripts, not for adding to the shared BUILTIN_REGISTRY.
+- **Purpose**: Manages tool registration (decorator-based), fuzzy lookup, subset creation, and JSON Schema generation.
+- **Gotchas**: `subset()` uses exact matching only. `get_fuzzy()` threshold is 0.6 (vs helpers.py's 0.4). The `@tool` decorator creates a NEW registry each time.
 
 ### `agentnova/skills/loader.py` — Skills System
-- **Purpose**: Loads SKILL.md files with YAML frontmatter, validates spec compliance (name format, description length 1-1024 chars, SPDX license).
-- **Key**:
-  ```python
-  class Skill:
-      name: str          # 1-64 chars, regex validated: ^[a-z0-9]+(-[a-z0-9]+)*$
-      description: str   # 1-1024 chars, enforced in __post_init__
-      instructions: str  # Markdown body after frontmatter
-      license: str | None
-      compatibility: str | None
-      allowed_tools: list[str]
-
-  class SkillLoader:
-      def load(self, skill_name: str, use_cache: bool = True) -> Skill:
-      def list_skills(self) -> list[str]:
-  ```
-- **Gotchas**: `check_compatibility()` tries to import `packaging.version` — not available in zero-dep mode. The custom YAML parser (`_parse_frontmatter`) handles multiline values but has limited edge case support. Skill name in frontmatter MUST match directory name or a `ValueError` is raised.
+- **Purpose**: Loads SKILL.md files with YAML frontmatter, validates spec compliance (name format, description length, SPDX license).
+- **Gotchas**: Custom YAML parser handles simple values but NOT nested objects/arrays. `check_compatibility()` tries to import `packaging.version` — not available in zero-dep mode.
 
 ### `agentnova/orchestrator.py` — Multi-Agent Orchestration
-- **Purpose**:
-  ```python
-  class Orchestrator:
-      def __init__(self, mode="router", default_model="qwen2.5:0.5b",
-                   router_model=None, merge_strategy="concat", timeout=120.0):
-      def register(self, card: AgentCard) -> None:  # Creates Agent if card.agent is None
-      def run(self, task: str) -> OrchestratorResult:
-  ```
-  - **Router mode**: keyword matching (`AgentCard.matches()`) or LLM-based (`_select_agent_with_llm()`). Falls back to first agent if no match.
-  - **Pipeline mode**: sequential, chains output of each agent into the next agent's input.
-  - **Parallel mode**: `ThreadPoolExecutor`, results merged via strategy (concat/first/vote/best).
-  ```python
-  @dataclass
-  class AgentCard:
-      name: str; description: str; capabilities: list[str]; tools: list[str]
-      model: str | None; agent: Agent | None; priority: int; timeout: float; fallback: bool
-  ```
-- **Gotchas**: `_select_agent_with_llm()` hardcodes `get_backend("ollama")` — will fail if Ollama isn't running or default backend is BitNet. Pipeline mode appends previous output as plain text (`[Previous output: ...]`), not as a structured message. Vote merge strategy normalizes to lowercase first 100 chars — common answers that differ only in casing will be treated as identical.
+- **Modes**: Router (keyword/LLM), Pipeline (sequential), Parallel (ThreadPoolExecutor).
+- **Gotchas**: `_select_agent_with_llm()` hardcodes `get_backend("ollama")`. Pipeline appends `[Previous output: ...]` as plain text. Vote strategy normalizes to lowercase first 100 chars.
 
 ### `agentnova/config.py` — Central Configuration
-- **Purpose**: Single source of truth for all URLs, defaults, security settings. Everything reads from here.
-- **Key**:
-  ```python
-  OLLAMA_BASE_URL = "http://localhost:11434"      # Override: env var
-  BITNET_BASE_URL = "http://localhost:8765"       # Override: env var + BITNET_TUNNEL
-  ACP_BASE_URL = "http://localhost:8766"          # Override: env var ACP_BASE_URL
-  DEFAULT_MODEL = "qwen2.5:0.5b"                # Or bitnet-b1.58-2b-4t for BitNet
-  MAX_STEPS = 10 (env: AGENTNOVA_MAX_STEPS)
-  RETRY_ON_ERROR = True (env: AGENTNOVA_RETRY_ON_ERROR)
-  MAX_TOOL_RETRIES = 2 (env: AGENTNOVA_MAX_TOOL_RETRIES)
-  ```
-  ```python
-  @dataclass
-  class Config:
-      num_ctx: int | None = None  # None means use backend default
-      retry_on_error: bool = True
-      max_tool_retries: int = 2
-      memory_max_messages: int = 50
-      memory_max_tokens: int = 4096
-  ```
-- **Gotchas**: `Config.from_env()` doesn't actually parse env vars — it just calls `Config()` which uses module-level defaults already computed. `get_config()` is a singleton — set `reload=True` to re-read env vars. `num_ctx` of `None` means "let Ollama decide" — but Agent defaults to 8192 if config is also None.
+- **Purpose**: Single source of truth for all URLs, defaults, security settings.
+- **Key defaults**: `OLLAMA_BASE_URL` (localhost:11434), `BITNET_BASE_URL` (localhost:8765), `LLAMA_SERVER_BASE_URL` (localhost:8080), `DEFAULT_MODEL` (qwen2.5:0.5b), `MAX_STEPS` (10).
+- **Gotchas**: `Config.from_env()` just calls `Config()` — env vars are read at module import time, not lazily. `get_config(reload=True)` to re-read.
+
+### `agentnova/shared_args.py` — CLI Argument Deduplication
+- **Purpose**: `add_agent_args(parser, tools_default)` adds ~20 shared args to run/chat/agent parsers. `SharedConfig` dataclass for example scripts.
+- **Covers**: `--model`, `--backend`, `--api`, `--tools`, `--soul`, `--session`, `--response-format`, `--confirm`, `--skills`, `--no-retry`, `--max-retries`, `--truncation`, `--num-ctx`, `--temperature`, `--top-p`, `--timeout`, `--acp`, `--verbose`, `--debug`, `--force-react`.
+
+### `agentnova/cli.py` — Full CLI
+- **Commands**: run, chat, agent, models, tools, test, version, config, modelfile, skills, soul, sessions, update.
+- **Key helpers**: `_build_agent(args, config)` centralizes Agent construction. `_print_session_header()` for chat/agent headers. `_make_confirm_callback()` for `--confirm` flag.
+- **Sessions**: `agentnova sessions` lists/saves persistent memory sessions. `--session <name>` on run/chat/agent activates PersistentMemory.
 
 ---
 
@@ -229,65 +172,50 @@ User Prompt
     │
     ▼
 1. Agent.__init__()                                           # agent.py:105
-   ├── If soul specified: soul/loader.py → load_soul()       # soul/loader.py
-   │   └── build_system_prompt_with_tools(soul, tools, level) # Injects available tools
-   ├── If skills specified: SkillLoader → SkillRegistry       # skills/loader.py
-   │   └── to_system_prompt_addition()                       # Appends to system prompt
+   ├── If session_id or persistent: PersistentMemory()        # core/persistent_memory.py
+   │   └── memory.load() → restores from SQLite
+   ├── If soul specified: soul/loader.py → load_soul()        # soul/loader.py
+   │   └── build_system_prompt_with_tools(soul, tools, level)
+   ├── If skills specified: SkillLoader → SkillRegistry        # skills/loader.py
+   │   └── to_system_prompt_addition()
+   ├── If response_format set → clear tools, force tool_choice="none"
    ├── Create ToolParser(tools.names())                        # core/tool_parse.py
-   ├── Memory.add("system", system_prompt)                   # core/memory.py
-   └── Initialize ErrorRecoveryTracker                         # core/error_recovery.py
+   ├── Memory.add("system", system_prompt)                    # core/memory.py
+   └── Initialize ErrorRecoveryTracker                          # core/error_recovery.py
     │
     ▼
-2. Agent.run(prompt)                                            # agent.py:377
+2. Agent.run(prompt)                                            # agent.py:429
    ├── Create OpenResponses Response object                      # core/openresponses.py
-   │   └── Response(model, status=QUEUED, tool_choice)    # State machine: QUEUED → IN_PROGRESS → COMPLETED/FAILED
    ├── Memory.add("user", prompt)
-   ├── Create MessageItem, add to Response.input
     │
     ▼
 3. Agentic Loop (for step in range(max_steps))                  # Default: 5 steps
-   │
    ├─ 3a. Backend.generate(memory.get_messages())               # backends/ollama.py
    │       ├── If api_mode=OPENRE:  POST /api/chat
    │       └── If api_mode=OPENAI:  POST /v1/chat/completions
-   │       ├── For thinking models (qwen3, deepseek-r1):
-   │       │   └── Auto-sets think=False unless overridden
    │       └── Returns {content, tool_calls, usage, _finish_reason}
    │
-   ├─ 3b. Check finish_reason
-   │       ├── "length" → mark_incomplete(), break
-   │       └── "content_filter" → mark_failed(), break
+   ├─ 3b. Check finish_reason (length → incomplete, content_filter → failed)
    │
    ├─ 3c. Check for tool calls (two sources):
    │       ├── NATIVE: backend returns tool_calls in response
-   │       │   └── memory.add_tool_call("assistant", content, tool_calls)
    │       └── REACT: ToolParser.parse(content) extracts from text
-   │           └── ParsedCall(name, arguments, final_answer, thought)
    │
-   ├─ 3d. Final Answer Enforcement
-   │       If _expecting_final_answer is True and model tried another tool call:
-   │           → Force use of _last_successful_result as the answer
-   │
-   ├─ 3e. If tool calls found:
-   │       ├── Check allowed_tools (block if not in list)
-   │       ├── Execute via _execute_tool(name, args, prompt)      # tools/registry.py → handler()
+   ├─ 3d. If tool calls found:
+   │       ├── Check confirm_dangerous callback → block if denied
+   │       ├── Check allowed_tools → block if not in list
+   │       ├── Execute via _execute_tool(name, args, prompt)
    │       ├── Track success/failure in ErrorRecoveryTracker
-   │       │   ├── On failure: is_error_result() → build_retry_context()
-   │       │   └── On success: record_success(), reset consecutive counter
-   │       ├── Build enhanced observation with guidance:
-   │       │   ├── Success: "Observation: {result}\n\nNow output: Final Answer: <the result>"
-   │       │   └── Error: "Observation: {error}\n\nNote: Try a different approach..."
+   │       │   └── On failure + retry_on_error: inject retry context
+   │       ├── Check _expecting_final_answer (terminal tools only)
    │       ├── Check for simultaneous final_answer in parsed call
-   │       │   └── If present → use it, skip loop continuation
    │       └── Continue agentic loop
    │
-   ├─ 3f. Check for "Final Answer:" in content
+   ├─ 3e. Check for "Final Answer:" in content
    │       ├── Enforce tool_choice=required if no tools called yet
-   │       ├── Extract via ToolParser.extract_final_answer()
-   │       ├── Create MessageItem, add to Response.output
-   │       └── Break from loop
+   │       └── Extract → create MessageItem → break
    │
-   └─ 3g. No tool call, no Final Answer → accept as direct response
+   └─ 3f. No tool call, no Final Answer → accept as direct response
          (unless tool_choice=required → inject guidance, continue)
 ```
 
@@ -299,23 +227,26 @@ User Prompt
 cli.py ─────────────────────────────────────────────────────────────┐
   ├──→ agent.py ────────────────────────────────────────────────────────┤
   │    ├── core/memory.py                                           │
-  │    ├── core/tool_parse.py ─→ core/models.py                    │
+  │    ├── core/persistent_memory.py → core/memory.py, sqlite3        │
+  │    ├── core/tool_parse.py ─→ core/models.py                     │
   │    ├── core/error_recovery.py                                     │
-  │    ├── core/openresponses.py ─→ core/models.py                   │
-  │    ├── core/helpers.py ─→ (security for all tool operations)    │
-  │    ├── tools/registry.py ─→ tools/builtins.py                   │
-  │    └── soul/loader.py ─→ soul/types.py                        │
+  │    ├── core/openresponses.py ─→ core/models.py                    │
+  │    ├── core/helpers.py ─→ (security for all tool operations)      │
+  │    ├── core/model_family_config.py (unified)                      │
+  │    ├── tools/registry.py ─→ tools/builtins.py                    │
+  │    └── soul/loader.py ─→ soul/types.py                           │
   │                                                                    │
   ├──→ orchestrator.py ─→ agent.py (creates Agent instances per card)   │
-  │       └── backends/ (for LLM-based routing)                     │
+  │       └── backends/ (for LLM-based routing)                       │
   │                                                                    │
   ├──→ agent_mode.py ──→ agent.py (wraps in state machine)            │
   └──→ skills/loader.py (via _load_skills_prompt, optional)          │
                                                                        │
-config.py ← referenced by EVERYTHING above                           │
+config.py ← referenced by EVERYTHING above                             │
+shared_args.py ← referenced by cli.py                                  │
 backends/__init__.py ← referenced by agent.py, orchestrator.py        │
-core/model_family_config.py ← referenced by agent.py                  │
 core/tool_cache.py ← referenced by types.py, cli.py                  │
+acp_plugin.py ← referenced by cli.py (optional import)                │
 ```
 
 **Highest blast radius changes:**
@@ -328,17 +259,18 @@ core/tool_cache.py ← referenced by types.py, cli.py                  │
 ## Patterns & Conventions
 
 | Aspect | Pattern |
-|--------|---------|
 | API specification | OpenResponses (https://www.openresponses.org/specification) — 100% compliant: Items, Response state machine, tool_choice modes |
-| Tool calling | Unified ReAct prompting for ALL models — model outputs `Action: name\nAction Input: {json}`. Tool definitions are NOT passed to the API. |
-| Error recovery | Retry-with-error-feedback: inject previous failure context into conversation so model self-corrects. Max 2 retries per failure (configurable). Escalates after consecutive failures. |
-| Small model support | Fuzzy tool name matching (0.4 threshold), argument normalization with aliases, natural language expression extraction, enhanced observations with guidance, repetition detection (`detect_and_fix_repetition()`), `is_small_model()` heuristic |
-| Security | Defense-in-depth: command blocklist + injection detection (shell), path whitelist validation (file ops), SSRF pattern blocking (HTTP), sandboxed subprocess (Python REPL), response size limits, header injection prevention |
-| Backend extensibility | Abstract `BaseBackend` class + `_BACKENDS` dict + `register_backend()` function |
-| Optional imports | ACP and Soul modules wrapped in `try/except` with fallback to `None`. Check with `if ACPPlugin is not None` before using. |
-| CLI argument DRY | `shared_args.py` provides shared argument definitions, but run/chat/agent parsers each duplicate ~20 args. New flags must be added to ALL THREE. |
-| Module entry points | `pyproject.toml [project.scripts]` defines CLI commands. `__init__.py` controls public API via `__all__`. |
-| State machine | `agent_mode.py` implements IDLE → RUNNING → PAUSED → STOPPING with pause/resume/rollback support. |
+| Tool calling | Unified ReAct prompting for ALL models — model outputs `Action: name\nAction Input: {json}`. Tool definitions NOT passed to the API. |
+| Error recovery | Retry-with-error-feedback: inject previous failure context into conversation so model self-corrects. Max 2 retries per failure (configurable). |
+| Small model support | Fuzzy tool name matching (0.4 threshold), argument normalization with aliases, enhanced observations with guidance, repetition detection, `is_small_model()` heuristic |
+| Security | Defense-in-depth: command blocklist + injection detection (shell), path whitelist validation (file ops), SSRF pattern blocking (HTTP), sandboxed subprocess (Python REPL), response size limits, header injection prevention, dangerous tool confirmation (`--confirm`) |
+| Persistent memory | SQLite-backed `PersistentMemory` extends in-memory `Memory`; auto-save on every `add()`, lazy DB connection. Session management via `--session <name>`. |
+| Backend extensibility | Abstract `BaseBackend` class + `_BACKENDS` dict + `register_backend()` function. 3 backends: ollama, bitnet, llama-server. |
+| Optional imports | ACP, Soul, and PersistentMemory modules wrapped in `try/except` with fallback to `None`. Check with `if X is not None` before using. |
+| CLI argument DRY | `shared_args.py:add_agent_args()` adds shared args to run/chat/agent parsers. `cli.py:_build_agent()` centralizes Agent construction. |
+| Structured output | `--response-format json` → Agent sets `response_format={"type":"json_object"}`, disables tools, forces `tool_choice="none"`. Backend sends `response_format` to API. |
+| State machine | `agent_mode.py`: IDLE → WORKING → PAUSED → STOPPING with pause/resume/rollback. `reset_memory_between_steps` for isolated step execution. |
+| Audit logging | `~/.agentnova/audit.log`: JSON-lines, fire-and-forget, logs shell/write_file/edit_file outcomes (accepted/rejected/error). |
 
 ---
 
@@ -346,150 +278,117 @@ core/tool_cache.py ← referenced by types.py, cli.py                  │
 
 ### Tool support detection is per-model, NOT per-family
 ```python
-# SAME FAMILY, DIFFERENT CAPABILITIES:
-qwen2.5:0.5b     → ToolSupportLevel.NATIVE    # API returns tool_calls structure
-qwen2.5-coder:0.5b → ToolSupportLevel.REACT     # Template differs from base!
-
-# Cache lives at ~/.cache/agentnova/tool_support.json
-# MUST be populated BEFORE relying on it:
-agentnova models --tool-support
+qwen2.5:0.5b     → ToolSupportLevel.NATIVE
+qwen2.5-coder:0.5b → ToolSupportLevel.REACT     # Same family, different behavior!
+# Cache: ~/.cache/agentnova/tool_support.json
+# Test: agentnova models --tool-support
 ```
-**Impact**: If you assume all `qwen2.5` models have native tools, you'll break on coder variants. Always test per-model.
 
 ### `calculator()` uses `eval()` — sandboxed but still eval
 ```python
-# In tools/builtins.py:101
 result = eval(expression, {"__builtins__": {}}, safe_dict)
-
-# Safe because:
-# 1. __builtins__ is nulled
-# 2. MAX_EXPONENT = 10,000 prevents DoS via 2**9999999
-# 3. NaN and Inf are explicitly caught
-
-# DANGEROUS: If a new entry is added to safe_dict that provides
-# access to os, sys, or __import__, the sandbox is broken.
+# DANGEROUS: Adding os, sys, or __import__ to safe_dict breaks the sandbox.
 ```
-**Impact**: Adding any entry to `safe_dict` that bridges to Python internals defeats the sandbox. Only add pure math functions.
 
 ### `shell()` runs with `shell=True` — security is purely rejection-based
 ```python
-# In tools/builtins.py:156
 result = subprocess.run(validated_cmd, shell=True, ...)
-
-# sanitize_command() REJECTS dangerous commands but does NOT modify the input.
-# The command returned is the ORIGINAL string (or empty string on rejection).
-# Injection detection blocks: ;, |, &&, ||, backticks, $(), ${}, >, <
-# BUT: pipes with zero spaces (|cmd) are caught, and leading '=' is stripped.
+# sanitize_command() REJECTS dangerous commands but does NOT modify input.
+# Any bypass of the blocklist or injection patterns allows arbitrary execution.
 ```
-**Impact**: Any bypass of the blocklist or injection patterns allows arbitrary command execution. The `shell=True` choice was deliberate (OS shell interprets the full command string) but means security is entirely dependent on the rejection logic.
 
-### `validate_path()` blocks system directories
+### `validate_path()` blocks system directories but allows /tmp, /home
 ```python
-# In core/helpers.py:392 (Unix)
-critical_system_dirs = ["/etc", "/root", "/var", "/usr", "/bin", "/sbin", "/boot", "/dev", "/proc", "/sys"]
-
-# ALLOWED (without config override):
-resolves.startswith("/tmp")      ✓
-resolves.startswith("/home")     ✓
-resolves.startswith(system_temp) ✓
-resolves.startswith(allowed_dir) ✓
-
 # Config default allowed paths: ["./output", "./data", "/tmp"]
-```
-**Workaround for custom paths**:
-```python
-# Option 1: Extend via Config
-config = Config(allowed_paths=["./output", "./data", "/tmp", "/custom/path"])
-
-# Option 2: Pass to validate_path directly
-is_valid, error = validate_path("/custom/path/file.txt", allowed_dirs=["/custom/path"])
+# Extend: Config(allowed_paths=["./output", "./data", "/tmp", "/custom/path"])
+# Or: validate_path(path, allowed_dirs=["/custom/path"])
 ```
 
 ### Memory pruning drops messages without summarization
 ```python
-# In core/memory.py:148
-def _prune_if_needed(self) -> None:
-    # Triggers when len(_messages) > max_messages * summarization_threshold
-    # Default: 50 * 0.8 = 40 messages
-    # It just DROPS old messages — there is NO actual summarization.
-    # keep_recent=5 means the 5 most recent messages are always preserved.
+# _prune_if_needed() triggers at max_messages * 0.8 (default 40)
+# Just DROPS old messages — summarization_threshold name is misleading.
 ```
-**Impact**: Long conversations silently lose context. The `summarization_threshold` name is misleading — it's just a pruning threshold, not a summarization trigger.
+
+### `PersistentMemory.close()` must be called on exit
+```python
+# CLI handles this via _build_agent() exit paths, but Python API users
+# who create Agent(session_id="x") MUST call agent.memory.close()
+# or risk WAL journal growth and locked files.
+```
+
+### `response_format` and tools are mutually exclusive
+```python
+# Setting response_format clears all tools and forces tool_choice="none"
+# JSON mode breaks ReAct format — the parser misinterprets JSON as tool calls.
+# agent.py lines 232-236 enforce this.
+```
 
 ### `_parse_frontmatter()` has limited YAML support
 ```python
-# In skills/loader.py:350
-# Custom parser — no PyYAML dependency
-# Handles: key: value, key: "quoted", key: 'quoted', multiline values via indentation
-# DOES NOT handle: nested objects, arrays, null, booleans, numbers without quotes
+# Custom parser — no PyYAML. Handles: key: value, key: "quoted", multiline via indentation.
+# DOES NOT handle: nested objects, arrays, null, booleans, numbers without quotes.
 ```
-**Impact**: Complex frontmatter (nested objects, lists) will parse incorrectly. The parser works for the current AgentSkills spec (which uses simple string values) but would break on richer YAML.
-
-### CLI argument duplication — maintenance risk
-```
-# Every new flag must be added to THREE parsers in cli.py:
-run_parser.add_argument(...)
-chat_parser.add_argument(...)  # Same args, repeated 3x
-agent_parser.add_argument(...)
-
-# Shared args exist in shared_args.py but each parser still defines
-# them independently. This is because each command has slightly
-# different defaults (e.g., run defaults tools="calculator",
-# chat defaults tools="", agent defaults tools="calculator,shell,write_file").
-```
-**Impact**: Forgetting to add a flag to all three parsers creates inconsistent CLI behavior.
 
 ### Web search depends on HTML scraping — fragile
 ```python
-# In tools/builtins.py:450-578
-# Scrapes DuckDuckGo Lite and HTML endpoints with regex
-# Patterns: <a class="result-link" href="..."> and <td class="result-snippet">
-# FALLBACK: tries html.duckduckgo.com/html/ if lite returns nothing
+# Scrapes DuckDuckGo Lite and html.duckduckgo.com with regex.
+# Any HTML structure change by DuckDuckGo silently breaks web search.
 ```
-**Impact**: Any HTML structure change by DuckDuckGo will silently break web search. No fallback to an API-based search provider.
+
+### `config.py` reads env vars at import time
+```python
+# Module-level constants like OLLAMA_BASE_URL are set WHEN THE MODULE IS IMPORTED.
+# Changing env vars after import has NO effect unless get_config(reload=True) is called.
+```
 
 ---
 
 ## Active Decisions
 
 | Decision | Choice | Rationale |
-|----------|--------|-----------|
-| Zero runtime dependencies | Python stdlib only (urllib for HTTP) | Maximizes portability, zero supply chain risk, works on any Python 3.9+ |
-| Unified ReAct prompting | All models use Action/Action Input format | Consistent parsing, no need to detect which format a model uses per-family |
-| No tool call fallbacks | Model must explicitly format tool calls | Follows OpenResponses spec — prevents the framework from synthesizing answers behind the model's back |
-| Dual API support | OpenResponses + OpenAI Chat-Completions | OpenResponses for spec compliance, OpenAI compat for ecosystem integration |
-| Path whitelist security | Whitelist-based file access | Defense in depth — even if an agent suggests a path, it's validated |
-| Calculator via eval | Restricted eval with `__builtins__: {}` | Simplicity + full Python math expression support without writing a parser |
-| Thinking models auto-detection | `detect_family()` sets `think=False` for qwen3, deepseek-r1 | These models waste tokens thinking when tool-calling is the goal |
-| Tool support per-model, not per-family | Runtime testing, cached results | Model templates vary within the same family (e.g., base vs. coder variants) |
-| Default soul = nova-helper | Every Agent loads a soul unless explicitly disabled | Souls provide structure for small model prompting (tool format, error recovery guidance) |
+| Zero runtime dependencies | Python stdlib only (urllib for HTTP) | Maximizes portability, zero supply chain risk |
+| Unified ReAct prompting | All models use Action/Action Input format | Consistent parsing, no per-family format detection |
+| No tool call fallbacks | Model must explicitly format tool calls | Follows OpenResponses spec |
+| Dual API support | OpenResponses + OpenAI Chat-Completions | Spec compliance + ecosystem integration |
+| SQLite for persistence | stdlib sqlite3 with WAL mode | Zero-dep persistent memory, transactional safety |
+| Path whitelist security | Whitelist-based file access | Defense in depth for agent file operations |
+| Calculator via eval | Restricted eval with `__builtins__: {}` | Simplicity + full Python math without writing a parser |
+| Thinking models auto-detection | `detect_family()` sets `think=False` for qwen3, deepseek-r1 | Prevents wasting tokens on thinking when tool-calling |
+| Tool support per-model, not per-family | Runtime testing, cached results | Model templates vary within same family |
+| Default soul = nova-helper | Every Agent loads a soul unless explicitly disabled | Souls structure small model prompting |
+| Dangerous tool confirmation | `--confirm` flag + callback on Agent | Explicit opt-in for destructive operations |
+| JSON mode disables tools | Mutually exclusive by design | JSON output format breaks ReAct parsing |
 
 ---
 
 ## What's Missing / Incomplete
 
-- **No streaming for ReAct path** — `--stream` flag exists on CLI but streaming is not fully implemented for the tool calling loop
-- **No persistent conversation storage** — `Memory` is in-memory only; restarting CLI loses all history. No session save/load.
-- **Memory pruning has no summarization** — old messages are silently dropped, not summarized. The `summarization_threshold` name is misleading.
-- **Pipeline mode output chaining is plain text** — previous agent output is appended as `[Previous output: ...]` rather than as a structured message. Loses formatting and tool results.
-- **Parallel merge strategies are simplistic** — `vote` normalizes to lowercase first 100 chars (fragile); `best` just picks longest answer.
-- **`BackendType.OPENAI` and `BackendType.CUSTOM`** are defined in types.py but have no implementations — future stubs only.
-- **Soul Spec `AGENTS.md` and `HEARTBEAT.md`** are referenced in the Soul Spec v0.5 but not implemented in the loader.
-- **`Tool.dangerous` flag** is informational only — it's set on `shell`, `write_file`, etc. but nothing in the framework enforces it (e.g., requires explicit confirmation).
-- **No ACL per-tool** — you can restrict via `allowed_tools` at the Agent level, but there's no per-role or per-context permission system.
+- **No streaming for ReAct path** — `--stream` flag exists but streaming is not fully implemented for the tool calling loop
+- **Memory pruning has no summarization** — old messages silently dropped, not summarized
+- **Pipeline mode output chaining is plain text** — `[Previous output: ...]` loses formatting and tool results
+- **Parallel merge strategies are simplistic** — `vote` normalizes to lowercase first 100 chars; `best` just picks longest
+- **`BackendType.OPENAI` and `BackendType.CUSTOM`** — defined in types.py but have no implementations
+- **Soul Spec `HEARTBEAT.md`** — referenced in Soul Spec v0.5 but not implemented in loader
+- **No ACL per-tool** — `allowed_tools` at Agent level, but no per-role or per-context permission system
+- **PersistentMemory has no migration** — schema changes require manual DB deletion
+- **No token budget enforcement** — CostTracker in ACP tracks costs but no hard limit in Agent
+- **`_todo_store` is module-level global** — shared across all agents in same process (not per-session)
 
 ---
 
 ## Quick Start for Developer
 
-1. Read the **Critical Files Index** above — each entry has function signatures, blast radius, and gotchas
+1. Read the **Critical Files Index** above — each entry has purpose, blast radius, and gotchas
 2. Trace the **Request / Execution Lifecycle** — this is how the entire system works end-to-end
 3. Check **Known Landmines** — these save real debugging time
 4. For tool changes → start with `tools/builtins.py` (definitions) and `core/helpers.py` (security)
 5. For backend changes → start with `backends/ollama.py`
 6. For agent loop changes → start with `agent.py` and `core/tool_parse.py`
 7. For multi-agent work → start with `orchestrator.py`
-8. Run `pytest` after any change
+8. For persistent memory → start with `core/persistent_memory.py`
+9. For CLI changes → start with `shared_args.py` (arg definitions) and `cli.py:_build_agent()`
+10. Run `pytest` after any change
 
 Do NOT start by reading every file. Use this brief as your map and read only what you need for your specific task.
 
@@ -497,4 +396,4 @@ Do NOT start by reading every file. Use this brief as your map and read only wha
 
 ## Token Budget Note
 
-> This brief is approximately **~7,800 tokens** (estimated: 27,300 characters ÷ 3.5). Target maximum: 16,000 tokens. Headroom: ~8,200 tokens (~51% of budget remaining).
+> This brief is approximately **~8,500 tokens** (estimated: 29,750 characters ÷ 3.5). Target maximum: 16,000 tokens. Headroom: ~7,500 tokens (~47% of budget remaining).
