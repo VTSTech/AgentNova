@@ -507,7 +507,7 @@ def _print_run_header(agent: Agent, args: argparse.Namespace, config) -> None:
 
     # Print on two lines: main info + params
     line1 = "  ".join(parts)
-    line2 = f"  {dim('params:')} {', '.join(params)}"
+    line2 = dim("params:") + " " + ", ".join(params)
     print(f"{dim('─') * 60}")
     print(f"  {line1}")
     print(f"  {line2}")
