@@ -224,6 +224,17 @@ class Agent:
         else:
             self.tool_choice = ToolChoice(tool_choice)
 
+        # Structured output and tool calling are mutually exclusive:
+        # JSON mode forces the model to format ALL output as JSON objects,
+        # which breaks the ReAct tool-calling format (the parser misinterprets
+        # the JSON response as a tool call). When response_format is set,
+        # disable tools and force tool_choice to "none".
+        if self._response_format is not None:
+            self.tool_choice = ToolChoice("none")
+            self.tools = ToolRegistry()
+            if debug:
+                print(f"[Agent] JSON mode enabled — tools disabled (response_format and tool calling are mutually exclusive)")
+
         if debug and not self._is_comp_mode:
             print(f"[OpenResponses] tool_choice initialized: type={self.tool_choice.type.value}, name={self.tool_choice.name or 'N/A'}, tools={self.tool_choice.tools or 'N/A'}")
 
