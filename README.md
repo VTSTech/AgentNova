@@ -15,7 +15,7 @@ Inspired by the architecture of OpenClaw, rebuilt from scratch for local-first o
 
 [![License](https://img.shields.io/badge/License-MIT-blue)](#license) [![Go to Python website](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2FVTSTech%2FAgentNova%2Frefs%2Fheads%2Fmain%2Fpyproject.toml&query=project.requires-python&label=python&logo=python&logoColor=white)](https://python.org)
 
-<img width="1360" height="970" alt="image" src="https://github.com/user-attachments/assets/6cf0ec47-90d7-4375-b55c-8b6ed6004ce5" />
+<img width="1432" height="982" alt="image" src="https://github.com/user-attachments/assets/271fe287-7f9a-4120-8aa8-c8cdb0d7ac21" />
 <img width="1063" height="574" alt="image" src="https://github.com/user-attachments/assets/eab6f4ad-810c-4741-b637-e120f9ccb974" />
 
 ## 📚 Documentation
