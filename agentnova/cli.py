@@ -1576,7 +1576,8 @@ def cmd_sessions(args: argparse.Namespace) -> int:
         sessions = PersistentMemory.list_sessions()
         if not sessions:
             print("No saved sessions found.")
-            print(f"\n  Start a session with: {cyan('agentnova run --session <name> \"<prompt>\"')}")
+            _hint = 'agentnova run --session <name> "<prompt>"'
+            print(f"\n  Start a session with: {cyan(_hint)}")
             return 0
 
         ID_W = 20
@@ -1600,7 +1601,8 @@ def cmd_sessions(args: argparse.Namespace) -> int:
 
         print(dim("-" * (4 + ID_W + MSGS_W + CREATED_W + UPDATED_W)))
         print(f"Total: {bright_green(str(len(sessions)))} sessions")
-        print(f"\n{dim('Resume a session:')} {cyan('agentnova run --session <name> \"<prompt>\"')}")
+        _resume = 'agentnova run --session <name> "<prompt>"'
+        print(f"\n{dim('Resume a session:')} {cyan(_resume)}")
         print(f"{dim('Delete a session:')} {cyan('agentnova sessions --delete <name>')}")
 
     return 0
