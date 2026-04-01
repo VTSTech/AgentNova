@@ -345,6 +345,9 @@ def create_parser() -> argparse.ArgumentParser:
     soul_parser.add_argument("--validate", action="store_true", help="Run validation checks")
     soul_parser.add_argument("--prompt", action="store_true", help="Show generated system prompt")
 
+    # Update command
+    subparsers.add_parser("update", help="Update AgentNova to the latest version from GitHub")
+
     return parser
 
 
@@ -1620,6 +1623,44 @@ def cmd_soul(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_update(args: argparse.Namespace) -> int:
+    """Update AgentNova to the latest version from GitHub."""
+    print(f"{bright_cyan('⚛ AgentNova')} - Updating to latest development version ...")
+    print(f"{dim('Running:')} pip install git+https://github.com/VTSTech/AgentNova.git --force-reinstall")
+    print()
+
+    import subprocess as sp
+    result = sp.run(
+        [sys.executable, "-m", "pip", "install",
+         "git+https://github.com/VTSTech/AgentNova.git", "--force-reinstall"],
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode == 0:
+        print(f"{green('✓ Updated successfully!')}")
+        # Show the installed version
+        try:
+            version_result = sp.run(
+                [sys.executable, "-m", "agentnova", "version"],
+                capture_output=True,
+                text=True,
+            )
+            if version_result.returncode == 0 and version_result.stdout.strip():
+                print(version_result.stdout.strip())
+        except Exception:
+            pass
+    else:
+        print(f"{red('✗ Update failed.')}")
+        if result.stderr:
+            print()
+            for line in result.stderr.strip().split("\n")[-5:]:
+                print(f"  {dim(line)}")
+        return 1
+
+    return 0
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     """Main entry point."""
     parser = create_parser()
@@ -1642,6 +1683,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         "modelfile": cmd_modelfile,
         "skills": cmd_skills,
         "soul": cmd_soul,
+        "update": cmd_update,
     }
 
     handler = commands.get(args.command)
