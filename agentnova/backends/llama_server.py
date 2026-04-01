@@ -254,7 +254,7 @@ class LlamaServerBackend(OllamaBackend):
             "prompt": prompt,
             "n_predict": max_tokens,
             "temperature": temperature,
-            "stop": kwargs.get("stop", [] if self._bitnet_mode else ["</s>", "User:", "\nUser:"]),
+            "stop": kwargs.get("stop", [] if not self._bitnet_mode else ["<|im_sep|>"]),
         }
 
         start_time = time.time()
@@ -320,7 +320,7 @@ class LlamaServerBackend(OllamaBackend):
             "n_predict": max_tokens,
             "temperature": temperature,
             "stream": True,
-            "stop": kwargs.get("stop", [] if self._bitnet_mode else ["</s>", "User:", "\nUser:"]),
+            "stop": kwargs.get("stop", [] if not self._bitnet_mode else ["<|im_sep|>"]),
         }
 
         try:
@@ -357,6 +357,14 @@ class LlamaServerBackend(OllamaBackend):
             reason = getattr(e, 'reason', str(e))
             raise RuntimeError(f"{label} connection error: {reason}")
 
+    # Maximum prompt character budget for BitNet.
+    # BitNet's degraded tokenizer (fallback 'default' pre-tokenizer) produces
+    # reserved token IDs at certain positions in the token stream, crashing
+    # the i2_s inference kernel. Testing showed crashes at ~320 tokens
+    # (~1016 chars). We set a conservative budget of 800 chars (~240 tokens)
+    # to stay safely below the crash threshold.
+    _BITNET_PROMPT_BUDGET = 800
+
     @staticmethod
     def _sanitize_for_bitnet(text: str) -> str:
         """
@@ -367,39 +375,67 @@ class LlamaServerBackend(OllamaBackend):
         character sequences to produce reserved token IDs that crash the
         inference engine's i2_s (ternary/2-bit) kernel.
 
-        Known triggers (from crash isolation testing):
-        - Markdown code fences (triple backticks) with content inside
-        - Markdown tables (pipes + dashes in alignment rows)
-        - Consecutive pipes or dashes
+        Applies two layers of sanitization:
+        1. Strip crash-prone patterns (markdown tables, code fences)
+        2. Truncate to fit within the BitNet prompt budget
 
-        This sanitizer strips those patterns while preserving the semantic
-        content of the prompt.
+        Testing showed crashes are token-position-dependent, not purely
+        character-dependent. Keeping the total prompt short avoids the
+        problematic token positions entirely.
         """
         import re
 
-        # Remove fenced code blocks: ```...```  (including the content)
-        # The ReAct format examples use these for Action/Action Input blocks
+        # Layer 1: Strip markdown patterns that worsen tokenization
+        # Remove fenced code blocks: ```...```
         text = re.sub(r'```[\s\S]*?```', '', text)
 
-        # Remove markdown table rows (lines starting with | or containing |)
-        # These are used in the soul's Tool Reference tables
+        # Remove markdown table rows
         lines = text.split('\n')
         cleaned = []
         for line in lines:
             stripped = line.strip()
-            # Skip table rows and separators
             if stripped.startswith('|') or stripped.startswith('|--'):
                 continue
-            # Skip lines that are just dashes (table separators)
             if re.match(r'^[-]+$', stripped):
                 continue
             cleaned.append(line)
         text = '\n'.join(cleaned)
-
-        # Clean up excessive blank lines left by removal
         text = re.sub(r'\n{3,}', '\n\n', text)
+        text = text.strip()
 
-        return text.strip()
+        return text
+
+    @staticmethod
+    def _truncate_for_bitnet(text: str, budget: int = 0) -> str:
+        """
+        Truncate text to fit within BitNet's prompt budget.
+
+        Splits by paragraphs and keeps as many complete paragraphs as
+        possible within the budget. Falls back to character-level truncation
+        if a single paragraph exceeds the budget.
+        """
+        if budget <= 0:
+            budget = LlamaServerBackend._BITNET_PROMPT_BUDGET
+
+        if len(text) <= budget:
+            return text
+
+        # Try to keep complete paragraphs
+        paragraphs = text.split('\n\n')
+        result = []
+        total = 0
+        for para in paragraphs:
+            para_len = len(para) + 2  # +2 for \n\n separator
+            if total + para_len > budget:
+                break
+            result.append(para)
+            total += para_len
+
+        if result:
+            return '\n\n'.join(result)
+
+        # Single paragraph exceeds budget — truncate at budget
+        return text[:budget]
 
     def _messages_to_prompt(
         self,
@@ -411,11 +447,17 @@ class LlamaServerBackend(OllamaBackend):
 
         Same format as BitNet backend — ReAct tool instructions embedded in prompt.
 
-        When bitnet_mode=True, the system message and tool descriptions are
-        sanitized to avoid triggering reserved token IDs in BitNet's degraded
-        tokenizer (see _sanitize_for_bitnet).
+        When bitnet_mode=True, applies BitNet-safe formatting:
+        1. Sanitizes system message and tool descriptions (strip markdown)
+        2. Enforces prompt budget to avoid token-position crashes
+        3. Truncates tool descriptions first (preserving system prompt)
         """
         parts = []
+
+        # Reserve budget for conversation suffix (~100 chars)
+        suffix_budget = 100  # "\nUser: <query>\n\nAssistant:"
+        if self._bitnet_mode:
+            system_budget = self._BITNET_PROMPT_BUDGET - suffix_budget
 
         # Add system message
         for msg in messages:
@@ -423,20 +465,36 @@ class LlamaServerBackend(OllamaBackend):
                 system_content = msg["content"]
                 if self._bitnet_mode:
                     system_content = self._sanitize_for_bitnet(system_content)
+                    system_content = self._truncate_for_bitnet(
+                        system_content, budget=system_budget
+                    )
                 parts.append(system_content)
                 break
 
         # Add tool descriptions
         if tools:
-            parts.append("\n\nAvailable tools:")
+            tool_lines = ["\n\nAvailable tools:"]
             for tool in tools:
                 desc = tool.description
                 if self._bitnet_mode:
                     desc = self._sanitize_for_bitnet(desc)
-                parts.append(f"- {tool.name}: {desc}")
-            parts.append("\nUse ReAct format for tool calls:")
-            parts.append('Action: tool_name')
-            parts.append('Action Input: {"param": "value"}')
+                tool_lines.append(f"- {tool.name}: {desc}")
+            tool_lines.append("\nUse ReAct format for tool calls:")
+            tool_lines.append('Action: tool_name')
+            tool_lines.append('Action Input: {"param": "value"}')
+
+            tool_section = "\n".join(tool_lines)
+
+            if self._bitnet_mode:
+                # Calculate remaining budget after system message
+                used = len(parts[0]) if parts else 0
+                remaining = system_budget - used
+                if remaining < len(tool_section):
+                    tool_section = self._truncate_for_bitnet(
+                        tool_section, budget=max(remaining, 80)
+                    )
+
+            parts.append(tool_section)
 
         # Add conversation
         for msg in messages:
