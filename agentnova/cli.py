@@ -24,6 +24,7 @@ from .tools import make_builtin_registry
 from .backends import get_backend, get_default_backend, OllamaBackend
 from .config import get_config, AGENTNOVA_BACKEND, OLLAMA_BASE_URL, BITNET_BASE_URL
 from .model_discovery import match_models, get_models
+from .shared_args import add_agent_args
 from .colors import (
     Color, c, dim, bold, cyan, green, yellow, red, magenta, blue,
     bright_cyan, bright_green, bright_yellow, bright_magenta, bright_red,
@@ -168,110 +169,17 @@ def create_parser() -> argparse.ArgumentParser:
     # Run command
     run_parser = subparsers.add_parser("run", help="Run a single prompt")
     run_parser.add_argument("prompt", help="The prompt to process")
-    run_parser.add_argument("-m", "--model", default=None, help="Model to use")
-    run_parser.add_argument("--tools", default="calculator", help="Comma-separated tool list")
-    run_parser.add_argument("--backend", choices=["ollama", "bitnet", "llama-server"], default=None, help="Backend to use")
-    run_parser.add_argument("--api", choices=["openre", "openai"], default="openre", dest="api_mode",
-                           help="API mode: 'openre' (OpenResponses) or 'openai' (Chat-Completions)")
+    add_agent_args(run_parser, tools_default="calculator")
     run_parser.add_argument("--stream", action="store_true", help="Stream output")
-    run_parser.add_argument("--debug", action="store_true", help="Enable debug output")
     run_parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
-    run_parser.add_argument("--soul", default=None, help="Path to Soul Spec package (disabled by default)")
-    run_parser.add_argument("--soul-level", type=int, default=2, choices=[1, 2, 3],
-                           help="Soul progressive disclosure level (1=quick, 2=full, 3=deep)")
-    run_parser.add_argument("--num-ctx", type=int, default=None, dest="num_ctx",
-                           help="Context window size in tokens (Ollama default is 2048)")
-    run_parser.add_argument("--num-predict", type=int, default=None, dest="num_predict",
-                           help="Maximum tokens to generate (default: model-specific)")
-    run_parser.add_argument("--temp", "--temperature", type=float, default=None, dest="temperature",
-                           help="Sampling temperature 0.0-2.0 (default: model-specific)")
-    run_parser.add_argument("--top-p", type=float, default=None, dest="top_p",
-                           help="Nucleus sampling probability 0.0-1.0 (default: model-specific)")
-    run_parser.add_argument("--timeout", type=int, default=None,
-                           help="Request timeout in seconds (default: 120)")
-    run_parser.add_argument("--force-react", action="store_true", help="Force ReAct mode for tool calling")
-    run_parser.add_argument("--acp", action="store_true", help="Enable ACP logging to Agent Control Panel")
-    run_parser.add_argument("--acp-url", default=None, help="ACP server URL (default: from config)")
-    run_parser.add_argument("--response-format", choices=["text", "json"], default="text", dest="response_format",
-                           help="Response format: 'text' (default) or 'json' (structured output)")
-    run_parser.add_argument("--truncation", choices=["auto", "disabled"], default="auto",
-                           help="Truncation behavior for context overflow (default: auto)")
-    run_parser.add_argument("--skills", default=None,
-                           help="Comma-separated skill names to load (e.g., acp,skill-creator)")
-    run_parser.add_argument("--no-retry", action="store_true", dest="no_retry",
-                           help="Disable retry-with-error-feedback on tool failures")
-    run_parser.add_argument("--max-retries", type=int, default=None, dest="max_tool_retries",
-                           help="Maximum retries per tool call failure (default: 2)")
 
     # Chat command
     chat_parser = subparsers.add_parser("chat", help="Interactive chat mode")
-    chat_parser.add_argument("-m", "--model", default=None, help="Model to use")
-    chat_parser.add_argument("--tools", default="", help="Comma-separated tool list")
-    chat_parser.add_argument("--backend", choices=["ollama", "bitnet", "llama-server"], default=None, help="Backend to use")
-    chat_parser.add_argument("--api", choices=["openre", "openai"], default="openre", dest="api_mode",
-                           help="API mode: 'openre' (OpenResponses) or 'openai' (Chat-Completions)")
-    chat_parser.add_argument("--debug", action="store_true", help="Enable debug output")
-    chat_parser.add_argument("--force-react", action="store_true", help="Force ReAct mode")
-    chat_parser.add_argument("--soul", default=None, help="Path to Soul Spec package (disabled by default)")
-    chat_parser.add_argument("--soul-level", type=int, default=2, choices=[1, 2, 3],
-                           help="Soul progressive disclosure level (1=quick, 2=full, 3=deep)")
-    chat_parser.add_argument("--num-ctx", type=int, default=None, dest="num_ctx",
-                           help="Context window size in tokens (Ollama default is 2048)")
-    chat_parser.add_argument("--num-predict", type=int, default=None, dest="num_predict",
-                           help="Maximum tokens to generate (default: model-specific)")
-    chat_parser.add_argument("--temp", "--temperature", type=float, default=None, dest="temperature",
-                           help="Sampling temperature 0.0-2.0 (default: model-specific)")
-    chat_parser.add_argument("--top-p", type=float, default=None, dest="top_p",
-                           help="Nucleus sampling probability 0.0-1.0 (default: model-specific)")
-    chat_parser.add_argument("--timeout", type=int, default=None,
-                           help="Request timeout in seconds (default: 120)")
-    chat_parser.add_argument("--acp", action="store_true", help="Enable ACP logging to Agent Control Panel")
-    chat_parser.add_argument("--acp-url", default=None, help="ACP server URL (default: from config)")
-    chat_parser.add_argument("--response-format", choices=["text", "json"], default="text", dest="response_format",
-                           help="Response format: 'text' (default) or 'json' (structured output)")
-    chat_parser.add_argument("--truncation", choices=["auto", "disabled"], default="auto",
-                           help="Truncation behavior for context overflow (default: auto)")
-    chat_parser.add_argument("--skills", default=None,
-                            help="Comma-separated skill names to load (e.g., acp,skill-creator)")
-    chat_parser.add_argument("--no-retry", action="store_true", dest="no_retry",
-                           help="Disable retry-with-error-feedback on tool failures")
-    chat_parser.add_argument("--max-retries", type=int, default=None, dest="max_tool_retries",
-                           help="Maximum retries per tool call failure (default: 2)")
+    add_agent_args(chat_parser, tools_default="")
 
     # Agent command
     agent_parser = subparsers.add_parser("agent", help="Autonomous agent mode")
-    agent_parser.add_argument("-m", "--model", default=None, help="Model to use")
-    agent_parser.add_argument("--tools", default="calculator,shell,write_file", help="Comma-separated tool list")
-    agent_parser.add_argument("--backend", choices=["ollama", "bitnet", "llama-server"], default=None, help="Backend to use")
-    agent_parser.add_argument("--api", choices=["openre", "openai"], default="openre", dest="api_mode",
-                           help="API mode: 'openre' (OpenResponses) or 'openai' (Chat-Completions)")
-    agent_parser.add_argument("--debug", action="store_true", help="Enable debug output")
-    agent_parser.add_argument("--force-react", action="store_true", help="Force ReAct mode for tool calling")
-    agent_parser.add_argument("--soul", default=None, help="Path to Soul Spec package (disabled by default)")
-    agent_parser.add_argument("--soul-level", type=int, default=2, choices=[1, 2, 3],
-                           help="Soul progressive disclosure level (1=quick, 2=full, 3=deep)")
-    agent_parser.add_argument("--num-ctx", type=int, default=None, dest="num_ctx",
-                           help="Context window size in tokens (Ollama default is 2048)")
-    agent_parser.add_argument("--num-predict", type=int, default=None, dest="num_predict",
-                           help="Maximum tokens to generate (default: model-specific)")
-    agent_parser.add_argument("--temp", "--temperature", type=float, default=None, dest="temperature",
-                           help="Sampling temperature 0.0-2.0 (default: model-specific)")
-    agent_parser.add_argument("--top-p", type=float, default=None, dest="top_p",
-                           help="Nucleus sampling probability 0.0-1.0 (default: model-specific)")
-    agent_parser.add_argument("--timeout", type=int, default=None,
-                           help="Request timeout in seconds (default: 120)")
-    agent_parser.add_argument("--acp", action="store_true", help="Enable ACP logging to Agent Control Panel")
-    agent_parser.add_argument("--acp-url", default=None, help="ACP server URL (default: from config)")
-    agent_parser.add_argument("--response-format", choices=["text", "json"], default="text", dest="response_format",
-                           help="Response format: 'text' (default) or 'json' (structured output)")
-    agent_parser.add_argument("--truncation", choices=["auto", "disabled"], default="auto",
-                           help="Truncation behavior for context overflow (default: auto)")
-    agent_parser.add_argument("--skills", default=None,
-                             help="Comma-separated skill names to load (e.g., acp,skill-creator)")
-    agent_parser.add_argument("--no-retry", action="store_true", dest="no_retry",
-                           help="Disable retry-with-error-feedback on tool failures")
-    agent_parser.add_argument("--max-retries", type=int, default=None, dest="max_tool_retries",
-                           help="Maximum retries per tool call failure (default: 2)")
+    add_agent_args(agent_parser, tools_default="calculator,shell,write_file")
 
     # Models command
     models_parser = subparsers.add_parser("models", help="List available models")
@@ -347,11 +255,6 @@ def create_parser() -> argparse.ArgumentParser:
 
     # Update command
     subparsers.add_parser("update", help="Update AgentNova to the latest version from GitHub")
-
-    # --confirm is added to every command that creates an Agent
-    for p in (run_parser, chat_parser, agent_parser):
-        p.add_argument("--confirm", action="store_true", dest="confirm_dangerous",
-                        help="Require confirmation before executing dangerous tools (shell, write_file, edit_file)")
 
     return parser
 
@@ -473,19 +376,17 @@ def _load_skills_prompt(args: argparse.Namespace) -> str | None:
     return None
 
 
-def cmd_run(args: argparse.Namespace) -> int:
-    """Execute the run command."""
-    config = get_config()
+def _build_agent(args: argparse.Namespace, config) -> Agent:
+    """Build an Agent from parsed CLI args and config.
+
+    Centralises the ~20-parameter Agent construction that was previously
+    duplicated in cmd_run, cmd_chat, and cmd_agent.  Every new CLI flag
+    only needs to be added here (and in add_agent_args).
+    """
     model = args.model or config.default_model
     backend_name = args.backend or config.backend
-    api_mode = getattr(args, 'api_mode', 'openre')
-
-    # Initialize ACP if requested
-    acp, should_stop = _init_acp(args, config, "AgentNova-Run")
-    if should_stop:
-        return 1
-
-    timeout = getattr(args, 'timeout', None)
+    api_mode = getattr(args, "api_mode", "openre")
+    timeout = getattr(args, "timeout", None)
     backend = get_backend(backend_name, timeout=timeout, api_mode=api_mode)
 
     # Build tools
@@ -499,30 +400,68 @@ def cmd_run(args: argparse.Namespace) -> int:
     # Load skills if requested
     skills_prompt = _load_skills_prompt(args)
 
-    agent = Agent(
+    return Agent(
         model=model,
         tools=tools,
         backend=backend,
+        force_react=args.force_react,
         debug=args.debug,
-        force_react=getattr(args, 'force_react', False),
-        soul=getattr(args, 'soul', None),
-        soul_level=getattr(args, 'soul_level', 2),
-        num_ctx=getattr(args, 'num_ctx', None) if getattr(args, 'num_ctx', None) is not None else config.num_ctx,
-        temperature=getattr(args, 'temperature', None),
-        top_p=getattr(args, 'top_p', None),
-        num_predict=getattr(args, 'num_predict', None),
+        soul=getattr(args, "soul", None),
+        soul_level=getattr(args, "soul_level", 2),
+        num_ctx=(
+            getattr(args, "num_ctx", None)
+            if getattr(args, "num_ctx", None) is not None
+            else config.num_ctx
+        ),
+        temperature=getattr(args, "temperature", None),
+        top_p=getattr(args, "top_p", None),
+        num_predict=getattr(args, "num_predict", None),
         skills_prompt=skills_prompt,
-        retry_on_error=not getattr(args, 'no_retry', False),
-        max_tool_retries=getattr(args, 'max_tool_retries', None) or config.max_tool_retries,
+        retry_on_error=not getattr(args, "no_retry", False),
+        max_tool_retries=getattr(args, "max_tool_retries", None) or config.max_tool_retries,
         confirm_dangerous=_make_confirm_callback(args),
     )
 
-    # Log to ACP
 
-    result = agent.run(args.prompt, stream=getattr(args, 'stream', False))
+def _print_session_header(agent: Agent, args: argparse.Namespace, config, label: str) -> None:
+    """Print the common header shown by chat and agent modes."""
+    model = agent.model
+    backend_name = args.backend or config.backend
+    api_mode = getattr(args, "api_mode", "openre")
+    timeout = getattr(args, "timeout", None)
+
+    print_banner()
+    print(f"{bright_magenta(label)} — {cyan(model)}")
+    print(f"{dim('Backend:')} {backend_name} ({dim(agent.backend.base_url)})")
+    print(f"{dim('API Mode:')} {yellow(api_mode)}")
+    if agent.soul:
+        print(f"{dim('Soul:')} {green(agent.soul.display_name)} v{agent.soul.version}")
+    if agent.num_ctx:
+        ctx_display = f"{agent.num_ctx // 1024}K" if agent.num_ctx >= 1024 else str(agent.num_ctx)
+        print(f"{dim('Context:')} {yellow(ctx_display)}")
+    if timeout:
+        print(f"{dim('Timeout:')} {yellow(str(timeout) + 's')}")
+    acp = getattr(args, '_acp', None)
+    if acp:
+        print(f"{dim('ACP:')} {green('✓ Connected')} ({acp.base_url})")
+    print(f"{dim('Status:')} {yellow('Alpha')}")
+
+
+def cmd_run(args: argparse.Namespace) -> int:
+    """Execute the run command."""
+    config = get_config()
+
+    # Initialize ACP if requested
+    acp, should_stop = _init_acp(args, config, "AgentNova-Run")
+    if should_stop:
+        return 1
+
+    agent = _build_agent(args, config)
+
+    result = agent.run(args.prompt, stream=getattr(args, "stream", False))
     print(result.final_answer)
 
-    # Log result to ACP
+    # Log to ACP
     if acp:
         acp.log_chat("assistant", result.final_answer)
         acp.a2a_unregister()
@@ -537,60 +476,15 @@ def cmd_run(args: argparse.Namespace) -> int:
 def cmd_chat(args: argparse.Namespace) -> int:
     """Execute the chat command."""
     config = get_config()
-    model = args.model or config.default_model
-    backend_name = args.backend or config.backend
-    api_mode = getattr(args, 'api_mode', 'openre')
 
     # Initialize ACP if requested
     acp, should_stop = _init_acp(args, config, "AgentNova-Chat")
     if should_stop:
         return 1
 
-    timeout = getattr(args, 'timeout', None)
-    backend = get_backend(backend_name, timeout=timeout, api_mode=api_mode)
+    agent = _build_agent(args, config)
 
-    if args.tools:
-        all_tools = make_builtin_registry()
-        tool_names = [t.strip() for t in args.tools.split(",")]
-        tools = all_tools.subset(tool_names)
-    else:
-        tools = None
-
-    # Load skills if requested
-    skills_prompt = _load_skills_prompt(args)
-
-    agent = Agent(
-        model=model,
-        tools=tools,
-        backend=backend,
-        force_react=args.force_react,
-        debug=args.debug,
-        soul=getattr(args, 'soul', None),
-        soul_level=getattr(args, 'soul_level', 2),
-        num_ctx=getattr(args, 'num_ctx', None) if getattr(args, 'num_ctx', None) is not None else config.num_ctx,
-        temperature=getattr(args, 'temperature', None),
-        top_p=getattr(args, 'top_p', None),
-        num_predict=getattr(args, 'num_predict', None),
-        skills_prompt=skills_prompt,
-        retry_on_error=not getattr(args, 'no_retry', False),
-        max_tool_retries=getattr(args, 'max_tool_retries', None) or config.max_tool_retries,
-        confirm_dangerous=_make_confirm_callback(args),
-    )
-
-    print_banner()
-    print(f"{bright_magenta('Chat Mode')} — {cyan(model)}")
-    print(f"{dim('Backend:')} {backend_name} ({dim(backend.base_url)})")
-    print(f"{dim('API Mode:')} {yellow(api_mode)}")
-    if agent.soul:
-        print(f"{dim('Soul:')} {green(agent.soul.display_name)} v{agent.soul.version}")
-    if agent.num_ctx:
-        ctx_display = f"{agent.num_ctx // 1024}K" if agent.num_ctx >= 1024 else str(agent.num_ctx)
-        print(f"{dim('Context:')} {yellow(ctx_display)}")
-    if timeout:
-        print(f"{dim('Timeout:')} {yellow(str(timeout) + 's')}")
-    if acp:
-        print(f"{dim('ACP:')} {green('✓ Connected')} ({acp.base_url})")
-    print(f"{dim('Status:')} {yellow('Alpha')}")
+    _print_session_header(agent, args, config, "Chat Mode")
     print("Type '/quit' to exit, '/help' for commands\n")
 
     while True:
@@ -642,62 +536,16 @@ def cmd_chat(args: argparse.Namespace) -> int:
 def cmd_agent(args: argparse.Namespace) -> int:
     """Execute the agent command."""
     config = get_config()
-    model = args.model or config.default_model
-    backend_name = args.backend or config.backend
-    api_mode = getattr(args, 'api_mode', 'openre')
 
     # Initialize ACP if requested
     acp, should_stop = _init_acp(args, config, "AgentNova-Agent")
     if should_stop:
         return 1
 
-    timeout = getattr(args, 'timeout', None)
-    backend = get_backend(backend_name, timeout=timeout, api_mode=api_mode)
-
-    if args.tools:
-        all_tools = make_builtin_registry()
-        tool_names = [t.strip() for t in args.tools.split(",")]
-        tools = all_tools.subset(tool_names)
-    else:
-        tools = None
-
-    # Load skills if requested
-    skills_prompt = _load_skills_prompt(args)
-
-    agent = Agent(
-        model=model,
-        tools=tools,
-        backend=backend,
-        debug=args.debug,
-        force_react=getattr(args, 'force_react', False),
-        soul=getattr(args, 'soul', None),
-        soul_level=getattr(args, 'soul_level', 2),
-        num_ctx=getattr(args, 'num_ctx', None) if getattr(args, 'num_ctx', None) is not None else config.num_ctx,
-        temperature=getattr(args, 'temperature', None),
-        top_p=getattr(args, 'top_p', None),
-        num_predict=getattr(args, 'num_predict', None),
-        skills_prompt=skills_prompt,
-        retry_on_error=not getattr(args, 'no_retry', False),
-        max_tool_retries=getattr(args, 'max_tool_retries', None) or config.max_tool_retries,
-        confirm_dangerous=_make_confirm_callback(args),
-    )
-
+    agent = _build_agent(args, config)
     agent_mode = AgentMode(agent, verbose=True)
 
-    print_banner()
-    print(f"{bright_magenta('Agent Mode')} — {cyan(model)}")
-    print(f"{dim('Backend:')} {backend_name} ({dim(backend.base_url)})")
-    print(f"{dim('API Mode:')} {yellow(api_mode)}")
-    if agent.soul:
-        print(f"{dim('Soul:')} {green(agent.soul.display_name)} v{agent.soul.version}")
-    if agent.num_ctx:
-        ctx_display = f"{agent.num_ctx // 1024}K" if agent.num_ctx >= 1024 else str(agent.num_ctx)
-        print(f"{dim('Context:')} {yellow(ctx_display)}")
-    if timeout:
-        print(f"{dim('Timeout:')} {yellow(str(timeout) + 's')}")
-    if acp:
-        print(f"{dim('ACP:')} {green('✓ Connected')} ({acp.base_url})")
-    print(f"{dim('Status:')} {yellow('Alpha')}")
+    _print_session_header(agent, args, config, "Agent Mode")
     print("Give the agent a goal to accomplish autonomously.")
     print(f"Commands: {cyan('/status')}, {cyan('/pause')}, {cyan('/resume')}, {cyan('/stop')}, {cyan('/quit')}\n")
 

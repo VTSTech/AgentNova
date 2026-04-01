@@ -117,13 +117,15 @@ def add_shared_args(parser: argparse.ArgumentParser) -> None:
         "--num-ctx",
         type=int,
         default=None,
+        dest="num_ctx",
         metavar="TOKENS",
-        help="Context window size",
+        help="Context window size in tokens",
     )
     parser.add_argument(
         "--num-predict",
         type=int,
         default=None,
+        dest="num_predict",
         metavar="TOKENS",
         help="Maximum tokens to generate",
     )
@@ -148,6 +150,139 @@ def add_shared_args(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Fast mode: num_ctx=2048, num_predict=256",
     )
+
+
+def add_agent_args(
+    parser: argparse.ArgumentParser,
+    tools_default: str = "",
+    include_confirm: bool = True,
+) -> None:
+    """Add the full set of arguments shared by run/chat/agent CLI commands.
+
+    This replaces the ~18 args that were individually duplicated across
+    the three subcommands in cli.py.  Only command-specific args (like
+    the positional *prompt* for ``run`` or ``--stream``) need to be
+    added afterwards.
+
+    Args:
+        parser:  Sub-parser to add arguments to.
+        tools_default:  Default value for the ``--tools`` flag
+                         (e.g. "calculator" for run, "" for chat).
+        include_confirm:  Whether to include the ``--confirm`` flag.
+    """
+    parser.add_argument("-m", "--model", default=None, help="Model to use")
+    parser.add_argument(
+        "--tools", default=tools_default, help="Comma-separated tool list"
+    )
+    parser.add_argument(
+        "--backend",
+        choices=["ollama", "bitnet", "llama-server"],
+        default=None,
+        help="Backend to use",
+    )
+    parser.add_argument(
+        "--api",
+        choices=["openre", "openai"],
+        default="openre",
+        dest="api_mode",
+        help="API mode: 'openre' (OpenResponses) or 'openai' (Chat-Completions)",
+    )
+    parser.add_argument("--debug", action="store_true", help="Enable debug output")
+    parser.add_argument(
+        "--force-react",
+        action="store_true",
+        help="Force ReAct mode for tool calling",
+    )
+    parser.add_argument(
+        "--soul",
+        default=None,
+        help="Path to Soul Spec package (disabled by default)",
+    )
+    parser.add_argument(
+        "--soul-level",
+        type=int,
+        default=2,
+        choices=[1, 2, 3],
+        help="Soul progressive disclosure level (1=quick, 2=full, 3=deep)",
+    )
+    parser.add_argument(
+        "--num-ctx",
+        type=int,
+        default=None,
+        dest="num_ctx",
+        help="Context window size in tokens (Ollama default is 2048)",
+    )
+    parser.add_argument(
+        "--num-predict",
+        type=int,
+        default=None,
+        dest="num_predict",
+        help="Maximum tokens to generate (default: model-specific)",
+    )
+    parser.add_argument(
+        "--temp", "--temperature",
+        type=float,
+        default=None,
+        dest="temperature",
+        help="Sampling temperature 0.0-2.0 (default: model-specific)",
+    )
+    parser.add_argument(
+        "--top-p",
+        type=float,
+        default=None,
+        dest="top_p",
+        help="Nucleus sampling probability 0.0-1.0 (default: model-specific)",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=None,
+        help="Request timeout in seconds (default: 120)",
+    )
+    parser.add_argument(
+        "--acp", action="store_true", help="Enable ACP logging to Agent Control Panel"
+    )
+    parser.add_argument(
+        "--acp-url", default=None, help="ACP server URL (default: from config)"
+    )
+    parser.add_argument(
+        "--response-format",
+        choices=["text", "json"],
+        default="text",
+        dest="response_format",
+        help="Response format: 'text' (default) or 'json' (structured output)",
+    )
+    parser.add_argument(
+        "--truncation",
+        choices=["auto", "disabled"],
+        default="auto",
+        help="Truncation behavior for context overflow (default: auto)",
+    )
+    parser.add_argument(
+        "--skills",
+        default=None,
+        help="Comma-separated skill names to load (e.g., acp,skill-creator)",
+    )
+    parser.add_argument(
+        "--no-retry",
+        action="store_true",
+        dest="no_retry",
+        help="Disable retry-with-error-feedback on tool failures",
+    )
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=None,
+        dest="max_tool_retries",
+        help="Maximum retries per tool call failure (default: 2)",
+    )
+    if include_confirm:
+        parser.add_argument(
+            "--confirm",
+            action="store_true",
+            dest="confirm_dangerous",
+            help="Require confirmation before executing dangerous tools (shell, write_file, edit_file)",
+        )
 
 
 def parse_shared_args(args) -> SharedConfig:
@@ -199,5 +334,6 @@ def _env_float(name: str) -> Optional[float]:
 __all__ = [
     "SharedConfig",
     "add_shared_args",
+    "add_agent_args",
     "parse_shared_args",
 ]
