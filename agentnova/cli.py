@@ -256,6 +256,15 @@ def create_parser() -> argparse.ArgumentParser:
     # Update command
     subparsers.add_parser("update", help="Update AgentNova to the latest version from GitHub")
 
+    # Sessions command
+    sessions_parser = subparsers.add_parser("sessions", help="List and manage saved sessions")
+    sessions_parser.add_argument(
+        "--delete",
+        metavar="SESSION_ID",
+        default=None,
+        help="Delete a specific session by ID",
+    )
+
     return parser
 
 
@@ -475,6 +484,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     result = agent.run(args.prompt, stream=getattr(args, "stream", False))
     print(result.final_answer)
 
+    # Ensure persistent memory is flushed and closed
+    if getattr(agent, '_is_persistent', False) and hasattr(agent.memory, 'close'):
+        agent.memory.close()
+
     # Log to ACP
     if acp:
         acp.log_chat("assistant", result.final_answer)
@@ -515,6 +528,9 @@ def cmd_chat(args: argparse.Namespace) -> int:
             if acp:
                 acp.log_chat("user", "/quit")
                 acp.a2a_unregister()
+            # Ensure persistent memory is flushed and closed
+            if getattr(agent, '_is_persistent', False) and hasattr(agent.memory, 'close'):
+                agent.memory.close()
             print(bright_cyan("👋 Goodbye!"))
             break
 
@@ -580,6 +596,9 @@ def cmd_agent(args: argparse.Namespace) -> int:
                 if acp:
                     acp.log_chat("user", "/quit")
                     acp.a2a_unregister()
+                # Ensure persistent memory is flushed and closed
+                if getattr(agent, '_is_persistent', False) and hasattr(agent.memory, 'close'):
+                    agent.memory.close()
                 print(bright_cyan("👋 Goodbye!"))
                 break
             elif cmd == "/status":
@@ -1529,6 +1548,58 @@ def cmd_soul(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_sessions(args: argparse.Namespace) -> int:
+    """List or delete saved sessions."""
+    try:
+        from .core.persistent_memory import PersistentMemory
+    except ImportError:
+        print(f"{red('Error:')} Persistent memory not available (requires sqlite3)")
+        return 1
+
+    if args.delete:
+        # Delete mode
+        session_id = args.delete
+        deleted = PersistentMemory.delete_session(session_id)
+        if deleted:
+            print(f"{green('✓')} Deleted session: {cyan(session_id)}")
+        else:
+            print(f"{red('✗')} Session not found: {cyan(session_id)}")
+            return 1
+    else:
+        # List mode
+        sessions = PersistentMemory.list_sessions()
+        if not sessions:
+            print("No saved sessions found.")
+            print(f"\n  Start a session with: {cyan('agentnova run --session <name> \"<prompt>\"')}")
+            return 0
+
+        ID_W = 20
+        MSGS_W = 8
+        CREATED_W = 19
+        UPDATED_W = 19
+
+        print()
+        print(f"{bright_cyan('⚛ AgentNova')} - Saved Sessions")
+        print(f"{dim('  DB:')} ~/.agentnova/memory.db")
+        print(dim("-" * (4 + ID_W + MSGS_W + CREATED_W + UPDATED_W)))
+        print(f"  {'Session':<{ID_W}} {'Msgs':>{MSGS_W}}  {'Created':<{CREATED_W}}  {'Updated':<{UPDATED_W}}")
+        print(dim("-" * (4 + ID_W + MSGS_W + CREATED_W + UPDATED_W)))
+
+        for s in sessions:
+            sid = s["session_id"]
+            msgs = s["message_count"]
+            created = s["created_at"][:19].replace("T", " ")
+            updated = s["updated_at"][:19].replace("T", " ")
+            print(f"  {cyan(sid):<{ID_W}} {msgs:>{MSGS_W}}  {dim(created):<{CREATED_W}}  {dim(updated):<{UPDATED_W}}")
+
+        print(dim("-" * (4 + ID_W + MSGS_W + CREATED_W + UPDATED_W)))
+        print(f"Total: {bright_green(str(len(sessions)))} sessions")
+        print(f"\n{dim('Resume a session:')} {cyan('agentnova run --session <name> \"<prompt>\"')}")
+        print(f"{dim('Delete a session:')} {cyan('agentnova sessions --delete <name>')}")
+
+    return 0
+
+
 def cmd_update(args: argparse.Namespace) -> int:
     """Update AgentNova to the latest version from GitHub."""
     print(f"{bright_cyan('⚛ AgentNova')} - Updating from GitHub...")
@@ -1589,6 +1660,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         "modelfile": cmd_modelfile,
         "skills": cmd_skills,
         "soul": cmd_soul,
+        "sessions": cmd_sessions,
         "update": cmd_update,
     }
 
