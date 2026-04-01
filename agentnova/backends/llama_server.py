@@ -275,9 +275,10 @@ class LlamaServerBackend(OllamaBackend):
             label = "bitnet" if self._bitnet_mode else "llama-server"
             raise RuntimeError(f"{label} HTTP error {e.code}: {error_body}")
 
-        except urllib.error.URLError as e:
+        except (urllib.error.URLError, ConnectionError, OSError) as e:
             label = "bitnet" if self._bitnet_mode else "llama-server"
-            raise RuntimeError(f"{label} connection error: {e.reason}")
+            reason = getattr(e, 'reason', str(e))
+            raise RuntimeError(f"{label} connection error: {reason}")
 
         latency_ms = (time.time() - start_time) * 1000
 
@@ -351,9 +352,10 @@ class LlamaServerBackend(OllamaBackend):
             label = "bitnet" if self._bitnet_mode else "llama-server"
             raise RuntimeError(f"{label} HTTP error {e.code}")
 
-        except urllib.error.URLError as e:
+        except (urllib.error.URLError, ConnectionError, OSError) as e:
             label = "bitnet" if self._bitnet_mode else "llama-server"
-            raise RuntimeError(f"{label} connection error: {e.reason}")
+            reason = getattr(e, 'reason', str(e))
+            raise RuntimeError(f"{label} connection error: {reason}")
 
     def _messages_to_prompt(
         self,
