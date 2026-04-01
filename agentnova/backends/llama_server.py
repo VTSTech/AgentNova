@@ -250,12 +250,24 @@ class LlamaServerBackend(OllamaBackend):
         # Convert messages to a single prompt (same logic as BitNet)
         prompt = self._messages_to_prompt(messages, tools)
 
+        # Build stop sequences: merge caller-provided with BitNet defaults
+        stop_sequences = list(kwargs.get("stop", []))
+        if self._bitnet_mode:
+            stop_sequences = [s for s in stop_sequences if s]  # filter empty
+            if "<|im_sep|>" not in stop_sequences:
+                stop_sequences.append("<|im_sep|>")
+
         body = {
             "prompt": prompt,
             "n_predict": max_tokens,
             "temperature": temperature,
-            "stop": kwargs.get("stop", [] if not self._bitnet_mode else ["<|im_sep|>"]),
+            "stop": stop_sequences,
         }
+
+        # BitNet: enable repeat penalty to prevent degenerate loops
+        # (e.g., model repeating "Final Answer: 42" indefinitely)
+        if self._bitnet_mode:
+            body["repeat_penalty"] = 1.2
 
         start_time = time.time()
 
@@ -315,13 +327,24 @@ class LlamaServerBackend(OllamaBackend):
 
         prompt = self._messages_to_prompt(messages, tools)
 
+        # Build stop sequences: merge caller-provided with BitNet defaults
+        stop_sequences = list(kwargs.get("stop", []))
+        if self._bitnet_mode:
+            stop_sequences = [s for s in stop_sequences if s]  # filter empty
+            if "<|im_sep|>" not in stop_sequences:
+                stop_sequences.append("<|im_sep|>")
+
         body = {
             "prompt": prompt,
             "n_predict": max_tokens,
             "temperature": temperature,
             "stream": True,
-            "stop": kwargs.get("stop", [] if not self._bitnet_mode else ["<|im_sep|>"]),
+            "stop": stop_sequences,
         }
+
+        # BitNet: enable repeat penalty to prevent degenerate loops
+        if self._bitnet_mode:
+            body["repeat_penalty"] = 1.2
 
         try:
             req = urllib.request.Request(
@@ -491,7 +514,14 @@ class LlamaServerBackend(OllamaBackend):
                 placeholder = '"value"' if ptype == "string" else "0"
                 tool_lines.append(f'Action Input: {{{param!r}: {placeholder}}}')
             else:
-                tool_lines.append('Action Input: {"param": "value"}')
+                # Non-BitNet: use actual param names if available
+                first = tools[0]
+                if first.params:
+                    p = first.params[0]
+                    ph = '"value"' if p.type == "string" else "0"
+                    tool_lines.append(f'Action Input: {{{p.name!r}: {ph}}}')
+                else:
+                    tool_lines.append('Action Input: {"param": "value"}')
 
             tool_section = "\n".join(tool_lines)
 
