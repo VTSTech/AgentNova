@@ -6,9 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [R04.2] - 04-01-2026 11:05:14 PM
 
-### New Tools, AgentMode Context, Audit Logging, Confirmation Mode & CLI Enhancements
+### New Tools, AgentMode Context, Audit Logging, Confirmation Mode, CLI Deduplication & Self-Update
 
-Two new code navigation tools (`read_file_lines`, `find_files`), AgentMode context injection across multi-step tasks, shell/file audit logging to `~/.agentnova/audit.log`, dangerous-tool confirmation mode (`--confirm`), git commit hash in version strings, and a self-update CLI subcommand.
+Two new code navigation tools (`read_file_lines`, `find_files`), AgentMode context injection across multi-step tasks, shell/file audit logging to `~/.agentnova/audit.log`, dangerous-tool confirmation mode (`--confirm`), CLI argument deduplication via shared helper module, git commit hash in version strings, and a self-update CLI subcommand.
 
 ### Added
 
@@ -52,6 +52,14 @@ Two new code navigation tools (`read_file_lines`, `find_files`), AgentMode conte
 - Gracefully falls back to base version when installed via pip (no `.git` directory)
 - The banner converter in `cli.py` already handled the rest — no changes needed there
 
+#### CLI Argument Deduplication (`shared_args.py`, `cli.py`)
+- **`shared_args.py`** — new module extracting 19 shared CLI arguments into `add_agent_args(parser, tools_default)` to eliminate triple-copy across `run`, `chat`, and `agent` subcommands
+- Covers all common args: `--model`, `--backend`, `--api`, `--system-prompt`, `--soul`, `--tools`, `--confirm`, `--max-tokens`, `--temperature`, `--top-p`, `--timeout`, `--max-turns`, `--no-stream`, `--no-retry`, `--max-retries`, `--acp`, `--verbose`, `--debug`
+- **`_build_agent(args, config)` helper** in `cli.py` — replaces 3× duplicated Agent construction blocks (~35 lines each) with a single function
+- **`_print_session_header(agent, args, config, label)` helper** in `cli.py` — replaces 2× duplicated header blocks with a shared function
+- Net reduction of 16 lines across the refactor; 221 deletions, 88 insertions
+- All three parsers (`run`, `chat`, `agent`) now call `add_agent_args()` with a single line each
+
 #### Update CLI Subcommand (`cli.py`)
 - **`agentnova update`** — runs `pip install git+https://github.com/VTSTech/AgentNova.git --force-reinstall`
 - Shows current version before updating, displays branded output with status messages
@@ -70,10 +78,11 @@ Two new code navigation tools (`read_file_lines`, `find_files`), AgentMode conte
 | Updated | `agentnova/__init__.py` | +38 −1 |
 | Updated | `agentnova/agent.py` | +19 −3 |
 | Updated | `agentnova/agent_mode.py` | +30 −5 |
-| Updated | `agentnova/cli.py` | +55 −5 |
+| Updated | `agentnova/cli.py` | +143 −226 |
 | Updated | `agentnova/tools/builtins.py` | +120 −8 |
 | Updated | `agentnova/souls/nova-helper/soul.json` | +2 −1 |
-| **Total** | **6 files** | **+264 −23** |
+| Created | `agentnova/shared_args.py` | +339 |
+| **Total** | **7 files** | **+671 −238** |
 
 ---
 
