@@ -171,6 +171,21 @@ class Agent:
         self._retry_on_error = retry_on_error
         self._max_tool_retries = max_tool_retries
 
+        # Structured output / JSON mode.
+        # When set, the backend will be instructed to return JSON.
+        # Accepts a dict (e.g. {"type": "json_object"}) or the
+        # convenience string "json" which is expanded automatically.
+        raw_rf = kwargs.pop("response_format", None)
+        if raw_rf is not None:
+            if isinstance(raw_rf, str):
+                self._response_format = {"type": "json_object"}
+            elif isinstance(raw_rf, dict):
+                self._response_format = raw_rf
+            else:
+                self._response_format = None
+        else:
+            self._response_format = None
+
         # Dangerous tool confirmation callback.
         # When set, any tool with dangerous=True must be approved by
         # this callback before execution. The callback receives
@@ -1225,6 +1240,10 @@ Final Answer: <the answer>
         if self.num_ctx is not None:
             backend_kwargs["num_ctx"] = self.num_ctx
 
+        # Structured output: forward response_format to backend
+        if self._response_format is not None:
+            backend_kwargs["response_format"] = self._response_format
+
         # Check if backend has streaming support
         if hasattr(self.backend, 'generate_stream'):
             # Use native Ollama streaming
@@ -1344,6 +1363,10 @@ Final Answer: <the answer>
         # This allows the backend to enforce tool invocation constraints natively
         if self.tool_choice and self.tool_choice.type != ToolChoiceType.AUTO:
             backend_kwargs["tool_choice"] = self.tool_choice.to_dict()
+
+        # Structured output: forward response_format to backend
+        if self._response_format is not None:
+            backend_kwargs["response_format"] = self._response_format
 
         # Pass tools for native tool calling (OpenResponses/ChatCompletions compliant)
         # ReAct parsing remains as fallback for models without native support

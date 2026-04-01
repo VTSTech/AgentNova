@@ -397,6 +397,14 @@ def _build_agent(args: argparse.Namespace, config) -> Agent:
     else:
         tools = None
 
+    # Resolve --response-format CLI arg to Agent parameter
+    # "json" → {"type": "json_object"}, "text" → None (default)
+    cli_rf = getattr(args, "response_format", "text")
+    if cli_rf == "json":
+        response_format = {"type": "json_object"}
+    else:
+        response_format = None
+
     # Load skills if requested
     skills_prompt = _load_skills_prompt(args)
 
@@ -420,6 +428,7 @@ def _build_agent(args: argparse.Namespace, config) -> Agent:
         retry_on_error=not getattr(args, "no_retry", False),
         max_tool_retries=getattr(args, "max_tool_retries", None) or config.max_tool_retries,
         confirm_dangerous=_make_confirm_callback(args),
+        response_format=response_format,
     )
 
 
@@ -444,6 +453,8 @@ def _print_session_header(agent: Agent, args: argparse.Namespace, config, label:
     acp = getattr(args, '_acp', None)
     if acp:
         print(f"{dim('ACP:')} {green('✓ Connected')} ({acp.base_url})")
+    if agent._response_format:
+        print(f"{dim('Output:')} {yellow('JSON mode')}")
     print(f"{dim('Status:')} {yellow('Alpha')}")
 
 

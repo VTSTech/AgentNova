@@ -286,7 +286,7 @@ class AgentMode:
     Handles state transitions, message queuing, and task execution.
     """
     
-    def __init__(self, agent, verbose: bool = False):
+    def __init__(self, agent, verbose: bool = False, reset_memory_between_steps: bool = False):
         """
         Initialize Agent Mode session.
         
@@ -296,9 +296,15 @@ class AgentMode:
             The AgentNova Agent instance to use for task execution.
         verbose : bool
             Whether to print verbose output.
+        reset_memory_between_steps : bool
+            If True, clear agent memory between steps so each step
+            starts with a clean context.  Default is False — the agent
+            reuses its memory across steps, giving it awareness of
+            previous step results.
         """
         self.agent = agent
         self.verbose = verbose
+        self.reset_memory_between_steps = reset_memory_between_steps
         
         # State
         self.state = AgentState.IDLE
@@ -602,6 +608,13 @@ Example: [{{"description": "Step 1"}}, {{"description": "Step 2"}}]"""
         """
         step.status = "in_progress"
         step.started_at = datetime.now().isoformat()
+        
+        # Optionally clear memory between steps for isolated execution.
+        # By default (False), the agent reuses its memory so it retains
+        # context from previous steps — useful for multi-step workflows
+        # where later steps depend on earlier results.
+        if self.reset_memory_between_steps:
+            self.agent.memory.clear()
         
         # Log step start
         self.execution_log.append({
