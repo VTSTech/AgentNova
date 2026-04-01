@@ -4,7 +4,7 @@
 
 Test 01 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
 
-> **Updated:** 2026-04-01 - R04.4 Chat Completions (OpenAI) with-soul results in progress (2/7 qwen models)
+> **Updated:** 2026-04-01 - R04.4 Chat Completions (OpenAI) with-soul results in progress (3/7 qwen models)
 
 **Usage:**
 ```bash
@@ -21,32 +21,29 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 ### Chat Completions Mode Results (R04.4 - openai API Mode, WITH SOUL) 🔄 IN PROGRESS
 
 > Testing with `--api openai --soul nova-helper` uses OpenAI-compatible Chat Completions API (`/v1/chat/completions`) with the nova-helper soul persona
-> 🎯 **Soul used** — `--soul nova-helper` enabled. Direct comparison with R03.9 (also with soul) is valid.
 > Test params: `--api openai --soul nova-helper --timeout 999`
 > 🔄 **Partial results** — 3 of 7 qwen models tested; remaining 4 pending
 
 | Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R03.9 | Notes |
 |:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|:---------:|-------|-------|
-| 🥇 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 128.6s | ✅ | ✅ | ✅ | ✅ | ✅ | +1 ⬆️ | 🏆 Perfect! Q5 fixed, 2× faster |
-| 🥈 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 139.8s | ✅ | ❌ 53 | ✅ | ✅ | ✅ | Same | Q2 calc error (5.8s — skipped tool?) |
-| 🥈 | `qwen2:0.5b` | **4/5 (80%)** | 117.9s | ✅ | ✅ | ✅ | ❌ code | ✅ | +1 ⬆️ | Q3/Q5 fixed; Q4 wrote Python but didn't execute |
+| 1 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 128.6s | ✅ | ✅ | ✅ | ✅ | ✅ | +1 | 🏆 Perfect! Q5 fixed, 2x faster |
+| 2 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 139.8s | ✅ | ❌ 53 | ✅ | ✅ | ✅ | 0 | Q2 calc error (5.8s — skipped tool?) |
+| 2 | `qwen2:0.5b` | **4/5 (80%)** | 117.9s | ✅ | ✅ | ✅ | ❌ code | ✅ | +1 | Q3/Q5 fixed; Q4 wrote Python but didn't execute |
 
 ---
 
 ### OpenResponses Mode Results (R03.9 - resp API Mode, WITH SOUL)
 
 > Testing with `--api openre --soul nova-helper` uses Ollama's native OpenResponses API (`/api/chat`) with the nova-helper soul persona
-> 🎯 **Soul used** — `--soul nova-helper` enabled.
 > Test params: `--api openre --soul nova-helper --num-ctx 32768 --timeout 9999`
-> ⚠️ **Note:** 32K context — may benefit or hurt depending on model
 > ⏳ **Partial results** — 7 of 10 models tested; remaining 3 pending
 
 | Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | Notes |
 |:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|-------|
-| 🥇 | **`granite4:350m`** | **5/5 (100%)** | 295.1s | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Perfect score! Consistent across all modes |
-| 🥇 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 249.5s | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Reclaims 100%! Fastest perfect score in resp mode |
-| 🥈 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 301.8s | ✅ | ✅ | ✅ | ✅ | ❌ empty | Q5 empty response |
-| 🥉 | `nchapman/dolphin3.0-qwen2.5:0.5b` | **3/5 (60%)** | 224.4s | ✅ | ❌ 3 | ✅ | ✅ | ❌ 21 | Improved! Q2 off-by-48, Q5 wrong calc |
+| 1 | **`granite4:350m`** | **5/5 (100%)** | 295.1s | ✅ | ✅ | ✅ | ✅ | ✅ | Perfect score! Consistent across all modes |
+| 1 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 249.5s | ✅ | ✅ | ✅ | ✅ | ✅ | Reclaims 100%! Fastest perfect score in resp mode |
+| 3 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 301.8s | ✅ | ✅ | ✅ | ✅ | ❌ empty | Q5 empty response |
+| 4 | `nchapman/dolphin3.0-qwen2.5:0.5b` | **3/5 (60%)** | 224.4s | ✅ | ❌ 3 | ✅ | ✅ | ❌ 21 | Improved! Q2 off-by-48, Q5 wrong calc |
 | 5 | `gemma3:270m` | **2/5 (40%)** | 578.7s | ❌ 405 | ❌ 3 | ✅ | ✅ | ❌ result | Regression; Q1/Q2/Q5 tool artifacts, very slow |
 | 5 | `qwen2:0.5b` | **2/5 (40%)** | 286.0s | ✅ | ✅ | ❌ empty | ❌ text | ❌ text | Q3 empty, Q4/Q5 verbose wrong reasoning |
 | 7 | `functiongemma:270m` | **1/5 (20%)** | 335.3s | ✅ | ❌ hall. | ❌ 1024 | ❌ refused | ❌ refused | Q2 hallucinated success, Q3 wrong calc, Q4/Q5 refusals |
@@ -56,42 +53,40 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 ### Chat Completions Mode Results (R03.9 - openai API Mode, WITH SOUL)
 
 > Testing with `--api openai --soul nova-helper` uses OpenAI-compatible Chat Completions API (`/v1/chat/completions`) with the nova-helper soul persona
-> 🎯 **Soul used** — `--soul nova-helper` enabled.
 > Test params: `--api openai --soul nova-helper --num-ctx 32768 --timeout 9999`
-> ⚠️ **Note:** 32K context may benefit models with longer reasoning chains
 > ✅ **Complete** — All 10 models tested
 
 | Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | Notes |
 |:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|-------|
-| 🥇 | **`granite4:350m`** | **5/5 (100%)** | 293.3s | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Perfect score! Consistent across all modes |
-| 🥈 | `qwen2.5:0.5b` | **4/5 (80%)** | 260.9s | ✅ | ✅ | ✅ | ✅ | ❌ text | Q5 verbose explanation instead of numeric answer |
-| 🥈 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 293.5s | ✅ | ✅ | ✅ | ✅ | ❌ empty | Q5 empty response; instruct quant variant |
-| 🥈 | **`qwen3:0.6b`** | **4/5 (80%)** | 1140.6s | ✅ | ❌ 54 | ✅ | ✅ | ✅ | Q2 off-by-3 (got 54 vs 51); slow (1140s) |
-| 🥉 | `nchapman/dolphin3.0-qwen2.5:0.5b` | **3/5 (60%)** | 203.0s | ✅ | ❌ 43 | ✅ | ✅ | ❌ 17h | Improved! Q2 off-by-one, Q5 reasoning error |
-| 🥉 | `qwen2:0.5b` | **3/5 (60%)** | 256.6s | ✅ | ✅ | ❌ 3.5 | ✅ | ❌ 14h | Q3 division rounding, Q5 time calc error |
-| 5 | `qwen3.5:0.8b` | **3/5 (60%)** | 552.2s | ❌ empty | ❌ empty | ✅ | ✅ | ✅ | Massive improvement! Q1/Q2 empty, Q3–Q5 all correct |
-| 6 | `gemma3:270m` | **2/5 (40%)** | 613.2s | ❌ 405 | ❌ 3 | ✅ | ✅ | ❌ 1024 | Regression; Q1/Q2 wrong, very slow (613s) |
-| 8 | `functiongemma:270m` | **1/5 (20%)** | 344.9s | ✅ | ❌ hall. | ❌ 120 | ❌ refused | ❌ refused | Q2 hallucinated success, Q3 wrong calc, Q4/Q5 refusals |
-| 8 | `qwen:0.5b` | **1/5 (20%)** | 279.5s | ❌ 32 | ❌ 41 | ❌ 26 | ❌ 14 | ✅ | Base model too small; Q1–Q4 all wrong despite verbose reasoning |
+| 1 | **`granite4:350m`** | **5/5 (100%)** | 293.3s | ✅ | ✅ | ✅ | ✅ | ✅ | Perfect score! Consistent across all modes |
+| 2 | `qwen2.5:0.5b` | **4/5 (80%)** | 260.9s | ✅ | ✅ | ✅ | ✅ | ❌ text | Q5 verbose explanation instead of numeric answer |
+| 2 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 293.5s | ✅ | ✅ | ✅ | ✅ | ❌ empty | Q5 empty response; instruct quant variant |
+| 2 | **`qwen3:0.6b`** | **4/5 (80%)** | 1140.6s | ✅ | ❌ 54 | ✅ | ✅ | ✅ | Q2 off-by-3 (got 54 vs 51); slow (1140s) |
+| 5 | `nchapman/dolphin3.0-qwen2.5:0.5b` | **3/5 (60%)** | 203.0s | ✅ | ❌ 43 | ✅ | ✅ | ❌ 17h | Improved! Q2 off-by-one, Q5 reasoning error |
+| 5 | `qwen2:0.5b` | **3/5 (60%)** | 256.6s | ✅ | ✅ | ❌ 3.5 | ✅ | ❌ 14h | Q3 division rounding, Q5 time calc error |
+| 7 | `qwen3.5:0.8b` | **3/5 (60%)** | 552.2s | ❌ empty | ❌ empty | ✅ | ✅ | ✅ | Massive improvement! Q1/Q2 empty, Q3-Q5 all correct |
+| 8 | `gemma3:270m` | **2/5 (40%)** | 613.2s | ❌ 405 | ❌ 3 | ✅ | ✅ | ❌ 1024 | Regression; Q1/Q2 wrong, very slow (613s) |
+| 9 | `functiongemma:270m` | **1/5 (20%)** | 344.9s | ✅ | ❌ hall. | ❌ 120 | ❌ refused | ❌ refused | Q2 hallucinated success, Q3 wrong calc, Q4/Q5 refusals |
+| 9 | `qwen:0.5b` | **1/5 (20%)** | 279.5s | ❌ 32 | ❌ 41 | ❌ 26 | ❌ 14 | ✅ | Base model too small; Q1-Q4 all wrong despite verbose reasoning |
 
 ---
 
 ### Chat Completions Mode Results (R03.9 - openai API Mode, NO SOUL)
 
 > Testing with `--api openai` uses OpenAI-compatible Chat Completions API (`/v1/chat/completions`)
-> ⚠️ **No soul used** — Scores below reflect bare model capability without persona guidance. Not directly comparable to with-soul results.
+> Scores below reflect bare model capability without persona guidance. Not directly comparable to with-soul results.
 > Test params: `--api openai` only (default settings, no soul)
 > ⏳ **Partial results** — 9 of 10 models tested; remaining 1 pending
 
 | Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | Notes |
 |:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|-------|
-| 🥇 | **`granite4:350m`** | **5/5 (100%)** | 44.2s | ✅ | ✅ | ✅ | ✅ | ✅ | 🏆 Perfect score! **4× faster** (183→44s) |
-| 🥈 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 99.9s | ✅ | ✅ | ✅ | ✅ | ❌ hall. | **With `--soul`**; 0/5 without — heavily soul-dependent |
-| 🥉 | `nchapman/dolphin3.0-qwen2.5:0.5b` | **3/5 (60%)** | 31.6s | ✅ | ❌ 49 | ✅ | ✅ | ❌ 10 | Improved even without soul; Q2/Q5 reasoning |
-| 🥉 | `qwen2:0.5b` | **3/5 (60%)** | 22.1s | ✅ | ✅ | ❌ 4.03% | ✅ | ❌ 6 | Stable; different failure pattern |
-| 🥉 | `gemma3:270m` | **3/5 (60%)** | 14.8s | ✅ | ❌ Q1 bleed | ✅ | ✅ | ❌ 10 | Q2 context bleed (no soul isolation) |
-| 6 | `qwen2.5:0.5b` | **2/5 (40%)** | 45.7s | ❌ empty | ✅ | ❌ empty | ✅ | ❌ text | Soul-dependent; likely recovers with `--soul` |
-| 7 | `qwen3.5:0.8b` | **0/5 (0%)** | 91.0s | ❌ empty | ❌ empty | ❌ empty | ❌ empty | ❌ empty | All empty; was 0/5 even with soul in R03.6 |
+| 1 | **`granite4:350m`** | **5/5 (100%)** | 44.2s | ✅ | ✅ | ✅ | ✅ | ✅ | Perfect score! 4x faster (183 to 44s) |
+| 2 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 99.9s | ✅ | ✅ | ✅ | ✅ | ❌ hall. | With --soul; 0/5 without — heavily soul-dependent |
+| 3 | `nchapman/dolphin3.0-qwen2.5:0.5b` | **3/5 (60%)** | 31.6s | ✅ | ❌ 49 | ✅ | ✅ | ❌ 10 | Improved even without soul; Q2/Q5 reasoning |
+| 3 | `qwen2:0.5b` | **3/5 (60%)** | 22.1s | ✅ | ✅ | ❌ 4.03% | ✅ | ❌ 6 | Stable; different failure pattern |
+| 3 | `gemma3:270m` | **3/5 (60%)** | 14.8s | ✅ | ❌ Q1 bleed | ✅ | ✅ | ❌ 10 | Q2 context bleed (no soul isolation) |
+| 6 | `qwen2.5:0.5b` | **2/5 (40%)** | 45.7s | ❌ empty | ✅ | ❌ empty | ✅ | ❌ text | Soul-dependent; likely recovers with --soul |
+| 7 | `qwen3.5:0.8b` | **0/5 (0%)** | 91.0s | ❌ empty | ❌ empty | ❌ empty | ❌ empty | ❌ empty | All empty responses |
 | 7 | `qwen3:0.6b` | **0/5 (0%)** | 138.4s | ❌ empty | ❌ empty | ❌ empty | ❌ empty | ❌ 6 | Soul-dependent; was 3/5 with soul |
 | 7 | `qwen:0.5b` | **0/5 (0%)** | 37.3s | ❌ 32 | ❌ 10 | ❌ 10 | ❌ 8 | ❌ 42h | All wrong; base model too small |
 
@@ -101,7 +96,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 > **Updated:** 2026-03-28 - R03.7 first results
 
-Test 02 comprehensively evaluates tool calling across 6 categories.  Phase 1 validates tools directly (no model).  Phase 2 tests the model's ability to select, call, and interpret tools.
+Test 02 comprehensively evaluates tool calling across 6 categories. Phase 1 validates tools directly (no model). Phase 2 tests the model's ability to select, call, and interpret tools.
 
 **Usage:**
 ```bash
@@ -114,6 +109,7 @@ agentnova test 02 --model-only -m qwen2.5:0.5b --debug
 ### Test Structure
 
 **Phase 1 — Direct Tool Validation** (no model required):
+
 | Category | Tests | Validates |
 |----------|:-----:|-----------|
 | Calculator | 19 | Math operations, constants, trig, edge cases, security |
@@ -124,6 +120,7 @@ agentnova test 02 --model-only -m qwen2.5:0.5b --debug
 | JSON/Text | 5 | JSON parsing, word/char counting, edge cases |
 
 **Phase 2 — Model Tool Calling** (model required):
+
 | Category | Tests | Expected Tool | What It Measures |
 |----------|:-----:|:------------:|-----------------|
 | Calculator | 5 | calculator | Expression construction, result extraction |
@@ -131,7 +128,7 @@ agentnova test 02 --model-only -m qwen2.5:0.5b --debug
 | DateTime | 2 | get_time / get_date | Tool selection, answer formatting |
 | File Tools | 2 | read_file / list_directory | Path handling, content extraction |
 | Python REPL | 2 | python_repl | Code generation, result interpretation |
-| All Tools | 4 | varies (calculator, shell, get_date, read_file) | **Tool selection from full set** |
+| All Tools | 4 | varies | Tool selection from full set |
 
 ---
 
@@ -141,60 +138,64 @@ agentnova test 02 --model-only -m qwen2.5:0.5b --debug
 
 | Rank | Model | Score | Calc | Shell | DateTime | File | Repl | All Tools | Time | Tool Mode | Notes |
 |:----:|-------|------:|:----:|:-----:|:--------:|:----:|:----:|:---------:|:----:|:---------:|-------|
-| 🥇 | **`granite4:350m`** | **15/17 (88%)** | 5/5 | 2/2 | 2/2 | 1/2 | 2/2 | 3/4 | ~762s | **native** | 🏆 First tested! Strong calculator/shell |
+| 1 | **`granite4:350m`** | **15/17 (88%)** | 5/5 | 2/2 | 2/2 | 1/2 | 2/2 | 3/4 | ~762s | native | Strong calculator/shell |
 
 #### granite4:350m Detailed Breakdown
 
-**Calculator — 5/5 (100%)** ✅
+**Calculator — 5/5 (100%)**
+
 | Test | Prompt | Expected | Got | Tool Used | Steps | Time |
 |------|--------|:--------:|:----:|:---------:|:-----:|:----:|
-| Basic multiplication | What is 15 times 8? | 120 | 120 | ✅ | 2 | 164.6s |
-| Power | What is 2 to the power of 10? | 1024 | 1024 | ✅ | 2 | 10.2s |
-| Square root | What is the square root of 144? | 12 | 12 | ✅ | 2 | 10.5s |
-| Complex expression | What is (10 + 5) times 3? | 45 | 45 | ✅ | 2 | 11.1s |
-| Division | What is 100 divided by 4? | 25 | 25 | ✅ | 2 | 11.4s |
+| Basic multiplication | What is 15 times 8? | 120 | 120 | yes | 2 | 164.6s |
+| Power | What is 2 to the power of 10? | 1024 | 1024 | yes | 2 | 10.2s |
+| Square root | What is the square root of 144? | 12 | 12 | yes | 2 | 10.5s |
+| Complex expression | What is (10 + 5) times 3? | 45 | 45 | yes | 2 | 11.1s |
+| Division | What is 100 divided by 4? | 25 | 25 | yes | 2 | 11.4s |
 
-**Shell — 2/2 (100%)** ✅
+**Shell — 2/2 (100%)**
+
 | Test | Prompt | Expected | Tool Used | Result Location | Time |
 |------|--------|----------|:---------:|:---------------:|:----:|
-| Echo test | Use shell to echo 'Hello AgentNova' | Hello AgentNova | ✅ | tool result | 95.1s |
-| Current directory | What is the current working directory? | (any path) | ✅ | — | 7.7s |
+| Echo test | Use shell to echo 'Hello AgentNova' | Hello AgentNova | yes | tool result | 95.1s |
+| Current directory | What is the current working directory? | (any path) | yes | — | 7.7s |
 
 > **Note:** Echo test passed via tool result fallback — model called shell correctly but hallucinated weather in the final answer instead of echoing the result.
 
-**DateTime — 2/2 (100%)** ✅
+**DateTime — 2/2 (100%)**
+
 | Test | Prompt | Tool Used | Result Location | Time |
 |------|--------|:---------:|:---------------:|:----:|
-| Get date | What is today's date? | ✅ get_date | answer | 96.6s |
-| Get time | What time is it? | ✅ get_time | answer | 11.8s |
+| Get date | What is today's date? | yes (get_date) | answer | 96.6s |
+| Get time | What time is it? | yes (get_time) | answer | 11.8s |
 
 **File Tools — 1/2 (50%)**
+
 | Test | Prompt | Expected | Tool Used | Result | Time |
 |------|--------|----------|:---------:|:-------:|:----:|
-| Read file | Read the file at /tmp/.../test.txt | AgentNova | ✅ read_file | tool result | 116.4s |
-| List directory | List files in /tmp/.../tmpdir | test.txt | ✅ list_directory | ❌ | 195.0s |
+| Read file | Read the file at /tmp/.../test.txt | AgentNova | yes (read_file) | pass | 116.4s |
+| List directory | List files in /tmp/.../tmpdir | test.txt | yes (list_directory) | fail | 195.0s |
 
-> **Failure:** Model called `list_directory('/tmp')` instead of the full temp directory path `/tmp/tmp6ds0sx5i`. Listed parent directory contents (cloudflared, dap_multiplexer, etc.) which didn't contain `test.txt`.
+> **Failure:** Model called `list_directory('/tmp')` instead of the full temp directory path `/tmp/tmp6ds0sx5i`. Listed parent directory contents which didn't contain `test.txt`.
 
-**Python REPL — 2/2 (100%)** ✅
+**Python REPL — 2/2 (100%)**
+
 | Test | Prompt | Expected | Got | Tool Used | Time |
 |------|--------|:--------:|:----:|:---------:|:----:|
-| Calculate power | Use Python to calculate 2 to the power of 20 | 1048576 | 1048576 | ✅ | 98.6s |
-| Math with math module | Use Python to calculate the square root of 144 | 12 | 12.0 | ✅ | 12.3s |
+| Calculate power | Use Python to calculate 2 to the power of 20 | 1048576 | 1048576 | yes | 98.6s |
+| Math with math module | Use Python to calculate the square root of 144 | 12 | 12.0 | yes | 12.3s |
 
 > **Note:** Square root test validates the `numbers_match()` fix — tool returned `12.0` but expected `"12"`. Numeric comparison with tolerance correctly matched.
 
 **All Tools — 3/4 (75%)**
+
 | Test | Prompt | Expected Tool | Correct Tool | Expected Content | Result | Time |
 |------|--------|:------------:|:------------:|:---------------:|:------:|:----:|
-| Calculator choice | What is 25 times 4? | calculator | ✅ | 100 | ✅ | 229.1s |
-| Shell choice | Echo the text 'MultiTool' | shell | ❌ | MultiTool | ❌ | 13.8s |
-| Date choice | What is today's date? | get_date | ✅ | (any date) | ✅ | 23.0s |
-| File read choice | Read the file at /tmp/.../multi_test.txt | read_file | ✅ | Test content | ✅ | 20.3s |
+| Calculator choice | What is 25 times 4? | calculator | yes | 100 | pass | 229.1s |
+| Shell choice | Echo the text 'MultiTool' | shell | no | MultiTool | fail | 13.8s |
+| Date choice | What is today's date? | get_date | yes | (any date) | pass | 23.0s |
+| File read choice | Read the file at /tmp/.../multi_test.txt | read_file | yes | Test content | pass | 20.3s |
 
 > **Failure:** Shell choice — model didn't call any tool, responded with "I don't have enough context." This is a known issue with 350M parameter models when the prompt is vague.
->
-> **Note:** Date choice passed tool selection despite model passing `{'type': ''}` as a spurious argument — test correctly identified `get_date` as the tool called.
 
 ---
 
@@ -211,12 +212,10 @@ agentnova test 02 --model-only -m qwen2.5:0.5b --debug
 
 ### Comparison Logic Fixes Applied (R03.7)
 
-Three fixes to `02_tool_test.py` improved result accuracy:
-
 | Fix | Issue | Impact |
 |-----|-------|--------|
 | `numbers_match()` | `"12" != "12.0"` string comparison | Prevents false negatives on float results |
-| `normalize_number` last-number | `"15 times 8 is 120"` → extracted `15` (first) | Now correctly extracts `120` (last) |
+| `normalize_number` last-number | `"15 times 8 is 120"` extracted `15` (first) | Now correctly extracts `120` (last) |
 | `check_tool_used` strict matching | Substring scan of tool results caused false positives | Eliminates false tool detection |
 | DateTime tool result fallback | Only checked `final_answer`, not tool results | Consistent with other test categories |
 
@@ -255,9 +254,9 @@ agentnova test 03 --model granite4:350m --timeout 9999
 
 | Rank | Model | Score | Logical | Common | Multi | Pattern | Counter | Spatial | Causal | Compa | Time |
 |:----:|-------|------:|:-------:|:------:|:-----:|:-------:|:-------:|:-------:|:------:|:-----:|:----:|
-| 🥇 | **`deepseek-r1:1.5b`** | **13/14 (93%)** | 2/2 | 2/2 | 2/2 | 2/2 | 2/2 | 1/2 | 1/1 | 1/1 | 759.3s |
-| 🥈 | `granite3.1-moe:1b` | **8/14 (57%)** | 1/2 | 2/2 | 1/2 | 1/2 | 0/2 | 1/2 | 1/1 | 1/1 | 369.7s |
-| 🥉 | `nchapman/dolphin3.0-qwen2.5:0.5b` | **7/14 (50%)** | 2/2 | 0/2 | 1/2 | 1/2 | 0/2 | 2/2 | 1/1 | 0/1 | 212.8s |
+| 1 | **`deepseek-r1:1.5b`** | **13/14 (93%)** | 2/2 | 2/2 | 2/2 | 2/2 | 2/2 | 1/2 | 1/1 | 1/1 | 759.3s |
+| 2 | `granite3.1-moe:1b` | **8/14 (57%)** | 1/2 | 2/2 | 1/2 | 1/2 | 0/2 | 1/2 | 1/1 | 1/1 | 369.7s |
+| 3 | `nchapman/dolphin3.0-qwen2.5:0.5b` | **7/14 (50%)** | 2/2 | 0/2 | 1/2 | 1/2 | 0/2 | 2/2 | 1/1 | 0/1 | 212.8s |
 | 4 | `granite4:350m` | **6/14 (43%)** | 0/2 | 1/2 | 0/2 | 1/2 | 1/2 | 1/2 | 1/1 | 1/1 | 217.5s |
 | 5 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **5/14 (36%)** | 0/2 | 1/2 | 0/2 | 1/2 | 0/2 | 1/2 | 1/1 | 1/1 | 169.3s |
 | 6 | `functiongemma:270m` | **3/14 (21%)** | 0/2 | 1/2 | 0/2 | 1/2 | 0/2 | 0/2 | 1/1 | 0/1 | 453.2s |
@@ -282,20 +281,17 @@ agentnova test 03 --model granite4:350m --timeout 9999
 
 | Model | Params | Without Soul | With nova-helper | Improvement |
 |-------|-------:|--------------|------------------|:-----------:|
-| `qwen2:0.5b` | 500M | ~2/5 (40%) | **5/5 (100%)** | **+60%** ✅ |
-| `qwen:0.5b` | 500M | 5/5 (221.7s) | **5/5 (96.0s)** | **2.3x faster** ⚡ |
-| `qwen2.5-coder:0.5b` | 494M | 5/5 (93.3s) | **5/5 (52.2s)** | **1.8x faster** ⚡ |
-| `qwen3:0.6b` | 600M | ~3/5 (60%) | **5/5 (100%)** | **+40%** ✅ |
-| `gemma3:270m` | 270M | 4/5 (80%) | **5/5 (100%)** | **+20%** ✅ |
-| `dolphin3.0-qwen2.5:0.5b` | 500M | 3/5 (60%) | **5/5 (100%)** | **+40%** ✅ |
-| `qwen3.5:0.8b` | 800M | ~3/5 (60%) | **5/5 (100%)** | **+40%** ✅ |
+| `qwen2:0.5b` | 500M | ~2/5 (40%) | **5/5 (100%)** | **+60%** |
+| `qwen:0.5b` | 500M | 5/5 (221.7s) | **5/5 (96.0s)** | **2.3x faster** |
+| `qwen2.5-coder:0.5b` | 494M | 5/5 (93.3s) | **5/5 (52.2s)** | **1.8x faster** |
+| `qwen3:0.6b` | 600M | ~3/5 (60%) | **5/5 (100%)** | **+40%** |
+| `gemma3:270m` | 270M | 4/5 (80%) | **5/5 (100%)** | **+20%** |
+| `dolphin3.0-qwen2.5:0.5b` | 500M | 3/5 (60%) | **5/5 (100%)** | **+40%** |
+| `qwen3.5:0.8b` | 800M | ~3/5 (60%) | **5/5 (100%)** | **+40%** |
 
 ---
 
 ## Soul Persona System
-
-> **R03.3:** Soul personas dramatically improve small model performance
-> **R03.3:** Fallback synthesis works in soul mode - catches model errors!
 
 The `--soul` flag loads a focused persona that guides model behavior. The included `nova-helper` soul is optimized for diagnostic testing:
 
@@ -330,7 +326,6 @@ agentnova test 08 --debug --num-ctx 4096
 
 # Run with nova-helper SOUL.md, 16k context, ChatCompletions API, Debug Output and 9999 timeout
 agentnova test 01 --soul nova-helper --num-ctx 16384 --api comp --timeout 9999 --debug
-
 ```
 
 ---
