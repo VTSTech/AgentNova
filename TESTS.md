@@ -4,7 +4,7 @@
 
 Test 01 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
 
-> **Updated:** 2026-04-01 - R04.4 OpenResponses (openre) with-soul results complete (7/7 qwen models)
+> **Updated:** 2026-04-01 - R04.4 OpenResponses (openre) with-soul results complete (10/10  models)
 
 **Usage:**
 ```bash
@@ -43,17 +43,20 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 > Testing with `--api openre --soul nova-helper` uses Ollama's native OpenResponses API (`/api/chat`) with the nova-helper soul persona
 > Test params: `--api openre --soul nova-helper --timeout 999`
-> ✅ **Complete** — All 7 qwen models tested
+> ✅ **Complete** — All 10 models tested
 
 | Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R03.9 | Notes |
 |:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|:---------:|-------|-------|
-| 1 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 165.5s | ✅ | ✅ | ✅ | ✅ | ✅ | 0 | Still perfect; 1.5x faster |
 | 1 | **`nchapman/dolphin3.0-qwen2.5:0.5b`** | **5/5 (100%)** | 119.0s | ✅ | ✅ | ✅ | ✅ | ✅ | +3 | Massive improvement! Up from 2/5 |
-| 3 | `qwen3.5:0.8b` | **4/5 (80%)** | 321.0s | ✅ | ❌ 45 | ✅ | ✅ | ✅ | +1 | Improved! Q2 off-by-6, Q1 fixed |
-| 3 | `qwen2:0.5b` | **4/5 (80%)** | 114.7s | ✅ | ✅ | ✅ | ✅ | ❌ 6.5h | +2 | Big improvement! Q3/Q4 fixed; Q5 reasoning error |
-| 5 | `qwen3:0.6b` | **3/5 (60%)** | 229.6s | ✅ | ❌ 49 | ✅ | ✅ | ❌ 17 | -1 | Q5 regression (17 instead of 8) |
+| 1 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 165.5s | ✅ | ✅ | ✅ | ✅ | ✅ | 0 | Still perfect; 1.5x faster |
+| 1 | **`granite4:350m`** | **5/5 (100%)** | 160.3s | ✅ | ✅ | ✅ | ✅ | ✅ | 0 | Still perfect; 1.84x faster |
+| 4 | `qwen3.5:0.8b` | **4/5 (80%)** | 321.0s | ✅ | ❌ 45 | ✅ | ✅ | ✅ | +1 | Improved! Q2 off-by-6, Q1 fixed |
+| 4 | `qwen2:0.5b` | **4/5 (80%)** | 114.7s | ✅ | ✅ | ✅ | ✅ | ❌ 6.5h | +2 | Big improvement! Q3/Q4 fixed; Q5 reasoning error |
+| 6 | `qwen3:0.6b` | **3/5 (60%)** | 229.6s | ✅ | ❌ 49 | ✅ | ✅ | ❌ 17 | -1 | Q5 regression (17 instead of 8) |
 | 6 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **3/5 (60%)** | 157.9s | ✅ | ❌ 53 | ✅ | ✅ | ❌ empty | -1 | Q2 same error; Q5 regression to empty |
-| 7 | `qwen:0.5b` | **2/5 (40%)** | 250.8s | ❌ 38 | ✅ | ❌ 87.5 | ✅ | ❌ 24h | 0 | Same score; Q1-Q3 hallucinated math, no tool use |
+| 8 | `gemma3:270m` | **2/5 (40%)** | 423.0s | ❌ 405 | ❌ 3 | ✅ | ✅ | ❌ empty | 0 | Same score; 1.37x faster; Q5 now empty |
+| 8 | `qwen:0.5b` | **2/5 (40%)** | 250.8s | ❌ 38 | ✅ | ❌ 87.5 | ✅ | ❌ 24h | 0 | Same score; Q1-Q3 hallucinated math, no tool use |
+| 10 | `functiongemma:270m` | **1/5 (20%)** | 168.7s | ✅ | ❌ expr | ❌ 1024 | ❌ refused | ❌ refused | 0 | Same score; Q2 showed expression, Q4/Q5 refused |
 
 ---
 
