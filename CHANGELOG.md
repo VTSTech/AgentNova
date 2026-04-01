@@ -4,6 +4,41 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [R04.3] - 04-01-2026 12:43:59 PM
+
+### Structured Output & AgentMode Memory Control
+
+JSON structured output mode wired end-to-end from CLI to backend, and explicit memory management control for AgentMode multi-step tasks.
+
+### Added
+
+#### Structured Output / JSON Mode (`agent.py`, `cli.py`)
+- **`response_format` parameter** on `Agent.__init__()` — instructs the backend to return JSON-formatted output
+- Accepts a convenience string `"json"` which expands to `{"type": "json_object"}`, or a raw dict for custom schemas
+- Stored internally as `self._response_format`; `None` by default (normal text output)
+- **`_generate()`** — forwards `response_format` to backend via `backend_kwargs` when set
+- **`_generate_stream_chunks()`** — same forwarding for streaming responses
+- The backend (`OllamaBackend.generate_completions()` / `generate_completions_stream()`) already accepted `response_format` — this change completes the plumbing so it's reachable from the Agent and CLI layers
+- **`_build_agent()` in `cli.py`** — reads `args.response_format` from the existing `--response-format text|json` CLI arg (defined in `shared_args.py`), maps `"json"` → `{"type": "json_object"}`, `"text"` → `None`
+- **Session header** — displays `Output: JSON mode` in chat/agent mode headers when active
+- Full pipeline: `--response-format json` → CLI arg → `_build_agent()` → `Agent(response_format=...)` → `_generate(backend_kwargs)` → Ollama `/v1/chat/completions` with `response_format`
+
+#### AgentMode Memory Isolation (`agent_mode.py`)
+- **`reset_memory_between_steps` parameter** on `AgentMode.__init__()` — when `True`, clears the agent's memory at the start of each step via `self.agent.memory.clear()`, giving each step a clean context
+- Default is `False` — preserves existing behavior where the agent reuses its memory instance across all steps, retaining awareness of previous step results
+- Useful for tasks where steps should be independent (e.g., running the same analysis on different inputs) rather than cumulative (e.g., read file → extract data → generate report)
+
+### File Changes Summary
+
+| Action | File | Changes |
+|--------|------|:-------:|
+| Updated | `agentnova/agent.py` | +19 −0 |
+| Updated | `agentnova/agent_mode.py` | +15 −0 |
+| Updated | `agentnova/cli.py` | +8 −0 |
+| **Total** | **3 files** | **+42 −0** |
+
+---
+
 ## [R04.2] - 04-01-2026 11:05:14 PM
 
 ### New Tools, AgentMode Context, Audit Logging, Confirmation Mode, CLI Deduplication & Self-Update
