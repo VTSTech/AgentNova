@@ -16,10 +16,13 @@ from ..core.types import ApiMode
 # Backend registry
 _BACKENDS: dict[str, type[BaseBackend]] = {
     "ollama": OllamaBackend,
-    "bitnet": BitNetBackend,
     "llama-server": LlamaServerBackend,
     "llama_server": LlamaServerBackend,  # alias
 }
+
+# BitNet is now merged into LlamaServerBackend with bitnet_mode=True
+# Kept as a separate class for backward compatibility (import path)
+_BITNET_ALIASES = {"bitnet"}
 
 
 def get_backend(name: str, timeout: int | None = None, api_mode: ApiMode | str | None = None, **kwargs) -> BaseBackend:
@@ -39,8 +42,13 @@ def get_backend(name: str, timeout: int | None = None, api_mode: ApiMode | str |
     
     name_lower = name.lower()
 
+    # BitNet alias — route to LlamaServerBackend with bitnet_mode=True
+    is_bitnet = name_lower in _BITNET_ALIASES
+    if is_bitnet:
+        name_lower = "llama-server"
+
     if name_lower not in _BACKENDS:
-        raise ValueError(f"Unknown backend: {name}. Available: {list(_BACKENDS.keys())}")
+        raise ValueError(f"Unknown backend: {name}. Available: {list(_BACKENDS.keys())} + {_BITNET_ALIASES}")
 
     backend_class = _BACKENDS[name_lower]
 
@@ -48,16 +56,21 @@ def get_backend(name: str, timeout: int | None = None, api_mode: ApiMode | str |
     if "base_url" not in kwargs:
         if name_lower == "ollama":
             kwargs["base_url"] = OLLAMA_BASE_URL
-        elif name_lower == "bitnet":
-            kwargs["base_url"] = BITNET_BASE_URL
-        elif name_lower in ("llama-server", "llama_server"):
+        elif name_lower == "llama-server" and not is_bitnet:
             kwargs["base_url"] = LLAMA_SERVER_BASE_URL
+        elif is_bitnet:
+            kwargs["base_url"] = BITNET_BASE_URL
+            kwargs["bitnet_mode"] = True
+
+    # Set bitnet_mode for alias
+    if is_bitnet and "bitnet_mode" not in kwargs:
+        kwargs["bitnet_mode"] = True
 
     # Create BackendConfig with timeout if specified
     if "config" not in kwargs and timeout is not None:
         kwargs["config"] = BackendConfig(timeout=timeout)
 
-    # Pass api_mode for backends that support it (Ollama)
+    # Pass api_mode for backends that support it
     if api_mode is not None and "api_mode" not in kwargs:
         kwargs["api_mode"] = api_mode
 

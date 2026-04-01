@@ -26,7 +26,7 @@ from .base import BaseBackend, BackendConfig
 from .ollama import OllamaBackend
 from ..core.types import BackendType, ToolSupportLevel, ApiMode
 from ..core.models import Tool, ToolParam
-from ..config import LLAMA_SERVER_BASE_URL
+from ..config import LLAMA_SERVER_BASE_URL, BITNET_BASE_URL
 
 
 class LlamaServerBackend(OllamaBackend):
@@ -37,18 +37,24 @@ class LlamaServerBackend(OllamaBackend):
     and overrides server-management endpoints (model discovery, health, model info)
     to use llama-server's API instead of Ollama's.
 
-    Supports llama-server, llama-cpp-turboquant, and any other llama.cpp fork
+    Supports llama-server, llama-cpp-turboquant, BitNet, and any other llama.cpp fork
     that exposes the standard OpenAI-compatible endpoints.
+
+    BitNet mode (--backend bitnet):
+        When bitnet_mode=True, defaults to OPENRE API mode (BitNet only exposes
+        /completion), uses empty stop sequences, hardcoded list_models stub, and
+        always returns REACT for tool support. This preserves backward compatibility
+        with the former BitNetBackend while eliminating code duplication.
 
     Usage:
         backend = get_backend("llama-server")
-        # Or with custom URL:
-        backend = get_backend("llama-server", base_url="http://localhost:8080")
+        backend = get_backend("bitnet")  # alias — bitnet_mode=True
 
     CLI:
         agentnova chat --backend llama-server --base-url http://localhost:8080 --model qwen2.5:7b
         agentnova chat --backend llama-server --api-mode openai  # OpenAI Chat Completions
         agentnova chat --backend llama-server --api-mode openre  # Native /completion (ReAct)
+        agentnova chat --backend bitnet                     # BitNet compat mode
     """
 
     def __init__(
@@ -57,13 +63,19 @@ class LlamaServerBackend(OllamaBackend):
         host: str | None = None,
         port: int | None = None,
         config: BackendConfig | None = None,
-        api_mode: ApiMode | str = ApiMode.OPENAI,
+        api_mode: ApiMode | str | None = None,
+        bitnet_mode: bool = False,
     ):
+        # BitNet mode: default to OPENRE, use BITNET_BASE_URL
+        self._bitnet_mode = bitnet_mode
+
         # Determine base URL - priority: base_url > host/port > env > default
         if base_url:
             self._base_url = base_url.rstrip("/")
         elif host and port:
             self._base_url = f"http://{host}:{port}"
+        elif bitnet_mode:
+            self._base_url = BITNET_BASE_URL.rstrip("/")
         else:
             self._base_url = LLAMA_SERVER_BASE_URL.rstrip("/")
 
@@ -72,7 +84,9 @@ class LlamaServerBackend(OllamaBackend):
         else:
             super(OllamaBackend, self).__init__(BackendConfig())
 
-        # Set API mode — default to OpenAI since llama-server excels at that
+        # Set API mode
+        if api_mode is None:
+            api_mode = ApiMode.OPENRE if bitnet_mode else ApiMode.OPENAI
         if isinstance(api_mode, str):
             api_mode = ApiMode(api_mode.lower())
         self._api_mode = api_mode
@@ -82,7 +96,7 @@ class LlamaServerBackend(OllamaBackend):
 
     @property
     def backend_type(self) -> BackendType:
-        return BackendType.CUSTOM
+        return BackendType.BITNET if self._bitnet_mode else BackendType.CUSTOM
 
     # ─────────────────────────────────────────────────────────────────────
     # Server Management — llama-server endpoints (not Ollama)
@@ -114,15 +128,20 @@ class LlamaServerBackend(OllamaBackend):
 
     def list_models(self) -> list[dict]:
         """
-        List available models from llama-server via /v1/models.
+        List available models.
 
-        llama-server serves exactly one model at a time. The OpenAI-compatible
-        endpoint returns:
-            {"object": "list", "data": [{"id": "model-name", "object": "model", ...}]}
+        BitNet mode: returns a hardcoded stub (BitNet serves a single model
+        with no /v1/models endpoint).
 
-        Returns:
-            List of model info dicts compatible with AgentNova's format.
+        llama-server mode: queries /v1/models for OpenAI-compatible listing.
         """
+        if self._bitnet_mode:
+            return [{
+                "name": "bitnet",
+                "size": 0,
+                "details": {"family": "bitnet", "backend": "bitnet"},
+            }]
+
         import urllib.request
         import urllib.error
 
@@ -138,7 +157,7 @@ class LlamaServerBackend(OllamaBackend):
             for m in result.get("data", []):
                 models.append({
                     "name": m.get("id", "unknown"),
-                    "size": 0,  # llama-server doesn't expose model size via this endpoint
+                    "size": 0,
                     "details": {
                         "family": "llama-server",
                         "backend": "llama-cpp",
@@ -154,7 +173,6 @@ class LlamaServerBackend(OllamaBackend):
         except (urllib.error.HTTPError, urllib.error.URLError) as e:
             if os.environ.get("AGENTNOVA_DEBUG"):
                 print(f"  [llama-server] list_models failed: {e}")
-            # Return a stub so the agent can still operate
             return [{
                 "name": "default",
                 "size": 0,
@@ -236,7 +254,7 @@ class LlamaServerBackend(OllamaBackend):
             "prompt": prompt,
             "n_predict": max_tokens,
             "temperature": temperature,
-            "stop": kwargs.get("stop", ["</s>", "User:", "\nUser:"]),
+            "stop": kwargs.get("stop", [] if self._bitnet_mode else ["</s>", "User:", "\nUser:"]),
         }
 
         start_time = time.time()
@@ -254,10 +272,12 @@ class LlamaServerBackend(OllamaBackend):
 
         except urllib.error.HTTPError as e:
             error_body = e.read().decode("utf-8") if e.fp else ""
-            raise RuntimeError(f"llama-server HTTP error {e.code}: {error_body}")
+            label = "bitnet" if self._bitnet_mode else "llama-server"
+            raise RuntimeError(f"{label} HTTP error {e.code}: {error_body}")
 
         except urllib.error.URLError as e:
-            raise RuntimeError(f"llama-server connection error: {e.reason}")
+            label = "bitnet" if self._bitnet_mode else "llama-server"
+            raise RuntimeError(f"{label} connection error: {e.reason}")
 
         latency_ms = (time.time() - start_time) * 1000
 
@@ -299,7 +319,7 @@ class LlamaServerBackend(OllamaBackend):
             "n_predict": max_tokens,
             "temperature": temperature,
             "stream": True,
-            "stop": kwargs.get("stop", ["</s>", "User:", "\nUser:"]),
+            "stop": kwargs.get("stop", [] if self._bitnet_mode else ["</s>", "User:", "\nUser:"]),
         }
 
         try:
@@ -328,10 +348,12 @@ class LlamaServerBackend(OllamaBackend):
                         continue
 
         except urllib.error.HTTPError as e:
-            raise RuntimeError(f"llama-server HTTP error {e.code}")
+            label = "bitnet" if self._bitnet_mode else "llama-server"
+            raise RuntimeError(f"{label} HTTP error {e.code}")
 
         except urllib.error.URLError as e:
-            raise RuntimeError(f"llama-server connection error: {e.reason}")
+            label = "bitnet" if self._bitnet_mode else "llama-server"
+            raise RuntimeError(f"{label} connection error: {e.reason}")
 
     def _messages_to_prompt(
         self,
@@ -384,20 +406,15 @@ class LlamaServerBackend(OllamaBackend):
 
     def test_tool_support(self, model: str, family: str | None = None, force_test: bool = False) -> ToolSupportLevel:
         """
-        Test model's tool support capability via llama-server.
+        Test model's tool support capability.
 
-        Always uses the /v1/chat/completions endpoint for the test probe,
-        regardless of the configured api_mode, because that's the only endpoint
-        that supports native tool calling.
+        BitNet mode: always returns REACT (no native tool support).
 
-        Detection logic:
-        1. Cache check (unless force_test=True)
-        2. Live test via /v1/chat/completions with a tool
-        3. Native tool_calls in response → NATIVE
-        4. Text response with tool-like JSON → REACT
-        5. API accepted tools but no tool-like output → REACT
-        6. Error on tools → REACT (fallback)
+        llama-server mode: live test via /v1/chat/completions.
         """
+        if self._bitnet_mode:
+            return ToolSupportLevel.REACT
+
         from ..core.tool_cache import get_cached_tool_support, cache_tool_support
 
         api_mode = "openai"  # Always test via OpenAI endpoint

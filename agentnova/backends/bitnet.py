@@ -1,28 +1,44 @@
 """
-⚛️ AgentNova — BitNet Backend
-Backend implementation for BitNet inference engine.
+⚛️ AgentNova — BitNet Backend (Deprecated)
+
+BitNet is now merged into LlamaServerBackend.
+Use --backend bitnet (alias) or --backend llama-server.
+
+This module is kept for backward compatibility (import paths).
+All functionality lives in llama_server.py with bitnet_mode=True.
 
 Written by VTSTech — https://www.vts-tech.org
 """
 
 from __future__ import annotations
 
-import json
-import time
-from typing import Any, Generator
-
-from .base import BaseBackend, BackendConfig
-from ..core.types import BackendType, ToolSupportLevel
-from ..core.models import Tool
-from ..config import BITNET_BASE_URL
+from .llama_server import LlamaServerBackend
 
 
-class BitNetBackend(BaseBackend):
+class BitNetBackend(LlamaServerBackend):
     """
-    Backend for BitNet inference engine.
+    Backend for BitNet inference engine (deprecated).
 
-    BitNet is a 1-bit LLM inference engine optimized
-    for CPU inference with extreme efficiency.
+    BitNet is a 1-bit LLM inference engine — it IS a patched llama.cpp/llama-server.
+    This class is now a thin wrapper around LlamaServerBackend with bitnet_mode=True.
+
+    Behavior when bitnet_mode=True:
+    - Default API mode: OPENRE (/completion only, no OpenAI endpoint)
+    - Default base URL: BITNET_BASE_URL (localhost:8765)
+    - Stop sequences: empty (no defaults)
+    - Tool support: always REACT
+    - list_models: hardcoded stub
+    - backend_type: BackendType.BITNET
+
+    Migration:
+        # Before:
+        backend = BitNetBackend()
+        agentnova chat --backend bitnet
+
+        # After (both still work):
+        backend = BitNetBackend()           # via this wrapper
+        backend = get_backend("bitnet")     # via alias
+        backend = LlamaServerBackend(bitnet_mode=True)  # direct
     """
 
     def __init__(
@@ -30,204 +46,18 @@ class BitNetBackend(BaseBackend):
         base_url: str | None = None,
         host: str | None = None,
         port: int | None = None,
-        config: BackendConfig | None = None,
+        config=None,
+        **kwargs,
     ):
-        # Determine base URL - priority: base_url > host/port > env > default
-        if base_url:
-            self._base_url = base_url
-        elif host and port:
-            self._base_url = f"http://{host}:{port}"
-        else:
-            self._base_url = BITNET_BASE_URL
-
-        if config:
-            super().__init__(config)
-        else:
-            super().__init__(BackendConfig())
-
-    @property
-    def backend_type(self) -> BackendType:
-        return BackendType.BITNET
-
-    @property
-    def base_url(self) -> str:
-        return self._base_url
-
-    def generate(
-        self,
-        model: str,
-        messages: list[dict],
-        tools: list[Tool] | None = None,
-        temperature: float = 0.1,
-        max_tokens: int = 2048,
-        **kwargs,
-    ) -> dict:
-        """Generate a response from BitNet."""
-        import urllib.request
-        import urllib.error
-
-        url = f"{self.base_url}/completion"
-
-        # BitNet uses a simpler API format
-        # Convert messages to a single prompt
-        prompt = self._messages_to_prompt(messages, tools)
-
-        body = {
-            "prompt": prompt,
-            "n_predict": max_tokens,
-            "temperature": temperature,
-            "stop": kwargs.get("stop", []),
-        }
-
-        start_time = time.time()
-
-        try:
-            req = urllib.request.Request(
-                url,
-                data=json.dumps(body).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-
-            with urllib.request.urlopen(req, timeout=self.config.timeout) as response:
-                result = json.loads(response.read().decode("utf-8"))
-
-        except urllib.error.HTTPError as e:
-            error_body = e.read().decode("utf-8") if e.fp else ""
-            raise RuntimeError(f"BitNet HTTP error {e.code}: {error_body}")
-
-        except urllib.error.URLError as e:
-            raise RuntimeError(f"BitNet connection error: {e.reason}")
-
-        latency_ms = (time.time() - start_time) * 1000
-
-        content = result.get("content", "")
-
-        return {
-            "content": content,
-            "tool_calls": [],  # BitNet doesn't support native tools
-            "usage": {
-                "prompt_tokens": result.get("tokens_evaluated", 0),
-                "completion_tokens": result.get("tokens_predicted", 0),
-                "total_tokens": result.get("tokens_evaluated", 0) + result.get("tokens_predicted", 0),
-            },
-            "latency_ms": latency_ms,
-            "raw": result,
-        }
-
-    def generate_stream(
-        self,
-        model: str,
-        messages: list[dict],
-        tools: list[Tool] | None = None,
-        temperature: float = 0.7,
-        max_tokens: int = 2048,
-        **kwargs,
-    ) -> Generator[str, None, None]:
-        """Stream generated text from BitNet."""
-        import urllib.request
-        import urllib.error
-
-        url = f"{self.base_url}/completion"
-
-        prompt = self._messages_to_prompt(messages, tools)
-
-        body = {
-            "prompt": prompt,
-            "n_predict": max_tokens,
-            "temperature": temperature,
-            "stream": True,
-            "stop": kwargs.get("stop", []),
-        }
-
-        try:
-            req = urllib.request.Request(
-                url,
-                data=json.dumps(body).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-
-            with urllib.request.urlopen(req, timeout=self.config.timeout) as response:
-                for line in response:
-                    if not line:
-                        continue
-
-                    try:
-                        chunk = json.loads(line.decode("utf-8"))
-                        content = chunk.get("content", "")
-                        if content:
-                            yield content
-
-                    except json.JSONDecodeError:
-                        continue
-
-        except urllib.error.HTTPError as e:
-            raise RuntimeError(f"BitNet HTTP error {e.code}")
-
-        except urllib.error.URLError as e:
-            raise RuntimeError(f"BitNet connection error: {e.reason}")
-
-    def list_models(self) -> list[dict]:
-        """List available models from BitNet."""
-        # BitNet typically runs a single model
-        # Return basic info
-        return [
-            {
-                "name": "bitnet",
-                "size": 0,
-                "details": {
-                    "family": "bitnet",
-                },
-            }
-        ]
-
-    def test_tool_support(self, model: str, family: str | None = None, force_test: bool = False) -> ToolSupportLevel:
-        """Test model's tool support capability."""
-        # BitNet doesn't support native tools
-        # Always use ReAct format
-        return ToolSupportLevel.REACT
-
-    def _messages_to_prompt(
-        self,
-        messages: list[dict],
-        tools: list[Tool] | None = None,
-    ) -> str:
-        """Convert messages to a single prompt string."""
-        parts = []
-
-        # Add system message
-        for msg in messages:
-            if msg["role"] == "system":
-                parts.append(msg["content"])
-                break
-
-        # Add tool descriptions
-        if tools:
-            parts.append("\n\nAvailable tools:")
-            for tool in tools:
-                parts.append(f"- {tool.name}: {tool.description}")
-            parts.append("\nUse ReAct format for tool calls:")
-            parts.append('Action: tool_name')
-            parts.append('Action Input: {"param": "value"}')
-
-        # Add conversation
-        for msg in messages:
-            role = msg["role"]
-            content = msg["content"]
-
-            if role == "system":
-                continue  # Already added
-            elif role == "user":
-                parts.append(f"\nUser: {content}")
-            elif role == "assistant":
-                parts.append(f"\nAssistant: {content}")
-            elif role == "tool":
-                parts.append(f"\nTool Result: {content}")
-
-        parts.append("\nAssistant:")
-
-        return "\n".join(parts)
+        # Pass through all args, force bitnet_mode=True
+        super().__init__(
+            base_url=base_url,
+            host=host,
+            port=port,
+            config=config,
+            bitnet_mode=True,
+            **kwargs,
+        )
 
     def __repr__(self) -> str:
-        return f"BitNetBackend(url={self.base_url})"
+        return f"BitNetBackend(url={self._base_url})"
