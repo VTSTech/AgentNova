@@ -99,6 +99,12 @@ from .model_discovery import (
 )
 from .shared_args import SharedConfig, add_shared_args, parse_shared_args
 
+# Persistent memory (graceful import for minimal installs)
+try:
+    from .core.persistent_memory import PersistentMemory
+except ImportError:
+    PersistentMemory = None  # type: ignore
+
 # Optional ACP plugin (graceful import)
 try:
     from .acp_plugin import ACPPlugin
@@ -130,6 +136,8 @@ __all__ = [
     "AgentMode",
     "AgentState",
     "TaskPlan",
+    # Memory
+    "PersistentMemory",
     # Orchestrator
     "Orchestrator",
     "AgentCard",

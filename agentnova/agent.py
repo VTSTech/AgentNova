@@ -150,7 +150,7 @@ class Agent:
             skills_prompt: Optional skill instructions to append to the system prompt
             retry_on_error: Whether to retry failed tool calls with error feedback (default: True)
             max_tool_retries: Maximum retries per tool call failure (default: 2)
-            **kwargs: Additional configuration
+            **kwargs: Additional configuration (persistent, session_id, memory_db, confirm_dangerous, response_format)
         """
         self.model = model
         self.max_steps = max_steps
@@ -271,7 +271,26 @@ class Agent:
                     print(f"[OpenResponses] No tools filtered out")
 
         # Initialize memory
-        self.memory = Memory(memory_config or MemoryConfig())
+        # Persistent memory: use PersistentMemory if session_id or persistent=True
+        _persistent = kwargs.pop("persistent", False)
+        _session_id = kwargs.pop("session_id", None)
+        _memory_db = kwargs.pop("memory_db", None)
+
+        if _persistent or _session_id:
+            from .core.persistent_memory import PersistentMemory
+            self.memory = PersistentMemory(
+                session_id=_session_id,
+                db_path=_memory_db,
+                config=memory_config or MemoryConfig(),
+            )
+            self._is_persistent = True
+            if _session_id:
+                loaded = self.memory.load()
+                if self.debug and loaded > 0:
+                    print(f"[Memory] Restored {loaded} messages from session '{_session_id}'")
+        else:
+            self.memory = Memory(memory_config or MemoryConfig())
+            self._is_persistent = False
 
         # Get model configuration (for temperature, max_tokens defaults)
         from .core.model_family_config import get_model_config

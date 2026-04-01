@@ -429,6 +429,7 @@ def _build_agent(args: argparse.Namespace, config) -> Agent:
         max_tool_retries=getattr(args, "max_tool_retries", None) or config.max_tool_retries,
         confirm_dangerous=_make_confirm_callback(args),
         response_format=response_format,
+        session_id=getattr(args, "session", None),
     )
 
 
@@ -455,6 +456,8 @@ def _print_session_header(agent: Agent, args: argparse.Namespace, config, label:
         print(f"{dim('ACP:')} {green('✓ Connected')} ({acp.base_url})")
     if agent._response_format:
         print(f"{dim('Output:')} {yellow('JSON mode')}")
+    if getattr(agent, '_is_persistent', False) and hasattr(agent.memory, 'session_id'):
+        print(f"{dim('Session:')} {green(agent.memory.session_id)}")
     print(f"{dim('Status:')} {yellow('Alpha')}")
 
 

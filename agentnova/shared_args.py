@@ -264,6 +264,11 @@ def add_agent_args(
         help="Comma-separated skill names to load (e.g., acp,skill-creator)",
     )
     parser.add_argument(
+        "--session",
+        default=None,
+        help="Session ID for persistent memory (resume previous conversation)",
+    )
+    parser.add_argument(
         "--no-retry",
         action="store_true",
         dest="no_retry",
