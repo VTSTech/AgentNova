@@ -480,8 +480,18 @@ class LlamaServerBackend(OllamaBackend):
                     desc = self._sanitize_for_bitnet(desc)
                 tool_lines.append(f"- {tool.name}: {desc}")
             tool_lines.append("\nUse ReAct format for tool calls:")
-            tool_lines.append('Action: tool_name')
-            tool_lines.append('Action Input: {"param": "value"}')
+            tool_lines.append("Action: tool_name")
+            if self._bitnet_mode and len(tools) > 0:
+                # Generate per-tool examples with actual parameter names.
+                # Small models (like BitNet) copy the example verbatim;
+                # a generic {"param": "value"} causes wrong argument names.
+                first = tools[0]
+                param = first.params[0].name if first.params else "arg"
+                ptype = first.params[0].type if first.params else "value"
+                placeholder = '"value"' if ptype == "string" else "0"
+                tool_lines.append(f'Action Input: {{"{"{param}": {placeholder}}}')
+            else:
+                tool_lines.append('Action Input: {"param": "value"}')
 
             tool_section = "\n".join(tool_lines)
 
