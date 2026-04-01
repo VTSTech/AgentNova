@@ -4,7 +4,7 @@
 
 Test 01 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
 
-> **Updated:** 2026-04-01 - R04.4 Chat Completions (OpenAI) with-soul results in progress (3/7 qwen models)
+> **Updated:** 2026-04-01 - R04.4 Chat Completions (OpenAI) with-soul results complete (7/7 qwen models)
 
 **Usage:**
 ```bash
@@ -18,17 +18,21 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 ---
 
-### Chat Completions Mode Results (R04.4 - openai API Mode, WITH SOUL) 🔄 IN PROGRESS
+### Chat Completions Mode Results (R04.4 - openai API Mode, WITH SOUL)
 
 > Testing with `--api openai --soul nova-helper` uses OpenAI-compatible Chat Completions API (`/v1/chat/completions`) with the nova-helper soul persona
 > Test params: `--api openai --soul nova-helper --timeout 999`
-> 🔄 **Partial results** — 3 of 7 qwen models tested; remaining 4 pending
+> ✅ **Complete** — All 7 qwen models tested
 
 | Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R03.9 | Notes |
 |:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|:---------:|-------|-------|
-| 1 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 128.6s | ✅ | ✅ | ✅ | ✅ | ✅ | +1 | 🏆 Perfect! Q5 fixed, 2x faster |
-| 2 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 139.8s | ✅ | ❌ 53 | ✅ | ✅ | ✅ | 0 | Q2 calc error (5.8s — skipped tool?) |
-| 2 | `qwen2:0.5b` | **4/5 (80%)** | 117.9s | ✅ | ✅ | ✅ | ❌ code | ✅ | +1 | Q3/Q5 fixed; Q4 wrote Python but didn't execute |
+| 1 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 128.6s | ✅ | ✅ | ✅ | ✅ | ✅ | +1 | Perfect! Q5 fixed, 2x faster |
+| 1 | **`qwen3:0.6b`** | **5/5 (100%)** | 417.3s | ✅ | ✅ | ✅ | ✅ | ✅ | +1 | Perfect! Up from 80% in R03.9 |
+| 3 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 139.8s | ✅ | ❌ 53 | ✅ | ✅ | ✅ | 0 | Q2 calc error (5.8s — skipped tool?) |
+| 3 | `qwen2:0.5b` | **4/5 (80%)** | 117.9s | ✅ | ✅ | ✅ | ❌ code | ✅ | +1 | Q3/Q5 fixed; Q4 wrote Python but didn't execute |
+| 5 | `qwen3.5:0.8b` | **2/5 (40%)** | 313.7s | ❌ empty | ❌ empty | ❌ empty | ✅ | ✅ | -1 | Regression; Q1-Q3 all empty |
+| 6 | `nchapman/dolphin3.0-qwen2.5:0.5b` | **1/5 (20%)** | 155.6s | ❌ 84 | ❌ -3 | ✅ | ❌ empty | ❌ 6h | -2 | Regression; Q1 doubled, Q2 negative |
+| 7 | `qwen:0.5b` | **0/5 (0%)** | 214.0s | ❌ meta | ❌ 495 | ❌ 41 | ❌ 48 | ❌ 6h | -1 | Base model hallucinated reasoning, no tool use |
 
 ---
 
