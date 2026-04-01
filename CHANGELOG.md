@@ -30,7 +30,7 @@ BitNet backend merged into LlamaServerBackend, eliminating ~170 lines of duplica
 - R03.6 results removed (both OpenResponses and Chat Completions sections)
 - R03.9 results retained as historical reference with `vs R03.6` comparison column removed
 - New R04.4 Chat Completions section (complete, 10 models)
-- New R04.4 OpenResponses section (in progress, 4/7 qwen models)
+- New R04.4 OpenResponses section (complete, 7/7 qwen models)
 - All table formatting cleaned and validated
 
 ### File Changes Summary
