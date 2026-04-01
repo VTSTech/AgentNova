@@ -1,6 +1,6 @@
 # Codebase Intelligence Brief: AgentNova
 
-> Generated: 2026-04-01 | Auditor: Super-Z-Alpha | Commit: f07ad23 (R04.4)
+> Generated: 04-01-2026 | Auditor: Super-Z-Alpha | Commit: f07ad23 (R04.4)
 
 ---
 
@@ -259,6 +259,7 @@ acp_plugin.py ← referenced by cli.py (optional import)                │
 ## Patterns & Conventions
 
 | Aspect | Pattern |
+|---|---|
 | API specification | OpenResponses (https://www.openresponses.org/specification) — 100% compliant: Items, Response state machine, tool_choice modes |
 | Tool calling | Unified ReAct prompting for ALL models — model outputs `Action: name\nAction Input: {json}`. Tool definitions NOT passed to the API. |
 | Error recovery | Retry-with-error-feedback: inject previous failure context into conversation so model self-corrects. Max 2 retries per failure (configurable). |
@@ -347,6 +348,7 @@ result = subprocess.run(validated_cmd, shell=True, ...)
 ## Active Decisions
 
 | Decision | Choice | Rationale |
+|---|---|---|
 | Zero runtime dependencies | Python stdlib only (urllib for HTTP) | Maximizes portability, zero supply chain risk |
 | Unified ReAct prompting | All models use Action/Action Input format | Consistent parsing, no per-family format detection |
 | No tool call fallbacks | Model must explicitly format tool calls | Follows OpenResponses spec |
