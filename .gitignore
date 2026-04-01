@@ -192,3 +192,4 @@ agentnova/tested_models.json
 agentnova/examples/gsm8k_agent_results.jsonl
 agentnova/tested_models.json
 publish.cmd
+audit/agentnova-project-overview.md
