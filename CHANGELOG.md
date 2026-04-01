@@ -4,6 +4,48 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [R04.4] - 04-01-2026 3:56:05 PM
+
+### BitNet Backend Merge & Test Results Refresh
+
+BitNet backend merged into LlamaServerBackend, eliminating ~170 lines of duplicated code. Full Test 01 diagnostic refresh across both API modes (OpenResponses + Chat Completions) with 10 models. TESTS.md restructured with historical results archived and R04.4 as the active section.
+
+### Changed
+
+#### BitNet Backend Merged into LlamaServerBackend (`backends/llama_server.py`, `backends/bitnet.py`, `backends/__init__.py`)
+- **`bitnet.py`** reduced from 234 lines to a 63-line thin wrapper class. `BitNetBackend` now subclasses `LlamaServerBackend` with `bitnet_mode=True` forced in `__init__()`. All logic delegated to the parent class.
+- **`llama_server.py`** gains `bitnet_mode: bool` parameter on `__init__()`. When active:
+  - Default `api_mode` changes from `OPENAI` to `OPENRE` (BitNet only exposes `/completion`)
+  - Default `base_url` uses `BITNET_BASE_URL` (localhost:8765) instead of `LLAMA_SERVER_BASE_URL`
+  - Stop sequences default to empty `[]` instead of `["</s>", "User:", "\nUser:"]` (matching original BitNet behavior)
+  - `list_models()` returns hardcoded stub `{"name": "bitnet"}` instead of querying `/v1/models`
+  - `test_tool_support()` always returns `REACT` instead of live-testing via `/v1/chat/completions`
+  - `backend_type` returns `BackendType.BITNET` instead of `BackendType.CUSTOM`
+  - Error messages use "bitnet" label instead of "llama-server"
+- **`backends/__init__.py`** — `get_backend("bitnet")` routes to `LlamaServerBackend` with `bitnet_mode=True` and `BITNET_BASE_URL` via `_BITNET_ALIASES` set. No changes to `_BACKENDS` registry — `BitNetBackend` still importable for backward compatibility.
+- **Full backward compatibility preserved**: `--backend bitnet`, `from agentnova.backends.bitnet import BitNetBackend`, and `get_backend("bitnet")` all work unchanged. No changes to `config.py`, `core/types.py`, `cli.py`, or any example scripts.
+
+#### TESTS.md Restructured
+- Header updated to R04.4
+- R03.6 results removed (both OpenResponses and Chat Completions sections)
+- R03.9 results retained as historical reference with `vs R03.6` comparison column removed
+- New R04.4 Chat Completions section (complete, 10 models)
+- New R04.4 OpenResponses section (in progress, 4/7 qwen models)
+- All table formatting cleaned and validated
+
+### File Changes Summary
+
+| Action | File | Changes |
+|--------|------|:-------:|
+| Updated | `agentnova/backends/llama_server.py` | +30 -15 |
+| Updated | `agentnova/backends/bitnet.py` | -171 |
+| Updated | `agentnova/backends/__init__.py` | +15 -8 |
+| Updated | `TESTS.md` | Restructured |
+| **Total** | **4 files** | **+45 -194** |
+
+---
+
+
 ## [R04.3] - 04-01-2026 12:43:59 PM
 
 ### Structured Output, Persistent Memory & AgentMode Memory Control

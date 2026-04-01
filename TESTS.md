@@ -39,6 +39,21 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 ---
 
+### OpenResponses Mode Results (R04.4 - openre API Mode, WITH SOUL)
+
+> Testing with `--api openre --soul nova-helper` uses Ollama's native OpenResponses API (`/api/chat`) with the nova-helper soul persona
+> Test params: `--api openre --soul nova-helper --timeout 999`
+> 🔄 **Partial results** — 4 of 7 qwen models tested; remaining 3 pending
+
+| Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R03.9 | Notes |
+|:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|:---------:|-------|-------|
+| 1 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 165.5s | ✅ | ✅ | ✅ | ✅ | ✅ | 0 | Still perfect; 1.5x faster |
+| 2 | `qwen3.5:0.8b` | **4/5 (80%)** | 321.0s | ✅ | ❌ 45 | ✅ | ✅ | ✅ | +1 | Improved! Q2 off-by-6, Q1 fixed |
+| 2 | `qwen2:0.5b` | **4/5 (80%)** | 114.7s | ✅ | ✅ | ✅ | ✅ | ❌ 6.5h | +2 | Big improvement! Q3/Q4 fixed; Q5 reasoning error |
+| 4 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **3/5 (60%)** | 157.9s | ✅ | ❌ 53 | ✅ | ✅ | ❌ empty | -1 | Q2 same error; Q5 regression to empty |
+
+---
+
 ### OpenResponses Mode Results (R03.9 - resp API Mode, WITH SOUL)
 
 > Testing with `--api openre --soul nova-helper` uses Ollama's native OpenResponses API (`/api/chat`) with the nova-helper soul persona
