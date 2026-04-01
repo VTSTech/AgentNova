@@ -518,6 +518,9 @@ def cmd_chat(args: argparse.Namespace) -> int:
         try:
             user_input = input(f"{dim('You:')} ").strip()
         except (EOFError, KeyboardInterrupt):
+            # Ensure persistent memory is flushed and closed
+            if getattr(agent, '_is_persistent', False) and hasattr(agent.memory, 'close'):
+                agent.memory.close()
             print("\n👋 Goodbye!")
             break
 
@@ -583,6 +586,9 @@ def cmd_agent(args: argparse.Namespace) -> int:
         try:
             user_input = input("Goal: ").strip()
         except (EOFError, KeyboardInterrupt):
+            # Ensure persistent memory is flushed and closed
+            if getattr(agent, '_is_persistent', False) and hasattr(agent.memory, 'close'):
+                agent.memory.close()
             print("\n👋 Goodbye!")
             break
 

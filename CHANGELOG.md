@@ -6,11 +6,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [R04.3] - 04-01-2026 12:43:59 PM
 
-### Structured Output & AgentMode Memory Control
+### Structured Output, Persistent Memory & AgentMode Memory Control
 
-JSON structured output mode wired end-to-end from CLI to backend, and explicit memory management control for AgentMode multi-step tasks.
+JSON structured output mode wired end-to-end from CLI to backend, SQLite-backed persistent memory with session management, and explicit memory management control for AgentMode multi-step tasks.
 
 ### Added
+
+#### Persistent Memory (`core/persistent_memory.py`, `agent.py`, `cli.py`, `shared_args.py`)
+- **`PersistentMemory` class** — SQLite-backed `Memory` subclass that persists all conversation messages to `~/.agentnova/memory.db`, surviving across process restarts and CLI invocations
+- Extends `Memory` with identical sliding-window behavior (same `MemoryConfig`, same `_prune_if_needed`), so the model context window is managed identically to in-memory mode while retaining full history in the database
+- **Auto-save**: every `add()`, `add_tool_call()`, and `add_tool_result()` call writes to SQLite immediately (configurable via `auto_save=False` for bulk operations with manual `save()`)
+- **`load()`** — restores messages from DB into memory, including the system prompt which is re-injected into the agent after load (agent.py line 375)
+- **`save()`** — idempotent; skips messages already in DB (by `session_id + seq`), safe to call multiple times from different `PersistentMemory` instances with the same session
+- **`close()`** — cleanly closes the SQLite connection
+- **`clear()`** — clears both in-memory messages and deletes corresponding rows from the database
+- **Schema**: `sessions` table (`session_id`, `model`, `created_at`, `updated_at`, `message_count`, `metadata`) and `messages` table (`session_id`, `seq`, `role`, `content`, `tool_calls`, `tool_call_id`, `name`, `timestamp`) with WAL journal mode and foreign key cascading
+- **`list_sessions()`** — static method returning all sessions sorted by `updated_at` desc, with message counts and timestamps
+- **`delete_session()`** — static method for removing a session and all associated messages
+- **`session_id` property** — returns the current session identifier (auto-generated UUID[:8] or user-specified)
+- **`--session <name>` CLI arg** on `run`, `chat`, and `agent` commands — activates persistent memory with the given session name; sessions are created on first use and resumed on subsequent runs
+- **`_build_agent()` in `cli.py`** — passes `session_id=getattr(args, "session", None)` to `Agent.__init__()`
+- **`Agent.__init__()` auto-swap** (agent.py lines 274-293) — when `session_id` is provided, automatically replaces the in-memory `Memory` instance with `PersistentMemory`, calls `load()` to restore history, and re-adds the system prompt
+- **`_is_persistent` flag** — set on the agent when using persistent memory, used by CLI to show session name in header and trigger clean close on exit
+- **Session header** — displays `Session: <name>` in chat/agent mode headers when persistent memory is active
+- Exported from `__init__.py` with graceful import (returns `None` if sqlite3 unavailable)
+
+#### `agentnova sessions` CLI Command (`cli.py`)
+- **`agentnova sessions`** — lists all saved sessions in a formatted table showing session name, message count, creation time, and last-updated time
+- **`agentnova sessions --delete <name>`** — deletes a specific session and all its messages from the database
+- Displays the database path (`~/.agentnova/memory.db`) for user reference
+- Shows usage hints for resuming (`--session <name>`) and deleting sessions
+- Wires into `PersistentMemory.list_sessions()` and `PersistentMemory.delete_session()` static methods
+
+#### Clean SQLite Teardown (`cli.py`)
+- **`agent.memory.close()`** called in all exit paths across `cmd_run()`, `cmd_chat()`, and `cmd_agent()` — ensures the SQLite WAL checkpoint completes and the file descriptor is released
+- Covers normal exit (`cmd_run`), `/quit` command, and `EOFError`/`KeyboardInterrupt` (Ctrl+C) in both chat and agent interactive modes
+- Previously only `/quit` handlers called `close()` — Ctrl+C exits would leave the connection open (relying on process exit for cleanup, which works but risks WAL journal growth and locked files)
 
 #### Structured Output / JSON Mode (`agent.py`, `cli.py`)
 - **`response_format` parameter** on `Agent.__init__()` — instructs the backend to return JSON-formatted output
@@ -32,10 +63,13 @@ JSON structured output mode wired end-to-end from CLI to backend, and explicit m
 
 | Action | File | Changes |
 |--------|------|:-------:|
-| Updated | `agentnova/agent.py` | +19 −0 |
+| Created | `agentnova/core/persistent_memory.py` | +442 |
+| Updated | `agentnova/agent.py` | +40 −0 |
 | Updated | `agentnova/agent_mode.py` | +15 −0 |
-| Updated | `agentnova/cli.py` | +8 −0 |
-| **Total** | **3 files** | **+42 −0** |
+| Updated | `agentnova/cli.py` | +40 −0 |
+| Updated | `agentnova/shared_args.py` | +4 −0 |
+| Updated | `agentnova/__init__.py` | +6 −0 |
+| **Total** | **6 files** | **+547 −0** |
 
 ---
 
