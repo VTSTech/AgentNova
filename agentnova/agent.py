@@ -24,7 +24,7 @@ import time
 from typing import Any, Generator, Optional
 
 from .core.models import AgentRun, StepResult, Tool, ToolParam, ToolCall
-from .core.types import StepResultType, ApiMode
+from .core.types import StepResultType, ApiMode, BackendType
 from .core.memory import Memory, MemoryConfig
 from .core.tool_parse import ToolParser
 from .core.error_recovery import (
@@ -304,6 +304,15 @@ class Agent:
         self.soul = None
         self._soul_level = soul_level
         
+        # Detect BitNet backend for prompt formatting compatibility
+        # BitNet's tokenizer falls back to 'default' pre-tokenizer, which
+        # causes reserved token IDs when it encounters markdown tables, code
+        # fences, or certain character sequences — crashing the i2_s kernel.
+        self._is_bitnet = (
+            hasattr(self.backend, 'backend_type')
+            and self.backend.backend_type == BackendType.BITNET
+        )
+
         # Determine if tools are available
         has_tools = self.tools and len(self.tools) > 0 and self.tool_choice.type != ToolChoiceType.NONE
         
@@ -399,9 +408,35 @@ class Agent:
             print(msg)
 
     def _build_default_prompt(self, has_tools: bool) -> str:
-        """Build a default system prompt when soul is not available."""
-        if has_tools:
-            return """You are a helpful AI assistant with access to tools.
+        """Build a default system prompt when soul is not available.
+
+        When self._is_bitnet is True, returns a lean prompt that avoids markdown
+        tables, code fences, and bold markers — these produce reserved token IDs
+        in BitNet's degraded tokenizer, crashing the inference engine.
+        """
+        if not has_tools:
+            return "You are a helpful AI assistant. Answer questions directly and accurately."
+
+        if self._is_bitnet:
+            # Lean ReAct prompt — no markdown, no tables, no code fences.
+            # BitNet's tokenizer fallback produces reserved token IDs for those.
+            return (
+                "You are a helpful AI assistant with access to tools.\n\n"
+                "When you need to use a tool, follow this EXACT format:\n\n"
+                "Thought: <brief reasoning>\n"
+                "Action: <tool_name>\n"
+                'Action Input: {"param": "value"}\n\n'
+                "After receiving a tool result, provide the Final Answer:\n\n"
+                "Thought: I have the result\n"
+                "Final Answer: <the answer>\n\n"
+                "CRITICAL RULES:\n"
+                "1. Only use tools from the available tools list\n"
+                "2. Action Input must be valid JSON\n"
+                "3. Always use tools for calculations and external operations\n"
+                "4. Never make up information"
+            )
+
+        return """You are a helpful AI assistant with access to tools.
 
 When you need to use a tool, follow this EXACT format:
 
@@ -423,8 +458,6 @@ Final Answer: <the answer>
 2. Action Input must be valid JSON
 3. Always use tools for calculations and external operations
 4. Never make up information"""
-        else:
-            return "You are a helpful AI assistant. Answer questions directly and accurately."
 
     def run(self, prompt: str, stream: bool = False) -> AgentRun:
         """

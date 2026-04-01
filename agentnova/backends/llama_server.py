@@ -357,6 +357,50 @@ class LlamaServerBackend(OllamaBackend):
             reason = getattr(e, 'reason', str(e))
             raise RuntimeError(f"{label} connection error: {reason}")
 
+    @staticmethod
+    def _sanitize_for_bitnet(text: str) -> str:
+        """
+        Sanitize prompt text for BitNet's degraded tokenizer.
+
+        BitNet's llama-server fork falls back to a 'default' pre-tokenizer when
+        it can't match the model's gpt2 tokenizer string. This causes certain
+        character sequences to produce reserved token IDs that crash the
+        inference engine's i2_s (ternary/2-bit) kernel.
+
+        Known triggers (from crash isolation testing):
+        - Markdown code fences (triple backticks) with content inside
+        - Markdown tables (pipes + dashes in alignment rows)
+        - Consecutive pipes or dashes
+
+        This sanitizer strips those patterns while preserving the semantic
+        content of the prompt.
+        """
+        import re
+
+        # Remove fenced code blocks: ```...```  (including the content)
+        # The ReAct format examples use these for Action/Action Input blocks
+        text = re.sub(r'```[\s\S]*?```', '', text)
+
+        # Remove markdown table rows (lines starting with | or containing |)
+        # These are used in the soul's Tool Reference tables
+        lines = text.split('\n')
+        cleaned = []
+        for line in lines:
+            stripped = line.strip()
+            # Skip table rows and separators
+            if stripped.startswith('|') or stripped.startswith('|--'):
+                continue
+            # Skip lines that are just dashes (table separators)
+            if re.match(r'^[-]+$', stripped):
+                continue
+            cleaned.append(line)
+        text = '\n'.join(cleaned)
+
+        # Clean up excessive blank lines left by removal
+        text = re.sub(r'\n{3,}', '\n\n', text)
+
+        return text.strip()
+
     def _messages_to_prompt(
         self,
         messages: list[dict],
@@ -366,20 +410,30 @@ class LlamaServerBackend(OllamaBackend):
         Convert messages to a single prompt string for /completion endpoint.
 
         Same format as BitNet backend — ReAct tool instructions embedded in prompt.
+
+        When bitnet_mode=True, the system message and tool descriptions are
+        sanitized to avoid triggering reserved token IDs in BitNet's degraded
+        tokenizer (see _sanitize_for_bitnet).
         """
         parts = []
 
         # Add system message
         for msg in messages:
             if msg["role"] == "system":
-                parts.append(msg["content"])
+                system_content = msg["content"]
+                if self._bitnet_mode:
+                    system_content = self._sanitize_for_bitnet(system_content)
+                parts.append(system_content)
                 break
 
         # Add tool descriptions
         if tools:
             parts.append("\n\nAvailable tools:")
             for tool in tools:
-                parts.append(f"- {tool.name}: {tool.description}")
+                desc = tool.description
+                if self._bitnet_mode:
+                    desc = self._sanitize_for_bitnet(desc)
+                parts.append(f"- {tool.name}: {desc}")
             parts.append("\nUse ReAct format for tool calls:")
             parts.append('Action: tool_name')
             parts.append('Action Input: {"param": "value"}')
