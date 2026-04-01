@@ -28,6 +28,7 @@ TOOL_ARG_ALIASES = {
         "num": "expression", "number": "expression",
         "input": "expression", "formula": "expression", "math": "expression",
         "expr": "expression", "calc": "expression", "result": "expression",
+        "param": "expression", "args": "expression", "arg": "expression",
         # Power operations - combine into expression
         "base": "_combine_power", "exponent": "_combine_power", "power": "_combine_power",
         "n": "_combine_power", "p": "_combine_power", "exp": "_combine_power",
