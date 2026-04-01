@@ -489,7 +489,7 @@ class LlamaServerBackend(OllamaBackend):
                 param = first.params[0].name if first.params else "arg"
                 ptype = first.params[0].type if first.params else "value"
                 placeholder = '"value"' if ptype == "string" else "0"
-                tool_lines.append(f'Action Input: {{"{"{param}": {placeholder}}}')
+                tool_lines.append(f'Action Input: {{{param!r}: {placeholder}}}')
             else:
                 tool_lines.append('Action Input: {"param": "value"}')
 
