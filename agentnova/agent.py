@@ -418,22 +418,14 @@ class Agent:
             return "You are a helpful AI assistant. Answer questions directly and accurately."
 
         if self._is_bitnet:
-            # Lean ReAct prompt — no markdown, no tables, no code fences.
-            # BitNet's tokenizer fallback produces reserved token IDs for those.
+            # Ultra-lean ReAct prompt for BitNet's degraded tokenizer.
+            # BitNet's tokenizer fallback produces reserved token IDs at certain
+            # token positions, crashing the i2_s kernel at ~320 tokens.
+            # Keep this under 500 chars to stay safely below the crash threshold.
             return (
-                "You are a helpful AI assistant with access to tools.\n\n"
-                "When you need to use a tool, follow this EXACT format:\n\n"
-                "Thought: <brief reasoning>\n"
-                "Action: <tool_name>\n"
-                'Action Input: {"param": "value"}\n\n'
-                "After receiving a tool result, provide the Final Answer:\n\n"
-                "Thought: I have the result\n"
-                "Final Answer: <the answer>\n\n"
-                "CRITICAL RULES:\n"
-                "1. Only use tools from the available tools list\n"
-                "2. Action Input must be valid JSON\n"
-                "3. Always use tools for calculations and external operations\n"
-                "4. Never make up information"
+                "You are a helpful assistant with tools.\n"
+                "Use the ReAct format shown in the tool section below.\n"
+                "After tool result, give Final Answer: <answer>"
             )
 
         return """You are a helpful AI assistant with access to tools.
