@@ -4,6 +4,79 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [R04.2] - 04-01-2026 11:05:14 PM
+
+### New Tools, AgentMode Context, Audit Logging, Confirmation Mode & CLI Enhancements
+
+Two new code navigation tools (`read_file_lines`, `find_files`), AgentMode context injection across multi-step tasks, shell/file audit logging to `~/.agentnova/audit.log`, dangerous-tool confirmation mode (`--confirm`), git commit hash in version strings, and a self-update CLI subcommand.
+
+### Added
+
+#### Read File Lines Tool (`tools/builtins.py`)
+- **`read_file_lines()` function** — reads specific line ranges from a file, returning content with `cat -n` style line numbers
+- Parameters: `file_path` (required), `start_line` (1-indexed, default 1), `end_line` (inclusive, default start+99)
+- Caps at 500 lines per read to prevent context flooding
+- More token-efficient than `read_file` when only a section of a large file is needed
+- **Registered as `read_file_lines`** in `BUILTIN_REGISTRY` under the `file` category
+
+#### Find Files Tool (`tools/builtins.py`)
+- **`find_files()` function** — recursive file search using fnmatch glob patterns
+- Parameters: `pattern` (required, e.g. `*.py`), `path` (default `.`), `max_results` (default 50)
+- Skips hidden directories, returns matches with file sizes
+- **Registered as `find_files`** in `BUILTIN_REGISTRY` under the `file` category
+
+#### AgentMode Context Injection (`agent_mode.py`)
+- **`_inject_context(memory, step_info)`** — was a no-op, now injects contextual awareness messages into agent memory during multi-step task execution
+- **`execute_step()` enhanced** — prepends `[Step N of M] Goal: ...` headers on multi-step tasks so the model knows which step it's on and what the overall goal is
+- Each step now receives a system-level reminder of the original task and progress
+
+#### Audit Logging (`tools/builtins.py`)
+- **`_audit_log()` function** — fire-and-forget JSON-lines logger to `~/.agentnova/audit.log`
+- Each entry: `ts` (ISO 8601 UTC), `tool`, `args`, `outcome` (`accepted`/`rejected`/`error`), `detail`
+- Hooked into `shell()`, `write_file()`, and `edit_file()` handlers
+- Logs all outcomes: successful executions, security rejections, timeouts, permission errors
+- Failures in the audit logger itself are silently caught — never disrupts the agentic loop
+- Audit log directory (`~/.agentnova/`) is created automatically on first write
+
+#### Dangerous Tool Confirmation Mode (`agent.py`, `cli.py`)
+- **`confirm_dangerous` callback** on `Agent.__init__()` — when set, any tool with `dangerous=True` must be approved before execution
+- Callback signature: `(tool_name: str, args: dict) -> bool` — return `False` to block
+- Blocked calls return an error to the model so it can adapt its approach
+- Non-dangerous tools (calculator, read_file, etc.) execute without confirmation
+- **`--confirm` CLI flag** on `run`, `chat`, and `agent` commands — enables interactive y/N confirmation for shell, write_file, and edit_file
+- **`_make_confirm_callback()` helper** in `cli.py` — builds the callback from the argparse namespace, displays tool name + truncated args, handles EOF/KeyboardInterrupt
+
+#### Git Commit Hash in Version (`__init__.py`)
+- **`_get_git_short_hash()` function** — walks up from the package directory looking for `.git`, runs `git rev-parse --short HEAD`
+- When a git repo is detected, `__version__` is automatically appended with the short hash (e.g. `0.4.2-dev-7073808`)
+- Gracefully falls back to base version when installed via pip (no `.git` directory)
+- The banner converter in `cli.py` already handled the rest — no changes needed there
+
+#### Update CLI Subcommand (`cli.py`)
+- **`agentnova update`** — runs `pip install git+https://github.com/VTSTech/AgentNova.git --force-reinstall`
+- Shows current version before updating, displays branded output with status messages
+- Shows the ASCII banner on completion with the new version
+
+### Changed
+
+#### Soul Configuration (`souls/nova-helper/soul.json`)
+- Removed stale `"grep"` from `allowedTools` (shell covers search use cases)
+- Added `"read_file_lines"` and `"find_files"` to `allowedTools`
+
+### File Changes Summary
+
+| Action | File | Changes |
+|--------|------|:-------:|
+| Updated | `agentnova/__init__.py` | +38 −1 |
+| Updated | `agentnova/agent.py` | +19 −3 |
+| Updated | `agentnova/agent_mode.py` | +30 −5 |
+| Updated | `agentnova/cli.py` | +55 −5 |
+| Updated | `agentnova/tools/builtins.py` | +120 −8 |
+| Updated | `agentnova/souls/nova-helper/soul.json` | +2 −1 |
+| **Total** | **6 files** | **+264 −23** |
+
+---
+
 ## [R04.2] - 03-31-2026 2:15:14 PM
 
 ### Built-in Tools, Codebase Audit Skill, ACP Integration & llama-server Backend
