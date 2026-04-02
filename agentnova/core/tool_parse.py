@@ -406,14 +406,31 @@ def _parse_react(text: str, tool_names: list[str] | None = None) -> tuple[str | 
                 if not isinstance(tool_args, dict):
                     tool_args = {"input": str(tool_args)}
             except json.JSONDecodeError:
-                # Last resort: check for known patterns in the raw text
-                expr_match = re.search(r'"expression":\s*"([^"]+)"', raw_args)
-                if expr_match:
-                    tool_args = {"expression": expr_match.group(1)}
-                elif raw_args.startswith('{') and '=' in raw_args and 'arguments' not in raw_args.lower():
-                    tool_args = {"input": raw_args}
-                else:
-                    tool_args = {"input": raw_args}
+                # Many small models (qwen2.5:0.5b, BitNet) output Python dict
+                # literals with single quotes instead of JSON double quotes.
+                # e.g.: {'expression': '15 + 27'} instead of {"expression": "15 + 27"}
+                # Use ast.literal_eval as fallback for Python syntax.
+                if raw_args.startswith('{') and raw_args.endswith('}'):
+                    try:
+                        import ast
+                        parsed = ast.literal_eval(raw_args)
+                        if isinstance(parsed, dict):
+                            tool_args = parsed
+                        else:
+                            tool_args = {"input": str(parsed)}
+                    except (ValueError, SyntaxError):
+                        tool_args = None
+                
+                if tool_args is None:
+                    # Last resort: check for known patterns in the raw text
+                    # (works for both single and double quoted values)
+                    expr_match = re.search(r'[\'"]expression[\'"]:\s*[\'"]([^\'"]+)[\'"]', raw_args)
+                    if expr_match:
+                        tool_args = {"expression": expr_match.group(1)}
+                    elif raw_args.startswith('{') and '=' in raw_args and 'arguments' not in raw_args.lower():
+                        tool_args = {"input": raw_args}
+                    else:
+                        tool_args = {"input": raw_args}
 
     # Extract final answer
     fa_match = _FINAL_RE.search(text)
