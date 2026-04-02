@@ -130,24 +130,59 @@ class LlamaServerBackend(OllamaBackend):
         """
         List available models.
 
-        BitNet mode: returns a hardcoded stub (BitNet serves a single model
-        with no /v1/models endpoint).
+        BitNet mode: queries /props to discover the loaded model name.
+        BitNet is a llama.cpp fork, so /props returns model_path which we
+        extract the filename from. Falls back to "bitnet" stub if the
+        server doesn't support /props.
 
         llama-server mode: queries /v1/models for OpenAI-compatible listing.
         Falls back to /props (llama.cpp) to get the loaded model's filename
         when /v1/models returns nothing useful.
         """
+        import urllib.request
+        import urllib.error
+
+        # BitNet mode: use /props to discover the loaded model
+        # (BitNet typically doesn't expose /v1/models)
         if self._bitnet_mode:
+            try:
+                req = urllib.request.Request(
+                    f"{self._base_url}/props", method="GET"
+                )
+                with urllib.request.urlopen(req, timeout=5) as response:
+                    props = json.loads(response.read().decode("utf-8"))
+
+                model_name = "bitnet"
+                model_path = props.get("model_path", "")
+                if model_path:
+                    # Extract filename: "/models/qwen2.5-0.5b.gguf" → "qwen2.5-0.5b"
+                    import os.path as _osp
+                    model_name = _osp.splitext(_osp.basename(model_path))[0]
+
+                if os.environ.get("AGENTNOVA_DEBUG"):
+                    print(f"  [bitnet] list_models: discovered model='{model_name}' via /props")
+
+                return [{
+                    "name": model_name,
+                    "size": 0,
+                    "details": {
+                        "family": "bitnet",
+                        "backend": "bitnet",
+                        "model_path": model_path,
+                    },
+                }]
+
+            except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError):
+                pass
+
+            # Fallback: hardcoded stub
             return [{
                 "name": "bitnet",
                 "size": 0,
                 "details": {"family": "bitnet", "backend": "bitnet"},
             }]
 
-        import urllib.request
-        import urllib.error
-
-        # Try /v1/models first (OpenAI-compatible)
+        # llama-server mode: try /v1/models first (OpenAI-compatible)
         url = f"{self._base_url}/v1/models"
 
         try:
@@ -328,9 +363,11 @@ class LlamaServerBackend(OllamaBackend):
         }
 
         # BitNet: enable repeat penalty to prevent degenerate loops
-        # (e.g., model repeating "Final Answer: 42" indefinitely)
+        # (e.g., model repeating "Final Answer: 42" indefinitely).
+        # 0.5b models are especially prone to repetition — 1.3 is the
+        # minimum to break the cycle; 1.2 is insufficient.
         if self._bitnet_mode:
-            body["repeat_penalty"] = 1.2
+            body["repeat_penalty"] = 1.3
 
         start_time = time.time()
 
@@ -421,7 +458,7 @@ class LlamaServerBackend(OllamaBackend):
 
         # BitNet: enable repeat penalty to prevent degenerate loops
         if self._bitnet_mode:
-            body["repeat_penalty"] = 1.2
+            body["repeat_penalty"] = 1.3
 
         try:
             req = urllib.request.Request(
