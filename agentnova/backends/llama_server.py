@@ -605,13 +605,22 @@ class LlamaServerBackend(OllamaBackend):
         """
         parts = []
 
-        # Resolve family-specific prompt tokens (for non-BitNet mode)
+        # Determine if the loaded model is actually a BitNet model (degraded
+        # tokenizer) vs a non-BitNet model running on the BitNet backend.
+        # Budgeting and sanitization are only needed for BitNet's degraded
+        # tokenizer — non-BitNet models (e.g. qwen2.5) on the BitNet server
+        # have proper tokenizer support and must NOT be truncated.
+        from ..core.model_family_config import detect_family
+        _model_family = detect_family(model) if model else None
+        _is_actual_bitnet = (_model_family == "bitnet")
+
+        # Resolve family-specific prompt tokens (for non-BitNet models)
         family_config = None
         family_start_user = "\nUser: "
         family_start_assistant = "\nAssistant: "
         family_stop = ""
 
-        if not self._bitnet_mode and model:
+        if not _is_actual_bitnet and model:
             from ..core.model_family_config import get_model_config
             family_config = get_model_config(model)
             if family_config.start_tokens:
@@ -622,14 +631,14 @@ class LlamaServerBackend(OllamaBackend):
 
         # Reserve budget for conversation suffix (~100 chars)
         suffix_budget = 100  # "\nUser: <query>\n\nAssistant:"
-        if self._bitnet_mode:
+        if _is_actual_bitnet:
             system_budget = self._BITNET_PROMPT_BUDGET - suffix_budget
 
         # Add system message
         for msg in messages:
             if msg["role"] == "system":
                 system_content = msg["content"]
-                if self._bitnet_mode:
+                if _is_actual_bitnet:
                     system_content = self._sanitize_for_bitnet(system_content)
                     system_content = self._truncate_for_bitnet(
                         system_content, budget=system_budget
@@ -642,12 +651,12 @@ class LlamaServerBackend(OllamaBackend):
             tool_lines = ["\n\nAvailable tools:"]
             for tool in tools:
                 desc = tool.description
-                if self._bitnet_mode:
+                if _is_actual_bitnet:
                     desc = self._sanitize_for_bitnet(desc)
                 tool_lines.append(f"- {tool.name}: {desc}")
             tool_lines.append("\nUse ReAct format for tool calls:")
             tool_lines.append("Action: tool_name")
-            if self._bitnet_mode and len(tools) > 0:
+            if _is_actual_bitnet and len(tools) > 0:
                 # Generate per-tool examples with actual parameter names.
                 # Small models (like BitNet) copy the example verbatim;
                 # a generic {"param": "value"} causes wrong argument names.
@@ -668,7 +677,7 @@ class LlamaServerBackend(OllamaBackend):
 
             tool_section = "\n".join(tool_lines)
 
-            if self._bitnet_mode:
+            if _is_actual_bitnet:
                 # Calculate remaining budget after system message
                 used = len(parts[0]) if parts else 0
                 remaining = system_budget - used
@@ -680,7 +689,7 @@ class LlamaServerBackend(OllamaBackend):
             parts.append(tool_section)
 
         # Add conversation (family-aware delimiters)
-        if self._bitnet_mode:
+        if _is_actual_bitnet:
             # BitNet: budget-aware conversation history limiting.
             # The prompt budget is very tight (~1024 chars total), so we must
             # ensure conversation history doesn't push the total past the

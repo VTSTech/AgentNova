@@ -1130,6 +1130,23 @@ def cmd_test(args: argparse.Namespace) -> int:
     
     # Resolve model pattern to actual model(s)
     model_pattern = args.model
+
+    # BitNet model discovery: when --backend bitnet without --model,
+    # discover the actual model name from the server via list_models().
+    # This avoids using the generic "bitnet-b1.58-2b-4t" placeholder and
+    # ensures correct family config resolution (stop tokens, prompt format).
+    # Mirrors the same logic in _build_agent().
+    if not model_pattern and backend_name == "bitnet":
+        try:
+            discovered = backend.list_models()
+            if (discovered and discovered[0].get("name")
+                    and discovered[0]["name"] not in ("bitnet", "default")):
+                model_pattern = discovered[0]["name"]
+                if args.debug:
+                    print(f"  [bitnet] Discovered model: {model_pattern}")
+        except Exception:
+            pass  # Fall through to config.default_model
+
     if model_pattern:
         models_to_test = resolve_model_pattern(model_pattern, backend_name, allow_multiple=True)
         if not models_to_test:

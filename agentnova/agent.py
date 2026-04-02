@@ -274,10 +274,20 @@ class Agent:
         # BitNet's degraded tokenizer falls back to 'default' pre-tokenizer, which
         # causes reserved token IDs when it encounters markdown tables, code
         # fences, or certain character sequences — crashing the i2_s kernel.
-        self._is_bitnet = (
+        # IMPORTANT: We check the MODEL family, not just the backend type.
+        # A non-BitNet model (e.g. qwen2.5) running on the BitNet backend has
+        # a proper tokenizer and must NOT receive BitNet-specific constraints
+        # (tight memory, lean prompt, budgeting).
+        _backend_is_bitnet = (
             hasattr(self.backend, 'backend_type')
             and self.backend.backend_type == BackendType.BITNET
         )
+        if _backend_is_bitnet:
+            from .core.model_family_config import detect_family
+            _model_family = detect_family(model)
+            self._is_bitnet = (_model_family == "bitnet")
+        else:
+            self._is_bitnet = False
 
         # Initialize memory
         # BitNet: tighten memory to reduce context confusion.
