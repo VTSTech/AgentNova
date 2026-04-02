@@ -4,6 +4,77 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [R04.4] - 04-02-2026 10:32:45 AM
+
+### BitNet Stop Token Plumbing, Model Discovery & ReAct Parser Hardening
+
+Critical stop token regression fixed when `--backend bitnet` defaults model name to `"bitnet"`. Three bugs resolved: `/props` model path extraction, family detection for BitNet, and duplicate/hardcoded stop tokens. ReAct parser hardened for single-quote Python dict literals. Repeat penalty bumped to suppress degenerate loops on 0.5b models. Conversation history budgeting and turn-bleed guards added for BitNet's tight prompt window. CLI commands reordered alphabetically.
+
+### Fixed
+
+#### [Critical] Stop Token Loss When Model Defaults to "bitnet" (`backends/llama_server.py`, `core/model_family_config.py`, `cli.py`)
+- **Bug**: When `--backend bitnet` was used without `--model`, the previous session's change defaulted the model name to `"bitnet"`. This caused `detect_family("bitnet")` to return `None`, so the qwen2 (now corrected to llama) family's stop tokens (`<|eot_id|>`, `<|end_of_text|>`) were never resolved. The `/completion` endpoint received no meaningful stop sequences, causing the model to generate until `n_predict` exhaustion or until the turn-bleed guard `"\nUser: "` coincidentally matched. Debug output confirmed: `stop_sequences=['<|im_sep|>', '\nUser: ', '\nAssistant:']` — both the primary EOS token and the family stop token were missing.
+- **Fix** (three-part):
+  1. **`/props` model path extraction** (`llama_server.py`): BitNet's llama-server fork returns the model path at `default_generation_settings.model`, not at the top-level `model_path`. Added fallback check for the nested location in both `list_models()` (bitnet_mode path) and the llama-server fallback path. Now correctly discovers `bitnet_2b_i2_s` from the full GGUF path.
+  2. **Family detection** (`model_family_config.py`): Added `"bitnet"` to `detect_family()` families list and `_FAMILY_ALIASES` dict mapping `"bitnet" → "llama"`. BitNet 1.58 uses the LLaMA 3 tokenizer (128,256 vocab, confirmed via model card), so it inherits llama's stop tokens (`<|eot_id|>`, `<|end_of_text|>`) and ChatML-style formatting.
+  3. **Dead `<|im_sep|>` removed** (`llama_server.py`): The hardcoded `<|im_sep|>` stop token in BitNet mode was a Qwen-specific token not present in the LLaMA 3 vocabulary. Removed from both `_generate_completion()` and `_stream_completion()`. BitNet mode now uses the same family-config safety net as llama-server mode — no separate stop token path needed.
+- **Impact**: `agentnova run --backend bitnet` now resolves correct stop tokens end-to-end: `stops=['<|eot_id|>', '<|end_of_text|>']` in agent.py → `stop_sequences=['<|eot_id|>', '<|end_of_text|>', '\nUser: ', '\nAssistant:']` at the /completion endpoint.
+
+#### [Critical] ReAct Parser Fails on Single-Quote Python Dicts (`core/tool_parse.py`)
+- **Bug**: When the model outputs tool arguments as Python dict literals with single quotes — `Action Input: {'expression': '15 + 27'}` — the ReAct parser's `json.loads()` call fails (single quotes are not valid JSON). The fallback regex also missed this pattern because it only matched `"expression"` (double-quoted keys). The parser fell through to wrapping the entire string as `{"input": "{'expression': '15 + 27'}"}`, passing garbage to the tool. The calculator received a dict with key `"input"` instead of `"expression"` and returned a name error.
+- **Fix**: Added `ast.literal_eval` fallback between the sanitized JSON attempt and the regex fallback. `ast.literal_eval` safely evaluates Python literal expressions including single-quote dicts, tuples, and numbers. Also updated the regex to match both `'key'` and `"key"` patterns for tool argument extraction.
+- **Impact**: Models that output `{'expression': '15 + 27'}` or `{"expression": "15 + 27"}` are both handled correctly. The calculator receives the proper `{"expression": "15 + 27"}` dict regardless of quote style.
+
+#### [Moderate] Repetition Loop on 0.5b BitNet Model (`backends/llama_server.py`)
+- **Bug**: After a successful tool call, the model entered a degenerate repetition loop outputting `Final Answer: 42` indefinitely. The default llama-server `repeat_penalty=1.0` (confirmed via `/props`) was too low for BitNet's 0.5b-class model, which is highly prone to repetitive generation.
+- **Fix**: Bumped BitNet `repeat_penalty` from 1.2 → 1.3 in both `_generate_completion()` and `_stream_completion()`. Testing showed 1.2 was insufficient to break the cycle; 1.3 is the minimum effective value for the 0.5b model.
+- **Impact**: Repetition loops eliminated. `finish_reason: stop` now fires cleanly after the model's first `Final Answer:`.
+
+### Added
+
+#### BitNet Conversation History Budgeting (`backends/llama_server.py`)
+- **`_BITNET_PROMPT_BUDGET = 1024`** — maximum prompt character budget for BitNet's degraded tokenizer. BitNet's llama-server fork falls back to a `'default'` pre-tokenizer when it can't match the model's gpt2 tokenizer string, causing certain token positions to produce reserved IDs that crash the i2_s kernel. Testing showed crashes at ~320 tokens (~1016 chars). Budget set to 1024 chars with understanding that crashes are token-position-dependent.
+- **`_BITNET_MAX_EXCHANGES = 4`** — hard cap on conversation exchanges (user+assistant pairs). Small models lose coherence beyond 3-4 turns of context.
+- **`_messages_to_prompt()` budget-aware history** — conversation turns are added newest-first within budget. Older exchanges are dropped when budget is exhausted, ensuring the latest context is always preserved. System message and tool descriptions are truncated to fit within their allocated budget slices.
+- **`_sanitize_for_bitnet()`** — strips crash-prone markdown patterns (fenced code blocks, markdown table rows) from prompt text before tokenization.
+- **`_truncate_for_bitnet()`** — truncates text to budget by keeping complete paragraphs where possible, falling back to character-level truncation for oversized single paragraphs.
+
+#### BitNet Model Discovery via /props (`backends/llama_server.py`)
+- **`list_models()`** now queries the `/props` endpoint to discover the loaded model name from the server's `model_path` (or `default_generation_settings.model` for BitNet's fork). Extracts the GGUF filename (e.g., `bitnet_2b_i2_s` from `/content/BitNet/models/BitNet-b1.58-2B-4T/bitnet_2b_i2_s.gguf`). Falls back to `"bitnet"` stub if `/props` is unavailable.
+- Debug output: `[bitnet] list_models: discovered model='bitnet_2b_i2_s' via /props`
+
+#### Default Model Discovery for BitNet (`cli.py`)
+- **`_build_agent()`** — when `--backend bitnet` is used without `--model`, the discovered model name from `/props` (e.g., `bitnet_2b_i2_s`) is used as the actual model name instead of the generic string `"bitnet"`. This ensures correct family config resolution (stop tokens, prompt format) for all downstream code.
+- Debug output: `[bitnet] Discovered model: bitnet_2b_i2_s`
+
+#### Family Alias System (`core/model_family_config.py`)
+- **`_FAMILY_ALIASES` dict** — maps detected family strings to canonical `FAMILY_CONFIGS` keys. Resolves before direct/partial matching in `get_family_config()`. Currently: `"bitnet" → "llama"` (BitNet 1.58 uses LLaMA 3 tokenizer, 128K vocab, `<|eot_id|>`/`<|end_of_text|>` EOS).
+- **`detect_family()`** — added `"bitnet"` to the priority-ordered families list.
+- Enables any future family aliases without modifying `FAMILY_CONFIGS` or the detection logic.
+
+#### Turn-Bleed Guards for /completion Endpoint (`backends/llama_server.py`)
+- **`\nUser: ` and `\nAssistant:` stop tokens** added to both `_generate_completion()` and `_stream_completion()`. The `/completion` endpoint does raw text completion with no chat template — nothing prevents the model from continuing into `\nUser: ...` or `\nAssistant: ...` after its answer. These are cheap insurance against context confusion in multi-turn sessions. Applies to all modes (BitNet and llama-server).
+
+### Changed
+
+#### CLI Commands Alphabetized (`cli.py`)
+- Positional commands in `create_parser()` reordered alphabetically: agent, chat, config, models, modelfile, run, sessions, skills, soul, test, tools, update, version.
+
+#### Stop Token Safety Net Unified (`backends/llama_server.py`)
+- Previously, BitNet mode had its own stop token path (hardcoded `<|im_sep|>`) while llama-server mode used family config. Now both modes use the same `get_model_config(model)` safety net. BitNet's family alias (`bitnet → llama`) ensures correct tokens without special-casing.
+
+### File Changes Summary
+
+| Action | File | Changes |
+|--------|------|:-------:|
+| Updated | `agentnova/backends/llama_server.py` | +80 −30 |
+| Updated | `agentnova/core/model_family_config.py` | +20 −2 |
+| Updated | `agentnova/core/tool_parse.py` | +15 −2 |
+| Updated | `agentnova/cli.py` | +20 −2 |
+| **Total** | **4 files** | **+135 −36** |
+
+---
+
 ## [R04.4] - 04-01-2026 3:56:05 PM
 
 ### BitNet Backend Merge & Test Results Refresh
