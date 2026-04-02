@@ -318,22 +318,37 @@ Keep answers brief. One word when possible.""",
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# FAMILY ALIASES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Some detected families are not stored in FAMILY_CONFIGS but share the
+# same tokenizer/architecture as another family.  These aliases map the
+# detected family string to the canonical config key.
+_FAMILY_ALIASES: dict[str, str] = {
+    "bitnet": "qwen2",  # BitNet 1.58 uses Qwen2 tokenizer (128256 vocab) and <|im_end|> EOS
+}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # HELPER FUNCTIONS
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def get_family_config(family: str) -> ModelFamilyConfig:
     """Get configuration for a model family."""
     family_lower = family.lower() if family else ""
-    
+
+    # Resolve aliases first (e.g., "bitnet" → "qwen2")
+    family_lower = _FAMILY_ALIASES.get(family_lower, family_lower)
+
     # Direct match
     if family_lower in FAMILY_CONFIGS:
         return FAMILY_CONFIGS[family_lower]
-    
+
     # Partial match
     for key in FAMILY_CONFIGS:
         if key in family_lower or family_lower in key:
             return FAMILY_CONFIGS[key]
-    
+
     # Default config
     return ModelFamilyConfig(family=family or "unknown")
 
@@ -463,6 +478,7 @@ def detect_family(model_name: str) -> str | None:
         "command-r", "command",
         "deepseek-r1", "deepseek",  # deepseek-r1 must come before deepseek
         "dolphin",
+        "bitnet",  # BitNet 1.58 (Qwen2-based tokenizer, uses <|im_end|> EOS)
     ]
     for f in families:
         if f in name_lower:

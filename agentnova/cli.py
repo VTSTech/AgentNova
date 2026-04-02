@@ -394,17 +394,30 @@ def _build_agent(args: argparse.Namespace, config) -> Agent:
     only needs to be added here (and in add_agent_args).
     """
     backend_name = args.backend or config.backend
-    # When --backend bitnet is used without --model, default model to "bitnet"
-    # (config.default_model may be the ollama default since it's set at import time)
+    api_mode = getattr(args, "api_mode", "openre")
+    timeout = getattr(args, "timeout", None)
+
+    # When --backend bitnet is used without --model, discover the actual
+    # model name from the server via list_models() (/props endpoint).
+    # This ensures correct family config resolution (stop tokens, prompt
+    # format) instead of falling back to generic "bitnet" with no family.
+    backend = None
     if args.model:
         model = args.model
     elif backend_name == "bitnet":
-        model = "bitnet"
+        backend = get_backend(backend_name, timeout=timeout, api_mode=api_mode)
+        discovered = backend.list_models()
+        if discovered and discovered[0].get("name") and discovered[0]["name"] != "bitnet":
+            model = discovered[0]["name"]
+            if os.environ.get("AGENTNOVA_DEBUG"):
+                print(f"  [bitnet] Discovered model: {model}")
+        else:
+            model = "bitnet"
     else:
         model = config.default_model
-    api_mode = getattr(args, "api_mode", "openre")
-    timeout = getattr(args, "timeout", None)
-    backend = get_backend(backend_name, timeout=timeout, api_mode=api_mode)
+
+    if backend is None:
+        backend = get_backend(backend_name, timeout=timeout, api_mode=api_mode)
 
     # Build tools
     if args.tools:
