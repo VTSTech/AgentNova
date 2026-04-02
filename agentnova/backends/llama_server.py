@@ -338,18 +338,14 @@ class LlamaServerBackend(OllamaBackend):
         stop_sequences = list(kwargs.get("stop", []))
         stop_sequences = [s for s in stop_sequences if s]  # filter empty strings
 
-        if self._bitnet_mode:
-            if "<|im_sep|>" not in stop_sequences:
-                stop_sequences.append("<|im_sep|>")
-        else:
-            # llama-server: add model-family stop tokens as defaults
-            # when caller didn't provide any (agent.py should send them via kwargs,
-            # but this provides a safety net for direct backend usage)
-            from ..core.model_family_config import get_model_config
-            family_config = get_model_config(model)
-            for family_stop in family_config.stop_tokens:
-                if family_stop and family_stop not in stop_sequences:
-                    stop_sequences.append(family_stop)
+        # Add model-family stop tokens as a safety net (both BitNet and llama-server).
+        # agent.py should send these via kwargs["stop"], but this catches
+        # direct backend usage where kwargs may not include family stops.
+        from ..core.model_family_config import get_model_config
+        family_config = get_model_config(model)
+        for family_stop in family_config.stop_tokens:
+            if family_stop and family_stop not in stop_sequences:
+                stop_sequences.append(family_stop)
 
         # Turn-bleed guard: stop the model from generating the next user/assistant turn.
         # The /completion endpoint has no chat template, so nothing prevents the model
@@ -439,16 +435,12 @@ class LlamaServerBackend(OllamaBackend):
         stop_sequences = list(kwargs.get("stop", []))
         stop_sequences = [s for s in stop_sequences if s]  # filter empty strings
 
-        if self._bitnet_mode:
-            if "<|im_sep|>" not in stop_sequences:
-                stop_sequences.append("<|im_sep|>")
-        else:
-            # llama-server: add model-family stop tokens as defaults
-            from ..core.model_family_config import get_model_config
-            family_config = get_model_config(model)
-            for family_stop in family_config.stop_tokens:
-                if family_stop and family_stop not in stop_sequences:
-                    stop_sequences.append(family_stop)
+        # Add model-family stop tokens as a safety net (same logic as _generate_completion)
+        from ..core.model_family_config import get_model_config
+        family_config = get_model_config(model)
+        for family_stop in family_config.stop_tokens:
+            if family_stop and family_stop not in stop_sequences:
+                stop_sequences.append(family_stop)
 
         # Turn-bleed guard (same logic as _generate_completion)
         turn_stops = ["\nUser: ", "\nAssistant:"]

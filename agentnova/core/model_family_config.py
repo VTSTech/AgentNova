@@ -325,7 +325,7 @@ Keep answers brief. One word when possible.""",
 # same tokenizer/architecture as another family.  These aliases map the
 # detected family string to the canonical config key.
 _FAMILY_ALIASES: dict[str, str] = {
-    "bitnet": "qwen2",  # BitNet 1.58 uses Qwen2 tokenizer (128256 vocab) and <|im_end|> EOS
+    "bitnet": "llama",  # BitNet 1.58 uses LLaMA 3 tokenizer (128K vocab, <|eot_id|>/<|end_of_text|> EOS)
 }
 
 
@@ -478,7 +478,7 @@ def detect_family(model_name: str) -> str | None:
         "command-r", "command",
         "deepseek-r1", "deepseek",  # deepseek-r1 must come before deepseek
         "dolphin",
-        "bitnet",  # BitNet 1.58 (Qwen2-based tokenizer, uses <|im_end|> EOS)
+        "bitnet",  # BitNet 1.58 (LLaMA 3 tokenizer, 128K vocab)
     ]
     for f in families:
         if f in name_lower:
