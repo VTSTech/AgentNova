@@ -270,7 +270,23 @@ class Agent:
                 if debug and not self._is_comp_mode:
                     print(f"[OpenResponses] No tools filtered out")
 
+        # Detect BitNet backend early for memory tuning and prompt formatting.
+        # BitNet's degraded tokenizer falls back to 'default' pre-tokenizer, which
+        # causes reserved token IDs when it encounters markdown tables, code
+        # fences, or certain character sequences — crashing the i2_s kernel.
+        self._is_bitnet = (
+            hasattr(self.backend, 'backend_type')
+            and self.backend.backend_type == BackendType.BITNET
+        )
+
         # Initialize memory
+        # BitNet: tighten memory to reduce context confusion.
+        # BitNet's degraded tokenizer and tiny context window mean the model
+        # degrades quickly as conversation history grows. Limit to 6 recent
+        # messages (3 turns) to keep the prompt focused.
+        if self._is_bitnet and memory_config is None:
+            memory_config = MemoryConfig(max_messages=6, keep_recent=4)
+
         # Persistent memory: use PersistentMemory if session_id or persistent=True
         _persistent = kwargs.pop("persistent", False)
         _session_id = kwargs.pop("session_id", None)
@@ -303,15 +319,6 @@ class Agent:
         # Load Soul Spec package (default: nova-helper)
         self.soul = None
         self._soul_level = soul_level
-        
-        # Detect BitNet backend for prompt formatting compatibility
-        # BitNet's tokenizer falls back to 'default' pre-tokenizer, which
-        # causes reserved token IDs when it encounters markdown tables, code
-        # fences, or certain character sequences — crashing the i2_s kernel.
-        self._is_bitnet = (
-            hasattr(self.backend, 'backend_type')
-            and self.backend.backend_type == BackendType.BITNET
-        )
 
         # Determine if tools are available
         has_tools = self.tools and len(self.tools) > 0 and self.tool_choice.type != ToolChoiceType.NONE

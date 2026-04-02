@@ -475,7 +475,12 @@ def get_model_config(model_name: str) -> ModelFamilyConfig:
     Get unified configuration for a model.
     
     This replaces the separate get_model_config() from model_config.py.
-    Uses detect_family() for consistent family resolution.
+    Uses detect_family() for consistent family resolution, then falls back
+    to get_family_config() for partial matching.
+    
+    detect_family() returns the most specific family string (e.g., "qwen2.5",
+    "llama3.2") but FAMILY_CONFIGS only stores base families (e.g., "qwen2",
+    "llama"). Partial matching bridges this gap: "qwen2.5" → "qwen2" config.
     
     Args:
         model_name: Name of the model (e.g., "qwen2.5:7b")
@@ -484,9 +489,9 @@ def get_model_config(model_name: str) -> ModelFamilyConfig:
         ModelFamilyConfig for the model
     """
     family = detect_family(model_name)
-    if family and family in FAMILY_CONFIGS:
-        return FAMILY_CONFIGS[family]
-    return ModelFamilyConfig(family=family or "unknown")
+    if not family:
+        return ModelFamilyConfig(family="unknown")
+    return get_family_config(family)
 
 
 __all__ = [
