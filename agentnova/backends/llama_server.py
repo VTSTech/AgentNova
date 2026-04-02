@@ -291,7 +291,7 @@ class LlamaServerBackend(OllamaBackend):
         # Convert messages to a single prompt (family-aware format)
         prompt = self._messages_to_prompt(messages, tools, model=model)
 
-        # Build stop sequences: caller-provided > BitNet defaults > family defaults
+        # Build stop sequences: caller-provided > BitNet defaults > family defaults > turn-bleed guards
         stop_sequences = list(kwargs.get("stop", []))
         stop_sequences = [s for s in stop_sequences if s]  # filter empty strings
 
@@ -307,6 +307,15 @@ class LlamaServerBackend(OllamaBackend):
             for family_stop in family_config.stop_tokens:
                 if family_stop and family_stop not in stop_sequences:
                     stop_sequences.append(family_stop)
+
+        # Turn-bleed guard: stop the model from generating the next user/assistant turn.
+        # The /completion endpoint has no chat template, so nothing prevents the model
+        # from continuing into "\nUser: ..." or "\nAssistant: ..." after its answer.
+        # These are cheap insurance against context confusion in multi-turn sessions.
+        turn_stops = ["\nUser: ", "\nAssistant:"]
+        for ts in turn_stops:
+            if ts not in stop_sequences:
+                stop_sequences.append(ts)
 
         if os.environ.get("AGENTNOVA_DEBUG"):
             print(f"  [{label}] stop_sequences={stop_sequences}")
@@ -381,7 +390,7 @@ class LlamaServerBackend(OllamaBackend):
 
         prompt = self._messages_to_prompt(messages, tools, model=model)
 
-        # Build stop sequences: caller-provided > BitNet defaults > family defaults
+        # Build stop sequences: caller-provided > BitNet defaults > family defaults > turn-bleed guards
         stop_sequences = list(kwargs.get("stop", []))
         stop_sequences = [s for s in stop_sequences if s]  # filter empty strings
 
@@ -390,13 +399,17 @@ class LlamaServerBackend(OllamaBackend):
                 stop_sequences.append("<|im_sep|>")
         else:
             # llama-server: add model-family stop tokens as defaults
-            # when caller didn't provide any (agent.py should send them via kwargs,
-            # but this provides a safety net for direct backend usage)
             from ..core.model_family_config import get_model_config
             family_config = get_model_config(model)
             for family_stop in family_config.stop_tokens:
                 if family_stop and family_stop not in stop_sequences:
                     stop_sequences.append(family_stop)
+
+        # Turn-bleed guard (same logic as _generate_completion)
+        turn_stops = ["\nUser: ", "\nAssistant:"]
+        for ts in turn_stops:
+            if ts not in stop_sequences:
+                stop_sequences.append(ts)
 
         body = {
             "prompt": prompt,
@@ -448,9 +461,16 @@ class LlamaServerBackend(OllamaBackend):
     # BitNet's degraded tokenizer (fallback 'default' pre-tokenizer) produces
     # reserved token IDs at certain positions in the token stream, crashing
     # the i2_s inference kernel. Testing showed crashes at ~320 tokens
-    # (~1016 chars). We set a conservative budget of 800 chars (~240 tokens)
-    # to stay safely below the crash threshold.
-    _BITNET_PROMPT_BUDGET = 800
+    # (~1016 chars). Budget is set to 1024 chars with the understanding that
+    # crashes are token-position-dependent (not purely character-dependent),
+    # so the actual safe limit varies by content. Conversation history is
+    # aggressively pruned to stay well within budget.
+    _BITNET_PROMPT_BUDGET = 1024
+
+    # Maximum number of conversation exchanges (user+assistant pairs) for BitNet.
+    # Small models (0.5b) lose coherence beyond ~3-4 turns of context.
+    # This hard cap ensures older turns are dropped regardless of budget.
+    _BITNET_MAX_EXCHANGES = 4
 
     @staticmethod
     def _sanitize_for_bitnet(text: str) -> str:
@@ -623,18 +643,79 @@ class LlamaServerBackend(OllamaBackend):
             parts.append(tool_section)
 
         # Add conversation (family-aware delimiters)
-        for msg in messages:
-            role = msg["role"]
-            content = msg["content"]
+        if self._bitnet_mode:
+            # BitNet: budget-aware conversation history limiting.
+            # The prompt budget is very tight (~1024 chars total), so we must
+            # ensure conversation history doesn't push the total past the
+            # token-position crash threshold. Strategy:
+            # 1. Calculate remaining budget after system + tools + suffix
+            # 2. Add conversation turns newest-first until budget exhausted
+            # 3. Reverse to maintain chronological order
+            # 4. Also enforce a hard cap on number of exchanges
 
-            if role == "system":
-                continue  # Already added
-            elif role == "user":
-                parts.append(f"{family_start_user}{content}")
-            elif role == "assistant":
-                parts.append(f"{family_start_assistant}{content}")
-            elif role == "tool":
-                parts.append(f"\nTool Result: {content}")
+            current_len = len("\n".join(parts)) + len(f"{family_start_assistant.rstrip()}")
+            remaining_budget = self._BITNET_PROMPT_BUDGET - current_len
+
+            # Collect non-system messages, grouped into exchanges
+            non_system = [m for m in messages if m["role"] != "system"]
+
+            # Group into exchanges (user+assistant pairs)
+            exchanges = []
+            current_exchange = []
+            for msg in non_system:
+                role = msg["role"]
+                content = msg["content"]
+                if role == "user":
+                    # Start new exchange if previous one has content
+                    if current_exchange:
+                        exchanges.append(current_exchange)
+                    current_exchange = [(role, content)]
+                elif role == "assistant":
+                    current_exchange.append((role, content))
+                elif role == "tool":
+                    current_exchange.append((role, content))
+            if current_exchange:
+                exchanges.append(current_exchange)
+
+            # Keep only the most recent N exchanges
+            if len(exchanges) > self._BITNET_MAX_EXCHANGES:
+                exchanges = exchanges[-self._BITNET_MAX_EXCHANGES:]
+
+            # Add turns newest-first, measuring budget as we go
+            conversation_parts = []
+            used_budget = 0
+            for exchange in reversed(exchanges):
+                exchange_text = ""
+                for role, content in exchange:
+                    if role == "user":
+                        exchange_text += f"{family_start_user}{content}"
+                    elif role == "assistant":
+                        exchange_text += f"{family_start_assistant}{content}"
+                    elif role == "tool":
+                        exchange_text += f"\nTool Result: {content}"
+
+                if used_budget + len(exchange_text) <= remaining_budget:
+                    conversation_parts.insert(0, exchange_text)
+                    used_budget += len(exchange_text)
+                else:
+                    # Budget exhausted — skip older exchanges
+                    break
+
+            parts.extend(conversation_parts)
+        else:
+            # Non-BitNet: no budget constraints, add all turns
+            for msg in messages:
+                role = msg["role"]
+                content = msg["content"]
+
+                if role == "system":
+                    continue  # Already added
+                elif role == "user":
+                    parts.append(f"{family_start_user}{content}")
+                elif role == "assistant":
+                    parts.append(f"{family_start_assistant}{content}")
+                elif role == "tool":
+                    parts.append(f"\nTool Result: {content}")
 
         parts.append(f"{family_start_assistant.rstrip()}")
 
