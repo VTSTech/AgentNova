@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### BitNet Stop Token Plumbing, Model Discovery & ReAct Parser Hardening
 
-Critical stop token regression fixed when `--backend bitnet` defaults model name to `"bitnet"`. Three bugs resolved: `/props` model path extraction, family detection for BitNet, and duplicate/hardcoded stop tokens. ReAct parser hardened for single-quote Python dict literals. Repeat penalty bumped to suppress degenerate loops on 0.5b models. Conversation history budgeting and turn-bleed guards added for BitNet's tight prompt window. CLI commands reordered alphabetically. DEFAULT_MODEL frozen-at-import bug fixed with runtime re-evaluation. BitNet-specific constraints now gated by model family, not backend type — non-BitNet models on the BitNet server receive full context. Agent-level stop token forwarding and BitNet memory tightening added. Test runner gains BitNet model discovery. llama-server `list_models()` gains `/props` fallback for model name extraction.
+Critical stop token regression fixed when `--backend bitnet` defaults model name to `"bitnet"`. Three bugs resolved: `/props` model path extraction, family detection for BitNet, and duplicate/hardcoded stop tokens. ReAct parser hardened for single-quote Python dict literals. Repeat penalty bumped to suppress degenerate loops on small models. Conversation history budgeting and turn-bleed guards added for BitNet's tight prompt window. CLI commands reordered alphabetically. DEFAULT_MODEL frozen-at-import bug fixed with runtime re-evaluation. BitNet-specific constraints now gated by model family, not backend type — non-BitNet models on the BitNet server receive full context. Agent-level stop token forwarding and BitNet memory tightening added. Test runner gains BitNet model discovery. llama-server `list_models()` gains `/props` fallback for model name extraction.
 
 ### Fixed
 
@@ -25,9 +25,9 @@ Critical stop token regression fixed when `--backend bitnet` defaults model name
 - **Fix**: Added `ast.literal_eval` fallback between the sanitized JSON attempt and the regex fallback. `ast.literal_eval` safely evaluates Python literal expressions including single-quote dicts, tuples, and numbers. Also updated the regex to match both `'key'` and `"key"` patterns for tool argument extraction.
 - **Impact**: Models that output `{'expression': '15 + 27'}` or `{"expression": "15 + 27"}` are both handled correctly. The calculator receives the proper `{"expression": "15 + 27"}` dict regardless of quote style.
 
-#### [Moderate] Repetition Loop on 0.5b BitNet Model (`backends/llama_server.py`)
-- **Bug**: After a successful tool call, the model entered a degenerate repetition loop outputting `Final Answer: 42` indefinitely. The default llama-server `repeat_penalty=1.0` (confirmed via `/props`) was too low for BitNet's 0.5b-class model, which is highly prone to repetitive generation.
-- **Fix**: Bumped BitNet `repeat_penalty` from 1.2 → 1.3 in both `_generate_completion()` and `_stream_completion()`. Testing showed 1.2 was insufficient to break the cycle; 1.3 is the minimum effective value for the 0.5b model.
+#### [Moderate] Repetition Loop on BitNet Model (`backends/llama_server.py`)
+- **Bug**: After a successful tool call, the model entered a degenerate repetition loop outputting `Final Answer: 42` indefinitely. The default llama-server `repeat_penalty=1.0` (confirmed via `/props`) was too low for BitNet's 2B-4T model, which is highly prone to repetitive generation.
+- **Fix**: Bumped BitNet `repeat_penalty` from 1.2 → 1.3 in both `_generate_completion()` and `_stream_completion()`. Testing showed 1.2 was insufficient to break the cycle; 1.3 is the minimum effective value.
 - **Impact**: Repetition loops eliminated. `finish_reason: stop` now fires cleanly after the model's first `Final Answer:`.
 
 #### [Critical] DEFAULT_MODEL Frozen at Module Import Time (`config.py`, `cli.py`)
