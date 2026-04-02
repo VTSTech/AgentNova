@@ -153,7 +153,12 @@ class LlamaServerBackend(OllamaBackend):
                     props = json.loads(response.read().decode("utf-8"))
 
                 model_name = "bitnet"
+                # Model path can be at top-level ("model_path") or nested
+                # under "default_generation_settings.model" (some llama.cpp
+                # forks, including BitNet's fork, use the nested location).
                 model_path = props.get("model_path", "")
+                if not model_path:
+                    model_path = props.get("default_generation_settings", {}).get("model", "")
                 if model_path:
                     # Extract filename: "/models/qwen2.5-0.5b.gguf" → "qwen2.5-0.5b"
                     import os.path as _osp
@@ -218,7 +223,10 @@ class LlamaServerBackend(OllamaBackend):
                 props = json.loads(response.read().decode("utf-8"))
 
             model_name = "default"
+            # Model path can be at top-level or nested under default_generation_settings
             model_path = props.get("model_path", "")
+            if not model_path:
+                model_path = props.get("default_generation_settings", {}).get("model", "")
             if model_path:
                 # Extract just the filename (e.g., "/models/qwen2.5-7b-q4_k_m.gguf")
                 import os.path as _osp
