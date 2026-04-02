@@ -18,6 +18,35 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 ---
 
+### BitNet Backend Results (R04.4 - openre API Mode, WITH SOUL)
+
+> Testing with `--backend bitnet --soul nova-helper` uses the BitNet backend (`http://localhost:8765`) with OpenResponses API and the nova-helper soul persona
+> Test params: `--backend bitnet --soul nova-helper --num-ctx 16384 --num-predict 128 --timeout 999 --temp 0.1`
+> ✅ **Complete** — 1 model tested
+
+| Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | Notes |
+|:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|:---------:|-------|
+| 1 | **`bitnet-b1.58-2B-4T`** | **4/5 (80%)** | 80.7s | ✅ | ✅ | ✅ | ✅ | ❌ -4 | First BitNet result! Q5 time calc error (expected 8, got -4) |
+
+#### bitnet-b1.58-2B-4T Detailed Breakdown
+
+| Question | Category | Expected | Got | Result | Time |
+|----------|----------|:--------:|:----:|:------:|:----:|
+| Q1 | Simple Math | — | — | ✅ | 15.6s |
+| Q2 | Multi-step | — | — | ✅ | 16.1s |
+| Q3 | Division | — | — | ✅ | 15.4s |
+| Q4 | Word Problem | — | — | ✅ | 17.1s |
+| Q5 | Time Calc | 8 | -4 | ❌ | 16.5s |
+
+**Key Observations:**
+- **Fastest aggregate time** — 80.7s total is the quickest of any model/backend combination tested, averaging just 16.1s per question
+- **BitNet 1.58-bit quantization viable** — the 2B parameter model with ternary weights achieves 80% accuracy despite aggressive quantization
+- **Consistent response latency** — very low variance across questions (15.4s–17.1s), suggesting stable inference performance
+- **Q5 time calculation failure** — computed `-4` instead of `8`, indicating a sign error or subtraction order mistake in multi-step time arithmetic
+- **Low `num-predict` tolerance** — test ran with only 128 max tokens per response, suggesting the model produces concise tool calls efficiently
+
+---
+
 ### Chat Completions Mode Results (R04.4 - openai API Mode, WITH SOUL)
 
 > Testing with `--api openai --soul nova-helper` uses OpenAI-compatible Chat Completions API (`/v1/chat/completions`) with the nova-helper soul persona
