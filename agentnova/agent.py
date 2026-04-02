@@ -1295,6 +1295,11 @@ Final Answer: <the answer>
         if self.num_ctx is not None:
             backend_kwargs["num_ctx"] = self.num_ctx
 
+        # Stop tokens: forward model-family stop sequences to backend.
+        stops = self.model_config.stop_tokens if self.model_config else []
+        if stops:
+            backend_kwargs["stop"] = stops
+
         # Structured output: forward response_format to backend
         if self._response_format is not None:
             backend_kwargs["response_format"] = self._response_format
@@ -1414,6 +1419,15 @@ Final Answer: <the answer>
         if self._num_predict is not None:
             backend_kwargs["num_predict"] = self._num_predict
 
+        # Stop tokens: forward model-family stop sequences to backend.
+        # Critical for llama-server /completion and Ollama OPENRE where the
+        # raw completion endpoint has NO chat template and no default stop
+        # sequences — the model will generate until n_predict is exhausted
+        # without them, producing garbled multi-turn output.
+        stops = self.model_config.stop_tokens if self.model_config else []
+        if stops:
+            backend_kwargs["stop"] = stops
+
         # OpenResponses: Forward tool_choice to backend API
         # This allows the backend to enforce tool invocation constraints natively
         if self.tool_choice and self.tool_choice.type != ToolChoiceType.AUTO:
@@ -1436,6 +1450,8 @@ Final Answer: <the answer>
             params_str = f"temp={gen_temperature}, top_p={gen_top_p}, max_tokens={gen_max_tokens}, num_ctx={self.num_ctx}"
             if think is not None:
                 params_str += f", think={think}"
+            if stops:
+                params_str += f", stops={stops}"
             print(f"  [DEBUG] Model params: {params_str}")
 
         response = self.backend.generate(

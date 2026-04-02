@@ -134,6 +134,8 @@ class LlamaServerBackend(OllamaBackend):
         with no /v1/models endpoint).
 
         llama-server mode: queries /v1/models for OpenAI-compatible listing.
+        Falls back to /props (llama.cpp) to get the loaded model's filename
+        when /v1/models returns nothing useful.
         """
         if self._bitnet_mode:
             return [{
@@ -145,6 +147,7 @@ class LlamaServerBackend(OllamaBackend):
         import urllib.request
         import urllib.error
 
+        # Try /v1/models first (OpenAI-compatible)
         url = f"{self._base_url}/v1/models"
 
         try:
@@ -164,20 +167,48 @@ class LlamaServerBackend(OllamaBackend):
                     },
                 })
 
-            return models if models else [{
-                "name": "default",
+            if models:
+                return models
+
+        except (urllib.error.HTTPError, urllib.error.URLError):
+            pass
+
+        # Fallback: try /props (llama.cpp native) to get the loaded model name
+        # /props returns {"model_path": "/path/to/model.gguf", ...}
+        try:
+            req = urllib.request.Request(
+                f"{self._base_url}/props", method="GET"
+            )
+            with urllib.request.urlopen(req, timeout=5) as response:
+                props = json.loads(response.read().decode("utf-8"))
+
+            model_name = "default"
+            model_path = props.get("model_path", "")
+            if model_path:
+                # Extract just the filename (e.g., "/models/qwen2.5-7b-q4_k_m.gguf")
+                import os.path as _osp
+                model_name = _osp.splitext(_osp.basename(model_path))[0]
+
+            return [{
+                "name": model_name,
                 "size": 0,
-                "details": {"family": "llama-server", "backend": "llama-cpp"},
+                "details": {
+                    "family": "llama-server",
+                    "backend": "llama-cpp",
+                    "model_path": model_path,
+                },
             }]
 
-        except (urllib.error.HTTPError, urllib.error.URLError) as e:
-            if os.environ.get("AGENTNOVA_DEBUG"):
-                print(f"  [llama-server] list_models failed: {e}")
-            return [{
-                "name": "default",
-                "size": 0,
-                "details": {"family": "llama-server", "backend": "llama-cpp"},
-            }]
+        except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError):
+            pass
+
+        if os.environ.get("AGENTNOVA_DEBUG"):
+            print(f"  [llama-server] list_models: /v1/models and /props both failed, returning default")
+        return [{
+            "name": "default",
+            "size": 0,
+            "details": {"family": "llama-server", "backend": "llama-cpp"},
+        }]
 
     def get_model_info(self, model: str) -> dict | None:
         """
@@ -241,21 +272,44 @@ class LlamaServerBackend(OllamaBackend):
 
         This endpoint mirrors BitNet's /completion API. Tools are embedded in the
         prompt as ReAct instructions — no native tool calling support.
+
+        NOTE: The /completion endpoint does raw completion on the prompt string —
+        it has NO chat template and applies NO default stop sequences. The model
+        name is not sent to the server (llama-server loads one model at startup).
+        Stop tokens must be explicitly provided or the model generates until
+        n_predict is exhausted.
         """
         import urllib.request
         import urllib.error
 
         url = f"{self._base_url}/completion"
 
-        # Convert messages to a single prompt (same logic as BitNet)
-        prompt = self._messages_to_prompt(messages, tools)
+        if os.environ.get("AGENTNOVA_DEBUG"):
+            label = "bitnet" if self._bitnet_mode else "llama-server"
+            print(f"  [{label}] /completion mode: model={model!r} (config-only, not sent to server)")
 
-        # Build stop sequences: merge caller-provided with BitNet defaults
+        # Convert messages to a single prompt (family-aware format)
+        prompt = self._messages_to_prompt(messages, tools, model=model)
+
+        # Build stop sequences: caller-provided > BitNet defaults > family defaults
         stop_sequences = list(kwargs.get("stop", []))
+        stop_sequences = [s for s in stop_sequences if s]  # filter empty strings
+
         if self._bitnet_mode:
-            stop_sequences = [s for s in stop_sequences if s]  # filter empty
             if "<|im_sep|>" not in stop_sequences:
                 stop_sequences.append("<|im_sep|>")
+        else:
+            # llama-server: add model-family stop tokens as defaults
+            # when caller didn't provide any (agent.py should send them via kwargs,
+            # but this provides a safety net for direct backend usage)
+            from ..core.model_family_config import get_model_config
+            family_config = get_model_config(model)
+            for family_stop in family_config.stop_tokens:
+                if family_stop and family_stop not in stop_sequences:
+                    stop_sequences.append(family_stop)
+
+        if os.environ.get("AGENTNOVA_DEBUG"):
+            print(f"  [{label}] stop_sequences={stop_sequences}")
 
         body = {
             "prompt": prompt,
@@ -325,14 +379,24 @@ class LlamaServerBackend(OllamaBackend):
 
         url = f"{self._base_url}/completion"
 
-        prompt = self._messages_to_prompt(messages, tools)
+        prompt = self._messages_to_prompt(messages, tools, model=model)
 
-        # Build stop sequences: merge caller-provided with BitNet defaults
+        # Build stop sequences: caller-provided > BitNet defaults > family defaults
         stop_sequences = list(kwargs.get("stop", []))
+        stop_sequences = [s for s in stop_sequences if s]  # filter empty strings
+
         if self._bitnet_mode:
-            stop_sequences = [s for s in stop_sequences if s]  # filter empty
             if "<|im_sep|>" not in stop_sequences:
                 stop_sequences.append("<|im_sep|>")
+        else:
+            # llama-server: add model-family stop tokens as defaults
+            # when caller didn't provide any (agent.py should send them via kwargs,
+            # but this provides a safety net for direct backend usage)
+            from ..core.model_family_config import get_model_config
+            family_config = get_model_config(model)
+            for family_stop in family_config.stop_tokens:
+                if family_stop and family_stop not in stop_sequences:
+                    stop_sequences.append(family_stop)
 
         body = {
             "prompt": prompt,
@@ -464,11 +528,18 @@ class LlamaServerBackend(OllamaBackend):
         self,
         messages: list[dict],
         tools: list[Tool] | None = None,
+        model: str | None = None,
     ) -> str:
         """
         Convert messages to a single prompt string for /completion endpoint.
 
-        Same format as BitNet backend — ReAct tool instructions embedded in prompt.
+        The /completion endpoint does raw completion — no chat template is applied
+        server-side. The prompt format MUST match what the model was trained on.
+
+        When model is provided and not bitnet_mode, uses the model family's
+        start_tokens (e.g., ``<|im_start|>user`` for qwen2) to format the
+        conversation. Falls back to generic ``User:/Assistant:`` delimiters
+        for unknown families or when model is not provided.
 
         When bitnet_mode=True, applies BitNet-safe formatting:
         1. Sanitizes system message and tool descriptions (strip markdown)
@@ -476,6 +547,21 @@ class LlamaServerBackend(OllamaBackend):
         3. Truncates tool descriptions first (preserving system prompt)
         """
         parts = []
+
+        # Resolve family-specific prompt tokens (for non-BitNet mode)
+        family_config = None
+        family_start_user = "\nUser: "
+        family_start_assistant = "\nAssistant: "
+        family_stop = ""
+
+        if not self._bitnet_mode and model:
+            from ..core.model_family_config import get_model_config
+            family_config = get_model_config(model)
+            if family_config.start_tokens:
+                family_start_user = "\n" + family_config.start_tokens.get("user", "User: ")
+                family_start_assistant = "\n" + family_config.start_tokens.get("assistant", "Assistant: ")
+            if family_config.stop_tokens:
+                family_stop = family_config.stop_tokens[0]  # primary stop token
 
         # Reserve budget for conversation suffix (~100 chars)
         suffix_budget = 100  # "\nUser: <query>\n\nAssistant:"
@@ -536,7 +622,7 @@ class LlamaServerBackend(OllamaBackend):
 
             parts.append(tool_section)
 
-        # Add conversation
+        # Add conversation (family-aware delimiters)
         for msg in messages:
             role = msg["role"]
             content = msg["content"]
@@ -544,13 +630,13 @@ class LlamaServerBackend(OllamaBackend):
             if role == "system":
                 continue  # Already added
             elif role == "user":
-                parts.append(f"\nUser: {content}")
+                parts.append(f"{family_start_user}{content}")
             elif role == "assistant":
-                parts.append(f"\nAssistant: {content}")
+                parts.append(f"{family_start_assistant}{content}")
             elif role == "tool":
                 parts.append(f"\nTool Result: {content}")
 
-        parts.append("\nAssistant:")
+        parts.append(f"{family_start_assistant.rstrip()}")
 
         return "\n".join(parts)
 
