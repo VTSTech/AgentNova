@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### BitNet Stop Token Plumbing, Model Discovery & ReAct Parser Hardening
 
-Critical stop token regression fixed when `--backend bitnet` defaults model name to `"bitnet"`. Three bugs resolved: `/props` model path extraction, family detection for BitNet, and duplicate/hardcoded stop tokens. ReAct parser hardened for single-quote Python dict literals. Repeat penalty bumped to suppress degenerate loops on 0.5b models. Conversation history budgeting and turn-bleed guards added for BitNet's tight prompt window. CLI commands reordered alphabetically.
+Critical stop token regression fixed when `--backend bitnet` defaults model name to `"bitnet"`. Three bugs resolved: `/props` model path extraction, family detection for BitNet, and duplicate/hardcoded stop tokens. ReAct parser hardened for single-quote Python dict literals. Repeat penalty bumped to suppress degenerate loops on 0.5b models. Conversation history budgeting and turn-bleed guards added for BitNet's tight prompt window. CLI commands reordered alphabetically. DEFAULT_MODEL frozen-at-import bug fixed with runtime re-evaluation. BitNet-specific constraints now gated by model family, not backend type — non-BitNet models on the BitNet server receive full context. Agent-level stop token forwarding and BitNet memory tightening added. Test runner gains BitNet model discovery. llama-server `list_models()` gains `/props` fallback for model name extraction.
 
 ### Fixed
 
@@ -30,6 +30,18 @@ Critical stop token regression fixed when `--backend bitnet` defaults model name
 - **Fix**: Bumped BitNet `repeat_penalty` from 1.2 → 1.3 in both `_generate_completion()` and `_stream_completion()`. Testing showed 1.2 was insufficient to break the cycle; 1.3 is the minimum effective value for the 0.5b model.
 - **Impact**: Repetition loops eliminated. `finish_reason: stop` now fires cleanly after the model's first `Final Answer:`.
 
+#### [Critical] DEFAULT_MODEL Frozen at Module Import Time (`config.py`, `cli.py`)
+- **Bug**: `DEFAULT_MODEL` was a module-level constant evaluated at import time when `AGENTNOVA_BACKEND` defaults to `"ollama"`. The CLI `cmd_test()` sets `os.environ["AGENTNOVA_BACKEND"] = "bitnet"` after import, then calls `get_config(reload=True)`. While `reload=True` re-instantiates the `Config` dataclass, the `default_factory=lambda: DEFAULT_MODEL` still referenced the frozen constant `qwen2.5:0.5b` from import time. The BitNet backend path never saw its own default — it always got the Ollama default. Debug output confirmed: `Model: qwen2.5:0.5b` when running `agentnova test 01 --backend bitnet` without `--model`.
+- **Fix**: Replaced the module-level constant with a `_get_default_model()` function that re-reads `AGENTNOVA_BACKEND` and `AGENTNOVA_MODEL` from the environment on each call. Changed `Config.default_model` field from `field(default_factory=lambda: DEFAULT_MODEL)` to `field(default_factory=_get_default_model)`. Now when `Config` is re-instantiated via `get_config(reload=True)`, the `default_factory` calls `_get_default_model()` fresh, picking up the backend switch.
+- **Impact**: `agentnova test 01 --backend bitnet` (no `--model`) now correctly defaults to the BitNet model placeholder, which is then resolved via `/props` discovery.
+
+#### [Critical] BitNet Constraints Applied to Non-BitNet Models on BitNet Backend (`agent.py`, `backends/llama_server.py`)
+- **Bug**: BitNet-specific constraints — prompt budgeting (1024 chars), markdown sanitization, conversation exchange cap (4), tight memory (max_messages=6, keep_recent=4), lean default prompt — were gated on `self._bitnet_mode` (backend type) or `self._is_bitnet` (backend type check). A non-BitNet model (e.g., qwen2.5:0.5b) running on the BitNet llama-server fork received all these constraints despite having a proper tokenizer and full context window. This caused system prompt truncation, tool description loss, and memory starvation for models that didn't need them.
+- **Fix** (two-part):
+  1. **`agent.py`**: Changed `self._is_bitnet` detection from checking only `backend_type == BackendType.BITNET` to also verifying `detect_family(model) == "bitnet"`. BitNet memory tightening (max_messages=6, keep_recent=4) and lean default prompt now only apply when the model family is actually `bitnet`.
+  2. **`llama_server.py` `_messages_to_prompt()`**: Introduced `_is_actual_bitnet` local variable that checks `detect_family(model)` instead of `self._bitnet_mode`. Prompt budgeting, sanitization, exchange cap, and tool example generation now only apply when the model is actually BitNet. Family-specific prompt formatting (start_tokens for qwen2, llama, etc.) and stop token resolution now apply to ALL non-BitNet models regardless of backend type, so a qwen2.5 model on the BitNet server gets proper `<|im_start|>` formatting.
+- **Impact**: Non-BitNet models on the BitNet backend receive full system prompts, no truncation, family-correct formatting, and standard memory limits. BitNet-specific constraints are reserved for actual BitNet models. Verified: `agentnova test 01 --backend bitnet --soul nova-helper` shows `<9384 chars>` system prompt (full, not truncated) for `bitnet-b1.58-2B-4T`.
+
 ### Added
 
 #### BitNet Conversation History Budgeting (`backends/llama_server.py`)
@@ -47,10 +59,37 @@ Critical stop token regression fixed when `--backend bitnet` defaults model name
 - **`_build_agent()`** — when `--backend bitnet` is used without `--model`, the discovered model name from `/props` (e.g., `bitnet_2b_i2_s`) is used as the actual model name instead of the generic string `"bitnet"`. This ensures correct family config resolution (stop tokens, prompt format) for all downstream code.
 - Debug output: `[bitnet] Discovered model: bitnet_2b_i2_s`
 
+#### BitNet Model Discovery in Test Runner (`cli.py`)
+- **`cmd_test()`** — when `--backend bitnet` is used without `--model`, the test runner now discovers the actual model name via `backend.list_models()` (which queries `/props`). Previously, the test runner fell through to `config.default_model` which, due to the frozen-at-import bug (see Fixed section), returned `qwen2.5:0.5b` (the Ollama default) instead of the BitNet model. Mirrors the discovery logic already in `_build_agent()`.
+- Skips discovery if the model name resolves to the generic stubs `"bitnet"` or `"default"`.
+- Debug output: `[bitnet] Discovered model: bitnet-b1.58-2B-4T`
+
 #### Family Alias System (`core/model_family_config.py`)
 - **`_FAMILY_ALIASES` dict** — maps detected family strings to canonical `FAMILY_CONFIGS` keys. Resolves before direct/partial matching in `get_family_config()`. Currently: `"bitnet" → "llama"` (BitNet 1.58 uses LLaMA 3 tokenizer, 128K vocab, `<|eot_id|>`/`<|end_of_text|>` EOS).
 - **`detect_family()`** — added `"bitnet"` to the priority-ordered families list.
+- **`get_model_config()`** — now uses `get_family_config()` for resolution instead of direct `FAMILY_CONFIGS` lookup. This enables alias resolution and partial matching for detected families (e.g., `"qwen2.5"` → `"qwen2"` config via partial match, `"bitnet"` → `"llama"` config via alias).
 - Enables any future family aliases without modifying `FAMILY_CONFIGS` or the detection logic.
+
+#### llama-server /props Fallback in list_models() (`backends/llama_server.py`)
+- **`list_models()` llama-server mode** — after `/v1/models` fails or returns nothing useful, now falls back to querying `/props` (llama.cpp native endpoint) to discover the loaded model name from `model_path`. Extracts the GGUF filename (e.g., `qwen2.5-7b-q4_k_m` from `/models/qwen2.5-7b-q4_k_m.gguf`). Returns the filename as the model name with `model_path` in details. Previously, `/v1/models` failure returned a generic `"default"` stub with no model information.
+- **Connection error handling** — `_generate_completion()` and `_stream_completion()` now catch `ConnectionError` and `OSError` in addition to `URLError`, and use `getattr(e, 'reason', str(e))` for error message extraction. Prevents crashes on connection resets and socket errors.
+- Debug output: `[llama-server] list_models: /v1/models and /props both failed, returning default`
+
+#### BitNet Memory Tightening in Agent (`agent.py`)
+- **`self._is_bitnet` flag** — set during `__init__()` when backend type is `BackendType.BITNET` and model family is `"bitnet"`. Used to conditionally apply BitNet-specific agent behavior.
+- **Memory config override** — when `_is_bitnet` is True and no explicit `memory_config` is provided, defaults to `MemoryConfig(max_messages=6, keep_recent=4)`. BitNet's degraded tokenizer and tiny context window cause the model to degrade quickly as conversation history grows; 3 turns keeps the prompt focused.
+- **Lean default prompt** — when `_is_bitnet` is True and no soul is loaded, `_build_default_prompt()` returns an ultra-lean ReAct prompt (~200 chars) instead of the full markdown-formatted prompt. Avoids markdown tables, code fences, and bold markers that crash BitNet's tokenizer.
+
+#### Stop Token Forwarding to Backend (`agent.py`)
+- **`_generate()` and `_generate_stream_chunks()`** — model-family stop tokens from `self.model_config.stop_tokens` are now forwarded to the backend via `backend_kwargs["stop"]`. Critical for llama-server `/completion` and Ollama OPENRE modes where the raw completion endpoint has NO chat template and no default stop sequences — without explicit stops, the model generates until `n_predict` exhaustion, producing garbled multi-turn output.
+- Debug output includes stop tokens: `stops=['<|eot_id|>', '<|end_of_text|>']`
+
+#### Family-Aware Prompt Formatting for /completion (`backends/llama_server.py`)
+- **`_messages_to_prompt(model=)`** — accepts optional `model` parameter. When the model is not BitNet, resolves family config for proper prompt formatting: uses family start_tokens (e.g., `<|im_start|>user` for qwen2, `<|start_header_id|>user` for llama) instead of generic `User:/Assistant:` delimiters. Ensures the `/completion` prompt format matches what the model was trained on.
+- Both `_generate_completion()` and `_stream_completion()` now pass the `model` parameter through to `_messages_to_prompt()`.
+
+#### Tool Argument Aliases for Calculator (`core/prompts.py`)
+- Added `param`, `args`, and `arg` as aliases for `expression` in `TOOL_ARG_ALIASES`. Small models sometimes hallucinate these generic parameter names when calling the calculator tool; the aliases redirect them to the correct `expression` parameter.
 
 #### Turn-Bleed Guards for /completion Endpoint (`backends/llama_server.py`)
 - **`\nUser: ` and `\nAssistant:` stop tokens** added to both `_generate_completion()` and `_stream_completion()`. The `/completion` endpoint does raw text completion with no chat template — nothing prevents the model from continuing into `\nUser: ...` or `\nAssistant: ...` after its answer. These are cheap insurance against context confusion in multi-turn sessions. Applies to all modes (BitNet and llama-server).
@@ -63,15 +102,21 @@ Critical stop token regression fixed when `--backend bitnet` defaults model name
 #### Stop Token Safety Net Unified (`backends/llama_server.py`)
 - Previously, BitNet mode had its own stop token path (hardcoded `<|im_sep|>`) while llama-server mode used family config. Now both modes use the same `get_model_config(model)` safety net. BitNet's family alias (`bitnet → llama`) ensures correct tokens without special-casing.
 
+#### Configurable Default Model via Factory Function (`config.py`)
+- `Config.default_model` field changed from `field(default_factory=lambda: DEFAULT_MODEL)` (frozen module-level constant) to `field(default_factory=_get_default_model)` (re-evaluates on each instantiation). The original `DEFAULT_MODEL` constant is retained for backward compatibility but no longer used by `Config`.
+
 ### File Changes Summary
 
 | Action | File | Changes |
 |--------|------|:-------:|
-| Updated | `agentnova/backends/llama_server.py` | +80 −30 |
-| Updated | `agentnova/core/model_family_config.py` | +20 −2 |
+| Updated | `agentnova/backends/llama_server.py` | +105 −34 |
+| Updated | `agentnova/core/model_family_config.py` | +24 −2 |
 | Updated | `agentnova/core/tool_parse.py` | +15 −2 |
-| Updated | `agentnova/cli.py` | +20 −2 |
-| **Total** | **4 files** | **+135 −36** |
+| Updated | `agentnova/core/prompts.py` | +1 −0 |
+| Updated | `agentnova/agent.py` | +74 −1 |
+| Updated | `agentnova/config.py` | +28 −3 |
+| Updated | `agentnova/cli.py` | +37 −2 |
+| **Total** | **7 files** | **+284 −44** |
 
 ---
 
