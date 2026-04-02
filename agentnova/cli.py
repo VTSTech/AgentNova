@@ -166,21 +166,17 @@ def create_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
-    # Run command
-    run_parser = subparsers.add_parser("run", help="Run a single prompt")
-    run_parser.add_argument("prompt", help="The prompt to process")
-    add_agent_args(run_parser, tools_default="calculator")
-    run_parser.add_argument("--stream", action="store_true", help="Stream output")
-    run_parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
-    run_parser.add_argument("-q", "--quiet", action="store_true", help="Suppress header and summary")
+    # Agent command
+    agent_parser = subparsers.add_parser("agent", help="Autonomous agent mode")
+    add_agent_args(agent_parser, tools_default="calculator,shell,write_file")
 
     # Chat command
     chat_parser = subparsers.add_parser("chat", help="Interactive chat mode")
     add_agent_args(chat_parser, tools_default="")
 
-    # Agent command
-    agent_parser = subparsers.add_parser("agent", help="Autonomous agent mode")
-    add_agent_args(agent_parser, tools_default="calculator,shell,write_file")
+    # Config command
+    config_parser = subparsers.add_parser("config", help="Show current configuration")
+    config_parser.add_argument("--urls", action="store_true", help="Show only URLs")
 
     # Models command
     models_parser = subparsers.add_parser("models", help="List available models")
@@ -192,8 +188,38 @@ def create_parser() -> argparse.ArgumentParser:
     models_parser.add_argument("--acp", action="store_true", help="Enable ACP logging to Agent Control Panel")
     models_parser.add_argument("--acp-url", default=None, help="ACP server URL (default: from config)")
 
-    # Tools command
-    subparsers.add_parser("tools", help="List available tools")
+    # Modelfile command
+    modelfile_parser = subparsers.add_parser("modelfile", help="Show model's Modelfile info")
+    modelfile_parser.add_argument("-m", "--model", default=None, help="Model to inspect")
+    modelfile_parser.add_argument("--backend", choices=["ollama", "bitnet", "llama-server"], default=None, help="Backend to use")
+
+    # Run command
+    run_parser = subparsers.add_parser("run", help="Run a single prompt")
+    run_parser.add_argument("prompt", help="The prompt to process")
+    add_agent_args(run_parser, tools_default="calculator")
+    run_parser.add_argument("--stream", action="store_true", help="Stream output")
+    run_parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
+    run_parser.add_argument("-q", "--quiet", action="store_true", help="Suppress header and summary")
+
+    # Sessions command
+    sessions_parser = subparsers.add_parser("sessions", help="List and manage saved sessions")
+    sessions_parser.add_argument(
+        "--delete",
+        metavar="SESSION_ID",
+        default=None,
+        help="Delete a specific session by ID",
+    )
+
+    # Skills command
+    subparsers.add_parser("skills", help="List available skills")
+    
+    # Soul command
+    soul_parser = subparsers.add_parser("soul", help="Inspect a Soul Spec package")
+    soul_parser.add_argument("path", help="Path to soul package directory or soul.json")
+    soul_parser.add_argument("--level", type=int, default=2, choices=[1, 2, 3],
+                            help="Progressive disclosure level (1=quick, 2=full, 3=deep)")
+    soul_parser.add_argument("--validate", action="store_true", help="Run validation checks")
+    soul_parser.add_argument("--prompt", action="store_true", help="Show generated system prompt")
 
     # Test command
     test_parser = subparsers.add_parser("test", help="Run diagnostic tests")
@@ -231,40 +257,14 @@ def create_parser() -> argparse.ArgumentParser:
     test_parser.add_argument("--model-only", action="store_true", dest="model_only",
                            help="Only run Phase 2 (model tool calling tests)")
 
-    # Version command
-    subparsers.add_parser("version", help="Show version information")
-
-    # Config command
-    config_parser = subparsers.add_parser("config", help="Show current configuration")
-    config_parser.add_argument("--urls", action="store_true", help="Show only URLs")
-
-    # Modelfile command
-    modelfile_parser = subparsers.add_parser("modelfile", help="Show model's Modelfile info")
-    modelfile_parser.add_argument("-m", "--model", default=None, help="Model to inspect")
-    modelfile_parser.add_argument("--backend", choices=["ollama", "bitnet", "llama-server"], default=None, help="Backend to use")
-
-    # Skills command
-    subparsers.add_parser("skills", help="List available skills")
-    
-    # Soul command
-    soul_parser = subparsers.add_parser("soul", help="Inspect a Soul Spec package")
-    soul_parser.add_argument("path", help="Path to soul package directory or soul.json")
-    soul_parser.add_argument("--level", type=int, default=2, choices=[1, 2, 3],
-                            help="Progressive disclosure level (1=quick, 2=full, 3=deep)")
-    soul_parser.add_argument("--validate", action="store_true", help="Run validation checks")
-    soul_parser.add_argument("--prompt", action="store_true", help="Show generated system prompt")
+    # Tools command
+    subparsers.add_parser("tools", help="List available tools")
 
     # Update command
     subparsers.add_parser("update", help="Update AgentNova to the latest version from GitHub")
 
-    # Sessions command
-    sessions_parser = subparsers.add_parser("sessions", help="List and manage saved sessions")
-    sessions_parser.add_argument(
-        "--delete",
-        metavar="SESSION_ID",
-        default=None,
-        help="Delete a specific session by ID",
-    )
+    # Version command
+    subparsers.add_parser("version", help="Show version information")
 
     return parser
 
