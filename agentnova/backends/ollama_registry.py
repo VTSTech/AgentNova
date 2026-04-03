@@ -34,6 +34,10 @@ OLLAMA_BLOBS_DIR = OLLAMA_MODELS_DIR / "blobs"
 _GGUF_MAGIC = 0x46554747
 
 
+# TurboQuant requires head_dim >= TURBO_D (128) for KV cache block alignment
+_TURBO_D = 128
+
+
 @dataclass
 class OllamaModel:
     """Represents a discovered Ollama model."""
@@ -45,6 +49,29 @@ class OllamaModel:
     weight_quant: str       # detected weight quant (e.g. "Q4_K_M", "Q8_0", "F16")
     manifest_path: Path     # path to the manifest file
     model_digest: str       # sha256 digest of the model blob
+    architecture: str = "" # e.g. "qwen2", "gemma3", "llama"
+    head_dim: int = 0       # attention head dimension (embed_length / head_count)
+    n_heads: int = 0        # number of attention heads
+    n_layers: int = 0       # number of transformer layers
+    context_length: int = 0 # max context window from model metadata
+
+    @property
+    def turbo_compatible(self) -> bool:
+        """Check if this model's head_dim is compatible with TurboQuant.
+
+        TurboQuant requires head_dim >= TURBO_D (128) for KV cache block
+        alignment. Models with head_dim < 128 will crash the server.
+        """
+        return self.head_dim >= _TURBO_D
+
+    @property
+    def turbo_note(self) -> str:
+        """Human-readable note about turbo compatibility."""
+        if self.head_dim == 0:
+            return "head_dim unknown"
+        if self.head_dim < _TURBO_D:
+            return f"head_dim={self.head_dim} < {_TURBO_D} (incompatible)"
+        return f"head_dim={self.head_dim}"
 
     @property
     def size_human(self) -> str:
@@ -62,6 +89,44 @@ class OllamaModel:
     def exists(self) -> bool:
         """Check if the blob file exists on disk."""
         return self.blob_path.exists()
+
+
+def _gguf_find_key(mm: mmap.mmap, key: bytes) -> tuple[int, int, int] | None:
+    """Find a GGUF key and return (idx, value_type, value_int) for uint32 values.
+
+    For string values, returns (idx, 8, value_start_offset) where
+    value_start_offset points to the string data.
+    Returns None if key not found.
+    """
+    idx = mm.find(key)
+    if idx < 0:
+        return None
+    key_len = struct.unpack_from("<Q", mm, idx - 8)[0]
+    vtype = struct.unpack_from("<I", mm, idx + key_len)[0]
+    return (idx, vtype, idx + key_len + 4)
+
+
+def _gguf_read_u32(mm: mmap.mmap, key: bytes) -> int | None:
+    """Read a uint32 GGUF value by key name."""
+    result = _gguf_find_key(mm, key)
+    if result is None:
+        return None
+    _, vtype, val_off = result
+    if vtype != 4:  # GGUF_TYPE_UINT32
+        return None
+    return struct.unpack_from("<I", mm, val_off)[0]
+
+
+def _gguf_read_str(mm: mmap.mmap, key: bytes) -> str | None:
+    """Read a string GGUF value by key name."""
+    result = _gguf_find_key(mm, key)
+    if result is None:
+        return None
+    _, vtype, val_off = result
+    if vtype != 8:  # GGUF_TYPE_STRING
+        return None
+    val_len = struct.unpack_from("<Q", mm, val_off)[0]
+    return mm[val_off + 8:val_off + 8 + val_len].rstrip(b'\x00').decode("utf-8", errors="replace")
 
 
 def _detect_weight_quant(blob_path: Path) -> str:
@@ -275,9 +340,33 @@ def discover_models(
                 size = model_layer.get("size", 0)
                 blob_path = _resolve_blob_path(digest)
 
-                # Detect weight quantization
+                # Detect weight quantization and model metadata from GGUF header
+                architecture = ""
+                head_dim = 0
+                n_heads = 0
+                n_layers = 0
+                context_length = 0
+
                 if blob_path.exists():
                     weight_quant = _detect_weight_quant(blob_path)
+                    # Read architecture-specific metadata
+                    try:
+                        with open(blob_path, "rb") as bf:
+                            bm = mmap.mmap(bf.fileno(), 0, access=mmap.ACCESS_READ)
+                            try:
+                                if bm[:4] == b"GGUF":
+                                    arch = _gguf_read_str(bm, b"general.architecture")
+                                    if arch:
+                                        architecture = arch
+                                        n_heads = _gguf_read_u32(bm, arch.encode() + b".attention.head_count") or 0
+                                        embed = _gguf_read_u32(bm, arch.encode() + b".embedding_length") or 0
+                                        head_dim = int(embed / n_heads) if n_heads > 0 and embed > 0 else 0
+                                        n_layers = _gguf_read_u32(bm, arch.encode() + b".block_count") or 0
+                                        context_length = _gguf_read_u32(bm, arch.encode() + b".context_length") or 0
+                            finally:
+                                bm.close()
+                    except (OSError, struct.error):
+                        pass
                 else:
                     weight_quant = "UNKNOWN"
 
@@ -290,6 +379,11 @@ def discover_models(
                     weight_quant=weight_quant,
                     manifest_path=tag_file,
                     model_digest=digest,
+                    architecture=architecture,
+                    head_dim=head_dim,
+                    n_heads=n_heads,
+                    n_layers=n_layers,
+                    context_length=context_length,
                 )
 
                 if only_existing and not model.exists:

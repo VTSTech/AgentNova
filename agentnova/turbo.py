@@ -302,6 +302,26 @@ def start_server(
             model_path = str(ollama_model.blob_path)
             weight_quant = ollama_model.weight_quant
 
+    # Check TurboQuant compatibility (head_dim >= 128)
+    if ollama_model is not None and ollama_model.head_dim > 0:
+        if not ollama_model.turbo_compatible:
+            uses_turbo = (cache_type_k and "turbo" in cache_type_k.lower()) or \
+                         (cache_type_v and "turbo" in cache_type_v.lower())
+            if not uses_turbo and cache_type_k is None and cache_type_v is None:
+                print(bright_yellow(f"  Warning: {model_name} has {ollama_model.turbo_note}"))
+                print(bright_yellow(f"           TurboQuant requires head_dim >= 128. Starting without turbo KV compression."))
+                print()
+                cache_type_k = cache_type_k or "f16"
+                cache_type_v = cache_type_v or "f16"
+            elif uses_turbo:
+                raise RuntimeError(
+                    f"Model '{model_name}' is incompatible with TurboQuant KV cache.\n"
+                    f"  {ollama_model.turbo_note}\n"
+                    f"  TurboQuant requires head_dim >= 128 for KV block alignment.\n"
+                    f"  Run without -ctk/-ctv flags to use default F16 KV cache.\n"
+                    f"  Compatible models: gemma3:270m and others with head_dim >= 128."
+                )
+
     # Auto-detect TurboQuant config if not specified
     if cache_type_k is None or cache_type_v is None:
         config = recommended_turbo_config(weight_quant)
