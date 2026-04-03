@@ -17,6 +17,7 @@ Written by VTSTech - https://www.vts-tech.org
 from __future__ import annotations
 
 import json
+import mmap
 import os
 import struct
 from dataclasses import dataclass, field
@@ -64,150 +65,90 @@ class OllamaModel:
 
 
 def _detect_weight_quant(blob_path: Path) -> str:
-    """Read GGUF header to detect weight quantization - cleaner implementation.
+    """Read GGUF header to detect weight quantization.
 
-    Scans KV metadata pairs for "general.file_type" which maps to
-    GGML quant type constants.
+    Uses mmap to directly search for the "general.file_type" key in the
+    binary file — no sequential KV parsing needed. This is fast, handles
+    arbitrarily large files, and doesn't break on unknown value types.
+
+    The key is found by byte search, then we read the uint32 value_type
+    and value that follow the key data in the GGUF binary layout:
+        [key_len: u64][key_data: key_len bytes][value_type: u32][value: varies]
     """
     try:
         with open(blob_path, "rb") as f:
-            magic = struct.unpack("<I", f.read(4))[0]
-            if magic != _GGUF_MAGIC:
-                return _filename_heuristic(blob_path)
+            mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+            try:
+                # Quick rejection: not a GGUF file
+                if mm[:4] != b"GGUF":
+                    return _filename_heuristic(blob_path)
 
-            version = struct.unpack("<I", f.read(4))[0]
-            if version < 2 or version > 3:
-                return _filename_heuristic(blob_path)
+                # Search for the key bytes
+                idx = mm.find(b"general.file_type")
+                if idx < 0:
+                    return _filename_heuristic(blob_path)
 
-            n_tensors = struct.unpack("<Q", f.read(8))[0]
-            n_kv = struct.unpack("<Q", f.read(8))[0]
+                # Read the key_len that precedes the key (8 bytes before key start)
+                key_len = struct.unpack_from("<Q", mm, idx - 8)[0]
+                # value_type starts right after the key data
+                vtype = struct.unpack_from("<I", mm, idx + key_len)[0]
+                # value starts 4 bytes after value_type
+                file_type = struct.unpack_from("<I", mm, idx + key_len + 4)[0]
 
-            file_type = None
+                if vtype != 4:  # Must be GGUF_TYPE_UINT32
+                    return _filename_heuristic(blob_path)
 
-            for _ in range(n_kv):
-                # Read key string
-                # GGUF strings include trailing null byte in length - must strip
-                key_len = struct.unpack("<Q", f.read(8))[0]
-                key = f.read(key_len).decode("utf-8", errors="replace").rstrip('\x00')
-
-                # Read value type
-                val_type = struct.unpack("<I", f.read(4))[0]
-
-                # Read value based on GGUF value type
-                # Official type table from ggml.h (gguf_type enum):
-                #   0=UINT8  1=INT8  2=UINT16  3=INT16  4=UINT32  5=INT32
-                #   6=FLOAT32  7=BOOL  8=STRING  9=ARRAY  10=UINT64  11=INT64  12=FLOAT64
-                if val_type == 8:  # GGUF_TYPE_STRING
-                    val_len = struct.unpack("<Q", f.read(8))[0]
-                    f.read(val_len)  # skip string value data
-                elif val_type == 4:  # GGUF_TYPE_UINT32
-                    val = struct.unpack("<I", f.read(4))[0]
-                    if key == "general.file_type":
-                        file_type = val
-                elif val_type == 5:  # GGUF_TYPE_INT32
-                    f.read(4)
-                elif val_type == 6:  # GGUF_TYPE_FLOAT32
-                    f.read(4)
-                elif val_type == 7:  # GGUF_TYPE_BOOL
-                    f.read(1)
-                elif val_type == 0:  # GGUF_TYPE_UINT8
-                    f.read(1)
-                elif val_type == 1:  # GGUF_TYPE_INT8
-                    f.read(1)
-                elif val_type == 2:  # GGUF_TYPE_UINT16
-                    f.read(2)
-                elif val_type == 3:  # GGUF_TYPE_INT16
-                    f.read(2)
-                elif val_type == 9:  # GGUF_TYPE_ARRAY
-                    arr_type = struct.unpack("<I", f.read(4))[0]
-                    arr_len = struct.unpack("<Q", f.read(8))[0]
-                    # Skip array elements based on element type
-                    for _ in range(arr_len):
-                        if arr_type == 8:  # STRING
-                            elem_len = struct.unpack("<Q", f.read(8))[0]
-                            f.read(elem_len)
-                        elif arr_type in (4, 5, 6):  # UINT32, INT32, FLOAT32
-                            f.read(4)
-                        elif arr_type == 7:  # BOOL
-                            f.read(1)
-                        elif arr_type in (10, 11, 12):  # UINT64, INT64, FLOAT64
-                            f.read(8)
-                        elif arr_type in (0, 1):  # UINT8, INT8
-                            f.read(1)
-                        elif arr_type in (2, 3):  # UINT16, INT16
-                            f.read(2)
-                        elif arr_type == 9:  # nested ARRAY (rare)
-                            # Nested arrays: recursively skip (simplified - just break)
-                            break
-                        else:
-                            break  # Unknown element type
-                elif val_type == 10:  # GGUF_TYPE_UINT64
-                    f.read(8)
-                elif val_type == 11:  # GGUF_TYPE_INT64
-                    f.read(8)
-                elif val_type == 12:  # GGUF_TYPE_FLOAT64
-                    f.read(8)
-                else:
-                    # Unknown value type - can't parse further reliably
-                    # Fall through to filename heuristic
-                    import sys
-                    print(f"  [GGUF debug] unknown value_type={val_type} for key='{key}'", file=sys.stderr)
-                    break
-
-                # Early exit once we have the answer
-                if file_type is not None:
-                    break
-
-            if file_type is not None:
                 return _gguf_file_type_to_name(file_type)
-
-    except (OSError, struct.error, UnicodeDecodeError, OverflowError):
+            finally:
+                mm.close()
+    except (OSError, struct.error):
         pass
 
     return _filename_heuristic(blob_path)
 
 
-# GGUF file_type constants (from ggml.h / ggml.py)
+# GGUF file_type constants — official ggml_ftype enum from ggml.h
+# https://github.com/ggerganov/llama.cpp/blob/master/ggml/include/ggml.h
 _GGUF_FILE_TYPES = {
-    0: "F32",
-    1: "F16",
-    2: "Q4_0",
-    3: "Q4_1",
-    5: "Q4_1_SOME_K",
-    6: "Q4_2",  # removed
-    7: "Q4_3",  # removed
-    8: "Q5_0",
-    9: "Q5_1",
-    10: "Q8_0",
-    11: "Q8_1",
-    12: "Q2_K",
-    13: "Q3_K",
-    14: "Q3_K_S",
-    15: "Q3_K_M",
-    16: "Q3_K_L",
-    17: "Q4_K_S",
-    18: "Q4_K_M",
-    19: "Q5_K_S",
-    20: "Q5_K_M",
-    21: "Q6_K",
-    22: "IQ2_XXS",
-    23: "IQ2_XS",
-    24: "IQ3_XXS",
-    25: "IQ1_S",
-    26: "IQ4_NL",
-    27: "IQ3_S",
-    28: "IQ2_S",
-    29: "IQ4_XS",
-    30: "I8",
-    31: "I16",
-    32: "I32",
-    33: "I64",
-    34: "F64",
-    35: "IQ1_M",
-    36: "BF16",
+    0:  "F32",
+    1:  "F16",
+    2:  "Q4_0",
+    3:  "Q4_1",
+    # 4: Q4_2 (removed)
+    # 5: Q4_3 (removed)
+    6:  "Q5_0",
+    7:  "Q5_1",
+    8:  "Q8_0",
+    9:  "Q8_1",
+    10: "Q2_K",
+    11: "Q3_K_S",
+    12: "Q3_K_M",
+    13: "Q3_K_L",
+    14: "Q4_K_S",
+    15: "Q4_K_M",
+    16: "Q5_K_S",
+    17: "Q5_K_M",
+    18: "Q6_K",
+    19: "IQ2_XXS",
+    20: "IQ2_XS",
+    21: "Q2_K_S",
+    22: "IQ3_XS",
+    23: "Q3_K_XS",  # aka Q3_K_XS
+    24: "IQ1_S",
+    25: "IQ4_NL",
+    26: "IQ3_S",
+    27: "IQ2_S",
+    28: "IQ4_XS",
+    29: "I8",
+    30: "I16",
+    31: "I32",
+    32: "I64",
+    33: "F64",
+    34: "IQ1_M",
+    35: "BF16",
     # TQ types (TheTom's turboquant fork)
-    37: "TQ4_1S",
-    38: "TQ3_1S",
+    36: "TQ4_1S",
+    37: "TQ3_1S",
 }
 
 
