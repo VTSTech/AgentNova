@@ -1,4 +1,4 @@
-"""
+﻿"""
 ⚛️ AgentNova — CLI
 Command-line interface for AgentNova.
 
@@ -270,7 +270,7 @@ def create_parser() -> argparse.ArgumentParser:
     turbo_start_parser = turbo_sub.add_parser("start", help="Start TurboQuant server with an Ollama model")
     turbo_start_parser.add_argument("model", help="Ollama model name (e.g. qwen2.5:7b) or path to GGUF file")
     turbo_start_parser.add_argument("--server", default=None, help="Path to llama-server binary (env: TURBOQUANT_SERVER_PATH)")
-    turbo_start_parser.add_argument("--port", type=int, default=None, help=f"Server port (default: {os.environ.get('TURBOQUANT_PORT', '8080')})")
+    turbo_start_parser.add_argument("--port", type=int, default=None, help=f"Server port (default: {os.environ.get('TURBOQUANT_PORT', '8764')})")
     turbo_start_parser.add_argument("--ctx", type=int, default=None, help=f"Context window (default: {os.environ.get('TURBOQUANT_CTX', '8192')})")
     turbo_start_parser.add_argument("--turbo-k", default=None, choices=["q8_0", "q4_0", "turbo2", "turbo3", "turbo4", "f16"], help="K cache type (default: auto-detected)")
     turbo_start_parser.add_argument("--turbo-v", default=None, choices=["q8_0", "q4_0", "turbo2", "turbo3", "turbo4", "f16"], help="V cache type (default: auto-detected)")
