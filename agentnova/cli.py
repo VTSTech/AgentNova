@@ -1,4 +1,4 @@
-﻿"""
+"""
 ⚛️ AgentNova — CLI
 Command-line interface for AgentNova.
 
@@ -256,6 +256,37 @@ def create_parser() -> argparse.ArgumentParser:
                            help="Only run Phase 1 (direct tool tests, no model)")
     test_parser.add_argument("--model-only", action="store_true", dest="model_only",
                            help="Only run Phase 2 (model tool calling tests)")
+
+    # Turbo command
+    turbo_parser = subparsers.add_parser("turbo", help="TurboQuant server management (start/stop/list Ollama models)")
+    turbo_sub = turbo_parser.add_subparsers(dest="turbo_command", help="TurboQuant subcommand")
+
+    # turbo list
+    turbo_list_parser = turbo_sub.add_parser("list", help="List Ollama models available for TurboQuant")
+    turbo_list_parser.add_argument("--all", action="store_true", help="Show all models, including missing blobs")
+    turbo_list_parser.add_argument("--ollama-dir", default=None, help="Override Ollama models directory")
+
+    # turbo start
+    turbo_start_parser = turbo_sub.add_parser("start", help="Start TurboQuant server with an Ollama model")
+    turbo_start_parser.add_argument("model", help="Ollama model name (e.g. qwen2.5:7b) or path to GGUF file")
+    turbo_start_parser.add_argument("--server", default=None, help="Path to llama-server binary (env: TURBOQUANT_SERVER_PATH)")
+    turbo_start_parser.add_argument("--port", type=int, default=None, help=f"Server port (default: {os.environ.get('TURBOQUANT_PORT', '8080')})")
+    turbo_start_parser.add_argument("--ctx", type=int, default=None, help=f"Context window (default: {os.environ.get('TURBOQUANT_CTX', '8192')})")
+    turbo_start_parser.add_argument("--turbo-k", default=None, choices=["q8_0", "q4_0", "turbo2", "turbo3", "turbo4", "f16"], help="K cache type (default: auto-detected)")
+    turbo_start_parser.add_argument("--turbo-v", default=None, choices=["q8_0", "q4_0", "turbo2", "turbo3", "turbo4", "f16"], help="V cache type (default: auto-detected)")
+    turbo_start_parser.add_argument("--flash-attn", action="store_true", help="Enable flash attention (-fa)")
+    turbo_start_parser.add_argument("--sparsity", type=float, default=0.0, help="Sparse V decoding threshold (0.0=off)")
+    turbo_start_parser.add_argument("--threads", type=int, default=0, help="CPU thread count (0=auto)")
+    turbo_start_parser.add_argument("--no-wait", action="store_true", help="Don't wait for server to be ready")
+    turbo_start_parser.add_argument("--timeout", type=int, default=120, help="Max seconds to wait for readiness (default: 120)")
+    turbo_start_parser.add_argument("--", dest="extra_args", nargs="*", help="Extra arguments to pass to llama-server")
+
+    # turbo stop
+    turbo_stop_parser = turbo_sub.add_parser("stop", help="Stop the running TurboQuant server")
+    turbo_stop_parser.add_argument("--force", action="store_true", help="Force kill (SIGKILL)")
+
+    # turbo status
+    turbo_sub.add_parser("status", help="Show TurboQuant server status")
 
     # Tools command
     subparsers.add_parser("tools", help="List available tools")
@@ -1366,6 +1397,97 @@ def cmd_version(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_turbo(args: argparse.Namespace) -> int:
+    """TurboQuant server management commands."""
+    from .turbo import (
+        start_server, stop_server, get_status,
+        print_model_list, print_status,
+        TURBOQUANT_SERVER_PATH,
+    )
+    from .backends.ollama_registry import discover_models
+
+    turbo_cmd = getattr(args, "turbo_command", None)
+
+    if not turbo_cmd:
+        # No subcommand — show status or help
+        state = get_status()
+        if state:
+            print_status(state)
+        else:
+            print(bold(bright_cyan("TURBOQUANT")) + dim(" — server management"))
+            print()
+            print(f"  {bold('Usage:')}")
+            print(f"    agentnova turbo list             List Ollama models")
+            print(f"    agentnova turbo start <model>     Start TurboQuant server")
+            print(f"    agentnova turbo stop              Stop TurboQuant server")
+            print(f"    agentnova turbo status            Show server status")
+            print()
+            print(f"  {dim('No server running.')} Run {cyan('agentnova turbo list')} to see available models.")
+            print()
+        return 0
+
+    if turbo_cmd == "list":
+        ollama_dir = Path(args.ollama_dir) if args.ollama_dir else None
+        only_existing = not getattr(args, "all", False)
+        models = discover_models(ollama_dir=ollama_dir, only_existing=only_existing)
+        print_model_list(models)
+        return 0
+
+    elif turbo_cmd == "start":
+        try:
+            state = start_server(
+                model_name=args.model,
+                server_path=args.server,
+                port=args.port,
+                ctx=args.ctx,
+                cache_type_k=args.turbo_k,
+                cache_type_v=args.turbo_v,
+                flash_attn=getattr(args, "flash_attn", False),
+                sparsity=getattr(args, "sparsity", 0.0),
+                num_threads=getattr(args, "threads", 0),
+                wait_ready=not getattr(args, "no_wait", False),
+                ready_timeout=getattr(args, "timeout", 120),
+                extra_args=getattr(args, "extra_args", None),
+            )
+            # Show how to use
+            print(dim("  Use with AgentNova:"))
+            print(f"    {cyan(f'agentnova run --backend llama-server --model {args.model} \"<prompt>\"')}")
+            print(f"    {cyan(f'OLLAMA_BASE_URL=http://localhost:{state.port} agentnova run \"<prompt>\"')}")
+            print()
+            return 0
+        except FileNotFoundError as e:
+            print(bright_red(f"Error: {e}"))
+            return 1
+        except RuntimeError as e:
+            print(bright_red(f"Error: {e}"))
+            return 1
+        except ValueError as e:
+            print(bright_red(f"Error: {e}"))
+            return 1
+
+    elif turbo_cmd == "stop":
+        stopped = stop_server(force=getattr(args, "force", False))
+        if not stopped:
+            print(yellow("No TurboQuant server is running."))
+            print()
+        return 0
+
+    elif turbo_cmd == "status":
+        state = get_status()
+        if state:
+            print_status(state)
+        else:
+            print(yellow("No TurboQuant server is running."))
+            print()
+            print(dim("  Start one with:"))
+            print(f"    {cyan('agentnova turbo list')}        # see available models")
+            print(f"    {cyan('agentnova turbo start <model>')}  # start server")
+            print()
+        return 0
+
+    return 1
+
+
 def cmd_config(args: argparse.Namespace) -> int:
     """Show current configuration."""
     from .config import (
@@ -1766,6 +1888,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         "models": cmd_models,
         "tools": cmd_tools,
         "test": cmd_test,
+        "turbo": cmd_turbo,
         "version": cmd_version,
         "config": cmd_config,
         "modelfile": cmd_modelfile,

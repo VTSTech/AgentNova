@@ -75,6 +75,19 @@ ACP_PASS = os.environ.get("ACP_PASS", "secret")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# TURBOQUANT CONFIGURATION (llama-cpp-turboquant server)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Default path to compiled llama-server binary from TheTom's TurboQuant fork
+TURBOQUANT_SERVER_PATH = os.environ.get("TURBOQUANT_SERVER_PATH", "llama-server")
+
+# Default port for TurboQuant server (same as LLAMA_SERVER_BASE_URL default)
+TURBOQUANT_PORT = int(os.environ.get("TURBOQUANT_PORT", "8080"))
+
+# Default context window for TurboQuant
+TURBOQUANT_CTX = int(os.environ.get("TURBOQUANT_CTX", "8192"))
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # BACKEND SELECTION
 # ═══════════════════════════════════════════════════════════════════════════════
 # Set AGENTNOVA_BACKEND to "bitnet" to use BitNet instead of Ollama
