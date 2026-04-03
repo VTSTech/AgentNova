@@ -30,8 +30,8 @@ OLLAMA_MODELS_DIR = Path(os.environ.get("OLLAMA_MODELS", os.path.expanduser("~/.
 OLLAMA_MANIFESTS_DIR = OLLAMA_MODELS_DIR / "manifests" / "registry.ollama.ai"
 OLLAMA_BLOBS_DIR = OLLAMA_MODELS_DIR / "blobs"
 
-# GGUF magic number: "GGUF" in little-endian = 0x46475547
-_GGUF_MAGIC = 0x46475547
+# GGUF magic number: "GGUF" as little-endian uint32
+_GGUF_MAGIC = 0x46554747
 
 
 @dataclass
