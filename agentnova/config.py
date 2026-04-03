@@ -50,7 +50,7 @@ if _remote_bitnet:
 # LLAMA-SERVER CONFIGURATION (llama.cpp, llama-cpp-turboquant, etc.)
 # ═══════════════════════════════════════════════════════════════════════════════
 # Default for local llama-server
-LLAMA_SERVER_BASE_URL = "http://localhost:8080"
+LLAMA_SERVER_BASE_URL = "http://localhost:8764"
 
 # Override via environment variable
 _llama_server_env = os.environ.get("LLAMA_SERVER_BASE_URL")

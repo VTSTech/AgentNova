@@ -51,7 +51,7 @@ class LlamaServerBackend(OllamaBackend):
         backend = get_backend("bitnet")  # alias — bitnet_mode=True
 
     CLI:
-        agentnova chat --backend llama-server --base-url http://localhost:8080 --model qwen2.5:7b
+        agentnova chat --backend llama-server --base-url http://localhost:8764 --model qwen2.5:7b
         agentnova chat --backend llama-server --api-mode openai  # OpenAI Chat Completions
         agentnova chat --backend llama-server --api-mode openre  # Native /completion (ReAct)
         agentnova chat --backend bitnet                     # BitNet compat mode
