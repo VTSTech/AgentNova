@@ -345,8 +345,8 @@ def recommended_turbo_config(weight_quant: str) -> dict[str, str]:
     """
     wq = weight_quant.upper().replace("-", "_").replace(" ", "")
 
-    # High-quality weights: symmetric is safe
-    high_quality = {"F32", "F16", "BF16", "Q8_0", "Q8_1", "TQ4_1S", "TQ3_1S", "I8", "I16", "I32"}
+    # High-quality weights: symmetric is safe (uncompressed or minimal loss)
+    high_quality = {"F32", "F16", "BF16", "Q8_0", "Q8_1", "I8", "I16", "I32", "I64", "F64"}
 
     if wq in high_quality:
         return {
