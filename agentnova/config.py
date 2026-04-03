@@ -81,7 +81,7 @@ ACP_PASS = os.environ.get("ACP_PASS", "secret")
 TURBOQUANT_SERVER_PATH = os.environ.get("TURBOQUANT_SERVER_PATH", "llama-server")
 
 # Default port for TurboQuant server (same as LLAMA_SERVER_BASE_URL default)
-TURBOQUANT_PORT = int(os.environ.get("TURBOQUANT_PORT", "8080"))
+TURBOQUANT_PORT = int(os.environ.get("TURBOQUANT_PORT", "8764"))
 
 # Default context window for TurboQuant
 TURBOQUANT_CTX = int(os.environ.get("TURBOQUANT_CTX", "8192"))
