@@ -45,7 +45,7 @@ TURBOQUANT_SERVER_PATH = os.environ.get(
 )
 
 # Default port (matches LLAMA_SERVER_BASE_URL default)
-TURBOQUANT_DEFAULT_PORT = int(os.environ.get("TURBOQUANT_PORT", "8080"))
+TURBOQUANT_DEFAULT_PORT = int(os.environ.get("TURBOQUANT_PORT", "8764"))
 
 # Default context window
 TURBOQUANT_DEFAULT_CTX = int(os.environ.get("TURBOQUANT_CTX", "8192"))
