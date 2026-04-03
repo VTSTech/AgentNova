@@ -570,9 +570,15 @@ def print_model_list(models: list[OllamaModel]) -> None:
         quant_str = model.weight_quant
 
         # Get recommended config
-        config = recommended_turbo_config(model.weight_quant)
-        turbo_str = f"{config['cache_type_k']}/{config['cache_type_v']}"
-        mode_str = dim(f"({config['mode']})")
+        if model.turbo_compatible:
+            config = recommended_turbo_config(model.weight_quant)
+            turbo_str = f"{config['cache_type_k']}/{config['cache_type_v']}"
+            mode_str = dim(f"({config['mode']})")
+            compat_color = bright_green
+        else:
+            turbo_str = dim("N/A")
+            mode_str = dim(f"({model.turbo_note})")
+            compat_color = bright_red
 
         line = (
             pad_colored(name_str, name_w) +
@@ -580,12 +586,23 @@ def print_model_list(models: list[OllamaModel]) -> None:
             "  " +
             pad_colored(cyan(quant_str), quant_w) +
             "  " +
-            pad_colored(bright_magenta(turbo_str), quant_w + 2) + mode_str
+            pad_colored(compat_color(turbo_str), quant_w + 2) + mode_str
         )
         print(line)
 
+    # Count compatible models
+    n_compatible = sum(1 for m in models if m.turbo_compatible)
+    n_incompatible = sum(1 for m in models if m.head_dim > 0 and not m.turbo_compatible)
+    n_unknown = sum(1 for m in models if m.head_dim == 0)
+
     print()
     print(dim(f"  {len(models)} model(s) found"))
+    if n_compatible:
+        print(bright_green(f"  {n_compatible} turbo-compatible (head_dim >= 128)"))
+    if n_incompatible:
+        print(bright_red(f"  {n_incompatible} incompatible (head_dim < 128, turbo KV will crash)"))
+    if n_unknown:
+        print(yellow(f"  {n_unknown} unknown (could not read head_dim from GGUF)"))
     print(dim("  ● = blob exists  ✗ = blob missing"))
     print()
 
