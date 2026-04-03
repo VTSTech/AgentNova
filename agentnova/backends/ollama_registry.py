@@ -150,6 +150,8 @@ def _detect_weight_quant(blob_path: Path) -> str:
                 else:
                     # Unknown value type - can't parse further reliably
                     # Fall through to filename heuristic
+                    import sys
+                    print(f"  [GGUF debug] unknown value_type={val_type} for key='{key}'", file=sys.stderr)
                     break
 
                 # Early exit once we have the answer
