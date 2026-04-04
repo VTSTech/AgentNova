@@ -4,7 +4,7 @@
 
 Test 01 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
 
-> **Updated:** 2026-04-04 - R04.5 OpenResponses (openre) with-soul results in progress (11/12 models)
+> **Updated:** 2026-04-04 - R04.5 OpenResponses (openre) with-soul results in progress (13/14 models)
 > **Previous:** 2026-04-01 - R04.4 OpenResponses (openre) with-soul results complete (10/10 models)
 
 **Usage:**
@@ -24,12 +24,13 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 > Testing with `--api openre --soul nova-helper` uses Ollama's native OpenResponses API (`/api/chat`) with the nova-helper soul persona
 > Test params: `--timeout 9999 --num-ctx 16768 --num-predict 256 --temp 0.1 --soul nova-helper`
 > Environment: CPU-only Google Colab, 12GB RAM, Ollama
-> ⏳ **Partial results** — 11 of 12 models tested; remaining 1 pending (functiongemma:270m)
+> ⏳ **Partial results** — 13 of 14 models tested; remaining 1 pending (functiongemma:270m)
 
 | Rank | Model | Size | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R04.4 | Notes |
 |:----:|-------|-----:|------:|:----:|:--:|:--:|:--:|:--:|:---------:|-------|-------|
 | 1 | **`granite4:350m`** | 0.66 GB | **5/5 (100%)** | 261.6s | ✅ | ✅ | ✅ | ✅ | ✅ | 0 | Second 100% in openre. 208s cold, ~13s warm. Smallest model at 350M. |
 | 1 | **`qwen2.5:1.5b`** | 0.92 GB | **5/5 (100%)** | 543.5s | ✅ | ✅ | ✅ | ✅ | ✅ | NEW | First 100% in openre for this model. ~18s/q warm. |
+| 1 | **`deepseek-r1:1.5b`** | ~0.91 GB | **5/5 (100%)** | 590.6s | ✅ | ✅ | ✅ | ✅ | ✅ | NEW | Third 100% in openre. Reasoning model; 441s cold, ~37s warm. |
 | 2 | `qwen2:0.5b` | 0.33 GB | **4/5 (80%)** | 200.8s | ✅ | ✅ | ✅ | ❌ text | ✅ | 0 | Q4 output reasoning text instead of answer. Same Q4 fail as qwen2.5:0.5b. |
 | 2 | `qwen2.5:0.5b` | 0.37 GB | **4/5 (80%)** | 232.4s | ✅ | ✅ | ✅ | ❌ text | ✅ | -1 | Q4 output reasoning text instead of answer. Fastest 80%. |
 | 2 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | 0.37 GB | **4/5 (80%)** | 306.7s | ✅ | ✅ | ✅ | ✅ | ❌ empty | +1 | Q5 empty. Coder overthinks some questions. |
@@ -39,6 +40,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | 7 | `qwen:0.5b` | 0.37 GB | **1/5 (20%)** | 341.5s | ✅ | ❌ text | ❌ 68 | ❌ 24 | ❌ 24h | -1 | Regression; Q2-Q5 all verbose reasoning, no tool use. Base model too small. |
 | 9 | `qwen:1.8b` | 1.04 GB | **0/5 (0%)** | 783.2s | ❌ garb. | ❌ garb. | ❌ garb. | ❌ garb. | ❌ garb. | NEW | Complete failure; garbled markdown output, no tool use. Unusable with openre.
 | 9 | `gemma3:270m` | 0.27 GB | **1/5 (20%)** | 1168.9s | ❌ tmpl | ❌ tmpl | ❌ tmpl | ✅ | ❌ empty | -1 | Regression. Q1-Q3 literal `<the result>` template. Only Q4 passed.
+| 9 | `deepseek-coder:1.3b` | ~0.67 GB | **1/5 (20%)** | 1221.8s | ❌ 48 | ❌ 123 | ❌ code | ❌ code | ✅ | NEW | No tool use; verbose code dumps. Slowest model (1222s).
 
 #### qwen2.5:1.5b Detailed Breakdown
 
@@ -52,7 +54,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 **Key Observations:**
 - **473s cold start** on Q1 (model loading), then consistent ~17s per question when warm
-- **Only model to achieve 5/5** in R04.5 openre testing so far — handles all question types including word problems and time calculations
+- **One of three 100% models in R04.5 openre** (with granite4:350m and deepseek-r1:1.5b) — handles all question types including word problems and time calculations
 - **Native tool caller** (openre) — successfully uses calculator tool for all questions
 - **Complementary failures** with 0.5b variants: base model fails Q4 (formatting), coder fails Q5 (time calc), 1.5b handles both
 - **2.3x slower** than qwen2.5:0.5b but 100% accurate vs 80% — clear accuracy/speed tradeoff
@@ -142,7 +144,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | Q5 | Time Calc | — | — | ✅ | 13.2s |
 
 **Key Observations:**
-- **Second 100% model in R04.5 openre** — joins qwen2.5:1.5b as the only perfect scorers
+- **One of three 100% models in R04.5 openre** — joins qwen2.5:1.5b and deepseek-r1:1.5b as perfect scorers
 - **208s cold start** on Q1 (model loading), then blazing 11-15s per question when warm — fastest warm speed of any model
 - **350M parameters** — smallest model to achieve 100%, 4.3x smaller than qwen2.5:1.5b
 - **Consistent across all test modes** — perfect score in R04.4 openre, R04.4 openai, R03.9 openai, R03.9 no-soul, and now R04.5 openre
@@ -166,20 +168,60 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 - **Q2 partial artifact** — outputs `<3` instead of the full `<the result>`, suggesting the template was partially consumed
 - **Q4 only pass** — word problem answered correctly without needing calculator tool
 - **Q5 empty** — no output generated, same pattern as R04.4 openre
-- **Extremely slow** — 1168.9s total with 191-333s per question; slowest model in R04.5 openre testing by far
+- **Extremely slow** — 1168.9s total with 191-333s per question; second slowest model in R04.5 openre testing
 - **270M params too small** for reliable ReAct tool calling; gemma3 architecture struggles with structured output in openre mode
 - **Consistent weakness** — fails across all openre versions (R03.9: 2/5, R04.4: 2/5, R04.5: 1/5), trending downward
 
+#### deepseek-r1:1.5b Detailed Breakdown
+
+| Question | Category | Expected | Got | Result | Time |
+|----------|----------|:--------:|:----:|:------:|:----:|
+| Q1 | Simple Math | — | — | ✅ | 440.8s |
+| Q2 | Multi-step | — | — | ✅ | 20.2s |
+| Q3 | Division | — | — | ✅ | 17.4s |
+| Q4 | Word Problem | — | — | ✅ | 39.8s |
+| Q5 | Time Calc | — | — | ✅ | 72.4s |
+
+**Key Observations:**
+- **Third 100% model in R04.5 openre** — joins granite4:350m and qwen2.5:1.5b as perfect scorers
+- **441s cold start** on Q1 (model loading), then ~37s average per question when warm
+- **Reasoning model architecture** — deepseek-r1 uses chain-of-thought reasoning natively, which maps well to structured tool calling in openre mode
+- **Already 93% on Test 03 reasoning** — the only model to score 100% on both Test 01 (tool calling) and achieve top score on Test 03 (pure reasoning), confirming strength across both domains
+- **Slower warm speed** than granite4:350m (37s vs 13s avg) and qwen2.5:1.5b (18s avg), but 100% accurate across all question types
+- **1.5B parameters** — largest model to achieve 100% in openre, but still within the sub-2B category
+- **Consistent performance** — no weaknesses observed; handles simple math, multi-step, division, word problems, and time calculations equally well
+
+#### deepseek-coder:1.3b Detailed Breakdown
+
+| Question | Category | Expected | Got | Result | Time |
+|----------|----------|:--------:|:----:|:------:|:----:|
+| Q1 | Simple Math | 42 | 48 | ❌ | 758.7s |
+| Q2 | Multi-step | 51 | 123 | ❌ | 33.1s |
+| Q3 | Division | 4.25 | code | ❌ | 140.4s |
+| Q4 | Word Problem | 10 | code | ❌ | 143.3s |
+| Q5 | Time Calc | — | — | ✅ | 146.3s |
+
+**Key Observations:**
+- **No tool use on any question** — model outputs verbose explanations, code snippets, and tool-calling instructions instead of actually invoking tools
+- **Q1 hallucination** — computed 15+27=48 (should be 42), a basic addition error; 759s with verbose output about calculator tool usage
+- **Q2 wrong arithmetic** — got 123 instead of 51, suggesting incorrect operation order or wrong operators entirely
+- **Q3-Q4 verbose code dumps** — model generates Python code explanations instead of using the calculator tool; output includes step-by-step code comments but no actual numerical answer
+- **Q5 only pass** — time calculation answered correctly without needing tools; the one question where the model's direct reasoning worked
+- **759s cold start** on Q1, then Q2-Q5 range from 33-146s with verbose output inflating time
+- **Slowest aggregate time** — 1221.8s total, surpassing gemma3:270m (1168.9s) as the slowest model in R04.5 openre testing
+- **Coder model behavior** — despite being a "coder" model, it outputs code as text explanation rather than executing it via tools; no tool calling attempted
+- **Base model pattern** — like qwen:0.5b and qwen:1.8b, the deepseek-coder base model lacks the instruction-following capability needed for ReAct tool calling in openre mode
+
 #### Complementary Failure Analysis (R04.5)
 
-| Question | qwen2.5:0.5b | qwen2.5-coder:0.5b | qwen2.5:1.5b | granite4:350m | gemma3:270m | qwen3:0.6b | dolphin3.0 | qwen:0.5b | qwen:1.8b | Weakness |
-|----------|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|----------|
-| Q2 Multi-step | ✅ | ✅ | ✅ | ✅ | ❌ tmpl | ✅ | ❌ 39 | ❌ text | ❌ garb. | dolphin3.0 off-by-12, gemma3 tmpl, qwen base no tool/garbled |
-| Q3 Division | ✅ | ✅ | ✅ | ✅ | ❌ tmpl | ✅ | ✅ | ❌ 68 | ❌ garb. | gemma3 tmpl, qwen base: no tool/garbled |
-| Q4 Word Problem | ❌ text | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ 24 | ❌ garb. | qwen2.5:0.5b text, qwen base wrong/garbled |
-| Q5 Time Calc | ✅ | ❌ empty | ✅ | ✅ | ❌ empty | ❌ 17h | ✅ | ❌ 24h | ❌ garb. | Most common failure; gemma3 empty |
+| Question | qwen2.5:0.5b | qwen2.5-coder:0.5b | qwen2.5:1.5b | granite4:350m | ds-r1:1.5b | gemma3:270m | qwen3:0.6b | dolphin3.0 | qwen:0.5b | qwen:1.8b | ds-coder:1.3b | Weakness |
+|----------|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|----------|
+| Q2 Multi-step | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ tmpl | ✅ | ❌ 39 | ❌ text | ❌ garb. | ❌ 123 | dolphin3.0 off-by-12, gemma3 tmpl, qwen base no tool/garbled, ds-coder wrong math |
+| Q3 Division | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ tmpl | ✅ | ✅ | ❌ 68 | ❌ garb. | ❌ code | gemma3 tmpl, qwen base no tool/garbled, ds-coder code dump |
+| Q4 Word Problem | ❌ text | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ 24 | ❌ garb. | ❌ code | qwen2.5:0.5b text, qwen base wrong/garbled, ds-coder code dump |
+| Q5 Time Calc | ✅ | ❌ empty | ✅ | ✅ | ✅ | ❌ empty | ❌ 17h | ✅ | ❌ 24h | ❌ garb. | ✅ | Most common failure; gemma3 empty |
 
-> granite4:350m and qwen2.5:1.5b are the only models to clear all 5 questions. The qwen2 base models are fundamentally incompatible with ReAct tool calling.
+> granite4:350m, qwen2.5:1.5b, and deepseek-r1:1.5b are the only models to clear all 5 questions. The qwen2 base models and deepseek-coder are fundamentally incompatible with ReAct tool calling.
 
 ---
 
