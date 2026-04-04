@@ -1,3 +1,9 @@
+# ⚛️ AgentNova R04.5
+
+## Test 01 Quick Diagnostic (5 Questions)
+
+Test 01 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
+
 > **Updated:** 2026-04-04 - R04.5 OpenResponses (openre) with-soul results complete (16/16 models)
 > **Previous:** 2026-04-01 - R04.4 OpenResponses (openre) with-soul results complete (10/10 models)
 
