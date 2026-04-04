@@ -24,7 +24,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 > Testing with `--api openre --soul nova-helper` uses Ollama's native OpenResponses API (`/api/chat`) with the nova-helper soul persona
 > Test params: `--timeout 9999 --num-ctx 16768 --num-predict 256 --temp 0.1 --soul nova-helper`
 > Environment: CPU-only Google Colab, 12GB RAM, Ollama
-> ✅ **Complete** — All 16 models tested
+> ✅ **Complete** — All 17 models tested
 
 | Rank | Model | Size | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R04.4 | Notes |
 |:----:|-------|-----:|------:|:----:|:--:|:--:|:--:|:--:|:---------:|-------|-------|
@@ -37,6 +37,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | 2 | `nchapman/dolphin3.0-qwen2.5:0.5b` | 0.37 GB | **4/5 (80%)** | 208.6s | ✅ | ❌ 39 | ✅ | ✅ | ✅ | -1 | Q2 regression (was 5/5 in R04.4). Fastest 4/5. |
 | 2 | `qwen3:0.6b` | 0.49 GB | **4/5 (80%)** | 484.9s | ✅ | ✅ | ✅ | ✅ | ❌ 17h | +1 | Q2 fixed (was 49 in R04.4). Q5 persistent time calc error. 382s cold start. |
 | 2 | `qwen3.5:0.8b` | 0.96 GB | **4/5 (80%)** | 652.9s | ✅ | ❌ 45 | ✅ | ✅ | ✅ | 0 | Same score as R04.4; exact same Q2 failure (got 45 vs 51). 2x slower (653s vs 321s). |
+| 2 | `granite3.1-moe:1b` | ~0.7 GB | **4/5 (80%)** | 328.1s | ✅ | ❌ 53 | ✅ | ✅ | ✅ | NEW | MoE architecture. Q2 off-by-2 (got 53 vs 51). 282s cold, ~11s warm. |
 | 7 | `qwen:0.5b` | 0.37 GB | **1/5 (20%)** | 341.5s | ✅ | ❌ text | ❌ 68 | ❌ 24 | ❌ 24h | -1 | Regression; Q2-Q5 all verbose reasoning, no tool use. Base model too small. |
 | 9 | `qwen:1.8b` | 1.04 GB | **0/5 (0%)** | 783.2s | ❌ garb. | ❌ garb. | ❌ garb. | ❌ garb. | ❌ garb. | NEW | Complete failure; garbled markdown output, no tool use. Unusable with openre.
 | 9 | `gemma3:270m` | 0.27 GB | **1/5 (20%)** | 1168.9s | ❌ tmpl | ❌ tmpl | ❌ tmpl | ✅ | ❌ empty | -1 | Regression. Q1-Q3 literal `<the result>` template. Only Q4 passed.
@@ -254,15 +255,34 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 #### Complementary Failure Analysis (R04.5)
 
-| Question | qwen2.5:0.5b | qwen2.5-coder:0.5b | qwen2.5:1.5b | granite4:350m | ds-r1:1.5b | gemma3:270m | qwen3:0.6b | d3.0-qwen | d3.0-llama | llama3.2 | qwen:0.5b | qwen:1.8b | ds-coder:1.3b | Weakness |
+| Question | qwen2.5:0.5b | qwen2.5-coder:0.5b | qwen2.5:1.5b | granite4:350m | g3.1-moe:1b | ds-r1:1.5b | gemma3:270m | qwen3:0.6b | d3.0-qwen | d3.0-llama | llama3.2 | qwen:0.5b | qwen:1.8b | ds-coder:1.3b | Weakness |
 |----------|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|----------|
 | Q1 Simple | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ tmpl | ✅ | ✅ | ✅ | ❌ empty | ✅ | ❌ garb. | ❌ 48 | llama3.2 cold start, gemma3 tmpl, qwen:1.8b garb., ds-coder wrong math |
-| Q2 Multi-step | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ tmpl | ✅ | ❌ 39 | ❌ 57 | ✅ | ❌ text | ❌ garb. | ❌ 123 | dolphin3.0 off-by-12/6, gemma3 tmpl, qwen base no tool/garbled, ds-coder wrong math |
+| Q2 Multi-step | ✅ | ✅ | ✅ | ✅ | ❌ 53 | ✅ | ❌ tmpl | ✅ | ❌ 39 | ❌ 57 | ✅ | ❌ text | ❌ garb. | ❌ 123 | g3.1-moe/qwen3.5/dolphin3.0 off-by-2/6/12, gemma3 tmpl, qwen base no tool/garbled, ds-coder wrong math |
 | Q3 Division | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ tmpl | ✅ | ✅ | ❌ 5.25 | ✅ | ❌ 68 | ❌ garb. | ❌ code | gemma3 tmpl, qwen base no tool/garbled, d3.0-llama off-by-1, ds-coder code dump |
 | Q4 Word Problem | ❌ text | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ 24 | ❌ garb. | ❌ code | qwen2.5:0.5b text, qwen base wrong/garbled, ds-coder code dump |
 | Q5 Time Calc | ✅ | ❌ empty | ✅ | ✅ | ✅ | ❌ empty | ❌ 17h | ✅ | ✅ | ✅ | ❌ 24h | ❌ garb. | ✅ | Most common failure; gemma3 empty, qwen3.0:0.6b 17h |
 
 > granite4:350m, qwen2.5:1.5b, and deepseek-r1:1.5b are the only models to clear all 5 questions. The qwen2 base models and deepseek-coder are fundamentally incompatible with ReAct tool calling.
+
+#### granite3.1-moe:1b Detailed Breakdown
+
+| Question | Category | Expected | Got | Result | Time |
+|----------|----------|:--------:|:----:|:------:|:----:|
+| Q1 | Simple Math | — | — | ✅ | 281.8s |
+| Q2 | Multi-step | 51 | 53 | ❌ | 11.4s |
+| Q3 | Division | — | — | ✅ | 10.0s |
+| Q4 | Word Problem | — | — | ✅ | 13.6s |
+| Q5 | Time Calc | — | — | ✅ | 11.2s |
+
+**Key Observations:**
+- **NEW to R04.5 openre** — first appearance in OpenResponses mode; matches its openai score of 4/5 (80%)
+- **Q2 off-by-2** — got 53 instead of 51, the identical failure in both openre and openai modes; a consistent arithmetic error in the multi-step question
+- **282s cold start** on Q1 (model loading), then blazing 10-14s per question when warm — second fastest warm speed after granite4:350m
+- **Warm-only time ~46s** (328.1s − 281.8s cold start), making it one of the fastest aggregate scorers once loaded
+- **MoE architecture** — Mixture of Experts at 1B total parameters; uses ReAct (text JSON) tool calling in openre mode, not native API tools
+- **Q2 weakness shared with qwen3:0.6b openai** — both got 53 instead of 51; suggests a common arithmetic edge case in multi-step subtraction/addition
+- **Already 57% (8/14) on Test 03 reasoning** — second highest non-reasoning model after deepseek-r1:1.5b; strong general reasoning despite the Q2 math blind spot
 
 ---
 
