@@ -271,7 +271,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 > Testing with `--api openai --soul nova-helper --warmup` uses OpenAI-compatible Chat Completions API (`/v1/chat/completions`) with the nova-helper soul persona
 > Test params: `--timeout 9999 --num-ctx 16768 --num-predict 256 --temp 0.2 --soul nova-helper --api openai --warmup`
 > Environment: CPU-only Google Colab, 12GB RAM, Ollama
-> ✅ **Complete** — 12 models tested (9 qwen + granite4 + granite3.1-moe + gemma3)
+> ✅ **Complete** — 13 models tested (9 qwen + granite4 + granite3.1-moe + gemma3 + functiongemma)
 
 | Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R04.4 openai | Notes |
 |:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|:---------:|:------:|-------|
@@ -286,7 +286,8 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | 9 | `nchapman/dolphin3.0-qwen2.5:0.5b` | **2/5 (40%)** | 247.6s | ❌ 405 | ❌ 43 | ❌ empty | ✅ | ✅ | +1 | Improved from 1/5. Q1=405, Q2 off-by-8, Q3 empty. |
 | 9 | `gemma3:270m` | **2/5 (40%)** | 827.5s | ❌ 405 | ❌ 3 | ✅ | ✅ | ❌ empty | +1 | Q3 fixed (was `<the result>` in R04.4). Q1 wrong (405), Q5 empty. |
 | 11 | `qwen:0.5b` | **1/5 (20%)** | 346.2s | ✅ | ❌ 561 | ❌ 68 | ❌ 16 | ❌ 24h | +1 | Base model hallucinated math (8*7=560, 17/4=68). No tool use. |
-| 12 | `qwen:1.8b` | **0/5 (0%)** | 792.7s | ❌ garb. | ❌ garb. | ❌ garb. | ❌ garb. | ❌ empty | 0 | Same as R04.4; garbled markdown, unusable. |
+| 12 | `functiongemma:270m` | **0/5 (0%)** | 350.9s | ❌ expr | ❌ 35 | ❌ 4.00 | ❌ refused | ❌ refused | 0 | Same score as R04.4. Q1 echoes expression, Q4-Q5 refusals. |
+| 13 | `qwen:1.8b` | **0/5 (0%)** | 792.7s | ❌ garb. | ❌ garb. | ❌ garb. | ❌ garb. | ❌ empty | 0 | Same as R04.4; garbled markdown, unusable. |
 
 #### granite4:350m Detailed Breakdown (R04.5 openai)
 
@@ -342,6 +343,26 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 - **Q5 still empty** — no output generated for time calculation, consistent across all API modes
 - **827.5s total** — second slowest model in R04.5 openai (after qwen3:0.6b at 890.3s), with 124-307s per question
 - **270M params** — smallest model tested in openai mode; struggles with structured tool calling but word problem (Q4) passes consistently
+
+#### functiongemma:270m Detailed Breakdown (R04.5 openai)
+
+| Question | Category | Expected | Got | Result | Time |
+|----------|----------|:--------:|:----:|:------:|:----:|
+| Q1 | Simple Math | 42 | expr | ❌ | 95.0s |
+| Q2 | Multi-step | 51 | 35 | ❌ | 84.1s |
+| Q3 | Division | 4.25 | 4.00 | ❌ | 85.5s |
+| Q4 | Word Problem | 10 | refused | ❌ | 42.7s |
+| Q5 | Time Calc | 8 | refused | ❌ | 43.5s |
+
+**Key Observations:**
+- **Same score as R04.4 openai** — 0/5 (0%) with identical failure pattern across all 5 questions
+- **Q1 echoes expression** — outputs "The result is: 15 * 27" instead of computing 405; confirms ReAct parser extracts the template expression before the tool returns
+- **Q2 wrong math** — computes 8 * 7 - 5 = 35 instead of 51; same error as R04.4 openai, suggesting fundamental arithmetic failure
+- **Q3 truncation** — returns 4.00 (integer division) instead of 4.25; model or tool appears to truncate decimal results
+- **Q4-Q5 refusals** — model refuses to answer word problem (asks for numbers that are already in the prompt) and time calculation (claims tool limitations); same refusal pattern as R04.4
+- **350.9s total** — 2x slower than R04.4 openai (172.7s), suggesting added latency in the R04.5 warmup path
+- **Despite native tool calling** — functiongemma supports native tools in both openre and openai modes (confirmed in tool support detection), yet fails to produce correct results through tool use in the diagnostic
+- **Consistent across all versions** — 0/5 in R03.9 no-soul, 1/5 in R04.4 openre, 0/5 in R04.4 openai, 0/5 in R04.5 openre, and now 0/5 in R04.5 openai; the model fundamentally cannot reliably use tools for math
 
 ---
 
