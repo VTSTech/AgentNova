@@ -271,7 +271,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 > Testing with `--api openai --soul nova-helper --warmup` uses OpenAI-compatible Chat Completions API (`/v1/chat/completions`) with the nova-helper soul persona
 > Test params: `--timeout 9999 --num-ctx 16768 --num-predict 256 --temp 0.2 --soul nova-helper --api openai --warmup`
 > Environment: CPU-only Google Colab, 12GB RAM, Ollama
-> ⏳ **Partial results** — 6 of 9 qwen models tested
+> ✅ **Complete** — All 9 qwen models tested
 
 | Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R04.4 openai | Notes |
 |:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|:---------:|:------:|-------|
@@ -281,6 +281,9 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | 4 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 302.3s | ✅ | ✅ | ✅ | ✅ | ❌ empty | 0 | Same score; Q5 empty again. Warmup: 1.2s. |
 | 4 | `qwen3:0.6b` | **4/5 (80%)** | 890.3s | ✅ | ❌ 53 | ✅ | ✅ | ✅ | -1 | Q5 fixed (was 17h), Q2 regression (off-by-2). 464s cold. |
 | 6 | `qwen2:0.5b` | **3/5 (60%)** | 224.6s | ✅ | ✅ | ✅ | ❌ 24 | ❌ empty | -1 | Regression from 4/5. Q4 wrong math (24), Q5 empty. |
+| 7 | `qwen:0.5b` | **1/5 (20%)** | 346.2s | ✅ | ❌ 561 | ❌ 68 | ❌ 16 | ❌ 24h | +1 | Base model hallucinated math (8*7=560, 17/4=68). No tool use. |
+| 8 | `qwen:1.8b` | **0/5 (0%)** | 792.7s | ❌ garb. | ❌ garb. | ❌ garb. | ❌ garb. | ❌ empty | 0 | Same as R04.4; garbled markdown, unusable. |
+| 9 | `nchapman/dolphin3.0-qwen2.5:0.5b` | **2/5 (40%)** | 247.6s | ❌ 405 | ❌ 43 | ❌ empty | ✅ | ✅ | +1 | Improved from 1/5. Q1=405, Q2 off-by-8, Q3 empty. |
 
 ---
 
