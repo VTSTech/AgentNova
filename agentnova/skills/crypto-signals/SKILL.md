@@ -38,11 +38,13 @@ The script handles all the hard work. The model only needs to call 2 tools total
 
 ### Step 1: Run the signal script
 
-Use the `shell` tool with this exact command:
+Use the `shell` tool with this command:
 
 ```
-python scripts/crypto_signal_agent.py run
+find /usr -name crypto_signal_agent.py -exec python {} run \;
 ```
+
+That command finds and runs the script regardless of where agentnova is installed.
 
 The script will:
 - Fetch BTC and ETH prices from CoinGecko (fallback: CoinCap)
@@ -95,9 +97,11 @@ Read `crypto_summary.txt` and display it as your final answer.
 
 The script supports additional commands:
 
-- `python scripts/crypto_signal_agent.py run` — Full analysis + JSON report
-- `python scripts/crypto_signal_agent.py prices` — Current prices only
-- `python scripts/crypto_signal_agent.py history` — Last 100 logged signals
+- `run` — Full analysis + JSON report
+- `prices` — Current prices only
+- `history` — Last 100 logged signals
+
+Change `run` to `prices` or `history` in the command above.
 
 ## Constraints
 
