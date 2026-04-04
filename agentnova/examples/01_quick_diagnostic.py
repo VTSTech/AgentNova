@@ -199,6 +199,7 @@ def run_warmup(model: str, backend, timeout: int = None) -> bool:
             model=model,
             messages=[{"role": "user", "content": "Say 'ok'"}],
             temperature=0.1,
+            keep_alive="10m",
             max_tokens=10,
         )
         elapsed = time.time() - t0
