@@ -27,7 +27,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 > ⏳ **Partial results** — 7 of 12 models tested; remaining 5 pending
 
 | Rank | Model | Size | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R04.4 | Notes |
-|:----:|-------|-----:|------:|:----:|:--:|:--:|:--:|:--:|:---------:|-------|
+|:----:|-------|-----:|------:|:----:|:--:|:--:|:--:|:--:|:---------:|-------|-------|
 | 1 | **`qwen2.5:1.5b`** | 0.92 GB | **5/5 (100%)** | 543.5s | ✅ | ✅ | ✅ | ✅ | ✅ | NEW | First 100% in openre for this model. ~18s/q warm. |
 | 2 | `qwen2:0.5b` | 0.33 GB | **4/5 (80%)** | 200.8s | ✅ | ✅ | ✅ | ❌ text | ✅ | 0 | Q4 output reasoning text instead of answer. Same Q4 fail as qwen2.5:0.5b. |
 | 2 | `qwen2.5:0.5b` | 0.37 GB | **4/5 (80%)** | 232.4s | ✅ | ✅ | ✅ | ❌ text | ✅ | -1 | Q4 output reasoning text instead of answer. Fastest 80%. |
