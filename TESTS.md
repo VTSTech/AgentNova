@@ -291,7 +291,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 > Testing with `--api openai --soul nova-helper --warmup` uses OpenAI-compatible Chat Completions API (`/v1/chat/completions`) with the nova-helper soul persona
 > Test params: `--timeout 9999 --num-ctx 16768 --num-predict 256 --temp 0.2 --soul nova-helper --api openai --warmup`
 > Environment: CPU-only Google Colab, 12GB RAM, Ollama
-> ✅ **Complete** — 13 models tested (9 qwen + granite4 + granite3.1-moe + gemma3 + functiongemma)
+> ✅ **Complete** — 16 models tested (9 qwen + granite4 + granite3.1-moe + gemma3 + functiongemma + deepseek-r1 + deepseek-coder + llama3.2)
 
 | Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R04.4 openai | Notes |
 |:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|:---------:|:------:|-------|
@@ -299,14 +299,17 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | 1 | **`granite4:350m`** | **5/5 (100%)** | 259.1s | ✅ | ✅ | ✅ | ✅ | ✅ | 0 | Still perfect in openai. 205s cold, ~13s warm. Native tool caller. |
 | 1 | **`qwen2.5:1.5b`** | **5/5 (100%)** | 564.5s | ✅ | ✅ | ✅ | ✅ | ✅ | NEW | Perfect in openai too. 478s cold, ~22s warm. |
 | 1 | **`qwen3.5:0.8b`** | **5/5 (100%)** | 830.6s | ✅ | ✅ | ✅ | ✅ | ✅ | +3 | Massive improvement from 2/5! Warmup fixed Q1-Q3 empty. |
+| 1 | **`llama3.2:1b`** | **5/5 (100%)** | 599.8s | ✅ | ✅ | ✅ | ✅ | ✅ | NEW | Perfect in openai! Warmup fixed Q1 cold start from openre (4/5→5/5). ~63s warm. |
 | 5 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 302.3s | ✅ | ✅ | ✅ | ✅ | ❌ empty | 0 | Same score; Q5 empty again. Warmup: 1.2s. |
 | 5 | `granite3.1-moe:1b` | **4/5 (80%)** | 321.8s | ✅ | ❌ 53 | ✅ | ✅ | ✅ | NEW | Q2 off-by-2 (got 53 vs 51). 276s cold, ~12s warm. MoE architecture. |
 | 5 | `qwen3:0.6b` | **4/5 (80%)** | 890.3s | ✅ | ❌ 53 | ✅ | ✅ | ✅ | -1 | Q5 fixed (was 17h), Q2 regression (off-by-2). 464s cold. |
 | 8 | `qwen2:0.5b` | **3/5 (60%)** | 224.6s | ✅ | ✅ | ✅ | ❌ 24 | ❌ empty | -1 | Regression from 4/5. Q4 wrong math (24), Q5 empty. |
 | 9 | `nchapman/dolphin3.0-qwen2.5:0.5b` | **2/5 (40%)** | 247.6s | ❌ 405 | ❌ 43 | ❌ empty | ✅ | ✅ | +1 | Improved from 1/5. Q1=405, Q2 off-by-8, Q3 empty. |
 | 9 | `gemma3:270m` | **2/5 (40%)** | 827.5s | ❌ 405 | ❌ 3 | ✅ | ✅ | ❌ empty | +1 | Q3 fixed (was `<the result>` in R04.4). Q1 wrong (405), Q5 empty. |
+| 11 | `deepseek-coder:1.3b` | **1/5 (20%)** | 1251.1s | ✅ | ❌ empty | ❌ empty | ❌ refused | ❌ empty | 0 | Same score as openre. Slowest model (1251s). Q4 refusal, rest empty. |
 | 11 | `qwen:0.5b` | **1/5 (20%)** | 346.2s | ✅ | ❌ 561 | ❌ 68 | ❌ 16 | ❌ 24h | +1 | Base model hallucinated math (8*7=560, 17/4=68). No tool use. |
-| 12 | `functiongemma:270m` | **0/5 (0%)** | 350.9s | ❌ expr | ❌ 35 | ❌ 4.00 | ❌ refused | ❌ refused | 0 | Same score as R04.4. Q1 echoes expression, Q4-Q5 refusals. |
+| 13 | `deepseek-r1:1.5b` | **0/5 (0%)** | 764.8s | ❌ empty | ❌ empty | ❌ empty | ❌ empty | ❌ empty | NEW | Catastrophic regression from openre 5/5→0/5. All empty. |
+| 13 | `functiongemma:270m` | **0/5 (0%)** | 350.9s | ❌ expr | ❌ 35 | ❌ 4.00 | ❌ refused | ❌ refused | 0 | Same score as R04.4. Q1 echoes expression, Q4-Q5 refusals. |
 | 13 | `qwen:1.8b` | **0/5 (0%)** | 792.7s | ❌ garb. | ❌ garb. | ❌ garb. | ❌ garb. | ❌ empty | 0 | Same as R04.4; garbled markdown, unusable. |
 
 #### granite4:350m Detailed Breakdown (R04.5 openai)
@@ -322,10 +325,29 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 **Key Observations:**
 - **Perfect 100% in openai mode** — consistent with R04.4 openai (5/5) and R04.5 openre (5/5)
 - **205s cold start** on Q1 (model loading), then blazing 13-14s per question when warm
-- **One of four 100% models** in R04.5 openai (alongside qwen2.5:0.5b, qwen2.5:1.5b, qwen3.5:0.8b)
+- **One of five 100% models** in R04.5 openai (alongside qwen2.5:0.5b, qwen2.5:1.5b, qwen3.5:0.8b, llama3.2:1b)
 - **Native tool caller** — granite4 uses API-native tool calling in both openai and openre modes
 - **Fastest 100% model** at 259.1s — 8% faster than R04.4 openai (158.5s vs 259.1s total, but Colab cold start varies)
 - **Warm-only time ~54s** (259.1s − 205.3s cold start), making it the fastest warm scorer in the 100% tier
+
+#### llama3.2:1b Detailed Breakdown (R04.5 openai)
+
+| Question | Category | Expected | Got | Result | Time |
+|----------|----------|:--------:|:----:|:------:|:----:|
+| Q1 | Simple Math | — | — | ✅ | 346.6s |
+| Q2 | Multi-step | — | — | ✅ | 69.2s |
+| Q3 | Division | — | — | ✅ | 58.1s |
+| Q4 | Word Problem | — | — | ✅ | 64.6s |
+| Q5 | Time Calc | — | — | ✅ | 61.3s |
+
+**Key Observations:**
+- **Perfect 100% in openai** — massive improvement from openre (4/5); the `--warmup` flag completely eliminated the Q1 cold start failure
+- **347s cold start** on Q1 (model loading), then consistent ~63s per question when warm
+- **Warm-only time ~253s** (599.8s − 346.6s cold start) — slower warm speed than granite4 (54s) or qwen2.5:1.5b (87s) but perfectly reliable
+- **Q1 cold start was the only failure in openre** — scored 515s with empty output; warmup pre-loads the model so Q1 succeeds
+- **Proves openre Q1 was not a capability issue** — the model is fully capable of answering all 5 questions when properly warmed up
+- **Largest 100% model in openai** at ~1.24 GB; still within the sub-2B parameter target range
+- **One of five 100% models** in R04.5 openai — joins qwen2.5:0.5b, granite4:350m, qwen2.5:1.5b, and qwen3.5:0.8b
 
 #### granite3.1-moe:1b Detailed Breakdown (R04.5 openai)
 
@@ -383,6 +405,44 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 - **350.9s total** — 2x slower than R04.4 openai (172.7s), suggesting added latency in the R04.5 warmup path
 - **Despite native tool calling** — functiongemma supports native tools in both openre and openai modes (confirmed in tool support detection), yet fails to produce correct results through tool use in the diagnostic
 - **Consistent across all versions** — 0/5 in R03.9 no-soul, 1/5 in R04.4 openre, 0/5 in R04.4 openai, 0/5 in R04.5 openre, and now 0/5 in R04.5 openai; the model fundamentally cannot reliably use tools for math
+
+#### deepseek-r1:1.5b Detailed Breakdown (R04.5 openai)
+
+| Question | Category | Expected | Got | Result | Time |
+|----------|----------|:--------:|:----:|:------:|:----:|
+| Q1 | Simple Math | 42 | empty | ❌ | 476.0s |
+| Q2 | Multi-step | 51 | empty | ❌ | 72.1s |
+| Q3 | Division | 4.25 | empty | ❌ | 71.8s |
+| Q4 | Word Problem | 10 | empty | ❌ | 73.2s |
+| Q5 | Time Calc | 8 | empty | ❌ | 71.8s |
+
+**Key Observations:**
+- **Catastrophic regression from openre** — dropped from 5/5 (100%) to 0/5 (0%); the single worst mode switch in R04.5 testing
+- **All 5 answers empty** — the model produces no parseable output in ChatCompletions mode despite 72s warm and 476s cold per question
+- **Likely thinking token issue** — deepseek-r1 uses `<think/>` reasoning tokens that may not be properly handled in the openai API path; the reasoning chain consumes the context window or output tokens without producing a final answer
+- **764.8s total for zero answers** — 476s cold start on Q1 plus ~72s per question for Q2-Q5; all time spent on model inference with nothing extracted
+- **Contrast with openre** — in openre mode the model scored 5/5 in 590.6s with consistent ~37s warm responses; the openre API path correctly handles the thinking tokens while openai does not
+- **Test 03 reasoning still 93%** — the model's reasoning capability is intact (13/14 on pure reasoning tests); this is purely an API compatibility issue with tool calling in ChatCompletions mode
+- **Not a model capability failure** — deepseek-r1 is the strongest reasoning model in the lineup; this result reflects an incompatibility between its thinking architecture and the openai tool calling path
+
+#### deepseek-coder:1.3b Detailed Breakdown (R04.5 openai)
+
+| Question | Category | Expected | Got | Result | Time |
+|----------|----------|:--------:|:----:|:------:|:----:|
+| Q1 | Simple Math | — | — | ✅ | 766.1s |
+| Q2 | Multi-step | 51 | empty | ❌ | 145.4s |
+| Q3 | Division | 4.25 | empty | ❌ | 141.5s |
+| Q4 | Word Problem | 10 | refused | ❌ | 55.7s |
+| Q5 | Time Calc | 8 | empty | ❌ | 142.4s |
+
+**Key Observations:**
+- **Same score as openre** — 1/5 (20%) with a different failure pattern; in openre Q5 passed, in openai Q1 passed
+- **Slowest model again** — 1251.1s total, surpassing its openre time of 1221.8s; Q1 alone took 766s cold start
+- **Q4 refusal** — model claims it "doesn't have access to real-time data or databases" and cannot calculate apple sales; different from openre where it output code dumps
+- **Q2, Q3, Q5 all empty** — model produces no parseable output for 3 of 5 questions; tool calls may not be returning results or the parser cannot extract answers
+- **Q1 passed** — the cold start question succeeded, possibly because the extended inference time (766s) allowed the model to complete its reasoning chain
+- **Base coder model limitation** — like in openre, the model fails to reliably use tools; its training focused on code generation, not structured tool-calling workflows
+- **Consistent failure across modes** — 1/5 in both openre and openai; the model is fundamentally unsuited for agent tool-calling tasks regardless of API mode
 
 ---
 
