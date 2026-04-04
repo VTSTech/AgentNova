@@ -1455,7 +1455,17 @@ def cmd_turbo(args: argparse.Namespace) -> int:
         if api_models is not None:
             # Got models from API — merge with local GGUF metadata
             local_models = discover_models(ollama_dir=ollama_dir, only_existing=False)
-            local_lookup = {m.name: m for m in local_models}
+
+            # Build lookup by both short name ("repo:tag") and full name ("library/repo:tag")
+            # discover_models uses short names; the API returns full names with library prefix
+            local_lookup: dict[str, OllamaModel] = {}
+            for m in local_models:
+                local_lookup[m.name] = m
+                # Derive full name from manifest path: .../registry.ollama.ai/<library>/<repo>/<tag>
+                if m.manifest_path != Path("") and m.manifest_path.parent.parent.name != "registry.ollama.ai":
+                    library = m.manifest_path.parent.parent.name
+                    full_name = f"{library}/{m.name}"
+                    local_lookup[full_name] = m
 
             models: list = []
             for api_m in api_models:
