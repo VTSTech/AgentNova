@@ -243,8 +243,9 @@ def generate_signal(analysis):
         elif bb_pos > 0.8: sell += 1
 
     # MACD histogram
-    if macd_hist > 0: buy += 1
-    elif macd_hist < 0: sell += 1
+    if macd_hist is not None:
+        if macd_hist > 0: buy += 1
+        elif macd_hist < 0: sell += 1
 
     # Price vs SMA
     if sma and price:
