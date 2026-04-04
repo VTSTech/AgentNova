@@ -533,16 +533,28 @@ def _find_in_path(name: str) -> bool:
 # FORMATTED OUTPUT
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def print_model_list(models: list[OllamaModel]) -> None:
-    """Print a formatted table of discovered Ollama models."""
+def print_model_list(models: list[OllamaModel], source: str = "local", backend_url: str | None = None) -> None:
+    """Print a formatted table of discovered Ollama models.
+
+    Args:
+        models: List of OllamaModel objects
+        source: "api" if models discovered via Ollama API, "local" if filesystem
+        backend_url: Ollama server URL (shown when source="api")
+    """
     if not models:
         print(yellow("No Ollama models found."))
-        print(dim("  Check that ~/.ollama/models/ exists and contains manifests."))
-        print(dim("  Pull models with: ollama pull <model_name>"))
+        if source == "api":
+            print(dim("  No models on the Ollama server."))
+        else:
+            print(dim("  Check that ~/.ollama/models/ exists and contains manifests."))
+            print(dim("  Pull models with: ollama pull <model_name>"))
         return
 
     print(bold(bright_cyan("TURBOQUANT")) + dim(" — available Ollama models"))
-    print(f"  {dim(f'Models dir: {OLLAMA_BLOBS_DIR.parent}')}")
+    if source == "api" and backend_url:
+        print(f"  {dim(f'Backend: {backend_url}')}")
+    else:
+        print(f"  {dim(f'Models dir: {OLLAMA_BLOBS_DIR.parent}')}")
     print()
 
     # Table header
@@ -568,6 +580,7 @@ def print_model_list(models: list[OllamaModel]) -> None:
         name_str = f"{exists_marker} {model.name}"
         size_str = model.size_human
         quant_str = model.weight_quant
+        is_not_pulled = quant_str == "not pulled"
 
         # Get recommended config
         if model.turbo_compatible:
@@ -584,7 +597,7 @@ def print_model_list(models: list[OllamaModel]) -> None:
             pad_colored(name_str, name_w) +
             pad_colored(size_str, size_w, "right") +
             "  " +
-            pad_colored(cyan(quant_str), quant_w) +
+            pad_colored(dim(quant_str) if is_not_pulled else cyan(quant_str), quant_w) +
             "  " +
             pad_colored(compat_color(turbo_str), quant_w + 2) + mode_str
         )
@@ -593,7 +606,8 @@ def print_model_list(models: list[OllamaModel]) -> None:
     # Count compatible models
     n_compatible = sum(1 for m in models if m.turbo_compatible)
     n_incompatible = sum(1 for m in models if m.head_dim > 0 and not m.turbo_compatible)
-    n_unknown = sum(1 for m in models if m.head_dim == 0)
+    n_not_pulled = sum(1 for m in models if m.weight_quant == "not pulled")
+    n_unknown = sum(1 for m in models if m.head_dim == 0 and m.weight_quant != "not pulled")
 
     print()
     print(dim(f"  {len(models)} model(s) found"))
@@ -603,7 +617,12 @@ def print_model_list(models: list[OllamaModel]) -> None:
         print(bright_red(f"  {n_incompatible} incompatible (head_dim < 128, turbo KV will crash)"))
     if n_unknown:
         print(yellow(f"  {n_unknown} unknown (could not read head_dim from GGUF)"))
-    print(dim("  ● = blob exists  ✗ = blob missing"))
+    if n_not_pulled:
+        print(dim(f"  {n_not_pulled} not pulled locally (pull with: ollama pull <name>)"))
+    if source == "api":
+        print(dim("  ● = blob exists  ✗ = blob missing / not pulled"))
+    else:
+        print(dim("  ● = blob exists  ✗ = blob missing"))
     print()
 
 
