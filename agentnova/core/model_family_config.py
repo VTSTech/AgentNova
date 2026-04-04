@@ -245,7 +245,7 @@ Keep answers brief. Show calculation first, then the final number.""",
         prefers_few_shot=False,
         few_shot_style="compact",
         reasoning_hints=["Be direct and helpful", "Follow instructions precisely"],
-        no_tools_system_prompt="""You are Dolphin, a helpful AI assistant.
+        no_tools_system_prompt="""You are AI AgentNova.
 
 Be concise and direct. For math, show the calculation then the answer.
 For questions, give short answers. For code, write Python functions.
