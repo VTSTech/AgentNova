@@ -213,27 +213,6 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 ---
 
-### Chat Completions Mode Results (R03.9 - openai API Mode, NO SOUL)
-
-> Testing with `--api openai` uses OpenAI-compatible Chat Completions API (`/v1/chat/completions`)
-> Scores below reflect bare model capability without persona guidance. Not directly comparable to with-soul results.
-> Test params: `--api openai` only (default settings, no soul)
-> ⏳ **Partial results** — 9 of 10 models tested; remaining 1 pending
-
-| Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | Notes |
-|:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|-------|-------|
-| 1 | **`granite4:350m`** | **5/5 (100%)** | 44.2s | ✅ | ✅ | ✅ | ✅ | ✅ | Perfect score! 4x faster (183 to 44s) |
-| 2 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 99.9s | ✅ | ✅ | ✅ | ✅ | ❌ hall. | With --soul; 0/5 without — heavily soul-dependent |
-| 3 | `nchapman/dolphin3.0-qwen2.5:0.5b` | **3/5 (60%)** | 31.6s | ✅ | ❌ 49 | ✅ | ✅ | ❌ 10 | Improved even without soul; Q2/Q5 reasoning |
-| 3 | `qwen2:0.5b` | **3/5 (60%)** | 22.1s | ✅ | ✅ | ❌ 4.03% | ✅ | ❌ 6 | Stable; different failure pattern |
-| 3 | `gemma3:270m` | **3/5 (60%)** | 14.8s | ✅ | ❌ Q1 bleed | ✅ | ✅ | ❌ 10 | Q2 context bleed (no soul isolation) |
-| 6 | `qwen2.5:0.5b` | **2/5 (40%)** | 45.7s | ❌ empty | ✅ | ❌ empty | ✅ | ❌ text | Soul-dependent; likely recovers with --soul |
-| 7 | `qwen3.5:0.8b` | **0/5 (0%)** | 91.0s | ❌ empty | ❌ empty | ❌ empty | ❌ empty | ❌ empty | All empty responses |
-| 7 | `qwen3:0.6b` | **0/5 (0%)** | 138.4s | ❌ empty | ❌ empty | ❌ empty | ❌ empty | ❌ 6 | Soul-dependent; was 3/5 with soul |
-| 7 | `qwen:0.5b` | **0/5 (0%)** | 37.3s | ❌ 32 | ❌ 10 | ❌ 10 | ❌ 8 | ❌ 42h | All wrong; base model too small |
-
----
-
 ## Test 02 Tool Tests
 
 > **Updated:** 2026-03-28 - R03.7 first results
