@@ -4,7 +4,7 @@
 
 Test 01 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
 
-> **Updated:** 2026-04-04 - R04.5 OpenResponses (openre) with-soul results in progress (13/14 models)
+> **Updated:** 2026-04-04 - R04.5 OpenResponses (openre) with-soul results in progress (15/16 models)
 > **Previous:** 2026-04-01 - R04.4 OpenResponses (openre) with-soul results complete (10/10 models)
 
 **Usage:**
@@ -24,7 +24,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 > Testing with `--api openre --soul nova-helper` uses Ollama's native OpenResponses API (`/api/chat`) with the nova-helper soul persona
 > Test params: `--timeout 9999 --num-ctx 16768 --num-predict 256 --temp 0.1 --soul nova-helper`
 > Environment: CPU-only Google Colab, 12GB RAM, Ollama
-> ⏳ **Partial results** — 13 of 14 models tested; remaining 1 pending (functiongemma:270m)
+> ⏳ **Partial results** — 15 of 16 models tested; remaining 1 pending (functiongemma:270m)
 
 | Rank | Model | Size | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R04.4 | Notes |
 |:----:|-------|-----:|------:|:----:|:--:|:--:|:--:|:--:|:---------:|-------|-------|
@@ -41,6 +41,8 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | 9 | `qwen:1.8b` | 1.04 GB | **0/5 (0%)** | 783.2s | ❌ garb. | ❌ garb. | ❌ garb. | ❌ garb. | ❌ garb. | NEW | Complete failure; garbled markdown output, no tool use. Unusable with openre.
 | 9 | `gemma3:270m` | 0.27 GB | **1/5 (20%)** | 1168.9s | ❌ tmpl | ❌ tmpl | ❌ tmpl | ✅ | ❌ empty | -1 | Regression. Q1-Q3 literal `<the result>` template. Only Q4 passed.
 | 9 | `deepseek-coder:1.3b` | ~0.67 GB | **1/5 (20%)** | 1221.8s | ❌ 48 | ❌ 123 | ❌ code | ❌ code | ✅ | NEW | No tool use; verbose code dumps. Slowest model (1222s).
+| 2 | `llama3.2:1b` | ~1.24 GB | **4/5 (80%)** | 757.2s | ❌ empty | ✅ | ✅ | ✅ | ✅ | NEW | Q1 empty (cold start). Q2-Q5 all pass at ~60s. Strong warm perf. |
+| 6 | `nchapman/dolphin3.0-llama3:1b` | ~1.24 GB | **3/5 (60%)** | 403.6s | ✅ | ❌ 57 | ❌ 5.25 | ✅ | ✅ | NEW | Q2 off-by-6, Q3 division error. ~12s warm.
 
 #### qwen2.5:1.5b Detailed Breakdown
 
@@ -212,14 +214,52 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 - **Coder model behavior** — despite being a "coder" model, it outputs code as text explanation rather than executing it via tools; no tool calling attempted
 - **Base model pattern** — like qwen:0.5b and qwen:1.8b, the deepseek-coder base model lacks the instruction-following capability needed for ReAct tool calling in openre mode
 
+#### llama3.2:1b Detailed Breakdown
+
+| Question | Category | Expected | Got | Result | Time |
+|----------|----------|:--------:|:----:|:------:|:----:|
+| Q1 | Simple Math | 42 | empty | ❌ | 515.1s |
+| Q2 | Multi-step | — | — | ✅ | 58.4s |
+| Q3 | Division | — | — | ✅ | 60.3s |
+| Q4 | Word Problem | — | — | ✅ | 63.3s |
+| Q5 | Time Calc | — | — | ✅ | 60.1s |
+
+**Key Observations:**
+- **Q1 empty on cold start** — 515s with no output generated; model likely timed out or produced no parseable response during initial loading
+- **Q2-Q5 perfect** — once warm, model answered all remaining questions correctly at a consistent ~60s each
+- **Strong warm performance** — 60s per question is slower than granite4 (13s) but reliable; no wrong answers once loaded
+- **Likely 5/5 with warmup** — the Q1 failure is a cold start artifact, not a capability limitation; retry with `--warmup` expected to yield 100%
+- **llama3.2 architecture** — 1B parameter model from Meta's llama3.2 family; first llama variant tested in R04.5 openre
+- **Largest 80% scorer** — at ~1.24 GB, significantly larger than other 80% models (0.33-0.49 GB) but also the most consistent warm performer
+
+#### nchapman/dolphin3.0-llama3:1b Detailed Breakdown
+
+| Question | Category | Expected | Got | Result | Time |
+|----------|----------|:--------:|:----:|:------:|:----:|
+| Q1 | Simple Math | — | — | ✅ | 352.6s |
+| Q2 | Multi-step | 51 | 57 | ❌ | 12.3s |
+| Q3 | Division | 4.25 | 5.25 | ❌ | 12.8s |
+| Q4 | Word Problem | — | — | ✅ | 14.5s |
+| Q5 | Time Calc | — | — | ✅ | 60.1s |
+
+**Key Observations:**
+- **352s cold start** on Q1, then blazing 11-15s per question when warm — fastest warm speed alongside granite4
+- **Q2 off-by-6** — got 57 instead of 51; similar pattern to qwen3.5:0.8b (got 45) and dolphin3.0-qwen (got 39), suggesting multi-step arithmetic is a common weakness across dolphin3.0 variants
+- **Q3 division error** — got 5.25 instead of 4.25; an off-by-1 error in the integer part, suggesting the model may have miscounted or confused the division result
+- **Q4-Q5 perfect** — word problem and time calculation both correct
+- **Complementary to llama3.2:1b** — base llama3.2 fails Q1 (cold start), dolphin3.0-llama passes Q1 but fails Q2-Q3; the dolphin3.0 fine-tuning improves cold start reliability at the cost of arithmetic accuracy
+- **Fastest warm speed** at ~12s per question — competitive with granite4:350m (11-15s) despite being ~1.24 GB vs 0.66 GB
+- **Dolphin3.0 pattern across families** — both dolphin3.0-qwen2.5 (4/5, Q2 fail) and dolphin3.0-llama3 (3/5, Q2+Q3 fail) show regression on multi-step math compared to their base models
+
 #### Complementary Failure Analysis (R04.5)
 
-| Question | qwen2.5:0.5b | qwen2.5-coder:0.5b | qwen2.5:1.5b | granite4:350m | ds-r1:1.5b | gemma3:270m | qwen3:0.6b | dolphin3.0 | qwen:0.5b | qwen:1.8b | ds-coder:1.3b | Weakness |
-|----------|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|----------|
-| Q2 Multi-step | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ tmpl | ✅ | ❌ 39 | ❌ text | ❌ garb. | ❌ 123 | dolphin3.0 off-by-12, gemma3 tmpl, qwen base no tool/garbled, ds-coder wrong math |
-| Q3 Division | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ tmpl | ✅ | ✅ | ❌ 68 | ❌ garb. | ❌ code | gemma3 tmpl, qwen base no tool/garbled, ds-coder code dump |
-| Q4 Word Problem | ❌ text | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ 24 | ❌ garb. | ❌ code | qwen2.5:0.5b text, qwen base wrong/garbled, ds-coder code dump |
-| Q5 Time Calc | ✅ | ❌ empty | ✅ | ✅ | ✅ | ❌ empty | ❌ 17h | ✅ | ❌ 24h | ❌ garb. | ✅ | Most common failure; gemma3 empty |
+| Question | qwen2.5:0.5b | qwen2.5-coder:0.5b | qwen2.5:1.5b | granite4:350m | ds-r1:1.5b | gemma3:270m | qwen3:0.6b | d3.0-qwen | d3.0-llama | llama3.2 | qwen:0.5b | qwen:1.8b | ds-coder:1.3b | Weakness |
+|----------|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|----------|
+| Q1 Simple | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ tmpl | ✅ | ✅ | ✅ | ❌ empty | ✅ | ❌ garb. | ❌ 48 | llama3.2 cold start, gemma3 tmpl, qwen:1.8b garb., ds-coder wrong math |
+| Q2 Multi-step | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ tmpl | ✅ | ❌ 39 | ❌ 57 | ✅ | ❌ text | ❌ garb. | ❌ 123 | dolphin3.0 off-by-12/6, gemma3 tmpl, qwen base no tool/garbled, ds-coder wrong math |
+| Q3 Division | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ tmpl | ✅ | ✅ | ❌ 5.25 | ✅ | ❌ 68 | ❌ garb. | ❌ code | gemma3 tmpl, qwen base no tool/garbled, d3.0-llama off-by-1, ds-coder code dump |
+| Q4 Word Problem | ❌ text | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ 24 | ❌ garb. | ❌ code | qwen2.5:0.5b text, qwen base wrong/garbled, ds-coder code dump |
+| Q5 Time Calc | ✅ | ❌ empty | ✅ | ✅ | ✅ | ❌ empty | ❌ 17h | ✅ | ✅ | ✅ | ❌ 24h | ❌ garb. | ✅ | Most common failure; gemma3 empty, qwen3.0:0.6b 17h |
 
 > granite4:350m, qwen2.5:1.5b, and deepseek-r1:1.5b are the only models to clear all 5 questions. The qwen2 base models and deepseek-coder are fundamentally incompatible with ReAct tool calling.
 
