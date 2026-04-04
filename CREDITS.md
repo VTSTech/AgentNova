@@ -20,6 +20,7 @@ These projects provide the runtime environments that AgentNova connects to for l
 |---------|-------------|------|
 | **Ollama** | Local LLM inference server supporting a vast ecosystem of open-weight models with native tool calling and OpenAI-compatible APIs | [https://ollama.com](https://ollama.com) |
 | **BitNet** | Microsoft's 1-bit quantized LLM inference engine optimized for extreme CPU efficiency | [https://github.com/microsoft/BitNet](https://github.com/microsoft/BitNet) |
+| **llama.cpp (TurboQuant)** | CPU-optimized LLM inference server with TurboQuant KV cache compression, enabling sub-4K context workloads with minimal memory. AgentNova's `turbo` subcommand discovers Ollama models and manages the llama-server lifecycle. | [https://github.com/TheTom/llama-cpp-turboquant](https://github.com/TheTom/llama-cpp-turboquant) |
 
 ---
 
@@ -92,10 +93,11 @@ The **Qwen** family from Alibaba Cloud is the most extensively configured and te
 |-------|:----------:|:------------:|-------|
 | **Qwen 2.5** (`qwen2.5`) | 0.5B – 72B | Native (XML) | ChatML format (`<\|im_start\|>`/`<\|im_end\|>`). Primary development target. Excellent performance at all sizes. |
 | **Qwen 2.5 Coder** (`qwen2.5-coder`) | 0.5B – 32B | ReAct | Same family as Qwen 2.5 but different template — uses ReAct text parsing instead of native tool calling. |
-| **Qwen 3** (`qwen3`) | 0.6B – 235B | Native (XML) | Extended thinking mode with `<think/>` tags. AgentNova sends `/no_think` directive by default for tool-calling workflows. |
-| **Qwen 3.5** (`qwen35`) | 0.8B – TBD | Native (XML) | Successor to Qwen 3. Does NOT have thinking mode (simpler template than Qwen 3). |
-| **Qwen 2** (`qwen2`) | 0.5B – 72B | Native (XML) | Earlier generation. Native tool support confirmed. |
+| **Qwen 3** (`qwen3`) | 0.6B – 235B | Native (openre) / ReAct (openai) | Extended thinking mode with `<think/>` tags. Native tool calling on openre only; ReAct on openai. AgentNova sends `/no_think` directive by default for tool-calling workflows. |
+| **Qwen 3.5** (`qwen35`) | 0.8B – TBD | Native (openai) / ReAct (openre) | Successor to Qwen 3. Native tool calling on openai only; ReAct text parsing on openre. Does NOT have thinking mode (simpler template than Qwen 3). |
+| **Qwen 2** (`qwen2`) | 0.5B – 72B | ReAct | Earlier generation. ReAct text parsing (no native tool calling on either API mode). |
 | **Qwen** (base) | 0.5B – 7B | ReAct | Base Qwen model. Falls back to ReAct text parsing. |
+| **Qwen 1.8** (`qwen:1.8b`) | 1.8B | ReAct | Largest base Qwen tested. ReAct text parsing on both API modes. |
 
 ### Meta AI — LLaMA Series
 
@@ -116,7 +118,7 @@ Google's **Gemma** models offer compact, efficient inference with specific handl
 |-------|:----------:|:------------:|-------|
 | **Gemma 3** (`gemma3`) | 270M – 27B | None (ReAct) | Requires first-user system prompt style. No native tool calling — AgentNova uses ReAct prompting. Special `no_tools_system_prompt` for pure reasoning. |
 | **Gemma 2** (`gemma2`) | 2B – 27B | None (ReAct) | Similar behavior to Gemma 3. |
-| **FunctionGemma** | 270M | Native | Specialized function-calling variant. Native tool support confirmed. |
+| **FunctionGemma** | 270M | Native | Specialized function-calling variant. Native tool support on both openre and openai API modes. |
 
 ### IBM — Granite Series
 
@@ -124,7 +126,7 @@ IBM's **Granite** models are well-suited for enterprise and tool-calling tasks.
 
 | Model | Parameters | Tool Support | Notes |
 |-------|:----------:|:------------:|-------|
-| **Granite 4** (`granite4`) | 350M | Native (XML) | Excellent tool-calling performance. Achieved 100% on diagnostic benchmarks at just 350M parameters. |
+| **Granite 4** (`granite4`) | 350M | Native (XML) | Excellent tool-calling performance. Native on both openre and openai. Achieved 100% on diagnostic benchmarks at just 350M parameters. Best sub-500M model tested (88% on tool tests). |
 | **Granite 3.1 MoE** (`granitemoe`) | 1B (active) | Native (XML) | Mixture-of-Experts architecture. Has known schema dump issue and JSON truncation — AgentNova includes specific workarounds. |
 | **Granite** (base) | Various | Native (XML) | Base Granite family with IBM-specific role token format (`<\|start_of_role\|>`). |
 
@@ -155,7 +157,7 @@ IBM's **Granite** models are well-suited for enterprise and tool-calling tasks.
 
 | Model | Base | Creator | Notes |
 |-------|------|---------|-------|
-| **Dolphin 3.0** (Qwen2.5) | 500M | [nchapman](https://huggingface.co/nchapman) | Dolphin fine-tune on Qwen 2.5 base. ChatML format. |
+| **Dolphin 3.0** (Qwen2.5) | 500M | [nchapman](https://huggingface.co/nchapman) | Dolphin fine-tune on Qwen 2.5 base. ChatML format. ReAct text parsing. |
 | **Dolphin 3.0** (LLaMA 3) | 1B | nchapman | Dolphin fine-tune on LLaMA 3. |
 
 ---
@@ -176,6 +178,15 @@ AgentNova communicates with Ollama through two API endpoints:
 
 - **`/api/chat`** — Ollama's native chat API (OpenResponses mode). Supports native tool calling, model listing (`/api/tags`), model inspection (`/api/show`), and streaming.
 - **`/v1/chat/completions`** — OpenAI-compatible endpoint (Chat Completions mode). Supports SSE streaming, tool calling, and the full OpenAI parameter set.
+
+### llama-server / TurboQuant API
+
+The llama-server backend (including TurboQuant builds) communicates through two endpoints:
+
+- **`/completion`** — llama.cpp native text completion API with `prompt`, `n_predict`, `temperature`, `stop`, and `cache_type_k`/`cache_type_v` (TurboQuant KV compression) parameters. Used in OpenRE mode with ReAct tool parsing.
+- **`/v1/chat/completions`** — OpenAI-compatible endpoint (Chat Completions mode). Supports SSE streaming, tool calling, and the full OpenAI parameter set.
+- **`/v1/models`** — Model listing endpoint. Falls back to `/props` (llama.cpp native) for model name discovery when `/v1/models` returns nothing useful.
+- **`/health`** — Health check endpoint used for readiness polling and server status.
 
 ### BitNet API
 
@@ -219,10 +230,12 @@ AgentNova proudly uses **zero external dependencies** at runtime. The entire fra
 - **Google Colab** — AgentNova provides a [Jupyter notebook](https://colab.research.google.com/github/VTSTech/AgentNova/blob/main/AgentNova.ipynb) for cloud-based experimentation.
 - **PyPI** — Package distribution at [https://pypi.org/project/agentnova/](https://pypi.org/project/agentnova/).
 - **badgen** and **shields.io** — Badge services used in the README for download counts, license, and commit tracking.
+- **TheTom** — Author of [llama-cpp-turboquant](https://github.com/TheTom/llama-cpp-turboquant), the TurboQuant KV cache compression fork of llama.cpp that AgentNova's `turbo` subcommand manages. The `recommended_turbo_config()` mapping (symmetric vs asymmetric KV based on weight quantization) is based on TheTom's turboquant_plus research findings.
 - The broader **local LLM community** — including the Ollama, Hugging Face, and open-source AI communities — whose collective work makes running powerful models locally possible.
 
 ---
 
-*Last updated: 2026-03-30 (AgentNova R04.1)*
+*Last updated: 2026-04-04 (AgentNova R04.5)*
 
 *Development history section added: 2026-03-30*
+*TurboQuant backend, Ollama registry, and tool support data updated: 2026-04-04*
