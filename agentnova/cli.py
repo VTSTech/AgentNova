@@ -1433,10 +1433,58 @@ def cmd_turbo(args: argparse.Namespace) -> int:
         return 0
 
     if turbo_cmd == "list":
+        from .backends.ollama_registry import OllamaModel
+
         ollama_dir = Path(args.ollama_dir) if args.ollama_dir else None
         only_existing = not getattr(args, "all", False)
-        models = discover_models(ollama_dir=ollama_dir, only_existing=only_existing)
-        print_model_list(models)
+        config = get_config()
+
+        # Try API-based discovery first (same source as `agentnova models`)
+        api_models = None
+        api_url = None
+        backend_name = getattr(args, "backend", None) or config.backend
+        if backend_name == "ollama":
+            try:
+                backend = get_backend("ollama", api_mode="openre")
+                api_models = backend.list_models()
+                if api_models:
+                    api_url = backend.base_url
+            except Exception:
+                api_models = None
+
+        if api_models is not None:
+            # Got models from API — merge with local GGUF metadata
+            local_models = discover_models(ollama_dir=ollama_dir, only_existing=False)
+            local_lookup = {m.name: m for m in local_models}
+
+            models: list = []
+            for api_m in api_models:
+                name = api_m.get("name", "")
+                if not name:
+                    continue
+                if name in local_lookup:
+                    models.append(local_lookup[name])
+                else:
+                    # Not pulled locally — create minimal OllamaModel from API data
+                    repo, tag = name, "latest"
+                    if ":" in name:
+                        repo, tag = name.rsplit(":", 1)
+                    models.append(OllamaModel(
+                        name=name,
+                        repo=repo,
+                        tag=tag,
+                        blob_path=Path(""),
+                        size_bytes=api_m.get("size", 0),
+                        weight_quant="not pulled",
+                        manifest_path=Path(""),
+                        model_digest="",
+                    ))
+            models.sort(key=lambda m: m.name)
+            print_model_list(models, source="api", backend_url=api_url)
+        else:
+            # API unreachable — fall back to filesystem discovery
+            models = discover_models(ollama_dir=ollama_dir, only_existing=only_existing)
+            print_model_list(models, source="local")
         return 0
 
     elif turbo_cmd == "start":
