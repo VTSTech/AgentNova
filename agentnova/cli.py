@@ -1451,8 +1451,10 @@ def cmd_turbo(args: argparse.Namespace) -> int:
             )
             # Show how to use
             print(dim("  Use with AgentNova:"))
-            print(f"    {cyan(f'agentnova run --backend llama-server --model {args.model} \"<prompt>\"')}")
-            print(f"    {cyan(f'OLLAMA_BASE_URL=http://localhost:{state.port} agentnova run \"<prompt>\"')}")
+            _cmd1 = f"agentnova run --backend llama-server --model {args.model} \"<prompt>\""
+            _cmd2 = f"OLLAMA_BASE_URL=http://localhost:{state.port} agentnova run \"<prompt>\""
+            print(f"    {cyan(_cmd1)}")
+            print(f"    {cyan(_cmd2)}")
             print()
             return 0
         except FileNotFoundError as e:
