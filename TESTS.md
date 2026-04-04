@@ -13,7 +13,7 @@ agentnova test 01 --model qwen2.5:0.5b
 agentnova test 01 --model qwen    # Fuzzy match: all qwen models
 agentnova test 01 --model g       # Fuzzy match: gemma, granite, functiongemma
 agentnova test 01 -m gemma3:270m --force-react --soul nova-helper  # With soul persona
-agentnova test 01 -m granite4:350m --api comp  # Chat Completions API
+agentnova test 01 -m granite4:350m --api openai  # Chat Completions API
 agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 ```
 
@@ -588,7 +588,7 @@ agentnova test 04 --timeout 6400
 agentnova test 08 --debug --num-ctx 4096
 
 # Run with nova-helper SOUL.md, 16k context, ChatCompletions API, Debug Output and 9999 timeout
-agentnova test 01 --soul nova-helper --num-ctx 16384 --api comp --timeout 9999 --debug
+agentnova test 01 --soul nova-helper --num-ctx 16384 --api openai --timeout 9999 --debug
 ```
 
 ---
