@@ -4,7 +4,7 @@
 
 Test 01 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
 
-> **Updated:** 2026-04-04 - R04.5 OpenResponses (openre) with-soul results in progress (7/12 models)
+> **Updated:** 2026-04-04 - R04.5 OpenResponses (openre) with-soul results in progress (8/12 models)
 > **Previous:** 2026-04-01 - R04.4 OpenResponses (openre) with-soul results complete (10/10 models)
 
 **Usage:**
@@ -24,7 +24,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 > Testing with `--api openre --soul nova-helper` uses Ollama's native OpenResponses API (`/api/chat`) with the nova-helper soul persona
 > Test params: `--timeout 9999 --num-ctx 16768 --num-predict 256 --temp 0.1 --soul nova-helper`
 > Environment: CPU-only Google Colab, 12GB RAM, Ollama
-> ⏳ **Partial results** — 7 of 12 models tested; remaining 5 pending
+> ⏳ **Partial results** — 8 of 12 models tested; remaining 4 pending
 
 | Rank | Model | Size | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R04.4 | Notes |
 |:----:|-------|-----:|------:|:----:|:--:|:--:|:--:|:--:|:---------:|-------|-------|
@@ -34,6 +34,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | 2 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | 0.37 GB | **4/5 (80%)** | 306.7s | ✅ | ✅ | ✅ | ✅ | ❌ empty | +1 | Q5 empty. Coder overthinks some questions. |
 | 2 | `qwen3:0.6b` | 0.49 GB | **4/5 (80%)** | 484.9s | ✅ | ✅ | ✅ | ✅ | ❌ 17h | +1 | Q2 fixed (was 49 in R04.4). Q5 persistent time calc error. 382s cold start. |
 | 2 | `qwen3.5:0.8b` | 0.96 GB | **4/5 (80%)** | 652.9s | ✅ | ❌ 45 | ✅ | ✅ | ✅ | 0 | Same score as R04.4; exact same Q2 failure (got 45 vs 51). 2x slower (653s vs 321s). |
+| 7 | `qwen:0.5b` | 0.37 GB | **1/5 (20%)** | 341.5s | ✅ | ❌ text | ❌ 68 | ❌ 24 | ❌ 24h | -1 | Regression; Q2-Q5 all verbose reasoning, no tool use. Base model too small. |
 
 #### qwen2.5:1.5b Detailed Breakdown
 
@@ -70,14 +71,35 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 - **2.1x slower** than R04.4 (485s vs 230s) — likely due to 382s Q1 cold start on Colab
 - **Warm performance strong** — Q2-Q4 at 18-29s each, competitive with faster models
 
+#### qwen:0.5b Detailed Breakdown
+
+| Question | Category | Expected | Got | Result | Time |
+|----------|----------|:--------:|:----:|:------:|:----:|
+| Q1 | Simple Math | — | — | ✅ | 255.5s |
+| Q2 | Multi-step | 51 | text | ❌ | 22.3s |
+| Q3 | Division | 4.25 | 68 | ❌ | 15.4s |
+| Q4 | Word Problem | 10 | 24 | ❌ | 27.3s |
+| Q5 | Time Calc | 8 | 24h | ❌ | 21.0s |
+
+**Key Observations:**
+- **Regression from R04.4** — dropped from 2/5 (40%) to 1/5 (20%); Q2 and Q4 that passed in R04.4 now fail
+- **No tool use on any question** — model outputs verbose reasoning text for all failures, never calls calculator
+- **Q3 hallucinated multiplication** — computed `17 * 4 = 68` instead of `17 / 4 = 4.25`; fundamental math error
+- **Q4 wrong operation** — did `Total - 8 + 6` instead of `Total - 8 - 6`, getting 24 instead of 10
+- **Q5 persistent** — returns 24 hours, same wrong answer as R04.4
+- **Base model too small** — the original `qwen:0.5b` (qwen2 base, not qwen2.5) lacks tool calling capability even with soul guidance
+- **255s cold start** on Q1, then consistent ~21s per question when warm
+
 #### Complementary Failure Analysis (R04.5)
 
-| Question | qwen2.5:0.5b | qwen2.5-coder:0.5b | qwen2.5:1.5b | qwen3:0.6b | Weakness |
-|----------|:--:|:--:|:--:|:--:|----------|
-| Q4 Word Problem | ❌ text | ✅ | ✅ | ✅ | Base model outputs reasoning instead of answer |
-| Q5 Time Calc | ✅ | ❌ empty | ✅ | ❌ 17h | Coder empty, qwen3 calc error |
+| Question | qwen2.5:0.5b | qwen2.5-coder:0.5b | qwen2.5:1.5b | qwen3:0.6b | qwen:0.5b | Weakness |
+|----------|:--:|:--:|:--:|:--:|:--:|----------|
+| Q2 Multi-step | ✅ | ✅ | ✅ | ✅ | ❌ text | Base qwen:0.5b no tool use |
+| Q3 Division | ✅ | ✅ | ✅ | ✅ | ❌ 68 | Base qwen:0.5b hallucinated multiply |
+| Q4 Word Problem | ❌ text | ✅ | ✅ | ✅ | ❌ 24 | Both qwen:0.5b fail formatting |
+| Q5 Time Calc | ✅ | ❌ empty | ✅ | ❌ 17h | ❌ 24h | Coder empty, qwen3/qwen:0.5b calc error |
 
-> The 0.5b variants and qwen3 fail on **different** questions. A theoretical ensemble would score 5/5.
+> The qwen2.5:1.5b is the only model to clear all 5 questions. All other models fail at least one.
 
 ---
 
