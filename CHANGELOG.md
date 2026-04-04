@@ -56,22 +56,27 @@ TurboQuant server lifecycle management added end-to-end: `agentnova turbo list/s
 #### Default Llama-Server Port (`config.py`, `backends/llama_server.py`)
 - `LLAMA_SERVER_BASE_URL` default changed from `http://localhost:8080` to `http://localhost:8764` to align with TurboQuant's default port, reducing configuration friction when switching between Ollama and TurboQuant backends.
 
+#### `--tool-support` Skips Cached Models (`cli.py`)
+- **`cmd_models()`** — `--tool-support` now checks the tool support cache (`~/.cache/agentnova/tool_support.json`) before testing each model. Models with a cached result for the requested API mode are skipped, and the cached value is used directly. Previously, `--tool-support` always called `test_tool_support(force_test=True)` for every model regardless of cache state, making repeated scans slow on CPU-only environments.
+- **`--no-cache`** now becomes the explicit "re-test all" override — when passed alongside `--tool-support`, all models are force-tested regardless of cache (same as the old default behavior).
+- **Help text updated**: `--tool-support` description changed from "Force re-test tool calling support" to "Test tool calling support (skips already-cached models)". `--no-cache` description updated to "Ignore cached results and re-test all models".
+- **Behavior summary**: `agentnova models --tool-support` tests only untested models (fast); `agentnova models --tool-support --no-cache` re-tests everything (old behavior); `agentnova models` reads cache only, never tests (unchanged).
+
 ### File Changes Summary
 
 | Action | File | Changes |
 |--------|------|:-------:|
 | Created | `agentnova/turbo.py` | +661 |
 | Created | `agentnova/backends/ollama_registry.py` | +481 |
-| Updated | `agentnova/cli.py` | +123 −0 |
+| Updated | `agentnova/cli.py` | +129 −4 |
 | Updated | `agentnova/config.py` | +14 −1 |
 | Updated | `agentnova/backends/llama_server.py` | +1 −1 |
 | Updated | `agentnova/__init__.py` | +1 −1 |
 | Updated | `pyproject.toml` | +1 −1 |
 | Updated | `README.md` | +1 −1 |
-| **Total** | **8 files** | **+1283 −4** |
+| **Total** | **8 files** | **+1289 −8** |
 
 ---
-
 
 ## [R04.4] - 04-02-2026 10:32:45 AM
 

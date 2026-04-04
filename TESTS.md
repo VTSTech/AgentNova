@@ -4,7 +4,7 @@
 
 Test 01 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
 
-> **Updated:** 2026-04-04 - R04.5 OpenResponses (openre) with-soul results in progress (8/12 models)
+> **Updated:** 2026-04-04 - R04.5 OpenResponses (openre) with-soul results in progress (9/12 models)
 > **Previous:** 2026-04-01 - R04.4 OpenResponses (openre) with-soul results complete (10/10 models)
 
 **Usage:**
@@ -24,7 +24,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 > Testing with `--api openre --soul nova-helper` uses Ollama's native OpenResponses API (`/api/chat`) with the nova-helper soul persona
 > Test params: `--timeout 9999 --num-ctx 16768 --num-predict 256 --temp 0.1 --soul nova-helper`
 > Environment: CPU-only Google Colab, 12GB RAM, Ollama
-> ⏳ **Partial results** — 8 of 12 models tested; remaining 4 pending
+> ⏳ **Partial results** — 9 of 12 models tested; remaining 3 pending
 
 | Rank | Model | Size | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R04.4 | Notes |
 |:----:|-------|-----:|------:|:----:|:--:|:--:|:--:|:--:|:---------:|-------|-------|
@@ -32,9 +32,11 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | 2 | `qwen2:0.5b` | 0.33 GB | **4/5 (80%)** | 200.8s | ✅ | ✅ | ✅ | ❌ text | ✅ | 0 | Q4 output reasoning text instead of answer. Same Q4 fail as qwen2.5:0.5b. |
 | 2 | `qwen2.5:0.5b` | 0.37 GB | **4/5 (80%)** | 232.4s | ✅ | ✅ | ✅ | ❌ text | ✅ | -1 | Q4 output reasoning text instead of answer. Fastest 80%. |
 | 2 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | 0.37 GB | **4/5 (80%)** | 306.7s | ✅ | ✅ | ✅ | ✅ | ❌ empty | +1 | Q5 empty. Coder overthinks some questions. |
+| 2 | `nchapman/dolphin3.0-qwen2.5:0.5b` | 0.37 GB | **4/5 (80%)** | 208.6s | ✅ | ❌ 39 | ✅ | ✅ | ✅ | -1 | Q2 regression (was 5/5 in R04.4). Fastest 4/5. |
 | 2 | `qwen3:0.6b` | 0.49 GB | **4/5 (80%)** | 484.9s | ✅ | ✅ | ✅ | ✅ | ❌ 17h | +1 | Q2 fixed (was 49 in R04.4). Q5 persistent time calc error. 382s cold start. |
 | 2 | `qwen3.5:0.8b` | 0.96 GB | **4/5 (80%)** | 652.9s | ✅ | ❌ 45 | ✅ | ✅ | ✅ | 0 | Same score as R04.4; exact same Q2 failure (got 45 vs 51). 2x slower (653s vs 321s). |
 | 7 | `qwen:0.5b` | 0.37 GB | **1/5 (20%)** | 341.5s | ✅ | ❌ text | ❌ 68 | ❌ 24 | ❌ 24h | -1 | Regression; Q2-Q5 all verbose reasoning, no tool use. Base model too small. |
+| 9 | `qwen:1.8b` | 1.04 GB | **0/5 (0%)** | 783.2s | ❌ garb. | ❌ garb. | ❌ garb. | ❌ garb. | ❌ garb. | NEW | Complete failure; garbled markdown output, no tool use. Unusable with openre.
 
 #### qwen2.5:1.5b Detailed Breakdown
 
@@ -90,16 +92,53 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 - **Base model too small** — the original `qwen:0.5b` (qwen2 base, not qwen2.5) lacks tool calling capability even with soul guidance
 - **255s cold start** on Q1, then consistent ~21s per question when warm
 
+#### nchapman/dolphin3.0-qwen2.5:0.5b Detailed Breakdown
+
+| Question | Category | Expected | Got | Result | Time |
+|----------|----------|:--------:|:----:|:------:|:----:|
+| Q1 | Simple Math | — | — | ✅ | 170.2s |
+| Q2 | Multi-step | 51 | 39 | ❌ | 11.5s |
+| Q3 | Division | — | — | ✅ | 4.8s |
+| Q4 | Word Problem | — | — | ✅ | 13.2s |
+| Q5 | Time Calc | — | — | ✅ | 8.9s |
+
+**Key Observations:**
+- **Regression from R04.4** — dropped from 5/5 (100%) to 4/5 (80%); was the only openre model to score 100% in R04.4
+- **Q2 failure: 39 vs 51** — off-by-12, a significant calc error suggesting wrong arithmetic order or operator
+- **Fastest 4/5 model** — 208.6s total with Q1 cold start (170s), then blazing 5-13s per question warm
+- **Q3-Q5 perfect** — division, word problem, time calc all correct; tool calling works well
+- **1.75x slower** than R04.4 (209s vs 119s) — likely due to Q1 cold start on Colab
+
+#### qwen:1.8b Detailed Breakdown
+
+| Question | Category | Expected | Got | Result | Time |
+|----------|----------|:--------:|:----:|:------:|:----:|
+| Q1 | Simple Math | 42 | garb. | ❌ | 557.5s |
+| Q2 | Multi-step | 51 | garb. | ❌ | 11.9s |
+| Q3 | Division | 4.25 | garb. | ❌ | 8.9s |
+| Q4 | Word Problem | 10 | garb. | ❌ | 63.5s |
+| Q5 | Time Calc | 8 | garb. | ❌ | 141.4s |
+
+**Key Observations:**
+- **Complete failure** — 0/5 with garbled output on every question; no tool use attempted
+- **Output consists of** markdown code blocks (`` ``` ``), pipe characters, and fragmented text fragments
+- **Model confuses prompt structure** — appears to echo back formatting directives as content (`` ## ``, `` ** ``, instruction fragments)
+- **Q1 took 557s** (cold start), then Q2-Q3 were fast (9-12s) suggesting the model generated very short garbled output
+- **Q4-Q5 longer** (63-141s) with more verbose garbled output including numbered lists and instruction fragments
+- **qwen2 base model** (original qwen, not qwen2.5) — lacks instruction-following capability in the openre API mode
+- **ReAct tool format incompatible** — this model cannot produce structured `Action: / Action Input:` output
+- **Unusable for agent workflows** — even at 1.8B parameters, the base qwen2 model cannot follow tool calling prompts
+
 #### Complementary Failure Analysis (R04.5)
 
-| Question | qwen2.5:0.5b | qwen2.5-coder:0.5b | qwen2.5:1.5b | qwen3:0.6b | qwen:0.5b | Weakness |
-|----------|:--:|:--:|:--:|:--:|:--:|----------|
-| Q2 Multi-step | ✅ | ✅ | ✅ | ✅ | ❌ text | Base qwen:0.5b no tool use |
-| Q3 Division | ✅ | ✅ | ✅ | ✅ | ❌ 68 | Base qwen:0.5b hallucinated multiply |
-| Q4 Word Problem | ❌ text | ✅ | ✅ | ✅ | ❌ 24 | Both qwen:0.5b fail formatting |
-| Q5 Time Calc | ✅ | ❌ empty | ✅ | ❌ 17h | ❌ 24h | Coder empty, qwen3/qwen:0.5b calc error |
+| Question | qwen2.5:0.5b | qwen2.5-coder:0.5b | qwen2.5:1.5b | qwen3:0.6b | dolphin3.0 | qwen:0.5b | qwen:1.8b | Weakness |
+|----------|:--:|:--:|:--:|:--:|:--:|:--:|:--:|----------|
+| Q2 Multi-step | ✅ | ✅ | ✅ | ✅ | ❌ 39 | ❌ text | ❌ garb. | dolphin3.0 off-by-12, qwen base no tool/garbled |
+| Q3 Division | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ 68 | ❌ garb. | qwen base: no tool/garbled |
+| Q4 Word Problem | ❌ text | ✅ | ✅ | ✅ | ✅ | ❌ 24 | ❌ garb. | qwen2.5:0.5b text, qwen base wrong/garbled |
+| Q5 Time Calc | ✅ | ❌ empty | ✅ | ❌ 17h | ✅ | ❌ 24h | ❌ garb. | Most common failure point |
 
-> The qwen2.5:1.5b is the only model to clear all 5 questions. All other models fail at least one.
+> The qwen2.5:1.5b is the only model to clear all 5 questions. The qwen2 base models are fundamentally incompatible with ReAct tool calling.
 
 ---
 
