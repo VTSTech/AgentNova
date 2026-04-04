@@ -631,7 +631,7 @@ def print_status(state: TurboState) -> None:
     print(f"  Uptime:     {uptime_str}")
     print(f"  Server:     {dim(state.server_path)}")
     if state.flash_attn:
-        print(f"  Flash Attn: {bright_green("ON")}")
+        print(f"  Flash Attn: {bright_green('ON')}")
     if state.sparsity > 0:
         print(f"  Sparse V:   {state.sparsity}")
     print()
