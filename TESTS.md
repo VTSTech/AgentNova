@@ -213,45 +213,6 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 
 ---
 
-### OpenResponses Mode Results (R03.9 - resp API Mode, WITH SOUL)
-
-> Testing with `--api openre --soul nova-helper` uses Ollama's native OpenResponses API (`/api/chat`) with the nova-helper soul persona
-> Test params: `--api openre --soul nova-helper --num-ctx 32768 --timeout 9999`
-> ⏳ **Partial results** — 7 of 10 models tested; remaining 3 pending
-
-| Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | Notes |
-|:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|-------|-------|
-| 1 | **`granite4:350m`** | **5/5 (100%)** | 295.1s | ✅ | ✅ | ✅ | ✅ | ✅ | Perfect score! Consistent across all modes |
-| 1 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 249.5s | ✅ | ✅ | ✅ | ✅ | ✅ | Reclaims 100%! Fastest perfect score in resp mode |
-| 3 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 301.8s | ✅ | ✅ | ✅ | ✅ | ❌ empty | Q5 empty response |
-| 4 | `nchapman/dolphin3.0-qwen2.5:0.5b` | **3/5 (60%)** | 224.4s | ✅ | ❌ 3 | ✅ | ✅ | ❌ 21 | Improved! Q2 off-by-48, Q5 wrong calc |
-| 5 | `gemma3:270m` | **2/5 (40%)** | 578.7s | ❌ 405 | ❌ 3 | ✅ | ✅ | ❌ result | Regression; Q1/Q2/Q5 tool artifacts, very slow |
-| 5 | `qwen2:0.5b` | **2/5 (40%)** | 286.0s | ✅ | ✅ | ❌ empty | ❌ text | ❌ text | Q3 empty, Q4/Q5 verbose wrong reasoning |
-| 7 | `functiongemma:270m` | **1/5 (20%)** | 335.3s | ✅ | ❌ hall. | ❌ 1024 | ❌ refused | ❌ refused | Q2 hallucinated success, Q3 wrong calc, Q4/Q5 refusals |
-
----
-
-### Chat Completions Mode Results (R03.9 - openai API Mode, WITH SOUL)
-
-> Testing with `--api openai --soul nova-helper` uses OpenAI-compatible Chat Completions API (`/v1/chat/completions`) with the nova-helper soul persona
-> Test params: `--api openai --soul nova-helper --num-ctx 32768 --timeout 9999`
-> ✅ **Complete** — All 10 models tested
-
-| Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | Notes |
-|:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|-------|-------|
-| 1 | **`granite4:350m`** | **5/5 (100%)** | 293.3s | ✅ | ✅ | ✅ | ✅ | ✅ | Perfect score! Consistent across all modes |
-| 2 | `qwen2.5:0.5b` | **4/5 (80%)** | 260.9s | ✅ | ✅ | ✅ | ✅ | ❌ text | Q5 verbose explanation instead of numeric answer |
-| 2 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 293.5s | ✅ | ✅ | ✅ | ✅ | ❌ empty | Q5 empty response; instruct quant variant |
-| 2 | **`qwen3:0.6b`** | **4/5 (80%)** | 1140.6s | ✅ | ❌ 54 | ✅ | ✅ | ✅ | Q2 off-by-3 (got 54 vs 51); slow (1140s) |
-| 5 | `nchapman/dolphin3.0-qwen2.5:0.5b` | **3/5 (60%)** | 203.0s | ✅ | ❌ 43 | ✅ | ✅ | ❌ 17h | Improved! Q2 off-by-one, Q5 reasoning error |
-| 5 | `qwen2:0.5b` | **3/5 (60%)** | 256.6s | ✅ | ✅ | ❌ 3.5 | ✅ | ❌ 14h | Q3 division rounding, Q5 time calc error |
-| 7 | `qwen3.5:0.8b` | **3/5 (60%)** | 552.2s | ❌ empty | ❌ empty | ✅ | ✅ | ✅ | Massive improvement! Q1/Q2 empty, Q3-Q5 all correct |
-| 8 | `gemma3:270m` | **2/5 (40%)** | 613.2s | ❌ 405 | ❌ 3 | ✅ | ✅ | ❌ 1024 | Regression; Q1/Q2 wrong, very slow (613s) |
-| 9 | `functiongemma:270m` | **1/5 (20%)** | 344.9s | ✅ | ❌ hall. | ❌ 120 | ❌ refused | ❌ refused | Q2 hallucinated success, Q3 wrong calc, Q4/Q5 refusals |
-| 9 | `qwen:0.5b` | **1/5 (20%)** | 279.5s | ❌ 32 | ❌ 41 | ❌ 26 | ❌ 14 | ✅ | Base model too small; Q1-Q4 all wrong despite verbose reasoning |
-
----
-
 ### Chat Completions Mode Results (R03.9 - openai API Mode, NO SOUL)
 
 > Testing with `--api openai` uses OpenAI-compatible Chat Completions API (`/v1/chat/completions`)
