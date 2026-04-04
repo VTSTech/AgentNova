@@ -1,10 +1,11 @@
-# ⚛️ AgentNova R04.4
+# ⚛️ AgentNova R04.5
 
 ## Test 01 Quick Diagnostic (5 Questions)
 
 Test 01 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
 
-> **Updated:** 2026-04-01 - R04.4 OpenResponses (openre) with-soul results complete (10/10  models)
+> **Updated:** 2026-04-04 - R04.5 OpenResponses (openre) with-soul results in progress (3/12 models)
+> **Previous:** 2026-04-01 - R04.4 OpenResponses (openre) with-soul results complete (10/10 models)
 
 **Usage:**
 ```bash
@@ -15,6 +16,47 @@ agentnova test 01 -m gemma3:270m --force-react --soul nova-helper  # With soul p
 agentnova test 01 -m granite4:350m --api comp  # Chat Completions API
 agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 ```
+
+---
+
+### OpenResponses Mode Results (R04.5 - openre API Mode, WITH SOUL)
+
+> Testing with `--api openre --soul nova-helper` uses Ollama's native OpenResponses API (`/api/chat`) with the nova-helper soul persona
+> Test params: `--timeout 9999 --num-ctx 16768 --num-predict 256 --temp 0.1 --soul nova-helper`
+> Environment: CPU-only Google Colab, 12GB RAM, Ollama
+> ⏳ **Partial results** — 3 of 12 models tested; remaining 9 pending
+
+| Rank | Model | Size | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R04.4 | Notes |
+|:----:|-------|-----:|------:|:----:|:--:|:--:|:--:|:--:|:---------:|-------|
+| 1 | **`qwen2.5:1.5b`** | 0.92 GB | **5/5 (100%)** | 543.5s | ✅ | ✅ | ✅ | ✅ | ✅ | NEW | First 100% in openre for this model. ~18s/q warm. |
+| 2 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | 0.37 GB | **4/5 (80%)** | 306.7s | ✅ | ✅ | ✅ | ✅ | ❌ empty | +1 | Q5 empty. Coder overthinks some questions. |
+| 2 | `qwen2.5:0.5b` | 0.37 GB | **4/5 (80%)** | 232.4s | ✅ | ✅ | ✅ | ❌ text | ✅ | -1 | Q4 output reasoning text instead of answer. Fastest 80%. |
+
+#### qwen2.5:1.5b Detailed Breakdown
+
+| Question | Category | Expected | Got | Result | Time |
+|----------|----------|:--------:|:----:|:------:|:----:|
+| Q1 | Simple Math | — | — | ✅ | 473.0s |
+| Q2 | Multi-step | — | — | ✅ | 17.4s |
+| Q3 | Division | — | — | ✅ | 16.9s |
+| Q4 | Word Problem | — | — | ✅ | 19.7s |
+| Q5 | Time Calc | — | — | ✅ | 16.4s |
+
+**Key Observations:**
+- **473s cold start** on Q1 (model loading), then consistent ~17s per question when warm
+- **Only model to achieve 5/5** in R04.5 openre testing so far — handles all question types including word problems and time calculations
+- **Native tool caller** (openre) — successfully uses calculator tool for all questions
+- **Complementary failures** with 0.5b variants: base model fails Q4 (formatting), coder fails Q5 (time calc), 1.5b handles both
+- **2.3x slower** than qwen2.5:0.5b but 100% accurate vs 80% — clear accuracy/speed tradeoff
+
+#### Complementary Failure Analysis (R04.5)
+
+| Question | qwen2.5:0.5b | qwen2.5-coder:0.5b | qwen2.5:1.5b | Weakness |
+|----------|:--:|:--:|:--:|----------|
+| Q4 Word Problem | ❌ text | ✅ | ✅ | Base model outputs reasoning instead of answer |
+| Q5 Time Calc | ✅ | ❌ empty | ✅ | Coder model times out or returns empty | 
+
+> The 0.5b variants fail on **different** questions. A theoretical ensemble would score 5/5.
 
 ---
 
@@ -396,30 +438,27 @@ agentnova models --tool_support
 # Results are saved to tested_models.json for future reference
 ```
 
-Example output:
+Example output (R04.5 — 12 models):
 ```
 ⚛ AgentNova - Available Models
   Backend: http://localhost:11434
 ----------------------------------------------------------------------------------------------------------
   Name                                     Size       Context        openre        openai  Family
 ----------------------------------------------------------------------------------------------------------
+  qwen:1.8b                              1.04 GB         32768       ○ react       ○ react  (qwen2)
+  qwen2.5:1.5b                           0.92 GB         32768      ✓ native       ○ react  (qwen2)
   gemma3:270m                            0.27 GB         32768       ○ react       ○ react  (gemma3)
   functiongemma:270m                     0.28 GB         32768      ✓ native      ✓ native  (gemma3)
-  qwen2.5:0.5b                           0.37 GB         32768      ✓ native      ✓ native  (qwen2)
   granite4:350m                          0.66 GB         32768      ✓ native      ✓ native  (granite)
-  qwen:0.5b                              0.37 GB         32768       ○ react       ○ react  (qwen2)
+  qwen3.5:0.8b                           0.96 GB        262144       ○ react      ✓ native  (qwen35)
+  qwen3:0.6b                             0.49 GB         40960      ✓ native       ○ react  (qwen3)
+  qwen2.5:0.5b                           0.37 GB         32768      ✓ native      ✓ native  (qwen2)
   qwen2:0.5b                             0.33 GB         32768       ○ react       ○ react  (qwen2)
-  qwen2.5-coder:0.5b-instruct-q4_k_m     0.37 GB         32768       ○ react       ○ react  (qwen2)
+  qwen:0.5b                              0.37 GB         32768       ○ react       ○ react  (qwen2)
   nchapman/dolphin3.0-qwen2.5:0.5b       0.37 GB         32768       ○ react       ○ react  (qwen2)
-  nchapman/dolphin3.0-llama3:1b          0.75 GB        131072    ? untested    ? untested  (llama)
-  llama3.2:1b                            1.23 GB        131072    ? untested    ? untested  (llama)
-  granite3.1-moe:1b                      1.32 GB        131072    ? untested    ? untested  (granitemoe)
-  deepseek-coder:1.3b                    0.72 GB         16384    ? untested    ? untested  (llama)
-  deepseek-r1:1.5b                       1.04 GB        131072    ? untested    ? untested  (qwen2)
-  qwen3.5:0.8b                           0.96 GB        262144      ✓ native      ✓ native  (qwen35)
-  qwen3:0.6b                             0.49 GB         40960       ○ react       ○ react  (qwen3)
+  qwen2.5-coder:0.5b-instruct-q4_k_m     0.37 GB         32768       ○ react       ○ react  (qwen2)
 ----------------------------------------------------------------------------------------------------------
-Total: 15 models
+Total: 12 models
 
 Legend: ✓ native (API tools) | ○ react (text parsing) | ✗ none (no tools) | ? untested
 Context: Max context window from model API
