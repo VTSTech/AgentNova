@@ -432,7 +432,7 @@ class Agent:
         in BitNet's degraded tokenizer, crashing the inference engine.
         """
         if not has_tools:
-            return "You are a helpful AI assistant. Answer questions directly and accurately."
+            return "You are AI AgentNova. Answer questions directly and accurately."
 
         if self._is_bitnet:
             # Ultra-lean ReAct prompt for BitNet's degraded tokenizer.
@@ -440,12 +440,12 @@ class Agent:
             # token positions, crashing the i2_s kernel at ~320 tokens.
             # Keep this under 500 chars to stay safely below the crash threshold.
             return (
-                "You are a helpful assistant with tools.\n"
+                "You are AI AgentNova with tools.\n"
                 "Use the ReAct format shown in the tool section below.\n"
                 "After tool result, give Final Answer: <answer>"
             )
 
-        return """You are a helpful AI assistant with access to tools.
+        return """You are AI AgentNova with access to tools.
 
 When you need to use a tool, follow this EXACT format:
 
