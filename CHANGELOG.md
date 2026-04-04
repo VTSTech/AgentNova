@@ -4,6 +4,75 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [R04.5] - 04-04-2026 12:38:06 PM
+
+### TurboQuant Server Manager & Ollama Model Registry
+
+TurboQuant server lifecycle management added end-to-end: `agentnova turbo list/start/stop/status` discovers Ollama models by reading their manifests, resolves GGUF blob paths, reads model metadata directly from the binary headers (architecture, head_dim, quantization), and starts/stops a llama-cpp-turboquant server. Zero conversion needed — Ollama blobs are used directly as GGUF model files. The Ollama model registry uses `mmap` for fast binary header parsing, extracting weight quantization and TurboQuant compatibility metadata (head_dim ≥ 128 required for KV block alignment).
+
+### Added
+
+#### TurboQuant Server Manager (`turbo.py`, `cli.py`)
+- **`TurboState` dataclass** — persistent server state (PID, model, port, KV cache config, uptime) saved to `~/.agentnova/turbo.state` and `~/.agentnova/turbo.pid`. `load()`, `save()`, `clear()` methods for lifecycle management. Survives across CLI invocations.
+- **`start_server()`** — launches llama-server as a detached subprocess with full TurboQuant configuration: KV cache types (q8_0, q4_0, turbo2, turbo3, turbo4, f16), flash attention, sparse V decoding sparsity, thread count, and arbitrary passthrough args. Validates model compatibility (head_dim ≥ 128 for turbo KV), auto-detects recommended KV cache config from weight quantization, and polls `/health` endpoint for readiness. Raises `RuntimeError` if a server is already running.
+- **`stop_server()`** — graceful SIGTERM shutdown with 10-second wait, then SIGKILL fallback. Reports model name, PID, signal, and uptime.
+- **`get_status()`** — returns `TurboState` if server is running (checks PID liveness), `None` otherwise.
+- **`print_model_list()`** — formatted table of discovered Ollama models showing name, size, weight quantization, and TurboQuant compatibility with recommended KV cache config per model.
+- **`print_status()`** — formatted server status with health check, uptime, KV cache config, and AgentNova usage examples.
+- **`_build_command()`** — constructs llama-server command line from config (model path, port, ctx, cache types, flash attention, sparsity, threads, extra args).
+- **`_check_server_health()`** — HTTP GET to `/health` with 3s timeout.
+- **`_is_process_alive()`** — signal 0 PID check for cross-platform process liveness.
+- **Environment variables**: `TURBOQUANT_SERVER_PATH` (default: `llama-server`), `TURBOQUANT_PORT` (default: `8764`), `TURBOQUANT_CTX` (default: `8192`).
+- **`agentnova turbo list`** — lists Ollama models with `--all` flag for missing blobs, `--ollama-dir` override.
+- **`agentnova turbo start <model>`** — starts TurboQuant server with `--server`, `--port`, `--ctx`, `--turbo-k`, `--turbo-v`, `--flash-attn`, `--sparsity`, `--threads`, `--no-wait`, `--timeout`, `--` (extra args passthrough).
+- **`agentnova turbo stop [--force]`** — stops server with optional SIGKILL.
+- **`agentnova turbo status`** — shows running server info or startup hints.
+- **`agentnova turbo`** (bare) — shows status if running, help otherwise.
+
+#### Ollama Model Registry (`backends/ollama_registry.py`)
+- **`OllamaModel` dataclass** — represents a discovered Ollama model with name, repo, tag, blob path, size, weight quant, manifest path, digest, architecture, head_dim, n_heads, n_layers, context_length. Properties: `turbo_compatible` (head_dim ≥ 128), `turbo_note`, `size_human`, `exists`.
+- **`discover_models()`** — walks `~/.ollama/models/manifests/registry.ollama.ai/<library>/<repo>/<tag>`, parses manifest JSON, resolves blob paths via digest (sha256: → sha256-), reads GGUF headers for architecture and quantization metadata. Supports `ollama_dir` override and `only_existing` filter.
+- **`find_model()`** — finds a model by name with three-tier matching: exact (repo+tag), fuzzy (repo only), substring (name containment).
+- **`_detect_weight_quant()`** — reads `general.file_type` from GGUF binary header using `mmap` byte search (no sequential KV parsing). Maps file_type uint32 to human-readable names (37 quant types including TurboQuant TQ4_1S, TQ3_1S). Falls back to filename heuristic for non-GGUF files.
+- **`_gguf_read_u32()` / `_gguf_read_str()`** — generic GGUF key readers using `mmap.find()` with key_len/value_type/value offset extraction from binary layout: `[key_len: u64][key_data: key_len bytes][value_type: u32][value: varies]`.
+- **`_resolve_blob_path()`** — converts manifest `sha256:<hex>` digest to blob file path `sha256-<hex>`.
+- **`_parse_ollama_name()`** — parses `repo:tag` and `library/repo:tag` formats.
+- **`recommended_turbo_config()`** — auto-detects optimal KV cache config from weight quantization: F32/F16/BF16/Q8_0 → symmetric turbo3/turbo3; TQ types → asymmetric q8_0/turbo4; Q4_K_M and lower → asymmetric q8_0/turbo4. Based on TheTom's turboquant_plus findings.
+- **`_filename_heuristic()`** — fallback quant detection from filename patterns (47 candidate patterns sorted by specificity).
+- **Constants**: `OLLAMA_MODELS_DIR`, `OLLAMA_MANIFESTS_DIR`, `OLLAMA_BLOBS_DIR`, `_GGUF_MAGIC`, `_TURBO_D = 128`.
+
+#### Configuration (`config.py`)
+- **`TURBOQUANT_SERVER_PATH`** — default `llama-server`, override via env var.
+- **`TURBOQUANT_PORT`** — default `8764`, override via env var.
+- **`TURBOQUANT_CTX`** — default `8192`, override via env var.
+- **`LLAMA_SERVER_BASE_URL` default** changed from `http://localhost:8080` to `http://localhost:8764` to match TurboQuant default port.
+
+### Changed
+
+#### Version Bump (`__init__.py`, `pyproject.toml`, `README.md`)
+- Version bumped from `0.4.4` to `0.4.5-dev`
+- README header updated to R04.5
+
+#### Default Llama-Server Port (`config.py`, `backends/llama_server.py`)
+- `LLAMA_SERVER_BASE_URL` default changed from `http://localhost:8080` to `http://localhost:8764` to align with TurboQuant's default port, reducing configuration friction when switching between Ollama and TurboQuant backends.
+
+### File Changes Summary
+
+| Action | File | Changes |
+|--------|------|:-------:|
+| Created | `agentnova/turbo.py` | +661 |
+| Created | `agentnova/backends/ollama_registry.py` | +481 |
+| Updated | `agentnova/cli.py` | +123 −0 |
+| Updated | `agentnova/config.py` | +14 −1 |
+| Updated | `agentnova/backends/llama_server.py` | +1 −1 |
+| Updated | `agentnova/__init__.py` | +1 −1 |
+| Updated | `pyproject.toml` | +1 −1 |
+| Updated | `README.md` | +1 −1 |
+| **Total** | **8 files** | **+1283 −4** |
+
+---
+
+
 ## [R04.4] - 04-02-2026 10:32:45 AM
 
 ### BitNet Stop Token Plumbing, Model Discovery & ReAct Parser Hardening
