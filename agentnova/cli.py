@@ -183,8 +183,8 @@ def create_parser() -> argparse.ArgumentParser:
     models_parser.add_argument("--backend", choices=["ollama", "bitnet", "llama-server"], default=None, help="Backend to use")
     models_parser.add_argument("--api", choices=["openre", "openai"], default=None, dest="api_mode",
                            help="API mode for tool support testing (default: test both)")
-    models_parser.add_argument("--tool-support", action="store_true", help="Force re-test tool calling support (both API modes)")
-    models_parser.add_argument("--no-cache", action="store_true", help="Ignore cached tool support results")
+    models_parser.add_argument("--tool-support", action="store_true", help="Test tool calling support (skips already-cached models)")
+    models_parser.add_argument("--no-cache", action="store_true", help="Ignore cached results and re-test all models")
     models_parser.add_argument("--acp", action="store_true", help="Enable ACP logging to Agent Control Panel")
     models_parser.add_argument("--acp-url", default=None, help="ACP server URL (default: from config)")
 
@@ -935,10 +935,16 @@ def cmd_models(args: argparse.Namespace) -> int:
             results = {}  # mode -> status string
 
             if args.tool_support:
-                # Test each requested mode
+                # Test each requested mode, skipping cached results
                 modes_label = " + ".join(modes_to_test)
                 print(f"  {dim('Testing:')} {cyan(name)} [{dim(modes_label)}]...", end="", flush=True)
                 for mode in modes_to_test:
+                    # Skip models that are already cached (unless --no-cache)
+                    if not args.no_cache:
+                        cached = get_cached_tool_support(name, api_mode=mode)
+                        if cached is not None:
+                            results[mode] = cached.value
+                            continue
                     backend.api_mode = ApiMode(mode)
                     try:
                         support = backend.test_tool_support(name, family=family, force_test=True)
