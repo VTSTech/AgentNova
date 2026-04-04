@@ -4,8 +4,8 @@
 
 Test 01 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
 
-> **Updated:** 2026-04-04 - R04.5 OpenResponses (openre) with-soul results complete (16/16 models)
-> **Previous:** 2026-04-01 - R04.4 OpenResponses (openre) with-soul results complete (10/10 models)
+> **Updated:** 2026-04-04 - R04.5 ChatCompletions (openai) with-soul results expanded (9→12 models)
+> **Previous:** 2026-04-04 - R04.5 OpenResponses (openre) with-soul results complete (16/16 models)
 
 **Usage:**
 ```bash
@@ -271,19 +271,77 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 > Testing with `--api openai --soul nova-helper --warmup` uses OpenAI-compatible Chat Completions API (`/v1/chat/completions`) with the nova-helper soul persona
 > Test params: `--timeout 9999 --num-ctx 16768 --num-predict 256 --temp 0.2 --soul nova-helper --api openai --warmup`
 > Environment: CPU-only Google Colab, 12GB RAM, Ollama
-> ✅ **Complete** — All 9 qwen models tested
+> ✅ **Complete** — 12 models tested (9 qwen + granite4 + granite3.1-moe + gemma3)
 
 | Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R04.4 openai | Notes |
 |:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|:---------:|:------:|-------|
 | 1 | **`qwen2.5:0.5b`** | **5/5 (100%)** | 239.4s | ✅ | ✅ | ✅ | ✅ | ✅ | 0 | Still perfect. 5.1s on Q5. Warmup: 8.3s. |
+| 1 | **`granite4:350m`** | **5/5 (100%)** | 259.1s | ✅ | ✅ | ✅ | ✅ | ✅ | 0 | Still perfect in openai. 205s cold, ~13s warm. Native tool caller. |
 | 1 | **`qwen2.5:1.5b`** | **5/5 (100%)** | 564.5s | ✅ | ✅ | ✅ | ✅ | ✅ | NEW | Perfect in openai too. 478s cold, ~22s warm. |
 | 1 | **`qwen3.5:0.8b`** | **5/5 (100%)** | 830.6s | ✅ | ✅ | ✅ | ✅ | ✅ | +3 | Massive improvement from 2/5! Warmup fixed Q1-Q3 empty. |
-| 4 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 302.3s | ✅ | ✅ | ✅ | ✅ | ❌ empty | 0 | Same score; Q5 empty again. Warmup: 1.2s. |
-| 4 | `qwen3:0.6b` | **4/5 (80%)** | 890.3s | ✅ | ❌ 53 | ✅ | ✅ | ✅ | -1 | Q5 fixed (was 17h), Q2 regression (off-by-2). 464s cold. |
-| 6 | `qwen2:0.5b` | **3/5 (60%)** | 224.6s | ✅ | ✅ | ✅ | ❌ 24 | ❌ empty | -1 | Regression from 4/5. Q4 wrong math (24), Q5 empty. |
-| 7 | `qwen:0.5b` | **1/5 (20%)** | 346.2s | ✅ | ❌ 561 | ❌ 68 | ❌ 16 | ❌ 24h | +1 | Base model hallucinated math (8*7=560, 17/4=68). No tool use. |
-| 8 | `qwen:1.8b` | **0/5 (0%)** | 792.7s | ❌ garb. | ❌ garb. | ❌ garb. | ❌ garb. | ❌ empty | 0 | Same as R04.4; garbled markdown, unusable. |
+| 5 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | **4/5 (80%)** | 302.3s | ✅ | ✅ | ✅ | ✅ | ❌ empty | 0 | Same score; Q5 empty again. Warmup: 1.2s. |
+| 5 | `granite3.1-moe:1b` | **4/5 (80%)** | 321.8s | ✅ | ❌ 53 | ✅ | ✅ | ✅ | NEW | Q2 off-by-2 (got 53 vs 51). 276s cold, ~12s warm. MoE architecture. |
+| 5 | `qwen3:0.6b` | **4/5 (80%)** | 890.3s | ✅ | ❌ 53 | ✅ | ✅ | ✅ | -1 | Q5 fixed (was 17h), Q2 regression (off-by-2). 464s cold. |
+| 8 | `qwen2:0.5b` | **3/5 (60%)** | 224.6s | ✅ | ✅ | ✅ | ❌ 24 | ❌ empty | -1 | Regression from 4/5. Q4 wrong math (24), Q5 empty. |
 | 9 | `nchapman/dolphin3.0-qwen2.5:0.5b` | **2/5 (40%)** | 247.6s | ❌ 405 | ❌ 43 | ❌ empty | ✅ | ✅ | +1 | Improved from 1/5. Q1=405, Q2 off-by-8, Q3 empty. |
+| 9 | `gemma3:270m` | **2/5 (40%)** | 827.5s | ❌ 405 | ❌ 3 | ✅ | ✅ | ❌ empty | +1 | Q3 fixed (was `<the result>` in R04.4). Q1 wrong (405), Q5 empty. |
+| 11 | `qwen:0.5b` | **1/5 (20%)** | 346.2s | ✅ | ❌ 561 | ❌ 68 | ❌ 16 | ❌ 24h | +1 | Base model hallucinated math (8*7=560, 17/4=68). No tool use. |
+| 12 | `qwen:1.8b` | **0/5 (0%)** | 792.7s | ❌ garb. | ❌ garb. | ❌ garb. | ❌ garb. | ❌ empty | 0 | Same as R04.4; garbled markdown, unusable. |
+
+#### granite4:350m Detailed Breakdown (R04.5 openai)
+
+| Question | Category | Expected | Got | Result | Time |
+|----------|----------|:--------:|:----:|:------:|:----:|
+| Q1 | Simple Math | — | — | ✅ | 205.3s |
+| Q2 | Multi-step | — | — | ✅ | 13.2s |
+| Q3 | Division | — | — | ✅ | 13.4s |
+| Q4 | Word Problem | — | — | ✅ | 14.0s |
+| Q5 | Time Calc | — | — | ✅ | 13.2s |
+
+**Key Observations:**
+- **Perfect 100% in openai mode** — consistent with R04.4 openai (5/5) and R04.5 openre (5/5)
+- **205s cold start** on Q1 (model loading), then blazing 13-14s per question when warm
+- **One of four 100% models** in R04.5 openai (alongside qwen2.5:0.5b, qwen2.5:1.5b, qwen3.5:0.8b)
+- **Native tool caller** — granite4 uses API-native tool calling in both openai and openre modes
+- **Fastest 100% model** at 259.1s — 8% faster than R04.4 openai (158.5s vs 259.1s total, but Colab cold start varies)
+- **Warm-only time ~54s** (259.1s − 205.3s cold start), making it the fastest warm scorer in the 100% tier
+
+#### granite3.1-moe:1b Detailed Breakdown (R04.5 openai)
+
+| Question | Category | Expected | Got | Result | Time |
+|----------|----------|:--------:|:----:|:------:|:----:|
+| Q1 | Simple Math | — | — | ✅ | 275.9s |
+| Q2 | Multi-step | 51 | 53 | ❌ | 8.2s |
+| Q3 | Division | — | — | ✅ | 11.8s |
+| Q4 | Word Problem | — | — | ✅ | 13.1s |
+| Q5 | Time Calc | — | — | ✅ | 12.8s |
+
+**Key Observations:**
+- **NEW to openai testing** — first appearance in R04.5 ChatCompletions mode
+- **4/5 (80%)** — joins qwen2.5-coder and qwen3:0.6b at the 80% tier
+- **Q2 off-by-2** — got 53 instead of 51, the same error as qwen3:0.6b in openai mode
+- **276s cold start** on Q1, then consistent 8-13s per question when warm
+- **MoE architecture** — Mixture of Experts model at 1B total parameters; already scores 57% (8/14) on Test 03 reasoning
+- **Fastest warm speed** at 8.2s on Q2 — the single fastest individual question time of any model in R04.5 openai
+
+#### gemma3:270m Detailed Breakdown (R04.5 openai)
+
+| Question | Category | Expected | Got | Result | Time |
+|----------|----------|:--------:|:----:|:------:|:----:|
+| Q1 | Simple Math | 42 | 405 | ❌ | 126.7s |
+| Q2 | Multi-step | 51 | 3 | ❌ | 127.1s |
+| Q3 | Division | — | — | ✅ | 143.1s |
+| Q4 | Word Problem | — | — | ✅ | 124.0s |
+| Q5 | Time Calc | 8 | empty | ❌ | 306.6s |
+
+**Key Observations:**
+- **+1 improvement from R04.4 openai** — up from 1/5 (20%) to 2/5 (40%); Q3 now passes
+- **Q3 fixed** — previously output literal `<the result>` template text in R04.4 openai; now computes correctly
+- **Q1 persistent failure** — got 405 instead of 42, same error as R04.4 openai and dolphin3.0-qwen
+- **Q2 regression** — got 3 instead of 51, same wrong answer as R04.4 openai
+- **Q5 still empty** — no output generated for time calculation, consistent across all API modes
+- **827.5s total** — second slowest model in R04.5 openai (after qwen3:0.6b at 890.3s), with 124-307s per question
+- **270M params** — smallest model tested in openai mode; struggles with structured tool calling but word problem (Q4) passes consistently
 
 ---
 
