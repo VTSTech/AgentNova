@@ -1,10 +1,4 @@
-# ⚛️ AgentNova R04.5
-
-## Test 01 Quick Diagnostic (5 Questions)
-
-Test 01 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
-
-> **Updated:** 2026-04-04 - R04.5 OpenResponses (openre) with-soul results in progress (15/16 models)
+> **Updated:** 2026-04-04 - R04.5 OpenResponses (openre) with-soul results complete (16/16 models)
 > **Previous:** 2026-04-01 - R04.4 OpenResponses (openre) with-soul results complete (10/10 models)
 
 **Usage:**
@@ -24,7 +18,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 > Testing with `--api openre --soul nova-helper` uses Ollama's native OpenResponses API (`/api/chat`) with the nova-helper soul persona
 > Test params: `--timeout 9999 --num-ctx 16768 --num-predict 256 --temp 0.1 --soul nova-helper`
 > Environment: CPU-only Google Colab, 12GB RAM, Ollama
-> ⏳ **Partial results** — 15 of 16 models tested; remaining 1 pending (functiongemma:270m)
+> ✅ **Complete** — All 16 models tested
 
 | Rank | Model | Size | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R04.4 | Notes |
 |:----:|-------|-----:|------:|:----:|:--:|:--:|:--:|:--:|:---------:|-------|-------|
@@ -41,6 +35,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | 9 | `qwen:1.8b` | 1.04 GB | **0/5 (0%)** | 783.2s | ❌ garb. | ❌ garb. | ❌ garb. | ❌ garb. | ❌ garb. | NEW | Complete failure; garbled markdown output, no tool use. Unusable with openre.
 | 9 | `gemma3:270m` | 0.27 GB | **1/5 (20%)** | 1168.9s | ❌ tmpl | ❌ tmpl | ❌ tmpl | ✅ | ❌ empty | -1 | Regression. Q1-Q3 literal `<the result>` template. Only Q4 passed.
 | 9 | `deepseek-coder:1.3b` | ~0.67 GB | **1/5 (20%)** | 1221.8s | ❌ 48 | ❌ 123 | ❌ code | ❌ code | ✅ | NEW | No tool use; verbose code dumps. Slowest model (1222s).
+| 10 | `functiongemma:270m` | 0.28 GB | **0/5 (0%)** | 352.6s | ❌ expr | ❌ expr | ❌ 4.0 | ❌ refused | ❌ refused | -1 | Worse than R04.4 (1/5→0/5). Q1-Q2 echo expressions, Q5 new refusal.
 | 2 | `llama3.2:1b` | ~1.24 GB | **4/5 (80%)** | 757.2s | ❌ empty | ✅ | ✅ | ✅ | ✅ | NEW | Q1 empty (cold start). Q2-Q5 all pass at ~60s. Strong warm perf. |
 | 6 | `nchapman/dolphin3.0-llama3:1b` | ~1.24 GB | **3/5 (60%)** | 403.6s | ✅ | ❌ 57 | ❌ 5.25 | ✅ | ✅ | NEW | Q2 off-by-6, Q3 division error. ~12s warm.
 
