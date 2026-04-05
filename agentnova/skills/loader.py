@@ -245,21 +245,19 @@ class Skill:
         """
         warnings = []
         
-        # Check Python version
+        # Check Python version (zero-dep: tuple comparison on split version strings)
         py_req = self._compatibility_parsed.get("python")
         if py_req and python_version:
             min_ver = py_req.get("min_version", "0")
             op = py_req.get("operator", ">=")
             try:
-                from packaging import version
-                py_ver = version.parse(python_version)
-                req_ver = version.parse(min_ver)
+                py_ver = tuple(int(x) for x in python_version.split(".") if x.isdigit())
+                req_ver = tuple(int(x) for x in min_ver.split(".") if x.isdigit())
                 if op == ">=" and py_ver < req_ver:
                     warnings.append(f"Python {python_version} < required {min_ver}")
                 elif op == ">" and py_ver <= req_ver:
                     warnings.append(f"Python {python_version} <= required >{min_ver}")
-            except ImportError:
-                # packaging not available, skip version check
+            except (ValueError, AttributeError):
                 pass
         
         # Check runtime

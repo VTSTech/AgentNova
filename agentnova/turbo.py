@@ -56,6 +56,12 @@ TURBOQUANT_PID_FILE = Path(os.path.expanduser("~/.agentnova/turbo.pid"))
 # State file for tracking server config
 TURBOQUANT_STATE_FILE = Path(os.path.expanduser("~/.agentnova/turbo.state"))
 
+# Server log file
+TURBOQUANT_LOG_FILE = Path(os.path.expanduser("~/.agentnova/turbo.log"))
+
+# Current state file schema version
+_TURBO_STATE_VERSION = 1
+
 # Valid cache types for TurboQuant
 VALID_CACHE_TYPES = ("q8_0", "q4_0", "turbo2", "turbo3", "turbo4", "f16")
 
@@ -67,6 +73,7 @@ VALID_CACHE_TYPES = ("q8_0", "q4_0", "turbo2", "turbo3", "turbo4", "f16")
 @dataclass
 class TurboState:
     """Tracks the running TurboQuant server state."""
+    _version: int = 1
     pid: int = 0
     model_name: str = ""
     blob_path: str = ""
@@ -83,6 +90,7 @@ class TurboState:
 
     def to_dict(self) -> dict:
         return {
+            "_version": _TURBO_STATE_VERSION,
             "pid": self.pid,
             "model_name": self.model_name,
             "blob_path": self.blob_path,
@@ -109,11 +117,16 @@ class TurboState:
 
     @classmethod
     def load(cls) -> Optional["TurboState"]:
-        """Load state from file."""
+        """Load state from file, handling schema versioning."""
         if not TURBOQUANT_STATE_FILE.exists():
             return None
         try:
             data = json.loads(TURBOQUANT_STATE_FILE.read_text())
+            version = data.pop("_version", 0)
+            if version > _TURBO_STATE_VERSION:
+                # State file from a newer version of AgentNova — cannot load
+                return None
+            # Future: add migration logic here for version < _TURBO_STATE_VERSION
             return cls.from_dict(data)
         except (json.JSONDecodeError, OSError):
             return None
@@ -378,10 +391,11 @@ def start_server(
     print()
 
     # Start the server
+    log_file = open(TURBOQUANT_LOG_FILE, "a")
     process = subprocess.Popen(
         cmd,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=log_file,
+        stderr=log_file,
         stdin=subprocess.DEVNULL,
         start_new_session=True,  # Detach from parent process group
     )

@@ -893,9 +893,16 @@ def edit_file(
 # Todo Tool (in-memory task tracking)
 # ============================================================================
 
-# In-memory todo store — persists within a single agent session.
-# Each agent instance gets its own store via the closure in make_builtin_registry.
-_todo_store: list[dict] = []
+# Per-session todo stores — keyed by session_id, defaults to "default".
+# Each agent instance or session gets its own isolated todo list.
+_todo_stores: dict[str, list[dict]] = {"default": []}
+
+
+def _get_todo_store(session_id: str = "default") -> list[dict]:
+    """Get (or create) the todo store for a given session."""
+    if session_id not in _todo_stores:
+        _todo_stores[session_id] = []
+    return _todo_stores[session_id]
 
 
 def todo_add(content: str, priority: str = "medium") -> str:
@@ -919,7 +926,7 @@ def todo_add(content: str, priority: str = "medium") -> str:
     import uuid
     task_id = uuid.uuid4().hex[:8]
 
-    _todo_store.append({
+    _get_todo_store().append({
         "id": task_id,
         "content": content.strip(),
         "status": "pending",
@@ -941,9 +948,11 @@ def todo_list(status: str | None = None) -> str:
     """
     if status:
         status = status.lower().strip()
-        items = [t for t in _todo_store if t["status"] == status]
+        store = _get_todo_store()
+        items = [t for t in store if t["status"] == status]
     else:
-        items = list(_todo_store)
+        store = _get_todo_store()
+        items = list(store)
 
     if not items:
         filter_msg = f" with status '{status}'" if status else ""
@@ -955,10 +964,10 @@ def todo_list(status: str | None = None) -> str:
         pri = f" ({t['priority']})" if t.get("priority") != "medium" else ""
         lines.append(f"{i}. {icon} [{t['id']}]{pri} {t['content']}")
 
-    pending = sum(1 for t in _todo_store if t["status"] == "pending")
-    completed = sum(1 for t in _todo_store if t["status"] == "completed")
+    pending = sum(1 for t in store if t["status"] == "pending")
+    completed = sum(1 for t in store if t["status"] == "completed")
     lines.append(f"")
-    lines.append(f"Total: {len(_todo_store)} ({pending} pending, {completed} completed)")
+    lines.append(f"Total: {len(store)} ({pending} pending, {completed} completed)")
 
     return "\n".join(lines)
 
@@ -973,7 +982,7 @@ def todo_complete(task_id: str) -> str:
     Returns:
         Confirmation or error message
     """
-    for t in _todo_store:
+    for t in _get_todo_store():
         if t["id"] == task_id:
             if t["status"] == "completed":
                 return f"Todo [{task_id}] is already completed: {t['content']}"
@@ -993,9 +1002,10 @@ def todo_remove(task_id: str) -> str:
     Returns:
         Confirmation or error message
     """
-    for i, t in enumerate(_todo_store):
+    store = _get_todo_store()
+    for i, t in enumerate(store):
         if t["id"] == task_id:
-            removed = _todo_store.pop(i)
+            removed = store.pop(i)
             return f"Removed todo [{task_id}]: {removed['content']}"
 
     return f"Error: todo '{task_id}' not found. Use todo_list to see current tasks."
@@ -1008,14 +1018,15 @@ def todo_clear() -> str:
     Returns:
         Summary of how many were cleared
     """
-    before = len(_todo_store)
-    _todo_store[:] = [t for t in _todo_store if t["status"] != "completed"]
-    cleared = before - len(_todo_store)
+    store = _get_todo_store()
+    before = len(store)
+    store[:] = [t for t in store if t["status"] != "completed"]
+    cleared = before - len(store)
 
     if cleared == 0:
         return "No completed todos to clear"
 
-    remaining = len(_todo_store)
+    remaining = len(store)
     return f"Cleared {cleared} completed todo(s). {remaining} remaining."
 
 

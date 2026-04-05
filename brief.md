@@ -470,10 +470,11 @@ result = subprocess.run(validated_cmd, shell=True, ...)
 # Any HTML structure change by DuckDuckGo silently breaks web search.
 ```
 
-### `_todo_store` is module-level global — shared across all agents in same process
+### `_todo_store` is now per-session — keyed by session_id
 ```python
-# tools/builtins.py line 898: _todo_store: list[dict] = []
-# Not per-session. All agents in the same process share the same todo list.
+# tools/builtins.py: _todo_stores: dict[str, list[dict]] = {"default": []}
+# Each session_id gets its own isolated list via _get_todo_store(session_id).
+# Backward-compatible: default session ("default") used when no session_id provided.
 ```
 
 ### `_parse_frontmatter()` has limited YAML support (skills/loader.py)
@@ -482,11 +483,10 @@ result = subprocess.run(validated_cmd, shell=True, ...)
 # DOES NOT handle: nested objects, arrays, null, booleans, numbers without quotes.
 ```
 
-### TurboQuant server stdout/stderr are discarded
+### TurboQuant server logs go to `~/.agentnova/turbo.log`
 ```python
-# turbo.py: subprocess.Popen(..., stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-# All server log output is lost. Only health check endpoint is used for readiness.
-# Debug issues require running llama-server manually outside of agentnova turbo.
+# turbo.py: stdout/stderr now append to TURBOQUANT_LOG_FILE (~/.agentnova/turbo.log)
+# stdin still DEVNULL. Server logs no longer lost — debug issues by reading the log file.
 ```
 
 ### `ollama_registry.py` GGUF parsing depends on key string positioning
@@ -544,11 +544,7 @@ result = subprocess.run(validated_cmd, shell=True, ...)
 - **No ACL per-tool** — `allowed_tools` at Agent level, but no per-role or per-context permission system
 - **PersistentMemory has no migration** — schema changes require manual DB deletion
 - **No token budget enforcement** — CostTracker in ACP tracks costs but no hard limit in Agent
-- **`_todo_store` is module-level global** — shared across all agents in same process (not per-session)
-- **`check_compatibility()` in skills loader** — tries to import `packaging.version`, not available in zero-dep mode
-- **TurboQuant server logs lost** — stdout/stderr devnull'd, no way to debug server-side issues from CLI **[R04.5]**
 - **No `turbo` subcommand auto-completion** — CLI only, no shell completion scripts **[R04.5]**
-- **`TurboState` has no schema versioning** — future format changes will break loading old state files **[R04.5]**
 
 ---
 
