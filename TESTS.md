@@ -32,19 +32,19 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | 1 | **`qwen2.5:1.5b`** | 0.92 GB | **5/5 (100%)** | 543.5s | ✅ | ✅ | ✅ | ✅ | ✅ | NEW | First 100% in openre for this model. ~18s/q warm. |
 | 1 | **`deepseek-r1:1.5b`** | ~0.91 GB | **5/5 (100%)** | 590.6s | ✅ | ✅ | ✅ | ✅ | ✅ | NEW | Third 100% in openre. Reasoning model; 441s cold, ~37s warm. |
 | 2 | `qwen2:0.5b` | 0.33 GB | **4/5 (80%)** | 200.8s | ✅ | ✅ | ✅ | ❌ text | ✅ | 0 | Q4 output reasoning text instead of answer. Same Q4 fail as qwen2.5:0.5b. |
-| 2 | `qwen2.5:0.5b` | 0.37 GB | **4/5 (80%)** | 232.4s | ✅ | ✅ | ✅ | ❌ text | ✅ | -1 | Q4 output reasoning text instead of answer. Fastest 80%. |
-| 2 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | 0.37 GB | **4/5 (80%)** | 306.7s | ✅ | ✅ | ✅ | ✅ | ❌ empty | +1 | Q5 empty. Coder overthinks some questions. |
 | 2 | `nchapman/dolphin3.0-qwen2.5:0.5b` | 0.37 GB | **4/5 (80%)** | 208.6s | ✅ | ❌ 39 | ✅ | ✅ | ✅ | -1 | Q2 regression (was 5/5 in R04.4). Fastest 4/5. |
+| 2 | `qwen2.5:0.5b` | 0.37 GB | **4/5 (80%)** | 232.4s | ✅ | ✅ | ✅ | ❌ text | ✅ | -1 | Q4 output reasoning text instead of answer. Fastest 80%. |
+| 2 | `granite3.1-moe:1b` | ~0.7 GB | **4/5 (80%)** | 328.1s | ✅ | ❌ 53 | ✅ | ✅ | ✅ | NEW | MoE architecture. Q2 off-by-2 (got 53 vs 51). 282s cold, ~11s warm. |
+| 2 | `qwen2.5-coder:0.5b-instruct-q4_k_m` | 0.37 GB | **4/5 (80%)** | 306.7s | ✅ | ✅ | ✅ | ✅ | ❌ empty | +1 | Q5 empty. Coder overthinks some questions. |
 | 2 | `qwen3:0.6b` | 0.49 GB | **4/5 (80%)** | 484.9s | ✅ | ✅ | ✅ | ✅ | ❌ 17h | +1 | Q2 fixed (was 49 in R04.4). Q5 persistent time calc error. 382s cold start. |
 | 2 | `qwen3.5:0.8b` | 0.96 GB | **4/5 (80%)** | 652.9s | ✅ | ❌ 45 | ✅ | ✅ | ✅ | 0 | Same score as R04.4; exact same Q2 failure (got 45 vs 51). 2x slower (653s vs 321s). |
-| 2 | `granite3.1-moe:1b` | ~0.7 GB | **4/5 (80%)** | 328.1s | ✅ | ❌ 53 | ✅ | ✅ | ✅ | NEW | MoE architecture. Q2 off-by-2 (got 53 vs 51). 282s cold, ~11s warm. |
-| 7 | `qwen:0.5b` | 0.37 GB | **1/5 (20%)** | 341.5s | ✅ | ❌ text | ❌ 68 | ❌ 24 | ❌ 24h | -1 | Regression; Q2-Q5 all verbose reasoning, no tool use. Base model too small. |
-| 9 | `qwen:1.8b` | 1.04 GB | **0/5 (0%)** | 783.2s | ❌ garb. | ❌ garb. | ❌ garb. | ❌ garb. | ❌ garb. | NEW | Complete failure; garbled markdown output, no tool use. Unusable with openre.
-| 9 | `gemma3:270m` | 0.27 GB | **1/5 (20%)** | 1168.9s | ❌ tmpl | ❌ tmpl | ❌ tmpl | ✅ | ❌ empty | -1 | Regression. Q1-Q3 literal `<the result>` template. Only Q4 passed.
-| 9 | `deepseek-coder:1.3b` | ~0.67 GB | **1/5 (20%)** | 1221.8s | ❌ 48 | ❌ 123 | ❌ code | ❌ code | ✅ | NEW | No tool use; verbose code dumps. Slowest model (1222s).
-| 10 | `functiongemma:270m` | 0.28 GB | **0/5 (0%)** | 352.6s | ❌ expr | ❌ expr | ❌ 4.0 | ❌ refused | ❌ refused | -1 | Worse than R04.4 (1/5→0/5). Q1-Q2 echo expressions, Q5 new refusal.
 | 2 | `llama3.2:1b` | ~1.24 GB | **4/5 (80%)** | 757.2s | ❌ empty | ✅ | ✅ | ✅ | ✅ | NEW | Q1 empty (cold start). Q2-Q5 all pass at ~60s. Strong warm perf. |
-| 6 | `nchapman/dolphin3.0-llama3:1b` | ~1.24 GB | **3/5 (60%)** | 403.6s | ✅ | ❌ 57 | ❌ 5.25 | ✅ | ✅ | NEW | Q2 off-by-6, Q3 division error. ~12s warm.
+| 3 | `nchapman/dolphin3.0-llama3:1b` | ~1.24 GB | **3/5 (60%)** | 403.6s | ✅ | ❌ 57 | ❌ 5.25 | ✅ | ✅ | NEW | Q2 off-by-6, Q3 division error. ~12s warm. |
+| 4 | `qwen:0.5b` | 0.37 GB | **1/5 (20%)** | 341.5s | ✅ | ❌ text | ❌ 68 | ❌ 24 | ❌ 24h | -1 | Regression; Q2-Q5 all verbose reasoning, no tool use. Base model too small. |
+| 4 | `gemma3:270m` | 0.27 GB | **1/5 (20%)** | 1168.9s | ❌ tmpl | ❌ tmpl | ❌ tmpl | ✅ | ❌ empty | -1 | Regression. Q1-Q3 literal `<the result>` template. Only Q4 passed. |
+| 4 | `deepseek-coder:1.3b` | ~0.67 GB | **1/5 (20%)** | 1221.8s | ❌ 48 | ❌ 123 | ❌ code | ❌ code | ✅ | NEW | No tool use; verbose code dumps. Slowest model (1222s). |
+| 5 | `functiongemma:270m` | 0.28 GB | **0/5 (0%)** | 352.6s | ❌ expr | ❌ expr | ❌ 4.0 | ❌ refused | ❌ refused | -1 | Worse than R04.4 (1/5→0/5). Q1-Q2 echo expressions, Q5 new refusal. |
+| 5 | `qwen:1.8b` | 1.04 GB | **0/5 (0%)** | 783.2s | ❌ garb. | ❌ garb. | ❌ garb. | ❌ garb. | ❌ garb. | NEW | Complete failure; garbled markdown output, no tool use. Unusable with openre.
 
 #### qwen2.5:1.5b Detailed Breakdown
 
