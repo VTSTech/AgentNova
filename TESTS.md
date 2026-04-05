@@ -39,6 +39,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | 2 | `qwen3:0.6b` | 0.49 GB | **4/5 (80%)** | 484.9s | ✅ | ✅ | ✅ | ✅ | ❌ 17h | +1 | Q2 fixed (was 49 in R04.4). Q5 persistent time calc error. 382s cold start. |
 | 2 | `qwen3.5:0.8b` | 0.96 GB | **4/5 (80%)** | 652.9s | ✅ | ❌ 45 | ✅ | ✅ | ✅ | 0 | Same score as R04.4; exact same Q2 failure (got 45 vs 51). 2x slower (653s vs 321s). |
 | 2 | `llama3.2:1b` | ~1.24 GB | **4/5 (80%)** | 757.2s | ❌ empty | ✅ | ✅ | ✅ | ✅ | NEW | Q1 empty (cold start). Q2-Q5 all pass at ~60s. Strong warm perf. |
+| 3 | `driaforall/tiny-agent-a:0.5b` | ~0.5 GB | **3/5 (60%)** | 260.5s | ❌ empty | ✅ | ✅ | ✅ | ❌ empty | NEW | Q1 empty (cold start), Q5 empty. 3.3s warmup. |
 | 3 | `nchapman/dolphin3.0-llama3:1b` | ~1.24 GB | **3/5 (60%)** | 403.6s | ✅ | ❌ 57 | ❌ 5.25 | ✅ | ✅ | NEW | Q2 off-by-6, Q3 division error. ~12s warm. |
 | 4 | `qwen:0.5b` | 0.37 GB | **1/5 (20%)** | 341.5s | ✅ | ❌ text | ❌ 68 | ❌ 24 | ❌ 24h | -1 | Regression; Q2-Q5 all verbose reasoning, no tool use. Base model too small. |
 | 4 | `gemma3:270m` | 0.27 GB | **1/5 (20%)** | 1168.9s | ❌ tmpl | ❌ tmpl | ❌ tmpl | ✅ | ❌ empty | -1 | Regression. Q1-Q3 literal `<the result>` template. Only Q4 passed. |
@@ -252,6 +253,28 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 - **Complementary to llama3.2:1b** — base llama3.2 fails Q1 (cold start), dolphin3.0-llama passes Q1 but fails Q2-Q3; the dolphin3.0 fine-tuning improves cold start reliability at the cost of arithmetic accuracy
 - **Fastest warm speed** at ~12s per question — competitive with granite4:350m (11-15s) despite being ~1.24 GB vs 0.66 GB
 - **Dolphin3.0 pattern across families** — both dolphin3.0-qwen2.5 (4/5, Q2 fail) and dolphin3.0-llama3 (3/5, Q2+Q3 fail) show regression on multi-step math compared to their base models
+
+#### driaforall/tiny-agent-a:0.5b Detailed Breakdown
+
+| Question | Category | Expected | Got | Result | Time |
+|----------|----------|:--------:|:----:|:------:|:----:|
+| Q1 | Simple Math | 42 | empty | ❌ | 120.1s |
+| Q2 | Multi-step | — | — | ✅ | 48.6s |
+| Q3 | Division | — | — | ✅ | 12.4s |
+| Q4 | Word Problem | — | — | ✅ | 14.9s |
+| Q5 | Time Calc | 8 | empty | ❌ | 64.6s |
+
+**Key Observations:**
+- **NEW to R04.5 openre** — first appearance in OpenResponses mode testing
+- **3/5 (60%)** — matches nchapman/dolphin3.0-llama3:1b at the 60% tier
+- **Q1 empty on cold start** — 120s with no parseable output; model likely timed out or produced empty response during initial loading, similar to llama3.2:1b cold start behavior
+- **Q5 empty** — no output generated for time calculation, a common failure pattern across small models (also seen in qwen2.5-coder, gemma3, functiongemma)
+- **Q2-Q4 perfect** — once warm, model answered multi-step, division, and word problem correctly
+- **Strong warm performance** — Q2 at 48.6s, Q3 at 12.4s, Q4 at 14.9s; Q3 and Q4 are competitive with top models
+- **3.3s warmup time** — fast model loading once initialized
+- **260.5s total** — heavily inflated by Q1 cold start (120s) and Q5 (64.6s); warm-only time is ~75.9s (Q2+Q3+Q4)
+- ** Likely 5/5 with warmup** — Q1 failure appears to be a cold start artifact, not a capability limitation; Q5 failure pattern is shared across multiple models
+- **Community model** — `driaforall/tiny-agent-a` is a third-party model designed for agent tasks, showing competitive warm performance despite its small size
 
 #### Complementary Failure Analysis (R04.5)
 

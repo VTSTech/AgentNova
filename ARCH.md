@@ -2,13 +2,13 @@
 
 AgentNova is a modular agent framework designed for local LLMs with tool-calling capabilities. It implements the OpenResponses specification for multi-provider, interoperable LLM interfaces.
 
-**Specification Compliance**: 100% (R03.5+) ✅
+**Specification Compliance**: 100% (R03.5+) -- R04.1, R04.2, R04.3, R04.4, R04.5
 
-**Version**: R04.1
+**Version**: R04.5
 - OpenResponses API: 100%
 - Chat Completions API: 100%
 - Soul Spec v0.5: 100%
-- ACP v1.0.5: 100%
+- ACP v1.0.6: 100%
 - AgentSkills: 100%
 
 ```
@@ -17,11 +17,20 @@ agentnova/
 │   ├── types.py              # Enum types (StepResultType, BackendType, ApiMode.OPENRE/OPENAI, ToolSupportLevel)
 │   ├── models.py             # Data models (Tool, ToolParam, StepResult, AgentRun)
 │   ├── memory.py             # Sliding window conversation memory
+│   ├── persistent_memory.py  # SQLite-backed PersistentMemory(Memory) subclass (R04.3)
 │   ├── tool_parse.py         # ReAct/JSON tool call extraction (see Tool Parser section)
 │   ├── tool_cache.py         # Persistent tool support detection cache (R03.6)
 │   ├── helpers.py            # Utilities (fuzzy match, argument normalization, security)
 │   ├── model_config.py       # Model configuration (temperature, max tokens)
 │   ├── model_family_config.py # Family-specific behavior (stop tokens, formats)
+│   ├── prompts.py            # Tool argument aliases (TOOL_ARG_ALIASES), platform constants,
+│   │                         # few-shot prompting suffixes, system prompt builders
+│   ├── math_prompts.py       # Math-specific system prompts for GSM8K, number extraction,
+│   │                         # calculator tool function
+│   ├── args_normal.py        # Full argument normalizer, calculator argument fixer,
+│   │                         # missing argument synthesizer
+│   ├── error_recovery.py     # ErrorRecoveryTracker, build_enhanced_observation(),
+│   │                         # build_retry_context(), is_error_result()
 │   └── openresponses.py      # OpenResponses specification types
 │
 ├── tools/
@@ -32,7 +41,15 @@ agentnova/
 ├── backends/
 │   ├── base.py               # Abstract BaseBackend class, BackendConfig dataclass
 │   ├── ollama.py             # Ollama backend (dual API: openre + openai)
-│   └── bitnet.py             # BitNet backend
+│   ├── llama_server.py       # LlamaServerBackend(OllamaBackend) for llama.cpp / TurboQuant (R04.2)
+│   │                         # - Dual API support (OpenRE via /completion, OpenAI via /v1/chat/completions)
+│   │                         # - BitNet mode with conversation budgeting
+│   │                         # - /props fallback for model name discovery
+│   │                         # - Family-aware prompt formatting
+│   │                         # - Turn-bleed guards
+│   ├── bitnet.py             # Thin wrapper (63-line); sets bitnet_mode=True on LlamaServerBackend
+│   └── ollama_registry.py    # Ollama model registry: manifest discovery, GGUF header
+│                             # parsing via mmap, TurboQuant compatibility (R04.5)
 │
 ├── skills/
 │   ├── loader.py             # Skill loader (Agent Skills spec)
@@ -52,18 +69,20 @@ agentnova/
 │   │   ├── soul.json         # Manifest
 │   │   ├── SOUL.md           # Persona definition (concise)
 │   │   ├── IDENTITY.md       # Identity (concise)
-│   │   └── STYLE.md          # Communication style (concise)
+│   │   ├── STYLE.md          # Communication style (concise)
+│   │   └── AGENTS.md         # Agent configuration
 │   └── nova-skills/          # Skill-guided assistant soul (for use with --skills)
 │       ├── soul.json         # Manifest
 │       ├── SOUL.md           # Persona definition (concise)
 │       ├── IDENTITY.md       # Identity (concise)
-│       └── STYLE.md          # Communication style (concise)
+│       ├── STYLE.md          # Communication style (concise)
+│       └── AGENTS.md         # Agent configuration
 │
 ├── examples/                 # Test examples and benchmarks
 │
 ├── agent.py                  # Main Agent class (OpenResponses agentic loop)
 ├── agent_mode.py             # Autonomous agent mode (state machine)
-├── acp_plugin.py             # ACP v1.0.5 integration
+├── acp_plugin.py             # ACP v1.0.6 integration
 │                             # - Status reporting, activity logging
 │                             # - Batch context manager for atomic operations
 ├── orchestrator.py           # Multi-agent orchestration (R03.6)
@@ -80,8 +99,9 @@ agentnova/
 │                             # - Backend URLs, model settings, retry config
 ├── cli.py                    # Command-line interface
 ├── model_discovery.py        # Ollama model listing and selection
-├── shared_args.py            # Shared CLI argument definitions
-└── CREDITS.md                # Credits, acknowledgments, and development history (R04.1)
+├── shared_args.py            # Shared CLI argument definitions + SharedConfig dataclass (R04.2)
+├── turbo.py                  # TurboQuant server lifecycle manager (R04.5)
+└── CREDITS.md                # Credits, acknowledgments, and development history
 ```
 
 ---
@@ -106,6 +126,10 @@ The main Agent class implements the **OpenResponses Agentic Loop**:
 - Dynamic tool injection into system prompt
 - Default context window: 4096 tokens
 - Debug output with OpenResponses item tracking
+- Persistent memory sessions via PersistentMemory (R04.3)
+- Error recovery with retry context injection
+- Dangerous tool confirmation via `confirm_dangerous` callback (R04.2)
+- Audit logging for shell, write_file, edit_file outcomes (R04.2)
 
 ### Orchestrator (`orchestrator.py`)
 
@@ -339,10 +363,10 @@ agentnova models --tool-support --no-cache
 **ToolSupportLevel Values**:
 | Level | Meaning | Display |
 |-------|---------|---------|
-| `NATIVE` | API returns `tool_calls` structure | ✓ native |
-| `REACT` | Model outputs JSON as text, parsed by AgentNova | ○ react |
-| `NONE` | Model explicitly rejects tools (HTTP 400) | ✗ none |
-| `UNTESTED` | Not yet tested | ? untested |
+| `NATIVE` | API returns `tool_calls` structure | native |
+| `REACT` | Model outputs JSON as text, parsed by AgentNova | react |
+| `NONE` | Model explicitly rejects tools (HTTP 400) | none |
+| `UNTESTED` | Not yet tested | untested |
 
 ### Soul System (`soul/`)
 
@@ -379,6 +403,282 @@ clear_soul_cache()
 # Force reload from disk
 soul = load_soul("nova-helper", reload=True)
 ```
+
+---
+
+## Backends
+
+### Backend Registry
+
+The `--backend` flag selects which backend to use:
+
+| Backend Flag | Class | Description |
+|-------------|-------|-------------|
+| `ollama` | `OllamaBackend` | Ollama server (default) |
+| `llama-server` / `llama_server` | `LlamaServerBackend` | llama.cpp HTTP server / TurboQuant |
+| `bitnet` | `LlamaServerBackend(bitnet_mode=True)` | BitNet 1.58b models via llama.cpp |
+
+### OllamaBackend (`backends/ollama.py`)
+
+The original backend for Ollama. Handles both OpenResponses and OpenAI Chat-Completions API endpoints.
+
+### LlamaServerBackend (`backends/llama_server.py`) (R04.2)
+
+Extends `OllamaBackend` with llama.cpp server support. Used for both standard llama.cpp deployments and TurboQuant.
+
+**Features**:
+- **Dual API support** -- OpenRE via `/completion`, OpenAI via `/v1/chat/completions`
+- **BitNet mode** -- Activated via `bitnet_mode=True` with conversation budgeting:
+  - 1024-character prompt budget for context window management
+  - 4-exchange cap per conversation
+  - `repeat_penalty=1.3` to reduce repetition
+- **`/props` fallback** -- When model name is unknown, queries `/props` endpoint for model discovery
+- **Family-aware prompt formatting** -- Adjusts prompt structure based on detected model family
+- **Turn-bleed guards** -- Stop tokens `\nUser:` and `\nAssistant:` prevent the model from generating additional conversation turns
+- **Default URL**: `LLAMA_SERVER_BASE_URL` defaults to `http://localhost:8764`
+
+### BitNet Backend (`backends/bitnet.py`) (R04.2)
+
+The BitNet backend is now a 63-line thin wrapper. `BitNetBackend` inherits from `LlamaServerBackend` and sets `bitnet_mode=True`. All logic was merged into `llama_server.py`.
+
+```python
+class BitNetBackend(LlamaServerBackend):
+    def __init__(self, **kwargs):
+        kwargs.setdefault("bitnet_mode", True)
+        super().__init__(**kwargs)
+```
+
+---
+
+## Persistent Memory (R04.3)
+
+`core/persistent_memory.py` provides `PersistentMemory`, a SQLite-backed subclass of `Memory` that stores conversation sessions to disk.
+
+**Features**:
+- SQLite storage with WAL journal mode for safe concurrent access
+- Database stored at `~/.agentnova/memory.db`
+- Session management: `list_sessions()`, `delete_session()`
+- Activated via `--session <name>` CLI flag or `session_id` parameter on `Agent`
+- Implements the same `Memory` API: `add()`, `get_history()`, `clear()`
+- **Must call `agent.memory.close()` on exit** to flush WAL to disk
+
+```python
+from agentnova import Agent
+
+agent = Agent(
+    model="qwen2.5:0.5b",
+    tools=["calculator"],
+    session="my-session",  # Activates PersistentMemory
+)
+
+# ... agent runs ...
+
+agent.memory.close()  # Required for clean shutdown
+```
+
+```bash
+# Activate via CLI
+agentnova chat -m qwen2.5:0.5b --session my-session
+
+# Manage sessions
+agentnova sessions list
+agentnova sessions delete my-session
+```
+
+---
+
+## Error Recovery System (R04.1+)
+
+`core/error_recovery.py` provides the `ErrorRecoveryTracker` and helper functions for detecting, contextualizing, and recovering from tool execution failures.
+
+**Components**:
+
+- **`ErrorRecoveryTracker`** -- Tracks consecutive failures per tool across the agentic loop
+- **`TOOL_ERROR_HINTS`** -- Tool-specific error hints (e.g., calculator gets Python syntax advice)
+- **`TOOL_NAME_SUGGESTIONS`** -- Maps common misspellings to correct tool names
+- **`TOOL_ALTERNATIVES`** -- Suggests alternative tools when one fails (e.g., `web_search` when `http_get` fails)
+
+**Key Functions**:
+
+| Function | Purpose |
+|----------|---------|
+| `is_error_result(result)` | Detects error strings, timeout patterns, and exception messages |
+| `build_enhanced_observation(tool_name, result, ...)` | Wraps tool result with contextual hints for small models |
+| `build_retry_context(tool_name, args, error)` | Generates retry-with-error-feedback message (ATLAS-inspired) |
+
+See the Retry-with-Error-Feedback section below for full details.
+
+---
+
+## Argument Normalization System (R04.2)
+
+`core/args_normal.py` and `core/prompts.py` provide a comprehensive argument normalization pipeline that helps small models use tools correctly despite natural language variations in argument formatting.
+
+### Tool Argument Aliases (`core/prompts.py`)
+
+`TOOL_ARG_ALIASES` defines ~100+ aliases across 10+ tools, mapping natural language expressions to canonical parameter names:
+
+```python
+TOOL_ARG_ALIASES = {
+    "calculator": {
+        "math_expression": "expression",
+        "equation": "expression",
+        "calculation": "expression",
+        "formula": "expression",
+        "compute": "expression",
+        "math": "expression",
+        # ...
+    },
+    "shell": {
+        "command_to_run": "command",
+        "cmd": "command",
+        "bash_command": "command",
+        "execute": "command",
+        # ...
+    },
+    # ... 10+ more tools
+}
+```
+
+`CONTEXTUAL_ALIASES` provides disambiguation for aliases that only apply in specific contexts.
+
+### Normalization Pipeline (`core/args_normal.py`)
+
+Three core functions:
+
+| Function | Purpose |
+|----------|---------|
+| `normalize_args(tool_name, args)` | Full normalization: alias resolution, prefix/substring matching, type coercion |
+| `fix_calculator_args(args)` | Calculator-specific fixes: power operation combination, operator normalization |
+| `synthesize_missing_args(tool_name, args)` | Synthesizes missing required arguments from context clues |
+
+**Matching strategies**:
+- **Exact alias match** -- Direct lookup in `TOOL_ARG_ALIASES`
+- **Prefix matching** -- `"math_ex"` matches `"math_expression"`
+- **Substring matching** -- `"express"` matches `"expression"`
+- **Type coercion** -- Numeric strings converted to int/float, booleans normalized
+- **Power operation combination** -- `"to the power of"` and similar patterns mapped to `**` operator in calculator expressions
+
+---
+
+## TurboQuant Server Management (R04.5)
+
+`turbo.py` manages the lifecycle of a TurboQuant (llama.cpp) inference server for running quantized models.
+
+### TurboState
+
+```python
+@dataclass
+class TurboState:
+    pid: Optional[int]         # Server process ID
+    port: int                  # Server port (default: 8764)
+    model: Optional[str]       # Loaded model name
+    status: str                # "running", "stopped", "unknown"
+```
+
+State is persisted to `~/.agentnova/turbo_state.json`.
+
+### Key Functions
+
+| Function | Description |
+|----------|-------------|
+| `start_server(model, ...)` | Launch TurboQuant server with detected/optimal KV cache config |
+| `stop_server()` | Gracefully stop running server by PID |
+| `get_status()` | Return current `TurboState` |
+
+### Model Discovery
+
+Uses `ollama_registry.discover_models()` to find Ollama-compatible models, then:
+- Parses GGUF binary headers via mmap to extract weight quantization info
+- Auto-detects KV cache configuration from weight quantization (tensor count, head dimensions)
+- Runs compatibility check: requires `head_dim >= 128`
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TURBOQUANT_SERVER_PATH` | `llama-server` | Path to llama-server binary |
+| `TURBOQUANT_PORT` | `8764` | Server listen port |
+| `TURBOQUANT_CTX` | `8192` | Context window size |
+
+### CLI
+
+```bash
+agentnova turbo list        # List TurboQuant-compatible models
+agentnova turbo start MODEL # Start server with model
+agentnova turbo stop        # Stop running server
+agentnova turbo status      # Show server status
+```
+
+---
+
+## Ollama Model Registry (R04.5)
+
+`backends/ollama_registry.py` provides Ollama model discovery and GGUF analysis for TurboQuant compatibility.
+
+### OllamaModel Dataclass
+
+```python
+@dataclass
+class OllamaModel:
+    name: str                # Model name (e.g., "qwen2.5:0.5b")
+    path: str                # GGUF blob path
+    size: int                # File size in bytes
+    file_type: int           # GGUF file_type constant
+    quant_name: str          # Human-readable quantization name
+    family: str              # Model family
+```
+
+### Key Functions
+
+| Function | Description |
+|----------|-------------|
+| `discover_models()` | Walks Ollama manifest directory, resolves GGUF blob paths |
+| `find_model(name)` | Three-tier matching: exact, tag-only, fuzzy substring |
+| `_detect_weight_quant(file_type)` | Maps 37+ GGUF `file_type` constants to quantization names |
+| `recommended_turbo_config(model)` | Returns optimal KV cache config based on weight quantization |
+
+### GGUF Header Parsing
+
+Uses `mmap` to read GGUF binary headers without loading the full file into memory:
+- Reads magic number, version, tensor count, metadata KV pairs
+- Extracts `general.architecture`, `llama.context_length`, `llama.attention.head_count`
+- Maps file_type integers to quantization names (e.g., `7` = "Q4_0", `15` = "IQ4_XS")
+
+### Three-Tier Model Matching
+
+1. **Exact match** -- Full model name matches
+2. **Tag match** -- Matches after `:` (e.g., `"0.5b"` matches `"qwen2.5:0.5b"`)
+3. **Fuzzy match** -- Substring match on full name (lowest priority)
+
+---
+
+## Dangerous Tool Confirmation (R04.2)
+
+Tools marked `dangerous=True` require explicit confirmation before execution.
+
+**Dangerous tools**: `shell`, `write_file`, `edit_file`
+
+```bash
+# Enable confirmation prompt (interactive y/N)
+agentnova chat --confirm
+```
+
+The `Agent` class accepts a `confirm_dangerous` callback that is invoked before executing any dangerous tool. The callback receives the tool name and arguments and returns `True` to proceed or `False` to abort.
+
+---
+
+## Audit Logging (R04.2)
+
+`_audit_log()` writes structured JSON-lines to `~/.agentnova/audit.log` tracking outcomes of dangerous tool executions.
+
+**Audited tools**: `shell`, `write_file`, `edit_file`
+
+Each log entry records:
+- Timestamp
+- Tool name and arguments
+- Success/failure status
+- Result summary
 
 ---
 
@@ -491,11 +791,12 @@ User Prompt
 │    Agent    │ ── loads soul (optional)
 │             │ ── builds system prompt with dynamic tools
 │             │ ── creates Response object (OpenResponses)
+│             │ ── if session_id → PersistentMemory() → memory.load()
 └─────────────┘
      │
      ▼
 ┌─────────────┐
-│   Backend   │ ── sends to Ollama/BitNet (ReAct prompting)
+│   Backend   │ ── sends to Ollama/LlamaServer/BitNet (ReAct prompting)
 └─────────────┘
      │
      ▼
@@ -507,12 +808,28 @@ User Prompt
      │
      ▼
 ┌─────────────┐
-│Tool Registry│ ── executes tool (if allowed)
+│ Argument    │ ── normalize_args() resolves aliases
+│ Normalizer  │ ── fix_calculator_args() fixes math expressions
+│             │ ── synthesize_missing_args() fills gaps
 └─────────────┘
      │
      ▼
 ┌─────────────┐
-│   Memory    │ ── adds Observation
+│Tool Registry│ ── executes tool (if allowed)
+│             │ ── confirm_dangerous() for dangerous tools (R04.2)
+│             │ ── _audit_log() for dangerous tool outcomes (R04.2)
+└─────────────┘
+     │
+     ▼
+┌─────────────┐
+│ Error       │ ── is_error_result() detects failures
+│ Recovery    │ ── build_enhanced_observation() adds hints
+│             │ ── build_retry_context() generates retry message
+└─────────────┘
+     │
+     ▼
+┌─────────────┐
+│   Memory    │ ── adds Observation (or PersistentMemory for sessions)
 └─────────────┘
      │
      ▼ (loop until Final Answer or max_steps)
@@ -618,15 +935,51 @@ The model MUST explicitly format tool calls.
 
 ---
 
+## Built-in Tools
+
+17 built-in tools are registered in `tools/builtins.py`:
+
+| Tool | Description | Dangerous | Notes |
+|------|-------------|-----------|-------|
+| `calculator` | Evaluate mathematical expressions | No | Python syntax, math functions |
+| `shell` | Execute shell commands | Yes | Audit logged |
+| `read_file` | Read file contents | No | Full file read |
+| `read_file_lines` | Read file by line range | No | 500-line cap, line range selection |
+| `write_file` | Write/create files | Yes | Audit logged |
+| `edit_file` | Search-and-replace in files | Yes | Audit logged |
+| `list_directory` | List directory contents | No | |
+| `find_files` | Recursive file search | No | fnmatch glob, max_results cap |
+| `http_get` | HTTP GET requests | No | |
+| `get_time` | Get current time | No | |
+| `get_date` | Get current date | No | |
+| `python_repl` | Sandboxed Python execution | No | Via sandboxed_repl.py |
+| `web_search` | Web search | No | |
+| `parse_json` | Parse JSON strings | No | |
+| `count_words` | Count words in text | No | |
+| `count_chars` | Count characters in text | No | |
+| `todo` | In-memory todo CRUD | No | Priority support, module-level store |
+
+### Tool Details
+
+**edit_file**: Search-and-replace operations within files. Marked `dangerous=True` for safety. All operations are audit-logged.
+
+**todo**: In-memory task list with full CRUD operations. Supports priority levels. Store is module-level (shared across invocations within a process). Useful for tracking multi-step tasks.
+
+**read_file_lines**: Reads a specific range of lines from a file. Enforces a 500-line cap per request to prevent excessive memory usage.
+
+**find_files**: Recursive file search using fnmatch glob patterns. Supports `max_results` parameter to cap output and prevent runaway searches.
+
+---
+
 ## Dual API Support
 
-AgentNova supports both OpenResponses and OpenAI Chat-Completions API endpoints through Ollama. This allows flexibility for different integration scenarios.
+AgentNova supports both OpenResponses and OpenAI Chat-Completions API endpoints through Ollama and LlamaServer. This allows flexibility for different integration scenarios.
 
 ### API Modes
 
 | Mode | Flag | Endpoint | Description |
 |------|------|----------|-------------|
-| **OpenResponses** | `--api openre` | `/api/chat` | OpenResponses API (default) |
+| **OpenResponses** | `--api openre` | `/api/chat` | OpenResponses API (default for Ollama) |
 | **OpenAI** | `--api openai` | `/v1/chat/completions` | OpenAI Chat-Completions API |
 
 ### When to Use Each Mode
@@ -642,6 +995,7 @@ AgentNova supports both OpenResponses and OpenAI Chat-Completions API endpoints 
 - Cleaner debug output without OpenResponses internals
 - Useful when integrating with OpenAI-compatible clients
 - Required when using middleware that expects `/v1/chat/completions`
+- LlamaServer default mode (via `/v1/chat/completions`)
 
 ### Debug Output by Mode
 
@@ -671,23 +1025,33 @@ agentnova chat -m qwen2.5:0.5b
 # OpenAI Chat-Completions API
 agentnova chat -m qwen2.5:0.5b --api openai
 
+# LlamaServer backend (uses OpenAI endpoint by default)
+agentnova chat -m qwen2.5:0.5b --backend llama-server
+
+# BitNet backend
+agentnova chat -m bitnet-1.58b --backend bitnet
+
 # With debug output
 agentnova test 01 --api openai --debug
 ```
 
 ### Implementation Details
 
-The `OllamaBackend` class handles both APIs:
-
 ```python
 from agentnova.backends import get_backend
 from agentnova.core.types import ApiMode
 
-# OpenResponses mode (default)
+# Ollama - OpenResponses mode (default)
 backend = get_backend("ollama", api_mode=ApiMode.OPENRE)
 
-# OpenAI Chat-Completions mode
+# Ollama - OpenAI Chat-Completions mode
 backend = get_backend("ollama", api_mode=ApiMode.OPENAI)
+
+# LlamaServer / TurboQuant
+backend = get_backend("llama-server")
+
+# BitNet (thin wrapper around LlamaServer)
+backend = get_backend("bitnet")
 ```
 
 Both modes use ReAct prompting - tool definitions are not passed to the API. The model outputs tool calls in text format, which are parsed by the Tool Parser.
@@ -821,7 +1185,7 @@ Each decision point in the agentic loop has explicit guidance:
 |----------------|----------|
 | Should I use a tool? | Tool Reference table with "When to use" |
 | How to format tool call? | Exact format with example |
-| What syntax for calculator? | Natural language → Python syntax table |
+| What syntax for calculator? | Natural language to Python syntax table |
 | What to do after result? | MANDATORY Final Answer, with DO NOT rules |
 | What if tool errors? | Error Recovery section with recovery example |
 
@@ -846,14 +1210,14 @@ This ensures the model always knows what action to take next, preventing common 
 
 ## ACP Integration (`acp_plugin.py`)
 
-AgentNova implements ACP (Agent Control Panel) v1.0.5 for monitoring, control, and activity logging.
+AgentNova implements ACP (Agent Control Panel) v1.0.6 for monitoring, control, and activity logging.
 
 ### Features
 
-- **Status reporting** — Report agent status (idle, working, paused, stopping)
-- **Activity logging** — Log READ, WRITE, EDIT, BASH, SEARCH, API activities
-- **STOP flag handling** — Graceful shutdown when requested
-- **A2A messaging** — Agent-to-Agent JSON-RPC 2.0 support
+- **Status reporting** -- Report agent status (idle, working, paused, stopping)
+- **Activity logging** -- Log READ, WRITE, EDIT, BASH, SEARCH, API activities
+- **STOP flag handling** -- Graceful shutdown when requested
+- **A2A messaging** -- Agent-to-Agent JSON-RPC 2.0 support
 
 ### Batch Context Manager (R03.3)
 
@@ -901,6 +1265,33 @@ agentnova agent --acp --acp-url https://tunnel.example.com
 
 ---
 
+## Model Family Configuration
+
+`core/model_family_config.py` defines behavior for 10 model families:
+
+**Supported Families**: gemma3, granite, granitemoe, qwen2, qwen3, qwen35, llama, dolphin, deepseek-r1, deepseek
+
+### Family Aliases
+
+`_FAMILY_ALIASES` maps alternative family names to canonical families:
+
+```python
+_FAMILY_ALIASES = {
+    "bitnet": "llama",  # BitNet models use llama prompt formatting
+    # ... additional aliases
+}
+```
+
+This ensures BitNet models (which report `"bitnet"` as their architecture in GGUF headers) get the correct prompt formatting, stop tokens, and behavior configuration.
+
+### Per-Family Configuration
+
+- **Thinking mode** -- Automatically disabled for qwen3 and deepseek-r1 families
+- **Stop tokens** -- Family-specific stop sequences
+- **Format preferences** -- Template and prompt structure adjustments
+
+---
+
 ## CLI Commands
 
 | Command | Description |
@@ -915,6 +1306,10 @@ agentnova agent --acp --acp-url https://tunnel.example.com
 | `soul` | Inspect a Soul Spec package |
 | `config` | Show current configuration |
 | `version` | Show version info |
+| `turbo` | TurboQuant server management (list/start/stop/status) |
+| `sessions` | List/delete persistent memory sessions |
+| `modelfile` | Show model's Modelfile info |
+| `update` | Self-update from GitHub |
 
 ## Common Options
 
@@ -923,18 +1318,25 @@ agentnova agent --acp --acp-url https://tunnel.example.com
 | `-m, --model` | run, chat, agent, test | Model to use |
 | `--tools` | run, chat, agent | Comma-separated tool list |
 | `--skills` | run, chat, agent | Comma-separated skill names to load |
-| `--backend` | all | Backend (ollama, bitnet) |
+| `--backend` | all | Backend (ollama, bitnet, llama-server) |
 | `--api` | run, chat, agent, test | API mode: `openre` (OpenResponses) or `openai` (OpenAI Chat-Completions) |
 | `--response-format` | run, chat, agent | Response format: `text` or `json` (Chat-Completions mode) |
 | `--truncation` | run, chat, agent | Truncation behavior: `auto` or `disabled` |
 | `--soul` | run, chat, agent | Path to Soul Spec package |
 | `--soul-level` | run, chat, agent | Progressive disclosure (1-3) |
 | `--num-ctx` | run, chat, agent, test | Context window size (default: 4096) |
+| `--num-predict` | run, chat, agent | Maximum tokens to generate |
 | `--timeout` | run, chat, agent, test | Request timeout (seconds) |
 | `--acp` | run, chat, agent, test | Enable ACP logging |
 | `--acp-url` | run, chat, agent, test | ACP server URL |
-| `--no-retry` | run, chat, agent | Disable retry-with-error-feedback on tool failures (R04.1) |
-| `--max-retries N` | run, chat, agent | Maximum retries per tool call failure, default 2 (R04.1) |
+| `--no-retry` | run, chat, agent | Disable retry-with-error-feedback on tool failures |
+| `--max-retries N` | run, chat, agent | Maximum retries per tool call failure, default 2 |
+| `--confirm` | run, chat, agent | Require confirmation for dangerous tools |
+| `--session <name>` | run, chat, agent | Activate persistent memory session |
+| `--force-react` | run, chat, agent | Force ReAct text-based tool calling |
+| `--stream` | run | Stream output (run command) |
+| `-q, --quiet` | all | Suppress header and summary |
+| `-v, --verbose` | all | Verbose output |
 | `--debug` | run, chat, agent, test | Enable debug output |
 
 ## Models Command Options
@@ -963,23 +1365,23 @@ agentnova models --tool-support --no-cache
 User: "What is 15 times 8?"
 
 Step 1: Model generates
-────────────────────────
+-------------------------
 Action: calculator
 Action Input: {"expression": "15 * 8"}
 Final Answer: 120
 
 Step 2: Parser extracts
-────────────────────────
+-------------------------
 [OpenResponses] Tool calls detected: 1
 [OpenResponses] Parsed: name=calculator, args={'expression': '15 * 8'}, final_answer=120
 
 Step 3: Tool executed
-─────────────────────
+---------------------
 Tool: calculator({'expression': '15 * 8'})
 Result: 120
 
 Step 4: Final answer used
-─────────────────────────
+-------------------------
 [OpenResponses] Model provided final_answer with tool call
 [OpenResponses] Using final_answer: 120
 
@@ -994,23 +1396,23 @@ Small models (under 1B params) receive additional guidance in the Observation:
 User: "What is 2 to the power of 10?"
 
 Step 1: Model generates (with correct syntax from soul prompt)
-─────────────────────────────────────────────────────────────
+--------------------------------------------------------------
 Action: calculator
 Action Input: {"expression": "2**10"}
 
 Step 2: Tool executed
-─────────────────────
+---------------------
 Tool: calculator({'expression': '2**10'})
 Result: 1024
 
 Step 3: Enhanced Observation added to memory
-────────────────────────────────────────────
+---------------------------------------------
 Observation: 1024
 
 Now output: Final Answer: <the result>
 
 Step 4: Model generates Final Answer
-────────────────────────────────────
+-------------------------------------
 Final Answer: 1024
 
 Result: AgentRun(final_answer="1024", tool_calls=1, success=True)
@@ -1024,28 +1426,28 @@ When a tool error occurs, the Observation includes recovery guidance:
 User: "What is 2 to the power of 10?"
 
 Step 1: Model generates (incorrect syntax)
-──────────────────────────────────────────
+------------------------------------------
 Action: calculator
 Action Input: {"expression": "2 to the power of 10"}
 
 Step 2: Tool error
-──────────────────
+------------------
 Tool: calculator({'expression': '2 to the power of 10'})
 Result: Error evaluating expression: invalid syntax
 
 Step 3: Enhanced Observation with recovery hint
-───────────────────────────────────────────────
+-----------------------------------------------
 Observation: Error evaluating expression: invalid syntax
 
 Note: Try a different approach. For calculator, use Python syntax (e.g., 2**10 for power, sqrt(144) for roots).
 
 Step 4: Model recovers with correct syntax
-──────────────────────────────────────────
+------------------------------------------
 Action: calculator
 Action Input: {"expression": "2**10"}
 
 Step 5: Success
-──────────────
+---------------
 Observation: 1024
 
 Now output: Final Answer: <the result>
@@ -1066,8 +1468,14 @@ Final Answer: 1024
 | `tool_choice` | "auto" | Tool invocation mode |
 | `soul_level` | 3 | Soul disclosure level |
 | `temperature` | 0.7 | Model temperature (varies by model) |
-| `retry_on_error` | `true` | Retry failed tool calls with error feedback (R04.1) |
-| `max_tool_retries` | 2 | Maximum retries per tool call failure (R04.1) |
+| `retry_on_error` | `true` | Retry failed tool calls with error feedback |
+| `max_tool_retries` | 2 | Maximum retries per tool call failure |
+| `LLAMA_SERVER_BASE_URL` | `http://localhost:8764` | LlamaServer / TurboQuant endpoint |
+| `TURBOQUANT_SERVER_PATH` | `llama-server` | Path to llama-server binary |
+| `TURBOQUANT_PORT` | `8764` | TurboQuant listen port |
+| `TURBOQUANT_CTX` | `8192` | TurboQuant context window size |
+| `AGENTNOVA_RETRY_ON_ERROR` | `true` | Enable retry context injection (env var) |
+| `AGENTNOVA_MAX_TOOL_RETRIES` | `2` | Maximum retries per tool failure (env var) |
 
 ### Model-Specific Configs
 
@@ -1079,6 +1487,7 @@ Model configurations are defined in `core/model_config.py`:
 Family-specific behavior in `core/model_family_config.py`:
 - Thinking mode (disabled for qwen3, deepseek-r1)
 - Format preferences
+- Family aliases (e.g., `bitnet` to `llama`)
 
 ---
 
@@ -1089,11 +1498,11 @@ When a tool call fails, the agent can optionally inject a **retry context** mess
 **How it works**:
 
 ```
-Tool call fails → is_error_result() detects error
-                → build_retry_context() generates hint message
-                → Follow-up user message injected into memory
-                → Model receives previous attempt + correction instruction
-                → Model retries with corrected arguments (or tries different approach)
+Tool call fails -> is_error_result() detects error
+                -> build_retry_context() generates hint message
+                -> Follow-up user message injected into memory
+                -> Model receives previous attempt + correction instruction
+                -> Model retries with corrected arguments (or tries different approach)
 ```
 
 **Retry context format**:
@@ -1105,7 +1514,7 @@ The tool returned an error. Please try again with corrected arguments.
 
 After 2+ failures on the same tool, the message escalates:
 ```
-⚠️ This tool has failed N times. Consider using a different tool or approach.
+This tool has failed N times. Consider using a different tool or approach.
 ```
 
 **Configuration**:
