@@ -1,11 +1,32 @@
 {
+  "specVersion": "0.5",
   "name": "nova-trading",
+  "displayName": "Nova Trading Analyst",
   "version": "0.1.0",
   "description": "Canadian TSX/TSX-V quantitative trading analyst using only built-in tools",
-  "author": "VTSTech",
+  "author": {
+    "name": "VTSTech"
+  },
   "license": "MIT",
-  "soul_level_default": 3,
-  "compatibility": "python>=3.8, ollama",
-  "tools_required": ["http", "python_repl", "json_parse", "web_search", "read_file", "write_file", "calculator"],
-  "tools_optional": ["shell", "edit_file", "list_files", "find_files", "get_time", "get_date", "todo_list"]
+  "category": "finance",
+  "tags": ["trading", "tsx", "tsx-v", "canadian", "quantitative", "paper-trading"],
+  "compatibility": {
+    "frameworks": ["agentnova"],
+    "models": ["*"]
+  },
+  "allowedTools": [
+    "http", "python_repl", "json_parse", "web_search",
+    "read_file", "write_file", "calculator"
+  ],
+  "recommendedSkills": [],
+  "files": {
+    "soul": "SOUL.md",
+    "identity": "IDENTITY.md",
+    "style": "STYLE.md",
+    "agents": "AGENTS.md"
+  },
+  "disclosure": {
+    "summary": "Canadian TSX/TSX-V quantitative trading analyst. Paper trading only — no real money, no real orders."
+  },
+  "deprecated": false
 }
