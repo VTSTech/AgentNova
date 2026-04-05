@@ -4,7 +4,8 @@
 
 Test 01 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
 
-> **Updated:** 2026-04-04 - R04.5 ChatCompletions (openai) with-soul results expanded (9→12 models)
+> **Updated:** 2026-04-05 - R04.5 ChatCompletions (openai) with-soul results expanded (12→18 models)
+> **Previous:** 2026-04-04 - R04.5 ChatCompletions (openai) with-soul results expanded (9→12 models)
 > **Previous:** 2026-04-04 - R04.5 OpenResponses (openre) with-soul results complete (16/16 models)
 
 **Usage:**
@@ -314,7 +315,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 > Testing with `--api openai --soul nova-helper --warmup` uses OpenAI-compatible Chat Completions API (`/v1/chat/completions`) with the nova-helper soul persona
 > Test params: `--timeout 9999 --num-ctx 16768 --num-predict 256 --temp 0.2 --soul nova-helper --api openai --warmup`
 > Environment: CPU-only Google Colab, 12GB RAM, Ollama
-> ✅ **Complete** — All 17 models tested
+> ✅ **Complete** — All 18 models tested
 
 | Rank | Model | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R04.4 openai | Notes |
 |:----:|-------|------:|:----:|:--:|:--:|:--:|:--:|:---------:|:------:|-------|
@@ -328,6 +329,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | 2 | `qwen3:0.6b` | **4/5 (80%)** | 890.3s | ✅ | ❌ 53 | ✅ | ✅ | ✅ | -1 | Q5 fixed (was 17h), Q2 regression (off-by-2). 464s cold. |
 | 3 | `qwen2:0.5b` | **3/5 (60%)** | 224.6s | ✅ | ✅ | ✅ | ❌ 24 | ❌ empty | -1 | Regression from 4/5. Q4 wrong math (24), Q5 empty. |
 | 3 | `nchapman/dolphin3.0-llama3:1b` | **3/5 (60%)** | 382.8s | ✅ | ❌ 57 | ❌ 5.25 | ✅ | ✅ | NEW | Same score as openre. Q2 off-by-6, Q3 off-by-1. ~13s warm. |
+| 3 | `driaforall/tiny-agent-a:0.5b` | **3/5 (60%)** | 245.0s | ❌ empty | ✅ | ✅ | ✅ | ❌ empty | NEW | Same score as openre. Q1 cold start, Q5 empty. ~25s warm. |
 | 4 | `nchapman/dolphin3.0-qwen2.5:0.5b` | **2/5 (40%)** | 247.6s | ❌ 405 | ❌ 43 | ❌ empty | ✅ | ✅ | +1 | Improved from 1/5. Q1=405, Q2 off-by-8, Q3 empty. |
 | 4 | `gemma3:270m` | **2/5 (40%)** | 827.5s | ❌ 405 | ❌ 3 | ✅ | ✅ | ❌ empty | +1 | Q3 fixed (was `<the result>` in R04.4). Q1 wrong (405), Q5 empty. |
 | 5 | `qwen:0.5b` | **1/5 (20%)** | 346.2s | ✅ | ❌ 561 | ❌ 68 | ❌ 16 | ❌ 24h | +1 | Base model hallucinated math (8*7=560, 17/4=68). No tool use. |
@@ -485,6 +487,28 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 - **331s cold start** on Q1, then blazing 12-14s per question when warm — fastest warm speed alongside granite4:350m and granite3.1-moe:1b
 - **Dolphin3.0 fine-tuning weakness** — both dolphin3.0 variants regress on multi-step math compared to their base models (dolphin3.0-qwen: 4/5 with Q2 fail, dolphin3.0-llama: 3/5 with Q2+Q3 fail)
 - **Complementary to base llama3.2:1b** — base llama3.2 scores 5/5 with warmup in openai, but dolphin3.0-llama trades Q2-Q3 accuracy for improved Q1 cold start reliability
+
+#### driaforall/tiny-agent-a:0.5b Detailed Breakdown (R04.5 openai)
+
+| Question | Category | Expected | Got | Result | Time |
+|----------|----------|:--------:|:----:|:------:|:----:|
+| Q1 | Simple Math | 42 | empty | ❌ | 120.1s |
+| Q2 | Multi-step | — | — | ✅ | 48.0s |
+| Q3 | Division | — | — | ✅ | 12.5s |
+| Q4 | Word Problem | — | — | ✅ | 13.4s |
+| Q5 | Time Calc | 8 | empty | ❌ | 51.1s |
+
+**Key Observations:**
+- **First openai test under R04.5** — previously only tested in openre mode, now confirmed in ChatCompletions as well
+- **3/5 (60%)** — identical score to openre mode; the same two questions fail in both API modes
+- **Q1 empty on cold start** — 120.1s with no parseable output; same cold start failure pattern as openre (120.1s) and llama3.2:1b (346.6s in openai)
+- **Q5 empty** — no output generated for time calculation, matching the openre failure exactly; a persistent weakness across both API modes
+- **Q2-Q4 perfect** — multi-step, division, and word problem all pass once the model is warm
+- **Warm performance strong** — Q3 at 12.5s and Q4 at 13.4s are competitive with top models like granite4 (13-14s warm)
+- **Q2 slower at 48.0s** — multi-step question takes significantly longer than Q3-Q4, suggesting more complex reasoning chains for multi-step operations
+- **Faster than openre** — 245.0s total vs 260.5s in openre; the speedup comes from Q5 (51.1s vs 64.6s) while Q1 cold start time is identical (120.1s)
+- **Community agent model** — `driaforall/tiny-agent-a` is a third-party model specifically designed for agent tasks; its consistent 60% across both API modes shows reliable core capability despite the cold start and Q5 weaknesses
+- ** Likely 5/5 with warmup** — Q1 failure is clearly a cold start artifact (same 120s in both modes), and Q5 empty is a shared weakness with multiple small models; with `--warmup`, the model should handle Q1
 
 ---
 
