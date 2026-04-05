@@ -1,0 +1,11 @@
+{
+  "name": "nova-trading",
+  "version": "0.1.0",
+  "description": "Canadian TSX/TSX-V quantitative trading analyst using only built-in tools",
+  "author": "VTSTech",
+  "license": "MIT",
+  "soul_level_default": 3,
+  "compatibility": "python>=3.8, ollama",
+  "tools_required": ["http", "python_repl", "json_parse", "web_search", "read_file", "write_file", "calculator"],
+  "tools_optional": ["shell", "edit_file", "list_files", "find_files", "get_time", "get_date", "todo_list"]
+}
