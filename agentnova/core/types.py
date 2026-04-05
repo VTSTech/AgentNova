@@ -66,9 +66,8 @@ class ToolSupportLevel(Enum):
 class BackendType(Enum):
     """Supported backend types."""
     OLLAMA = "ollama"
+    LLAMA_SERVER = "llama_server"
     BITNET = "bitnet"
-    OPENAI = "openai"  # Future support
-    CUSTOM = "custom"
 
 
 class ApiMode(Enum):

@@ -96,7 +96,7 @@ class LlamaServerBackend(OllamaBackend):
 
     @property
     def backend_type(self) -> BackendType:
-        return BackendType.BITNET if self._bitnet_mode else BackendType.CUSTOM
+        return BackendType.BITNET if self._bitnet_mode else BackendType.LLAMA_SERVER
 
     # ─────────────────────────────────────────────────────────────────────
     # Server Management — llama-server endpoints (not Ollama)

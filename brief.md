@@ -539,8 +539,6 @@ result = subprocess.run(validated_cmd, shell=True, ...)
 - **Memory pruning has no summarization** — old messages silently dropped, not summarized
 - **Pipeline mode output chaining is plain text** — `[Previous output: ...]` loses formatting and tool results
 - **Parallel merge strategies are simplistic** — `vote` normalizes to lowercase first 100 chars; `best` just picks longest
-- **`BackendType.OPENAI` and `BackendType.CUSTOM`** — defined in types.py but have no implementations
-- **Soul Spec `HEARTBEAT.md`** — referenced in Soul Spec v0.5 but not implemented in loader
 - **No ACL per-tool** — `allowed_tools` at Agent level, but no per-role or per-context permission system
 - **PersistentMemory has no migration** — schema changes require manual DB deletion
 - **No token budget enforcement** — CostTracker in ACP tracks costs but no hard limit in Agent

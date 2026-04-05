@@ -40,6 +40,7 @@ class TestTypes:
 
     def test_backend_type(self):
         assert BackendType.OLLAMA.value == "ollama"
+        assert BackendType.LLAMA_SERVER.value == "llama_server"
         assert BackendType.BITNET.value == "bitnet"
 
 
