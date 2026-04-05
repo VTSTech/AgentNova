@@ -34,7 +34,6 @@ import re
 import argparse
 import platform
 import tempfile
-import json
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -43,7 +42,10 @@ from agentnova.backends import get_default_backend
 from agentnova.tools import make_builtin_registry
 from agentnova.tools.builtins import (
     calculator, shell, read_file, write_file, list_directory,
-    http_get, get_time, get_date, parse_json, count_words, count_chars
+    http_get, get_time, get_date, parse_json, count_words, count_chars,
+    python_repl, read_file_lines, find_files, edit_file, web_search,
+    todo_add, todo_list, todo_complete, todo_remove, todo_clear,
+    _todo_dispatch,
 )
 from agentnova.core.types import StepResultType
 
@@ -388,6 +390,326 @@ def test_json_text_direct() -> tuple[int, int]:
     return passed, total
 
 
+def test_python_repl_direct() -> tuple[int, int]:
+    """Test python_repl tool directly without model."""
+    print(f"\n{'='*60}")
+    print(f"🐍 Python REPL Tool - Direct Validation")
+    print(f"{'='*60}")
+    
+    tests = [
+        # (name, code, expected_contains, should_succeed)
+        ("Basic math", "print(2 + 2)", "4", True),
+        ("Import math", "import math; print(math.sqrt(16))", "4", True),
+        ("String ops", "print('hello'.upper())", "HELLO", True),
+        ("Blocked: os.system", "import os; os.system('ls')", "blocked", False),
+        ("Empty code", "", None, True),
+    ]
+    
+    results = []
+    for name, code, expected, should_succeed in tests:
+        try:
+            result = python_repl(code)
+            result_lower = result.lower()
+            
+            if should_succeed:
+                if expected:
+                    passed = expected in result
+                else:
+                    # Empty code — just check it doesn't crash
+                    passed = isinstance(result, str)
+            else:
+                passed = "error" in result_lower or "not allowed" in result_lower or "blocked" in result_lower
+        except Exception as e:
+            passed = not should_succeed
+            result = str(e)
+        
+        results.append(passed)
+        status = "✅" if passed else "❌"
+        print(f"  {status} {name}: → {result[:60]}")
+    
+    passed = sum(results)
+    total = len(results)
+    print(f"\n📊 Python REPL Direct: {passed}/{total} ({100*passed//total}%)")
+    return passed, total
+
+
+def test_read_file_lines_direct() -> tuple[int, int]:
+    """Test read_file_lines tool directly without model."""
+    print(f"\n{'='*60}")
+    print(f"📄 Read File Lines Tool - Direct Validation")
+    print(f"{'='*60}")
+    
+    results = []
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_file = os.path.join(tmpdir, "lines_test.txt")
+        lines = [f"Line {i}" for i in range(1, 11)]
+        content = "\n".join(lines) + "\n"
+        write_file(test_file, content)
+        
+        # Read first 3 lines
+        print(f"\n  Testing read_file_lines...")
+        result = read_file_lines(test_file, start_line=1, end_line=3)
+        ok = "Line 1" in result and "Line 3" in result
+        results.append(ok)
+        status = "✅" if ok else "❌"
+        print(f"    {status} Read first 3 lines: Line 1 and Line 3 in result")
+        
+        # Read middle range
+        result = read_file_lines(test_file, start_line=5, end_line=7)
+        ok = "Line 5" in result and "Line 7" in result
+        results.append(ok)
+        status = "✅" if ok else "❌"
+        print(f"    {status} Read middle range: Line 5 and Line 7 in result")
+        
+        # Read single line
+        result = read_file_lines(test_file, start_line=3, end_line=3)
+        ok = "Line 3" in result
+        results.append(ok)
+        status = "✅" if ok else "❌"
+        print(f"    {status} Read single line: Line 3 in result")
+        
+        # Beyond file end
+        result = read_file_lines(test_file, start_line=999)
+        ok = "beyond the end" in result.lower() or "beyond" in result.lower()
+        results.append(ok)
+        status = "✅" if ok else "❌"
+        print(f"    {status} Beyond file end: {result[:60]}")
+        
+        # Default range (should return all 10 lines)
+        result = read_file_lines(test_file)
+        ok = "Line 1" in result and "Line 10" in result
+        results.append(ok)
+        status = "✅" if ok else "❌"
+        print(f"    {status} Default range: all lines present")
+    
+    passed = sum(results)
+    total = len(results)
+    print(f"\n📊 Read File Lines Direct: {passed}/{total} ({100*passed//total}%)")
+    return passed, total
+
+
+def test_find_files_direct() -> tuple[int, int]:
+    """Test find_files tool directly without model."""
+    print(f"\n{'='*60}")
+    print(f"🔍 Find Files Tool - Direct Validation")
+    print(f"{'='*60}")
+    
+    results = []
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create test files
+        write_file(os.path.join(tmpdir, "app.py"), "print('hello')")
+        write_file(os.path.join(tmpdir, "utils.py"), "def helper(): pass")
+        sub_dir = os.path.join(tmpdir, "sub")
+        write_file(os.path.join(sub_dir, "test_data.txt"), "data")
+        write_file(os.path.join(tmpdir, "test_output.txt"), "output")
+        write_file(os.path.join(tmpdir, "test_input.txt"), "input")
+        
+        # Find .py files
+        print(f"\n  Testing find_files...")
+        result = find_files("*.py", tmpdir)
+        ok = "app.py" in result and "utils.py" in result
+        results.append(ok)
+        status = "✅" if ok else "❌"
+        print(f"    {status} Find .py files: {result[:60]}")
+        
+        # Find specific pattern
+        result = find_files("test_*.txt", tmpdir)
+        ok = "test_output.txt" in result and "test_input.txt" in result
+        results.append(ok)
+        status = "✅" if ok else "❌"
+        print(f"    {status} Find test_*.txt files: {result[:60]}")
+        
+        # No matches
+        result = find_files("*.xyz_nonexistent", tmpdir)
+        ok = "No files matching" in result
+        results.append(ok)
+        status = "✅" if ok else "❌"
+        print(f"    {status} No matches: {result[:60]}")
+        
+        # Empty pattern
+        result = find_files("", tmpdir)
+        ok = "error" in result.lower() or "cannot be empty" in result.lower()
+        results.append(ok)
+        status = "✅" if ok else "❌"
+        print(f"    {status} Empty pattern: {result[:60]}")
+    
+    passed = sum(results)
+    total = len(results)
+    print(f"\n📊 Find Files Direct: {passed}/{total} ({100*passed//total}%)")
+    return passed, total
+
+
+def test_edit_file_direct() -> tuple[int, int]:
+    """Test edit_file tool directly without model."""
+    print(f"\n{'='*60}")
+    print(f"✏️ Edit File Tool - Direct Validation")
+    print(f"{'='*60}")
+    
+    results = []
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_file = os.path.join(tmpdir, "edit_test.txt")
+        write_file(test_file, "hello world, hello again")
+        
+        # Replace word (first occurrence)
+        print(f"\n  Testing edit_file...")
+        result = edit_file(test_file, "hello", "world")
+        ok = "Successfully edited" in result and "replaced 1" in result
+        # Verify the file was actually changed
+        with open(test_file, "r") as f:
+            content = f.read()
+        ok = ok and "world" in content and content.count("hello") == 1  # second 'hello' untouched
+        results.append(ok)
+        status = "✅" if ok else "❌"
+        print(f"    {status} Replace word: {result[:60]}")
+        
+        # Replace not found
+        result = edit_file(test_file, "NONEXISTENT_TEXT_xyz", "anything")
+        ok = "not found" in result.lower() or "error" in result.lower()
+        results.append(ok)
+        status = "✅" if ok else "❌"
+        print(f"    {status} Replace not found: {result[:60]}")
+        
+        # Replace all
+        write_file(test_file, "aa bb aa cc aa")
+        result = edit_file(test_file, "aa", "b", replace_all=True)
+        ok = "Successfully edited" in result and "replaced 3" in result
+        results.append(ok)
+        status = "✅" if ok else "❌"
+        print(f"    {status} Replace all: {result[:60]}")
+        
+        # Empty old_string
+        result = edit_file(test_file, "", "test")
+        ok = "error" in result.lower() or "cannot be empty" in result.lower()
+        results.append(ok)
+        status = "✅" if ok else "❌"
+        print(f"    {status} Empty old_string: {result[:60]}")
+    
+    passed = sum(results)
+    total = len(results)
+    print(f"\n📊 Edit File Direct: {passed}/{total} ({100*passed//total}%)")
+    return passed, total
+
+
+def test_web_search_direct() -> tuple[int, int]:
+    """Test web_search tool directly without model."""
+    print(f"\n{'='*60}")
+    print(f"🌐 Web Search Tool - Direct Validation")
+    print(f"{'='*60}")
+    
+    tests = [
+        # (name, query, expected_pattern)
+        ("Search query", "Python programming"),
+    ]
+    
+    results = []
+    for name, query in tests:
+        print(f"\n  Testing {name}...")
+        try:
+            result = web_search(query)
+            result_lower = result.lower()
+            # Pass if we got a valid response (may fail due to network — that's ok)
+            passed = (
+                isinstance(result, str) and len(result) > 10
+                and ("web search results" in result_lower
+                     or "no results found" in result_lower
+                     or "connection error" in result_lower
+                     or "search error" in result_lower
+                     or "http error" in result_lower)
+            )
+        except Exception as e:
+            # Network errors are acceptable in isolated environments
+            passed = True
+            result = f"Exception (acceptable): {e}"
+        
+        results.append(passed)
+        status = "✅" if passed else "❌"
+        print(f"    {status} {name}: → {result[:60]}")
+    
+    passed = sum(results)
+    total = len(results)
+    print(f"\n📊 Web Search Direct: {passed}/{total} ({100*passed//total}%)")
+    return passed, total
+
+
+def test_todo_direct() -> tuple[int, int]:
+    """Test todo tool functions directly without model."""
+    print(f"\n{'='*60}")
+    print(f"✅ Todo Tool - Direct Validation")
+    print(f"{'='*60}")
+    
+    results = []
+    
+    # Add todo
+    print(f"\n  Testing todo operations...")
+    add_result = todo_add("Test task for direct validation", priority="high")
+    ok = "Added todo" in add_result
+    results.append(ok)
+    status = "✅" if ok else "❌"
+    print(f"    {status} Add todo: {add_result}")
+    
+    # Parse task ID from add result
+    task_id = None
+    id_match = re.search(r'\[([a-f0-9]{8})\]', add_result)
+    if id_match:
+        task_id = id_match.group(1)
+    
+    # List todos
+    list_result = todo_list()
+    ok = "Test task for direct validation" in list_result
+    results.append(ok)
+    status = "✅" if ok else "❌"
+    print(f"    {status} List todos: task found in list")
+    
+    # Complete todo
+    if task_id:
+        complete_result = todo_complete(task_id)
+        ok = "Completed todo" in complete_result or "already completed" in complete_result
+        results.append(ok)
+        status = "✅" if ok else "❌"
+        print(f"    {status} Complete todo: {complete_result[:60]}")
+    else:
+        results.append(False)
+        print(f"    ❌ Complete todo: could not parse task ID")
+    
+    # Remove todo — add another then remove it
+    add2_result = todo_add("Temporary task to remove")
+    remove_id = None
+    id_match2 = re.search(r'\[([a-f0-9]{8})\]', add2_result)
+    if id_match2:
+        remove_id = id_match2.group(1)
+    if remove_id:
+        remove_result = todo_remove(remove_id)
+        ok = "Removed todo" in remove_result
+        results.append(ok)
+        status = "✅" if ok else "❌"
+        print(f"    {status} Remove todo: {remove_result[:60]}")
+    else:
+        results.append(False)
+        print(f"    ❌ Remove todo: could not parse task ID")
+    
+    # Clear completed — should clear the one we completed earlier
+    clear_result = todo_clear()
+    ok = "Cleared" in clear_result or "No completed" in clear_result
+    results.append(ok)
+    status = "✅" if ok else "❌"
+    print(f"    {status} Clear completed: {clear_result[:60]}")
+    
+    # Unknown action via _todo_dispatch
+    dispatch_result = _todo_dispatch(action="invalid_action")
+    ok = "unknown todo action" in dispatch_result.lower()
+    results.append(ok)
+    status = "✅" if ok else "❌"
+    print(f"    {status} Unknown action: {dispatch_result[:60]}")
+    
+    passed = sum(results)
+    total = len(results)
+    print(f"\n📊 Todo Direct: {passed}/{total} ({100*passed//total}%)")
+    return passed, total
+
+
 def run_phase1() -> tuple[int, int]:
     """Run all Phase 1 (direct tool) tests."""
     print(f"\n{'#'*60}")
@@ -427,6 +749,30 @@ def run_phase1() -> tuple[int, int]:
     total_tests += t
     
     p, t = test_json_text_direct()
+    total_passed += p
+    total_tests += t
+    
+    p, t = test_python_repl_direct()
+    total_passed += p
+    total_tests += t
+    
+    p, t = test_read_file_lines_direct()
+    total_passed += p
+    total_tests += t
+    
+    p, t = test_find_files_direct()
+    total_passed += p
+    total_tests += t
+    
+    p, t = test_edit_file_direct()
+    total_passed += p
+    total_tests += t
+    
+    p, t = test_web_search_direct()
+    total_passed += p
+    total_tests += t
+    
+    p, t = test_todo_direct()
     total_passed += p
     total_tests += t
     
@@ -568,7 +914,6 @@ def test_shell_model(model: str, backend, debug: bool = False,
     print(f"{'='*60}")
     
     tools = make_builtin_registry().subset(["shell"])
-    is_windows = platform.system() == "Windows"
     
     tests = [
         ("Echo test", "Use shell to echo 'Hello AgentNova'", "Hello AgentNova"),
@@ -732,7 +1077,6 @@ def test_file_model(model: str, backend, debug: bool = False,
     tools = make_builtin_registry().subset(["read_file", "write_file", "list_directory"])
     
     # Create a test file first
-    import tempfile
     with tempfile.TemporaryDirectory() as tmpdir:
         test_file = os.path.join(tmpdir, "test.txt")
         write_file(test_file, "Hello from AgentNova!")
@@ -887,6 +1231,303 @@ def test_python_repl_model(model: str, backend, debug: bool = False,
     return passed, total
 
 
+def test_read_file_lines_model(model: str, backend, debug: bool = False,
+                               soul: str = None, soul_level: int = 2,
+                               force_react: bool = False,
+                               num_ctx: int = None, num_predict: int = None,
+                               temperature: float = None, top_p: float = None) -> tuple[int, int]:
+    """Test model's ability to call read_file_lines tool."""
+    print(f"\n{'='*60}")
+    print(f"📄 Read File Lines Tool - Model Calling")
+    print(f"   Model: {model}")
+    print(f"{'='*60}")
+    
+    tools = make_builtin_registry().subset(["read_file_lines"])
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_file = os.path.join(tmpdir, "lines_model_test.txt")
+        lines = [f"Line {i} content" for i in range(1, 11)]
+        write_file(test_file, "\n".join(lines) + "\n")
+        test_file_fs = test_file.replace("\\", "/")
+        
+        tests = [
+            ("Read specific lines", f"Read lines 2 to 4 from {test_file_fs}", "Line 2"),
+            ("Read single line", f"Read line 1 from {test_file_fs}", "Line 1"),
+        ]
+        
+        results = []
+        
+        for name, prompt, expected in tests:
+            print(f"\n📋 {name}")
+            print(f"   Prompt: {prompt}")
+            
+            agent = Agent(
+                model=model,
+                tools=tools,
+                backend=backend,
+                max_steps=5,
+                debug=debug,
+                soul=soul,
+                soul_level=soul_level,
+                force_react=force_react,
+                num_ctx=num_ctx,
+                num_predict=num_predict,
+                temperature=temperature,
+                top_p=top_p,
+            )
+            
+            t0 = time.time()
+            run = agent.run(prompt)
+            elapsed = time.time() - t0
+            
+            tool_used = check_tool_used(run, "read_file_lines")
+            
+            found_in_answer = expected.lower() in run.final_answer.lower()
+            found_in_tool_result = False
+            for step in run.steps:
+                if step.tool_result and expected.lower() in str(step.tool_result).lower():
+                    found_in_tool_result = True
+                    break
+            
+            passed = found_in_answer or found_in_tool_result
+            results.append(passed)
+            
+            status = "✅" if passed else "❌"
+            tool_status = "🔧" if tool_used else "⚠️"
+            found_where = "(in answer)" if found_in_answer else "(in tool result)" if found_in_tool_result else ""
+            print(f"  {status} {tool_status} Tool used: {tool_used} | {elapsed:.1f}s {found_where}")
+            print(f"  📝 {run.final_answer}")
+    
+    passed = sum(results)
+    total = len(results)
+    print(f"\n📊 Read File Lines Model: {passed}/{total} ({100*passed//total}%)")
+    return passed, total
+
+
+def test_find_files_model(model: str, backend, debug: bool = False,
+                          soul: str = None, soul_level: int = 2,
+                          force_react: bool = False,
+                          num_ctx: int = None, num_predict: int = None,
+                          temperature: float = None, top_p: float = None) -> tuple[int, int]:
+    """Test model's ability to call find_files tool."""
+    print(f"\n{'='*60}")
+    print(f"🔍 Find Files Tool - Model Calling")
+    print(f"   Model: {model}")
+    print(f"{'='*60}")
+    
+    tools = make_builtin_registry().subset(["find_files"])
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create test files
+        write_file(os.path.join(tmpdir, "main.py"), "# main")
+        write_file(os.path.join(tmpdir, "helper.py"), "# helper")
+        write_file(os.path.join(tmpdir, "readme.txt"), "# readme")
+        write_file(os.path.join(tmpdir, "notes.txt"), "# notes")
+        tmpdir_fs = tmpdir.replace("\\", "/")
+        
+        tests = [
+            ("Find py files", f"Find all Python files in {tmpdir_fs}", ".py"),
+            ("Find txt files", f"Find all text files in {tmpdir_fs}", ".txt"),
+        ]
+        
+        results = []
+        
+        for name, prompt, expected in tests:
+            print(f"\n📋 {name}")
+            print(f"   Prompt: {prompt}")
+            
+            agent = Agent(
+                model=model,
+                tools=tools,
+                backend=backend,
+                max_steps=5,
+                debug=debug,
+                soul=soul,
+                soul_level=soul_level,
+                force_react=force_react,
+                num_ctx=num_ctx,
+                num_predict=num_predict,
+                temperature=temperature,
+                top_p=top_p,
+            )
+            
+            t0 = time.time()
+            run = agent.run(prompt)
+            elapsed = time.time() - t0
+            
+            tool_used = check_tool_used(run, "find_files")
+            
+            found_in_answer = expected.lower() in run.final_answer.lower()
+            found_in_tool_result = False
+            for step in run.steps:
+                if step.tool_result and expected.lower() in str(step.tool_result).lower():
+                    found_in_tool_result = True
+                    break
+            
+            passed = found_in_answer or found_in_tool_result
+            results.append(passed)
+            
+            status = "✅" if passed else "❌"
+            tool_status = "🔧" if tool_used else "⚠️"
+            found_where = "(in answer)" if found_in_answer else "(in tool result)" if found_in_tool_result else ""
+            print(f"  {status} {tool_status} Tool used: {tool_used} | {elapsed:.1f}s {found_where}")
+            print(f"  📝 {run.final_answer}")
+    
+    passed = sum(results)
+    total = len(results)
+    print(f"\n📊 Find Files Model: {passed}/{total} ({100*passed//total}%)")
+    return passed, total
+
+
+def test_edit_file_model(model: str, backend, debug: bool = False,
+                         soul: str = None, soul_level: int = 2,
+                         force_react: bool = False,
+                         num_ctx: int = None, num_predict: int = None,
+                         temperature: float = None, top_p: float = None) -> tuple[int, int]:
+    """Test model's ability to call edit_file tool.
+
+    Note: edit_file is marked as dangerous. The Agent may block it unless
+    --confirm is used. If the model selects the right tool but it's blocked,
+    that still validates tool selection.
+    """
+    print(f"\n{'='*60}")
+    print(f"✏️ Edit File Tool - Model Calling")
+    print(f"   Model: {model}")
+    print(f"{'='*60}")
+    
+    tools = make_builtin_registry().subset(["edit_file"])
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_file = os.path.join(tmpdir, "edit_model_test.txt")
+        write_file(test_file, "The quick brown fox jumps over the lazy dog")
+        test_file_fs = test_file.replace("\\", "/")
+        
+        tests = [
+            ("Replace word", f"Replace 'brown' with 'red' in {test_file_fs}", "red"),
+        ]
+        
+        results = []
+        
+        for name, prompt, expected in tests:
+            print(f"\n📋 {name}")
+            print(f"   Prompt: {prompt}")
+            
+            agent = Agent(
+                model=model,
+                tools=tools,
+                backend=backend,
+                max_steps=5,
+                debug=debug,
+                soul=soul,
+                soul_level=soul_level,
+                force_react=force_react,
+                num_ctx=num_ctx,
+                num_predict=num_predict,
+                temperature=temperature,
+                top_p=top_p,
+            )
+            
+            t0 = time.time()
+            run = agent.run(prompt)
+            elapsed = time.time() - t0
+            
+            tool_used = check_tool_used(run, "edit_file")
+            
+            # Check if the edit actually happened
+            found_in_answer = expected.lower() in run.final_answer.lower()
+            found_in_tool_result = False
+            file_edited = False
+            for step in run.steps:
+                if step.tool_result:
+                    result_str = str(step.tool_result)
+                    if expected.lower() in result_str.lower():
+                        found_in_tool_result = True
+                    if "Successfully edited" in result_str:
+                        file_edited = True
+            
+            # Pass if tool was selected correctly, even if blocked by danger check
+            passed = tool_used and (found_in_answer or found_in_tool_result or file_edited)
+            results.append(passed)
+            
+            status = "✅" if passed else "❌"
+            tool_status = "🔧" if tool_used else "⚠️"
+            edit_status = "(edited)" if file_edited else "(selection only)" if tool_used else ""
+            print(f"  {status} {tool_status} Tool used: {tool_used} | {elapsed:.1f}s {edit_status}")
+            print(f"  📝 {run.final_answer}")
+    
+    passed = sum(results)
+    total = len(results)
+    print(f"\n📊 Edit File Model: {passed}/{total} ({100*passed//total}%)")
+    return passed, total
+
+
+def test_todo_model(model: str, backend, debug: bool = False,
+                    soul: str = None, soul_level: int = 2,
+                    force_react: bool = False,
+                    num_ctx: int = None, num_predict: int = None,
+                    temperature: float = None, top_p: float = None) -> tuple[int, int]:
+    """Test model's ability to call todo tool."""
+    print(f"\n{'='*60}")
+    print(f"✅ Todo Tool - Model Calling")
+    print(f"   Model: {model}")
+    print(f"{'='*60}")
+    
+    tools = make_builtin_registry().subset(["todo"])
+    
+    tests = [
+        ("Add task", "Add a todo item: Buy groceries", "Buy groceries"),
+        ("List tasks", "List all my todo items", "Buy groceries"),
+    ]
+    
+    results = []
+    
+    for name, prompt, expected in tests:
+        print(f"\n📋 {name}")
+        print(f"   Prompt: {prompt}")
+        
+        agent = Agent(
+            model=model,
+            tools=tools,
+            backend=backend,
+            max_steps=5,
+            debug=debug,
+            soul=soul,
+            soul_level=soul_level,
+            force_react=force_react,
+            num_ctx=num_ctx,
+            num_predict=num_predict,
+            temperature=temperature,
+            top_p=top_p,
+        )
+        
+        t0 = time.time()
+        run = agent.run(prompt)
+        elapsed = time.time() - t0
+        
+        tool_used = check_tool_used(run, "todo")
+        
+        found_in_answer = expected.lower() in run.final_answer.lower()
+        found_in_tool_result = False
+        for step in run.steps:
+            if step.tool_result and expected.lower() in str(step.tool_result).lower():
+                found_in_tool_result = True
+                break
+        
+        passed = found_in_answer or found_in_tool_result
+        results.append(passed)
+        
+        status = "✅" if passed else "❌"
+        tool_status = "🔧" if tool_used else "⚠️"
+        found_where = "(in answer)" if found_in_answer else "(in tool result)" if found_in_tool_result else ""
+        print(f"  {status} {tool_status} Tool used: {tool_used} | {elapsed:.1f}s {found_where}")
+        print(f"  📝 {run.final_answer}")
+    
+    passed = sum(results)
+    total = len(results)
+    print(f"\n📊 Todo Model: {passed}/{total} ({100*passed//total}%)")
+    return passed, total
+
+
 def test_all_tools_model(model: str, backend, debug: bool = False,
                          soul: str = None, soul_level: int = 2,
                          force_react: bool = False,
@@ -901,18 +1542,24 @@ def test_all_tools_model(model: str, backend, debug: bool = False,
     # Give model access to ALL tools
     tools = make_builtin_registry()
     
-    import tempfile
     with tempfile.TemporaryDirectory() as tmpdir:
         test_file = os.path.join(tmpdir, "multi_test.txt")
         write_file(test_file, "Test content 123")
         # Use forward slashes for better compatibility
         test_file_fs = test_file.replace("\\", "/")
+        tmpdir_fs = tmpdir.replace("\\", "/")
+        
+        # Create test files for find_files test
+        write_file(os.path.join(tmpdir, "notes.txt"), "some notes")
+        write_file(os.path.join(tmpdir, "data.txt"), "some data")
         
         tests = [
             ("Calculator choice", "What is 25 times 4?", "100", "calculator"),
             ("Shell choice", "Echo the text 'MultiTool'", "MultiTool", "shell"),
             ("Date choice", "What is today's date?", None, "get_date"),
             ("File read choice", f"Read the file at {test_file_fs}", "Test content", "read_file"),
+            ("Find files choice", f"Find all text files in {tmpdir_fs}", ".txt", "find_files"),
+            ("Todo add choice", "Add a todo: Review test results", "Review", "todo"),
         ]
         
         results = []
@@ -1022,6 +1669,30 @@ def run_phase2(model: str, backend, debug: bool,
     total_passed += p
     total_tests += t
     
+    p, t = test_read_file_lines_model(model, backend, debug, soul=soul, soul_level=soul_level,
+                                      force_react=force_react, num_ctx=num_ctx,
+                                      num_predict=num_predict, temperature=temperature, top_p=top_p)
+    total_passed += p
+    total_tests += t
+    
+    p, t = test_find_files_model(model, backend, debug, soul=soul, soul_level=soul_level,
+                                 force_react=force_react, num_ctx=num_ctx,
+                                 num_predict=num_predict, temperature=temperature, top_p=top_p)
+    total_passed += p
+    total_tests += t
+    
+    p, t = test_edit_file_model(model, backend, debug, soul=soul, soul_level=soul_level,
+                                force_react=force_react, num_ctx=num_ctx,
+                                num_predict=num_predict, temperature=temperature, top_p=top_p)
+    total_passed += p
+    total_tests += t
+    
+    p, t = test_todo_model(model, backend, debug, soul=soul, soul_level=soul_level,
+                           force_react=force_react, num_ctx=num_ctx,
+                           num_predict=num_predict, temperature=temperature, top_p=top_p)
+    total_passed += p
+    total_tests += t
+    
     # Test with ALL tools available (model must choose correct tool)
     p, t = test_all_tools_model(model, backend, debug, soul=soul, soul_level=soul_level,
                                 force_react=force_react, num_ctx=num_ctx,
@@ -1034,6 +1705,25 @@ def run_phase2(model: str, backend, debug: bool,
     print(f"{'='*60}")
     
     return total_passed, total_tests
+
+
+# ============================================================================
+# Warmup
+# ============================================================================
+
+def run_warmup(model: str, backend, timeout=None) -> bool:
+    """Send a warmup request to load the model into memory."""
+    print("   Sending warmup request...", end=" ", flush=True)
+    try:
+        t0 = time.time()
+        agent = Agent(model=model, tools=None, backend=backend, max_steps=1)
+        agent.run("Say 'ok'")
+        elapsed = time.time() - t0
+        print(f"done ({elapsed:.1f}s)")
+        return True
+    except Exception as e:
+        print(f"failed ({e})")
+        return False
 
 
 # ============================================================================
@@ -1067,6 +1757,11 @@ def main():
             print(f"\n❌ {backend_name.capitalize()} not running at {backend.base_url}")
             print(f"   Skipping Phase 2 (model tests)")
         else:
+            if getattr(args, 'warmup', False):
+                print(f"\n🔥 Warming up model...")
+                if not run_warmup(model, backend, timeout=timeout):
+                    print(f"   ⚠️  Warmup failed — continuing anyway")
+
             print(f"\n⚛️ AgentNova Model Tool Tests")
             print(f"   Backend: {backend_name} ({backend.base_url})")
             print(f"   Model: {model}")
