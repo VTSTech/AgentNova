@@ -4,6 +4,59 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [R04.6] - 04-05-2026 11:07:39 AM
+
+### Quick Wins: Type Cleanup, Zero-Dep Compatibility, Per-Session Todos, State Versioning & Server Logging
+
+Six targeted fixes addressing stale types, unnecessary dependencies, shared mutable state, schema migration readiness, and lost server logs. All backward-compatible — no API changes, no new dependencies.
+
+### Changed
+
+#### `BackendType` Enum Cleaned Up (`core/types.py`, `backends/llama_server.py`, `tests/test_agent.py`)
+- **Removed `BackendType.OPENAI`** — dead code, never referenced anywhere. The OpenAI API *format* is correctly represented by `ApiMode.OPENAI` (Chat-Completions), not a backend type. OpenAI-format endpoints are already supported by both `OllamaBackend` and `LlamaServerBackend` via the `api_mode` parameter.
+- **Renamed `BackendType.CUSTOM` → `BackendType.LLAMA_SERVER`** — the old `CUSTOM` name was misleading; `LlamaServerBackend` in normal mode (not BitNet) was returning `BackendType.CUSTOM`, which didn't match the actual backend registry name (`llama-server`). Now the enum members map 1:1 to the backend registry: `OLLAMA` → `ollama`, `LLAMA_SERVER` → `llama-server`, `BITNET` → `bitnet`.
+- **Impact**: `backend.backend_type` now returns `BackendType.LLAMA_SERVER` for llama-server/TurboQuant instead of `BackendType.CUSTOM`. Any code checking `== BackendType.CUSTOM` will need updating (grep confirmed no internal references existed).
+
+#### `check_compatibility()` Zero-Dependency (`skills/loader.py`)
+- **Removed `from packaging.version import Version` import** — `packaging` is not a stdlib dependency and AgentNova maintains a zero-runtime-dependency policy.
+- **Replaced with tuple comparison**: `tuple(int(x) for x in version.split("."))` — standard Python tuple comparison handles version ordering correctly for all reasonable version strings (e.g., `(3, 9) >= (3, 8)` is `True`).
+- **Error handling** changed from `except ImportError` (packaging not installed) to `except (ValueError, AttributeError)` (malformed version strings).
+- **Impact**: Skills with `compatibility: "python>=3.8"` now work without requiring `pip install packaging`. Functionally identical for all valid version strings.
+
+### Added
+
+#### Per-Session Todo Stores (`tools/builtins.py`)
+- **`_todo_stores: dict[str, list[dict]]`** — replaces the module-level `_todo_store: list[dict]`. Each `session_id` gets its own isolated todo list.
+- **`_get_todo_store(session_id="default")`** — accessor that lazily creates stores. Default session used when no session_id provided.
+- **All todo functions** (`todo_add`, `todo_list`, `todo_complete`, `todo_remove`, `todo_clear`) updated to use `_get_todo_store()`.
+- **Impact**: Multiple agent sessions in the same process no longer share a todo list. Previously, a todo added in one session appeared in all sessions — now they're properly isolated. Backward-compatible: default session works identically to the old behavior.
+
+#### TurboState Schema Versioning (`turbo.py`)
+- **`_version: int = 1`** field added to `TurboState` dataclass.
+- **`_TURBO_STATE_VERSION = 1`** module constant — the current schema version.
+- **`to_dict()`** now includes `_version` in serialized state.
+- **`load()`** pops `_version` from loaded data and checks: if `version > _TURBO_STATE_VERSION`, returns `None` (state file from a newer AgentNova version cannot be loaded). If `version < _TURBO_STATE_VERSION`, the comment placeholder indicates where migration logic will go.
+- **Impact**: Future schema changes to `TurboState` can be handled gracefully without corrupting state files. Loading a v2 state file in a v1 AgentNova returns `None` (clean failure) instead of crashing with missing field errors.
+
+#### TurboQuant Server Logging to File (`turbo.py`)
+- **`TURBOQUANT_LOG_FILE`** constant — `~/.agentnova/turbo.log`.
+- **`start_server()`** — `stdout` and `stderr` now append to `TURBOQUANT_LOG_FILE` instead of `subprocess.DEVNULL`. `stdin` remains `DEVNULL`.
+- **Impact**: llama-server startup logs, model loading messages, and runtime warnings are no longer lost. Debug TurboQuant issues by reading `~/.agentnova/turbo.log`. Previously, `DEVNULL` meant any server-side error during startup was invisible — you'd only see the health check timeout.
+
+### File Changes Summary
+
+| Action | File | Changes |
+|--------|------|:-------:|
+| Updated | `agentnova/core/types.py` | +1 −2 |
+| Updated | `agentnova/backends/llama_server.py` | +1 −1 |
+| Updated | `agentnova/skills/loader.py` | +4 −6 |
+| Updated | `agentnova/tools/builtins.py` | +23 −18 |
+| Updated | `agentnova/turbo.py` | +20 −4 |
+| Updated | `tests/test_agent.py` | +1 −0 |
+| **Total** | **6 files** | **+50 −31** |
+
+---
+
 ## [R04.5] - 04-04-2026 12:38:06 PM
 
 ### TurboQuant Server Manager & Ollama Model Registry
