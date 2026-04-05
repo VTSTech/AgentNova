@@ -41,6 +41,14 @@ Inspired by the architecture of OpenClaw, rebuilt from scratch for local-first o
 - **ACP v1.0.6 integration** — Agent Control Panel for monitoring and control
 - **AgentSkills spec** — Skill loading with SPDX license validation
 - **Thinking models support** — Automatic handling of qwen3, deepseek-r1 thinking mode
+- **Persistent memory** — SQLite-backed conversation persistence with session management (`--session`)
+- **17 built-in tools** — Calculator, shell, file ops (read/write/edit/list/find), HTTP, web search, JSON parse, Python REPL, todo list, datetime, word/char count
+- **Dangerous tool confirmation** — `--confirm` flag for interactive approval of destructive operations
+- **Audit logging** — Automatic JSON-lines logging of shell, write, and edit operations
+- **Argument normalization** — ~100+ tool argument aliases for small model compatibility
+- **JSON structured output** — `--response-format json` for structured JSON responses
+- **TurboQuant server management** — Built-in llama-server lifecycle management with auto KV cache detection
+- **Self-update** — `agentnova update` to update to latest version from GitHub
 
 ## Installation
 
@@ -74,6 +82,36 @@ agentnova models
 
 # List available tools
 agentnova tools
+
+# Resume a previous session
+agentnova chat -m qwen2.5:0.5b --session my-session
+
+# Dangerous tool confirmation
+agentnova agent -m qwen2.5:7b --tools shell,write_file --confirm
+
+# Force ReAct mode
+agentnova run "What is 15 * 8?" --tools calculator --force-react
+
+# List persistent memory sessions
+agentnova sessions
+
+# TurboQuant server management
+agentnova turbo list
+agentnova turbo start qwen2.5:7b
+agentnova turbo status
+agentnova turbo stop
+
+# Self-update
+agentnova update
+```
+
+### Backend Options
+
+```bash
+# Backend options
+agentnova chat -m qwen2.5:0.5b --backend ollama         # Ollama (default)
+agentnova chat -m qwen2.5:7b --backend llama-server      # llama.cpp / TurboQuant
+agentnova chat -m bitnet-b1.58-2b-4t --backend bitnet     # BitNet
 ```
 
 ### Python API
@@ -96,6 +134,71 @@ agent = Agent(
 result = agent.run("What is 15 * 8?")
 print(result.final_answer)
 print(f"Completed in {result.total_ms:.0f}ms")
+```
+
+### Persistent Memory
+
+```python
+from agentnova import Agent
+
+# Create agent with session persistence
+agent = Agent(
+    model="qwen2.5:0.5b",
+    tools=["calculator"],
+    session_id="my-session",  # Enables persistent memory
+)
+
+result = agent.run("What is 15 * 8?")
+print(result.final_answer)  # "120"
+
+# Later... resume the session
+agent2 = Agent(
+    model="qwen2.5:0.5b",
+    tools=["calculator"],
+    session_id="my-session",
+)
+# Previous conversation is restored from SQLite
+
+# Clean up when done
+agent.memory.close()
+```
+
+### Dangerous Tool Confirmation
+
+```python
+agent = Agent(
+    model="qwen2.5:7b",
+    tools=["shell", "write_file", "edit_file"],
+    confirm_dangerous=lambda tool, args: input(f"Run {tool}? [y/N] ").lower() == "y",
+)
+```
+
+### JSON Structured Output
+
+```python
+agent = Agent(
+    model="qwen2.5:0.5b",
+    response_format={"type": "json_object"},  # Enables JSON mode, disables tools
+)
+result = agent.run('Return JSON with keys: "name", "age", "city"')
+print(result.final_answer)  # Valid JSON string
+```
+
+### TurboQuant Server Management
+
+```python
+from agentnova.turbo import start_server, stop_server, get_status
+
+# Start TurboQuant server with an Ollama model
+state = start_server("qwen2.5:7b", ctx=8192)
+
+# Check status
+status = get_status()
+if status:
+    print(f"Running: {status.model_name} on port {status.port}")
+
+# Stop server
+stop_server()
 ```
 
 ### Chat-Completions Streaming
@@ -179,6 +282,11 @@ You can also force ReAct mode:
 agent = Agent(model="qwen2.5:0.5b", force_react=True)
 ```
 
+```bash
+# Force ReAct mode via CLI
+agentnova run "What is 15 * 8?" --tools calculator --force-react
+```
+
 ## Model Families
 
 Configured model families with optimized prompts:
@@ -190,6 +298,9 @@ Configured model families with optimized prompts:
 - **granite/granitemoe** — Native tool support
 - **phi3** — Native tool support
 - **deepseek** — Native with `<think/>` tag handling
+- **qwen3** — ReAct mode, thinking model (auto think=False)
+- **qwen3.5** — Native on OpenAI, ReAct on OpenResponses
+- **dolphin** — ReAct mode
 
 ## Security Features
 
@@ -199,6 +310,9 @@ Built-in security for safe operation:
 - **Path validation** — Prevents access to sensitive directories
 - **SSRF protection** — Blocks requests to local/internal URLs
 - **Injection detection** — Detects shell injection patterns
+- **Dangerous tool confirmation** — `--confirm` flag requires interactive approval before shell, write, or edit operations
+- **Audit logging** — Shell, write, and edit operations logged to `~/.agentnova/audit.log`
+- **Response size limits** — Files capped at 512KB, HTTP responses at 256KB
 
 ## Configuration
 
@@ -216,6 +330,18 @@ AGENTNOVA_BACKEND=ollama      # Default backend: ollama or bitnet
 AGENTNOVA_MODEL=qwen2.5:0.5b  # Default model
 AGENTNOVA_MAX_STEPS=10        # Maximum reasoning steps
 AGENTNOVA_DEBUG=false         # Enable debug output
+
+# TurboQuant settings
+TURBOQUANT_SERVER_PATH=llama-server    # llama-server binary path
+TURBOQUANT_PORT=8764                   # TurboQuant server port
+TURBOQUANT_CTX=8192                    # Context window size
+
+# Llama Server
+LLAMA_SERVER_BASE_URL=http://localhost:8764  # llama-server URL (default: 8764, was 8080 pre-R04.5)
+
+# Retry settings
+AGENTNOVA_RETRY_ON_ERROR=true          # Retry failed tool calls with error feedback
+AGENTNOVA_MAX_TOOL_RETRIES=2           # Maximum retries per tool call failure
 ```
 
 Check current configuration:
@@ -237,6 +363,15 @@ agentnova config --urls  # Show only URLs
 | `--timeout <seconds>` | Request timeout (default: 120) |
 | `--acp` | Enable ACP (Agent Control Panel) logging |
 | `--acp-url <url>` | ACP server URL |
+| `--confirm` | Require y/N confirmation before dangerous tools (shell, write_file, edit_file) |
+| `--session <name>` | Resume or create a persistent memory session |
+| `--force-react` | Force ReAct text-based tool calling (skip native tool detection) |
+| `--num-predict <tokens>` | Maximum tokens to generate |
+| `--stream` | Stream output in real-time |
+| `-q, --quiet` | Suppress header and summary output |
+| `-v, --verbose` | Verbose output |
+| `--no-retry` | Disable retry-with-error-feedback on tool failures |
+| `--max-retries N` | Maximum retries per tool call failure (default: 2) |
 
 ## LocalClaw Redirect
 
