@@ -15,7 +15,7 @@
     "models": ["*"]
   },
   "allowedTools": [
-    "http", "python_repl", "json_parse", "web_search",
+    "http_get", "python_repl", "parse_json", "web-search",
     "read_file", "write_file", "calculator"
   ],
   "recommendedSkills": [],
