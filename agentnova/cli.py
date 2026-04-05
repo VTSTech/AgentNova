@@ -1,4 +1,4 @@
-﻿"""
+"""
 ⚛️ AgentNova — CLI
 Command-line interface for AgentNova.
 
@@ -256,6 +256,8 @@ def create_parser() -> argparse.ArgumentParser:
                            help="Only run Phase 1 (direct tool tests, no model)")
     test_parser.add_argument("--model-only", action="store_true", dest="model_only",
                            help="Only run Phase 2 (model tool calling tests)")
+    test_parser.add_argument("--quick", action="store_true",
+                           help="Quick mode: only run 5 fastest tests per test module")
 
     # Turbo command
     turbo_parser = subparsers.add_parser("turbo", help="TurboQuant server management (start/stop/list Ollama models)")
@@ -1266,6 +1268,8 @@ def cmd_test(args: argparse.Namespace) -> int:
                     test_argv.append("--tools-only")
                 if getattr(args, 'model_only', False):
                     test_argv.append("--model-only")
+                if getattr(args, 'quick', False):
+                    test_argv.append("--quick")
                 
                 # Override sys.argv for the test module's argparse
                 old_argv = sys.argv

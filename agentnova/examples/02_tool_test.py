@@ -75,6 +75,8 @@ def parse_args():
     parser.add_argument("--top-p", type=float, default=None, dest="top_p",
                        help="Nucleus sampling probability 0.0-1.0")
     parser.add_argument("--force-react", action="store_true", help="Force ReAct mode for tool calling")
+    parser.add_argument("--quick", action="store_true",
+                       help="Quick mode: only run 5 fastest model tests (calculator x3, datetime x2)")
     return parser.parse_args()
 
 
@@ -1628,80 +1630,101 @@ def run_phase2(model: str, backend, debug: bool,
                soul: str = None, soul_level: int = 2,
                force_react: bool = False,
                num_ctx: int = None, num_predict: int = None,
-               temperature: float = None, top_p: float = None) -> tuple[int, int]:
+               temperature: float = None, top_p: float = None,
+               quick: bool = False) -> tuple[int, int]:
     """Run all Phase 2 (model tool calling) tests."""
     print(f"\n{'#'*60}")
-    print(f"# PHASE 2: Model Tool Calling")
+    if quick:
+        print(f"# PHASE 2: Model Tool Calling (QUICK — 5 tests)")
+    else:
+        print(f"# PHASE 2: Model Tool Calling")
     print(f"# Testing model's ability to use tools")
     print(f"{'#'*60}")
     
     total_passed = 0
     total_tests = 0
     
-    # Test each tool category separately
-    p, t = test_calculator_model(model, backend, debug, soul=soul, soul_level=soul_level,
-                                 force_react=force_react, num_ctx=num_ctx,
-                                 num_predict=num_predict, temperature=temperature, top_p=top_p)
-    total_passed += p
-    total_tests += t
-    
-    p, t = test_shell_model(model, backend, debug, soul=soul, soul_level=soul_level,
-                            force_react=force_react, num_ctx=num_ctx,
-                            num_predict=num_predict, temperature=temperature, top_p=top_p)
-    total_passed += p
-    total_tests += t
-    
-    p, t = test_datetime_model(model, backend, debug, soul=soul, soul_level=soul_level,
-                               force_react=force_react, num_ctx=num_ctx,
-                               num_predict=num_predict, temperature=temperature, top_p=top_p)
-    total_passed += p
-    total_tests += t
-    
-    p, t = test_file_model(model, backend, debug, soul=soul, soul_level=soul_level,
-                            force_react=force_react, num_ctx=num_ctx,
-                            num_predict=num_predict, temperature=temperature, top_p=top_p)
-    total_passed += p
-    total_tests += t
-    
-    p, t = test_python_repl_model(model, backend, debug, soul=soul, soul_level=soul_level,
-                                  force_react=force_react, num_ctx=num_ctx,
-                                  num_predict=num_predict, temperature=temperature, top_p=top_p)
-    total_passed += p
-    total_tests += t
-    
-    p, t = test_read_file_lines_model(model, backend, debug, soul=soul, soul_level=soul_level,
+    if quick:
+        # Quick mode: only calculator (5 tests) + datetime (2 tests) = 7 tests
+        # These are the fastest since they don't need file I/O or sandboxing
+        p, t = test_calculator_model(
+            model, backend, debug, soul=soul, soul_level=soul_level,
+            force_react=force_react, num_ctx=num_ctx,
+            num_predict=num_predict, temperature=temperature, top_p=top_p)
+        total_passed += p
+        total_tests += t
+        
+        p, t = test_datetime_model(
+            model, backend, debug, soul=soul, soul_level=soul_level,
+            force_react=force_react, num_ctx=num_ctx,
+            num_predict=num_predict, temperature=temperature, top_p=top_p)
+        total_passed += p
+        total_tests += t
+    else:
+        # Test each tool category separately
+        p, t = test_calculator_model(model, backend, debug, soul=soul, soul_level=soul_level,
+                                     force_react=force_react, num_ctx=num_ctx,
+                                     num_predict=num_predict, temperature=temperature, top_p=top_p)
+        total_passed += p
+        total_tests += t
+        
+        p, t = test_shell_model(model, backend, debug, soul=soul, soul_level=soul_level,
+                                force_react=force_react, num_ctx=num_ctx,
+                                num_predict=num_predict, temperature=temperature, top_p=top_p)
+        total_passed += p
+        total_tests += t
+        
+        p, t = test_datetime_model(model, backend, debug, soul=soul, soul_level=soul_level,
+                                   force_react=force_react, num_ctx=num_ctx,
+                                   num_predict=num_predict, temperature=temperature, top_p=top_p)
+        total_passed += p
+        total_tests += t
+        
+        p, t = test_file_model(model, backend, debug, soul=soul, soul_level=soul_level,
+                                force_react=force_react, num_ctx=num_ctx,
+                                num_predict=num_predict, temperature=temperature, top_p=top_p)
+        total_passed += p
+        total_tests += t
+        
+        p, t = test_python_repl_model(model, backend, debug, soul=soul, soul_level=soul_level,
                                       force_react=force_react, num_ctx=num_ctx,
                                       num_predict=num_predict, temperature=temperature, top_p=top_p)
-    total_passed += p
-    total_tests += t
-    
-    p, t = test_find_files_model(model, backend, debug, soul=soul, soul_level=soul_level,
-                                 force_react=force_react, num_ctx=num_ctx,
-                                 num_predict=num_predict, temperature=temperature, top_p=top_p)
-    total_passed += p
-    total_tests += t
-    
-    p, t = test_edit_file_model(model, backend, debug, soul=soul, soul_level=soul_level,
-                                force_react=force_react, num_ctx=num_ctx,
-                                num_predict=num_predict, temperature=temperature, top_p=top_p)
-    total_passed += p
-    total_tests += t
-    
-    p, t = test_todo_model(model, backend, debug, soul=soul, soul_level=soul_level,
-                           force_react=force_react, num_ctx=num_ctx,
-                           num_predict=num_predict, temperature=temperature, top_p=top_p)
-    total_passed += p
-    total_tests += t
-    
-    # Test with ALL tools available (model must choose correct tool)
-    p, t = test_all_tools_model(model, backend, debug, soul=soul, soul_level=soul_level,
-                                force_react=force_react, num_ctx=num_ctx,
-                                num_predict=num_predict, temperature=temperature, top_p=top_p)
-    total_passed += p
-    total_tests += t
+        total_passed += p
+        total_tests += t
+        
+        p, t = test_read_file_lines_model(model, backend, debug, soul=soul, soul_level=soul_level,
+                                          force_react=force_react, num_ctx=num_ctx,
+                                          num_predict=num_predict, temperature=temperature, top_p=top_p)
+        total_passed += p
+        total_tests += t
+        
+        p, t = test_find_files_model(model, backend, debug, soul=soul, soul_level=soul_level,
+                                     force_react=force_react, num_ctx=num_ctx,
+                                     num_predict=num_predict, temperature=temperature, top_p=top_p)
+        total_passed += p
+        total_tests += t
+        
+        p, t = test_edit_file_model(model, backend, debug, soul=soul, soul_level=soul_level,
+                                    force_react=force_react, num_ctx=num_ctx,
+                                    num_predict=num_predict, temperature=temperature, top_p=top_p)
+        total_passed += p
+        total_tests += t
+        
+        p, t = test_todo_model(model, backend, debug, soul=soul, soul_level=soul_level,
+                               force_react=force_react, num_ctx=num_ctx,
+                               num_predict=num_predict, temperature=temperature, top_p=top_p)
+        total_passed += p
+        total_tests += t
+        
+        # Test with ALL tools available (model must choose correct tool)
+        p, t = test_all_tools_model(model, backend, debug, soul=soul, soul_level=soul_level,
+                                    force_react=force_react, num_ctx=num_ctx,
+                                    num_predict=num_predict, temperature=temperature, top_p=top_p)
+        total_passed += p
+        total_tests += t
     
     print(f"\n{'='*60}")
-    print(f"📊 PHASE 2 TOTAL: {total_passed}/{total_tests} ({100*total_passed//total_tests}%)")
+    print(f"📊 PHASE 2 TOTAL: {total_passed}/{total_tests} ({100*total_passed//total_tests if total_tests > 0 else 0}%)")
     print(f"{'='*60}")
     
     return total_passed, total_tests
@@ -1786,7 +1809,8 @@ def main():
                 num_ctx=num_ctx,
                 num_predict=getattr(args, 'num_predict', None),
                 temperature=getattr(args, 'temperature', None),
-                top_p=getattr(args, 'top_p', None)
+                top_p=getattr(args, 'top_p', None),
+                quick=getattr(args, 'quick', False),
             )
             total_passed += phase2_passed
             total_tests += phase2_total
