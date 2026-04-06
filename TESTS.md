@@ -50,18 +50,6 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | 6 | `functiongemma:270m` | 0.28 GB | **0/5 (0%)** | 352.6s | ❌ expr | ❌ expr | ❌ 4.0 | ❌ refused | ❌ refused | -1 | Q1-Q2 echo expressions, Q4-Q5 refusals. |
 | 6 | `qwen:1.8b` | 1.04 GB | **0/5 (0%)** | 783.2s | ❌ garb. | ❌ garb. | ❌ garb. | ❌ garb. | ❌ garb. | NEW | Complete failure; garbled markdown, unusable.
 
-#### Complementary Failure Analysis (R04.5)
-
-| Question | qwen2.5:0.5b | qwen2.5-coder:0.5b | qwen2.5:1.5b | granite4:350m | g3.1-moe:1b | ds-r1:1.5b | gemma3:270m | qwen3:0.6b | d3.0-qwen | d3.0-llama | llama3.2 | qwen:0.5b | qwen:1.8b | ds-coder:1.3b | Weakness |
-|----------|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|----------|
-| Q1 Simple | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ tmpl | ✅ | ✅ | ✅ | ❌ empty | ✅ | ❌ garb. | ❌ 48 | llama3.2 cold start, gemma3 tmpl, qwen:1.8b garb., ds-coder wrong math |
-| Q2 Multi-step | ✅ | ✅ | ✅ | ✅ | ❌ 53 | ✅ | ❌ tmpl | ✅ | ❌ 39 | ❌ 57 | ✅ | ❌ text | ❌ garb. | ❌ 123 | g3.1-moe/qwen3.5/dolphin3.0 off-by-2/6/12, gemma3 tmpl, qwen base no tool/garbled, ds-coder wrong math |
-| Q3 Division | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ tmpl | ✅ | ✅ | ❌ 5.25 | ✅ | ❌ 68 | ❌ garb. | ❌ code | gemma3 tmpl, qwen base no tool/garbled, d3.0-llama off-by-1, ds-coder code dump |
-| Q4 Word Problem | ❌ text | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ 24 | ❌ garb. | ❌ code | qwen2.5:0.5b text, qwen base wrong/garbled, ds-coder code dump |
-| Q5 Time Calc | ✅ | ❌ empty | ✅ | ✅ | ✅ | ❌ empty | ❌ 17h | ✅ | ✅ | ✅ | ❌ 24h | ❌ garb. | ✅ | Most common failure; gemma3 empty, qwen3.0:0.6b 17h |
-
-> granite4:350m, qwen2.5:1.5b, deepseek-r1:1.5b, and gemma4:e2b clear all 5 questions. driaforall improved from 3/5→4/5, gemma3 from 1/5→2/5. The qwen2 base models and deepseek-coder are fundamentally incompatible with ReAct tool calling.
-
 ---
 
 ### Chat Completions Mode Results (R04.5 - openai API Mode, WITH SOUL)
