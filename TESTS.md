@@ -4,7 +4,7 @@
 
 Test 01 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
 
-> **Updated:** 2026-04-06 - R04.5 OpenResponses (openre) with-soul results refreshed (nemotron-3-nano:4b, qwen3.5:2b added → 21 models)
+> **Updated:** 2026-04-06 - R04.5 OpenResponses (openre) with-soul results refreshed (nemotron-3-nano:4b, qwen3.5:2b, qwen3:1.7b added → 22 models)
 > **Previous:** 2026-04-05 - R04.5 ChatCompletions (openai) with-soul results expanded (12→18 models)
 > **Previous:** 2026-04-04 - R04.5 ChatCompletions (openai) with-soul results expanded (9→12 models)
 > **Previous:** 2026-04-04 - R04.5 OpenResponses (openre) with-soul results complete (16/16 models)
@@ -26,7 +26,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 > Testing with `--api openre --soul nova-helper` uses Ollama's native OpenResponses API (`/api/chat`) with the nova-helper soul persona
 > Test params: `--timeout 9999 --num-ctx 16768 --num-predict 256 --temp 0.1 --soul nova-helper`
 > Environment: CPU-only Google Colab, 12GB RAM, Ollama
-> ✅ **Complete** — All 21 models tested
+> ✅ **Complete** — All 22 models tested
 
 | Rank | Model | Size | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R04.4 | Notes |
 |:----:|-------|-----:|------:|:----:|:--:|:--:|:--:|:--:|:---------:|-------|-------|
@@ -48,6 +48,7 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | 4 | `gemma3:270m` | 0.27 GB | **2/5 (40%)** | 553.0s | ❌ tmpl | ❌ 3 | ✅ | ✅ | ❌ tmpl | 0 | Q3 fixed. Q2=3, Q5 tmpl. 2x faster than prev run. |
 | 5 | `qwen:0.5b` | 0.37 GB | **1/5 (20%)** | 341.5s | ✅ | ❌ text | ❌ 68 | ❌ 24 | ❌ 24h | -1 | No tool use. Base model too small. |
 | 4 | `nemotron-3-nano:4b` | ~2.4 GB | **2/5 (40%)** | 3774.9s | ❌ empty | ✅ | ❌ empty | ❌ empty | ✅ | NEW | Q1 cold start (1397s), Q3/Q4 empty. Slowest (3775s). |
+| 4 | `qwen3:1.7b` | ~1.0 GB | **2/5 (40%)** | 744.5s | ❌ empty | ❌ empty | ❌ empty | ✅ | ✅ | NEW | Q1-Q3 no tool use (fast but empty). Q4 slow (610s). |
 | 5 | `deepseek-coder:1.3b` | ~0.67 GB | **1/5 (20%)** | 1395.0s | ✅ | ❌ 21 | ❌ code | ❌ code | ❌ text | NEW | Q1 fixed, Q5 regressed. No tool use. 2nd slowest. |
 | 6 | `functiongemma:270m` | 0.28 GB | **0/5 (0%)** | 352.6s | ❌ expr | ❌ expr | ❌ 4.0 | ❌ refused | ❌ refused | -1 | Q1-Q2 echo expressions, Q4-Q5 refusals. |
 | 6 | `qwen:1.8b` | 1.04 GB | **0/5 (0%)** | 783.2s | ❌ garb. | ❌ garb. | ❌ garb. | ❌ garb. | ❌ garb. | NEW | Complete failure; garbled markdown, unusable.
