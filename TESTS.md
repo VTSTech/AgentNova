@@ -4,7 +4,7 @@
 
 Test 01 is designed for rapid iteration and debugging. 5 targeted questions identify common failure modes quickly.
 
-> **Updated:** 2026-04-06 - R04.5 OpenResponses (openre) with-soul results refreshed (7 models updated, gemma4:e2b added → 19 models)
+> **Updated:** 2026-04-06 - R04.5 OpenResponses (openre) with-soul results refreshed (nemotron-3-nano:4b added, qwen2.5:1.5b time updated → 20 models)
 > **Previous:** 2026-04-05 - R04.5 ChatCompletions (openai) with-soul results expanded (12→18 models)
 > **Previous:** 2026-04-04 - R04.5 ChatCompletions (openai) with-soul results expanded (9→12 models)
 > **Previous:** 2026-04-04 - R04.5 OpenResponses (openre) with-soul results complete (16/16 models)
@@ -26,12 +26,12 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 > Testing with `--api openre --soul nova-helper` uses Ollama's native OpenResponses API (`/api/chat`) with the nova-helper soul persona
 > Test params: `--timeout 9999 --num-ctx 16768 --num-predict 256 --temp 0.1 --soul nova-helper`
 > Environment: CPU-only Google Colab, 12GB RAM, Ollama
-> ✅ **Complete** — All 19 models tested
+> ✅ **Complete** — All 20 models tested
 
 | Rank | Model | Size | Score | Time | Q1 | Q2 | Q3 | Q4 | Q5 | vs R04.4 | Notes |
 |:----:|-------|-----:|------:|:----:|:--:|:--:|:--:|:--:|:---------:|-------|-------|
 | 1 | **`granite4:350m`** | 0.66 GB | **5/5 (100%)** | 287.7s | ✅ | ✅ | ✅ | ✅ | ✅ | 0 | Fastest 100%. 224s cold, ~16s warm. Smallest at 350M. |
-| 1 | **`qwen2.5:1.5b`** | 0.92 GB | **5/5 (100%)** | 543.5s | ✅ | ✅ | ✅ | ✅ | ✅ | NEW | 100% in openre. ~18s/q warm. |
+| 1 | **`qwen2.5:1.5b`** | 0.92 GB | **5/5 (100%)** | 564.9s | ✅ | ✅ | ✅ | ✅ | ✅ | NEW | 100% in openre. 485s cold, ~20s warm. |
 | 1 | **`deepseek-r1:1.5b`** | ~0.91 GB | **5/5 (100%)** | 604.5s | ✅ | ✅ | ✅ | ✅ | ✅ | NEW | Reasoning model; 502s cold, ~26s warm. |
 | 1 | **`gemma4:e2b`** | ~2.0 GB | **5/5 (100%)** | 1063.9s | ✅ | ✅ | ✅ | ✅ | ✅ | NEW | Fourth 100% in openre. 660s cold, ~101s warm. |
 | 2 | `driaforall/tiny-agent-a:0.5b` | ~0.5 GB | **4/5 (80%)** | 254.0s | ✅ | ✅ | ✅ | ✅ | ❌ empty | NEW | Q1 fixed (was 3/5). Q5 still empty. 7.8s warmup. |
@@ -46,7 +46,8 @@ agentnova test 01 -m qwen:0.5b --num-ctx 8192  # Custom context window
 | 3 | `nchapman/dolphin3.0-llama3:1b` | ~1.24 GB | **3/5 (60%)** | 403.6s | ✅ | ❌ 57 | ❌ 5.25 | ✅ | ✅ | NEW | Q2 off-by-6, Q3 division error. ~12s warm. |
 | 4 | `gemma3:270m` | 0.27 GB | **2/5 (40%)** | 553.0s | ❌ tmpl | ❌ 3 | ✅ | ✅ | ❌ tmpl | 0 | Q3 fixed. Q2=3, Q5 tmpl. 2x faster than prev run. |
 | 5 | `qwen:0.5b` | 0.37 GB | **1/5 (20%)** | 341.5s | ✅ | ❌ text | ❌ 68 | ❌ 24 | ❌ 24h | -1 | No tool use. Base model too small. |
-| 5 | `deepseek-coder:1.3b` | ~0.67 GB | **1/5 (20%)** | 1395.0s | ✅ | ❌ 21 | ❌ code | ❌ code | ❌ text | NEW | Q1 fixed, Q5 regressed. No tool use. Slowest (1395s). |
+| 4 | `nemotron-3-nano:4b` | ~2.4 GB | **2/5 (40%)** | 3774.9s | ❌ empty | ✅ | ❌ empty | ❌ empty | ✅ | NEW | Q1 cold start (1397s), Q3/Q4 empty. Slowest (3775s). |
+| 5 | `deepseek-coder:1.3b` | ~0.67 GB | **1/5 (20%)** | 1395.0s | ✅ | ❌ 21 | ❌ code | ❌ code | ❌ text | NEW | Q1 fixed, Q5 regressed. No tool use. 2nd slowest. |
 | 6 | `functiongemma:270m` | 0.28 GB | **0/5 (0%)** | 352.6s | ❌ expr | ❌ expr | ❌ 4.0 | ❌ refused | ❌ refused | -1 | Q1-Q2 echo expressions, Q4-Q5 refusals. |
 | 6 | `qwen:1.8b` | 1.04 GB | **0/5 (0%)** | 783.2s | ❌ garb. | ❌ garb. | ❌ garb. | ❌ garb. | ❌ garb. | NEW | Complete failure; garbled markdown, unusable.
 
