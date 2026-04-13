@@ -1,6 +1,6 @@
 ---
 name: codebase-audit
-version: 0.1.0
+version: 0.2.0
 description: >
   Audit, analyze, and produce a condensed intelligence brief for any codebase.
   Use this skill whenever you need to understand, review, audit, or get oriented on a codebase or project.
@@ -8,8 +8,10 @@ description: >
   "get me up to speed", "brief me on", "understand this code", "code review", or when starting work
   on an unfamiliar codebase. Also triggers when the user asks to clone and review a repo.
   This skill handles two modes: if a brief.md already exists, load it for instant orientation;
-  if not, perform a full audit and generate one. This enables efficient context transfer between
-  sessions and agents without re-reading the entire codebase.
+  if not, perform a full audit and generate both a brief.md (condensed orientation) and an
+  audit.md (detailed findings report). This enables efficient context transfer between
+  sessions and agents without re-reading the entire codebase, while also producing a
+  comprehensive audit artifact with bugs, security findings, and recommendations.
 ---
 
 # Codebase Audit & Intelligence Brief
@@ -135,20 +137,72 @@ Inform the user the brief has been generated and is ready for use by other sessi
 
 ---
 
-## Optional: Full Audit Report
+## Step 5: Build the Audit Report (audit.md)
 
-If the user explicitly requests a detailed audit report (PDF/DOCX), the brief is the
-condensed version — the report is the expanded version. Use the appropriate document skill
-(pdf or docx) to produce it. The report should include:
+After saving the brief, generate a detailed audit report using the template in
+`references/audit-template.md`. This is the expanded counterpart to the brief — where
+the brief is a concise map for orientation, the audit.md is the full findings document.
 
-- Everything in the brief, expanded with details and evidence
-- Code quality assessment per critical file
-- Specific code snippets for issues found
-- Dependency analysis and vulnerability notes
-- Recommendations with priority levels
+The audit report is always generated as part of the audit workflow. It is NOT optional.
 
-The brief is always generated regardless — it's the persistent artifact. The report is
-the disposable, detailed deliverable.
+### Structure and Categories
+
+Findings are organized into 7 categories, each with a unique ID prefix:
+
+| Prefix | Category | What it covers |
+|--------|----------|----------------|
+| SEC | Security | Vulnerabilities, input validation, SSRF, injection, data exposure |
+| ROB | Robustness | Error handling, retry logic, edge cases, graceful degradation |
+| MAINT | Maintainability | Complexity, duplication, consistency, developer experience |
+| PERF | Performance | Caching, streaming, resource usage, optimization |
+| FEAT | New Feature | Capabilities suggested by gaps/friction observed in the codebase |
+| ARCH | Architecture | Structural patterns, inter-module communication, extensibility |
+| TEST | Testing | Coverage gaps, missing test types, CI/CD improvements |
+
+Each finding gets a property table (Severity, Category, File(s)), a description
+with concrete code references, and a one-sentence impact statement. Findings are
+summarized in a master table (sorted by severity), detailed by category, and
+prioritized in a timeline-based Priority Matrix.
+
+The report always ends with an **Architecture Strengths** section — document what
+the codebase does well so good patterns aren't lost during refactoring.
+
+### Content Principles for audit.md:
+
+- **Every finding must reference a specific file and line/section** — no vague claims
+- **Use the ID system** (SEC-01, ROB-01, etc.) — it makes findings trackable across iterations
+- **Severity must be grounded** — High means correctness/security/data integrity at stake;
+  Medium means reliability or DX impact; Low means nice-to-have
+- **New Features must be grounded in observations** — suggest features because you saw
+  a gap or friction point in the code, not because it sounds cool
+- **Architecture Strengths must be specific** — reference actual code patterns, not generic praise
+- **Only include findings you actually observed** — don't speculate or list generic best practices
+- **Be honest about what you couldn't assess** — if a file was too large to read fully, say so
+- **Omit categories with no findings** from the detailed section (note in TOC instead)
+
+### Token Budget
+
+The audit report has no hard token limit since it is saved as a file, not loaded into
+context. However, aim for comprehensiveness without padding. A good audit report for a
+medium codebase (~5-10K lines) is typically 4,000-10,000 words.
+
+### Save Location
+
+Save the completed audit report to:
+- `/workspace/audit.md` (preferred, if ACP workspace is available)
+- `{project_root}/audit.md` (fallback)
+
+Inform the user both files have been generated.
+
+---
+
+## Optional: PDF/DOCX Deliverable
+
+If the user explicitly requests a formatted document (PDF or DOCX), the audit.md serves
+as the source content. Use the appropriate document skill (pdf or docx) to produce a
+polished, styled version of the audit findings. The brief and audit.md are always
+generated as Markdown regardless — the formatted document is an additional deliverable
+built from the audit.md content.
 
 ---
 
@@ -168,5 +222,7 @@ This skill makes NO network requests. It only accesses local files and the user'
 
 ## Security & Privacy
 
-All analysis is local. The brief contains only structural and architectural information
-about the codebase — no credentials, no secrets, no sensitive runtime data.
+All analysis is local. The brief and audit report contain only structural, architectural,
+and quality information about the codebase — no credentials, no secrets, no sensitive
+runtime data. The audit report may reference code patterns that resemble security issues
+but will not expose actual secrets or credentials found in the code.
