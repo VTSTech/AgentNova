@@ -1,6 +1,5 @@
 ---
 name: codebase-audit
-version: 0.2.0
 description: >
   Audit, analyze, and produce a condensed intelligence brief for any codebase.
   Use this skill whenever you need to understand, review, audit, or get oriented on a codebase or project.
@@ -12,6 +11,9 @@ description: >
   audit.md (detailed findings report). This enables efficient context transfer between
   sessions and agents without re-reading the entire codebase, while also producing a
   comprehensive audit artifact with bugs, security findings, and recommendations.
+metadata:
+  author: VTSTech
+  version: "0.2.0"
 ---
 
 # Codebase Audit & Intelligence Brief
