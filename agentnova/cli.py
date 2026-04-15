@@ -14,6 +14,7 @@ import json
 import os
 import sys
 import time
+import threading
 from pathlib import Path
 from typing import Optional
 
@@ -633,9 +634,50 @@ def cmd_chat(args: argparse.Namespace) -> int:
     _print_session_header(agent, args, config, "Chat Mode")
     print("Type '/quit' to exit, '/help' for commands\n")
 
+    def _status_prompt() -> str:
+        """Build the input prompt with an inline status bar."""
+        turns = len(agent.memory)
+        backend = getattr(agent.backend, 'backend_type', None)
+        bname = backend.value if backend and hasattr(backend, 'value') else str(backend) if backend else '?'
+        debug_marker = bright_red('*') if agent.debug else ''
+        return f"{dim(f'[{agent.model} | {bname} | {turns}t]{debug_marker')} {dim('You:')} "
+
+    # ── Spinner ───────────────────────────────────────────────────────
+    _SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+    _spinner_active = False
+    _spinner_stop = threading.Event()
+
+    def _spinner_thread():
+        """Animate a braille spinner on stderr."""
+        idx = 0
+        while not _spinner_stop.is_set():
+            frame = _SPINNER_FRAMES[idx % len(_SPINNER_FRAMES)]
+            sys.stderr.write(f"\r  {cyan(frame)} {dim('thinking...')}")
+            sys.stderr.flush()
+            idx += 1
+            _spinner_stop.wait(0.08)
+        # Clear the spinner line
+        sys.stderr.write('\r' + ' ' * 30 + '\r')
+        sys.stderr.flush()
+
+    def _spinner_start():
+        nonlocal _spinner_active
+        _spinner_active = True
+        _spinner_stop.clear()
+        t = threading.Thread(target=_spinner_thread, daemon=True)
+        t.start()
+        return t
+
+    def _spinner_stop_thread(t):
+        nonlocal _spinner_active
+        _spinner_active = False
+        _spinner_stop.set()
+        t.join(timeout=1)
+
+    # ── Main loop ─────────────────────────────────────────────────────
     while True:
         try:
-            user_input = input(f"{dim('You:')} ").strip()
+            user_input = input(_status_prompt()).strip()
         except (EOFError, KeyboardInterrupt):
             # Ensure persistent memory is flushed and closed
             if getattr(agent, '_is_persistent', False) and hasattr(agent.memory, 'close'):
@@ -657,7 +699,54 @@ def cmd_chat(args: argparse.Namespace) -> int:
             break
 
         if user_input == "/help":
-            print(f"Commands: {cyan('/quit')}, {cyan('/help')}, {cyan('/clear')}, {cyan('/status')}")
+            print(f"  {cyan('/clear')}    Clear conversation memory")
+            print(f"  {cyan('/debug')}    Toggle debug output on/off")
+            print(f"  {cyan('/help')}     Show this help message")
+            print(f"  {cyan('/model')}    Show or change the model (e.g. /model glm-4.7-flash)")
+            print(f"  {cyan('/status')}   Show model, backend, tools, and memory info")
+            print(f"  {cyan('/system')}   Print the current system prompt")
+            print(f"  {cyan('/tools')}    List available tools with descriptions")
+            print(f"  {cyan('/quit')}     Exit AgentNova")
+            continue
+
+        if user_input == "/system":
+            prompt = getattr(agent, '_custom_system_prompt', '')
+            if prompt:
+                print(prompt)
+            else:
+                print(yellow("No system prompt set."))
+            continue
+
+        if user_input == "/tools":
+            tools = agent.tools.all()
+            if not tools:
+                print(yellow("No tools loaded."))
+            else:
+                for t in tools:
+                    desc = t.description.split('.')[0] if t.description else 'No description'
+                    if len(desc) > 60:
+                        desc = desc[:57] + '...'
+                    print(f"  {cyan(t.name)}  {desc}")
+            continue
+
+        if user_input == "/model":
+            print(f"Current model: {cyan(agent.model)}")
+            continue
+
+        if user_input.startswith("/model "):
+            new_model = user_input[7:].strip()
+            if not new_model:
+                print(yellow("Usage: /model <model_name>"))
+            else:
+                old_model = agent.model
+                agent.model = new_model
+                print(green(f"Model changed: {old_model} -> {new_model}"))
+            continue
+
+        if user_input == "/debug":
+            agent.debug = not agent.debug
+            state = green("ON") if agent.debug else red("OFF")
+            print(f"Debug output: {state}")
             continue
 
         if user_input == "/clear":
@@ -674,6 +763,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
             print(f"Tools: {yellow(str(agent.tools.names()))}")
             print(f"Tool choice: {yellow(agent.tool_choice.type.value)}")
             print(f"Memory turns: {yellow(str(len(agent.memory)))}")
+            print(f"Debug: {green('ON') if agent.debug else red('OFF')}")
             if agent.soul:
                 print(f"Soul: {cyan(agent.soul.display_name)} v{agent.soul.version}")
             continue
@@ -682,7 +772,15 @@ def cmd_chat(args: argparse.Namespace) -> int:
         if acp:
             acp.log_chat("user", user_input)
 
-        result = agent.run(user_input)
+        # Run with spinner (suppress spinner when debug is on — debug already prints progress)
+        spinner_t = None
+        if not agent.debug:
+            spinner_t = _spinner_start()
+        try:
+            result = agent.run(user_input)
+        finally:
+            if spinner_t:
+                _spinner_stop_thread(spinner_t)
         print(f"\n{bright_green('Agent Nova')}: {result.final_answer}\n")
 
         # Log assistant response to ACP
