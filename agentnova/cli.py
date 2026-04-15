@@ -22,8 +22,8 @@ from .agent import Agent
 from .agent_mode import AgentMode
 from .orchestrator import Orchestrator, AgentCard
 from .tools import make_builtin_registry
-from .backends import get_backend, get_default_backend, OllamaBackend
-from .config import get_config, AGENTNOVA_BACKEND, OLLAMA_BASE_URL, BITNET_BASE_URL
+from .backends import get_backend, get_default_backend, get_backend_choices
+from .config import get_config, AGENTNOVA_BACKEND, OLLAMA_BASE_URL
 from . import __version__
 from .model_discovery import match_models, get_models
 from .shared_args import add_agent_args
@@ -183,7 +183,7 @@ def create_parser() -> argparse.ArgumentParser:
 
     # Models command
     models_parser = subparsers.add_parser("models", help="List available models")
-    models_parser.add_argument("--backend", choices=["ollama", "bitnet", "llama-server", "zai"], default=None, help="Backend to use")
+    models_parser.add_argument("--backend", choices=get_backend_choices(), default=None, help="Backend to use")
     models_parser.add_argument("--api", choices=["openre", "openai"], default=None, dest="api_mode",
                            help="API mode for tool support testing (default: test both)")
     models_parser.add_argument("--tool-support", action="store_true", help="Test tool calling support (skips already-cached models)")
@@ -194,7 +194,7 @@ def create_parser() -> argparse.ArgumentParser:
     # Modelfile command
     modelfile_parser = subparsers.add_parser("modelfile", help="Show model's Modelfile info")
     modelfile_parser.add_argument("-m", "--model", default=None, help="Model to inspect")
-    modelfile_parser.add_argument("--backend", choices=["ollama", "bitnet", "llama-server", "zai"], default=None, help="Backend to use")
+    modelfile_parser.add_argument("--backend", choices=get_backend_choices(), default=None, help="Backend to use")
 
     # Run command
     run_parser = subparsers.add_parser("run", help="Run a single prompt")
@@ -230,7 +230,7 @@ def create_parser() -> argparse.ArgumentParser:
                              help="Test to run: 00, 01, 02, ... 11, or 'all' (default: all)")
     test_parser.add_argument("-m", "--model", default=None, 
                              help="Model to test (supports patterns: 'qwen', 'g', ':0.5b')")
-    test_parser.add_argument("--backend", choices=["ollama", "bitnet", "llama-server", "zai"], default=None, help="Backend to use")
+    test_parser.add_argument("--backend", choices=get_backend_choices(), default=None, help="Backend to use")
     test_parser.add_argument("--api", choices=["openre", "openai"], default="openre", dest="api_mode",
                            help="API mode: 'openre' (OpenResponses) or 'openai' (Chat-Completions)")
     test_parser.add_argument("--debug", action="store_true", help="Enable debug output")
@@ -295,6 +295,10 @@ def create_parser() -> argparse.ArgumentParser:
 
     # Tools command
     subparsers.add_parser("tools", help="List available tools")
+
+    # Plugins command
+    plugins_parser = subparsers.add_parser("plugins", help="List and manage plugins")
+    plugins_parser.add_argument("--verbose", action="store_true", help="Show detailed plugin info")
 
     # Update command
     subparsers.add_parser("update", help="Update AgentNova to the latest version from GitHub")
@@ -2265,6 +2269,68 @@ def cmd_sessions(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_plugins(args: argparse.Namespace) -> int:
+    """List and manage plugins."""
+    from .plugins import get_plugin_manager
+
+    pm = get_plugin_manager()
+
+    # Discover all plugins
+    manifests = pm.discover()
+
+    if not manifests:
+        print(yellow("No plugins found."))
+        print(dim("  Plugins should be in agentnova/plugins/<name>/plugin.json"))
+        return 0
+
+    print(bold(bright_cyan("PLUGINS")))
+    print()
+
+    # Table header
+    name_w = max(len(m.name) for m in manifests) + 2
+    name_w = max(name_w, 12)
+    type_w = 10
+    ver_w = 10
+
+    header = (
+        pad_colored(bold("Name"), name_w) +
+        pad_colored(bold("Type"), type_w) +
+        pad_colored(bold("Version"), ver_w) +
+        bold("Description")
+    )
+    print(header)
+    print(dim("  " + "-" * (name_w + type_w + ver_w + 40)))
+
+    for m in sorted(manifests, key=lambda x: x.name):
+        loaded = pm.is_loaded(m.name)
+        status = green("●") if loaded else dim("○")
+        desc = m.description[:60] + ("..." if len(m.description) > 60 else "")
+
+        line = (
+            pad_colored(f"{status} {m.name}", name_w) +
+            pad_colored(cyan(m.type), type_w) +
+            pad_colored(dim(m.version), ver_w) +
+            desc
+        )
+        print(line)
+
+        if getattr(args, "verbose", False):
+            if m.depends:
+                print(f"    {dim('depends:')} {', '.join(m.depends)}")
+            if m.provides.get("backends"):
+                print(f"    {dim('backends:')} {', '.join(m.provides['backends'].keys())}")
+            if m.provides.get("cli_commands"):
+                print(f"    {dim('cli_commands:')} {', '.join(m.provides['cli_commands'])}")
+            entry = m.entrypoint or m.name
+            print(f"    {dim('entrypoint:')} {entry}")
+
+    print()
+    n_loaded = sum(1 for m in manifests if pm.is_loaded(m.name))
+    print(dim(f"  {len(manifests)} plugin(s) found, {n_loaded} loaded"))
+
+    return 0
+
+
 def cmd_update(args: argparse.Namespace) -> int:
     """Update AgentNova to the latest version from GitHub."""
     print(f"{bright_cyan('⚛ AgentNova')} - Updating from GitHub...")
@@ -2327,6 +2393,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         "skills": cmd_skills,
         "soul": cmd_soul,
         "sessions": cmd_sessions,
+        "plugins": cmd_plugins,
         "update": cmd_update,
     }
 

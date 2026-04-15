@@ -1,0 +1,31 @@
+{
+  "name": "bitnet",
+  "version": "0.4.8",
+  "display_name": "BitNet 1.58b Backend",
+  "description": "BitNet inference via llama.cpp server (thin wrapper around LlamaServerBackend with bitnet_mode=True)",
+  "author": "VTSTech",
+  "license": "MIT",
+  "type": "backend",
+  "entrypoint": "__init__",
+  "depends": [],
+  "optional_depends": [],
+  "config": {
+    "env_prefix": "BITNET",
+    "defaults": {
+      "BITNET_BASE_URL": "http://localhost:8765",
+      "BITNET_TUNNEL": ""
+    }
+  },
+  "provides": {
+    "backends": {
+      "bitnet": "bitnet.BitNetBackend"
+    },
+    "cli_commands": [],
+    "cli_flags": {
+      "--backend": ["bitnet"]
+    }
+  },
+  "compatibility": {
+    "agentnova": ">=0.4.0"
+  }
+}

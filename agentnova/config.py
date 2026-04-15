@@ -1,8 +1,11 @@
 """
 ⚛️ AgentNova — Central Configuration
 
-Single source of truth for Ollama, BitNet, and ACP server URLs.
-Change these values once to update all tests and examples.
+Single source of truth for core framework configuration.
+Plugin-owned config (BitNet, ZAI, ACP, TurboQuant) is read from
+environment variables and defaults are defined in each plugin's
+plugin.json manifest.  The module-level variables below are kept for
+backward compatibility — they simply read from the environment.
 
 Status: Alpha
 
@@ -18,7 +21,7 @@ from urllib.parse import urlparse
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# OLLAMA CONFIGURATION
+# OLLAMA CONFIGURATION (native backend)
 # ═══════════════════════════════════════════════════════════════════════════════
 # Default for local Ollama
 OLLAMA_BASE_URL = "http://localhost:11434"
@@ -30,26 +33,9 @@ if _ollama_env:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# BITNET CONFIGURATION
+# LLAMA-SERVER CONFIGURATION (native backend)
 # ═══════════════════════════════════════════════════════════════════════════════
-# Default for local bitnet.cpp llama-server
-BITNET_BASE_URL = "http://localhost:8765"
-
-# Override via environment variable
-_bitnet_env = os.environ.get("BITNET_BASE_URL")
-if _bitnet_env:
-    BITNET_BASE_URL = _bitnet_env
-
-# Remote BitNet tunnel
-_remote_bitnet = os.environ.get("BITNET_TUNNEL")
-if _remote_bitnet:
-    BITNET_BASE_URL = _remote_bitnet
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# LLAMA-SERVER CONFIGURATION (llama.cpp, llama-cpp-turboquant, etc.)
-# ═══════════════════════════════════════════════════════════════════════════════
-# Default for local llama-server
+# Default for local llama-server (native backend, always available)
 LLAMA_SERVER_BASE_URL = "http://localhost:8764"
 
 # Override via environment variable
@@ -59,66 +45,40 @@ if _llama_server_env:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# ZAI API CONFIGURATION
+# PLUGIN-OWNED CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════════
-# Default for ZAI API
-ZAI_BASE_URL = "https://api.z.ai"
+# The following config variables are owned by their respective plugins
+# (bitnet, zai, acp, turboquant).  They read from environment variables
+# with defaults defined in each plugin's plugin.json manifest.
+# Kept here for backward compatibility — plugin code imports these.
 
-# Override via environment variable
-_zai_url_env = os.environ.get("ZAI_BASE_URL")
-if _zai_url_env:
-    ZAI_BASE_URL = _zai_url_env
+# BitNet plugin (agentnova/plugins/bitnet/)
+BITNET_BASE_URL = os.environ.get("BITNET_TUNNEL") or os.environ.get("BITNET_BASE_URL", "http://localhost:8765")
 
-# ZAI API Key (required for authentication)
+# ZAI plugin (agentnova/plugins/zai/)
+ZAI_BASE_URL = os.environ.get("ZAI_BASE_URL", "https://api.z.ai")
 ZAI_API_KEY = os.environ.get("ZAI_API_KEY", "")
-
-# Restrict ZAI to free models only (no billing required)
 ZAI_FREE_ONLY = os.environ.get("ZAI_FREE_ONLY", "").lower() in ("1", "true", "yes")
-
-# Fallback model when a paid model fails due to insufficient credits
 ZAI_FREE_FALLBACK_MODEL = os.environ.get("ZAI_FREE_FALLBACK_MODEL", "glm-4.5-flash")
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# ACP CONFIGURATION
-# ═══════════════════════════════════════════════════════════════════════════════
-# Default for local ACP
-ACP_BASE_URL = "http://localhost:8766"
-
-# Override via environment variable
-_acp_env = os.environ.get("ACP_BASE_URL")
-if _acp_env:
-    ACP_BASE_URL = _acp_env
-
-# ACP Credentials
+# ACP plugin (agentnova/plugins/acp/)
+ACP_BASE_URL = os.environ.get("ACP_BASE_URL", "http://localhost:8766")
 ACP_USER = os.environ.get("ACP_USER", "admin")
 ACP_PASS = os.environ.get("ACP_PASS", "secret")
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# TURBOQUANT CONFIGURATION (llama-cpp-turboquant server)
-# ═══════════════════════════════════════════════════════════════════════════════
-# Default path to compiled llama-server binary from TheTom's TurboQuant fork
+# TurboQuant plugin (agentnova/plugins/turboquant/)
 TURBOQUANT_SERVER_PATH = os.environ.get("TURBOQUANT_SERVER_PATH", "llama-server")
-
-# Default port for TurboQuant server (same as LLAMA_SERVER_BASE_URL default)
 TURBOQUANT_PORT = int(os.environ.get("TURBOQUANT_PORT", "8764"))
-
-# Default context window for TurboQuant
 TURBOQUANT_CTX = int(os.environ.get("TURBOQUANT_CTX", "8192"))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # BACKEND SELECTION
 # ═══════════════════════════════════════════════════════════════════════════════
-# Set AGENTNOVA_BACKEND to "bitnet" to use BitNet instead of Ollama
+# Set AGENTNOVA_BACKEND to select a backend.
+# Accept any value — plugin backends are loaded lazily via PluginManager.
 # Default: "ollama"
 AGENTNOVA_BACKEND = os.environ.get("AGENTNOVA_BACKEND", "ollama").lower()
-
-# Validate backend value
-if AGENTNOVA_BACKEND not in ("ollama", "bitnet", "llama-server", "llama_server", "zai"):
-    print(f"Warning: Invalid AGENTNOVA_BACKEND '{AGENTNOVA_BACKEND}', defaulting to 'ollama'")
-    AGENTNOVA_BACKEND = "ollama"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -166,6 +126,9 @@ class Config:
     """AgentNova configuration."""
     # Backend URLs
     ollama_base_url: str = field(default_factory=lambda: OLLAMA_BASE_URL)
+    llama_server_base_url: str = field(default_factory=lambda: LLAMA_SERVER_BASE_URL)
+
+    # Plugin-owned URLs (read from env vars, defaults from plugin.json)
     bitnet_base_url: str = field(default_factory=lambda: BITNET_BASE_URL)
     zai_base_url: str = field(default_factory=lambda: ZAI_BASE_URL)
     acp_base_url: str = field(default_factory=lambda: ACP_BASE_URL)

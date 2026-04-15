@@ -2,37 +2,65 @@
 ⚛️ AgentNova — Backends Module
 Backend implementations for different inference engines.
 
+Native backends (ollama, llama-server) ship here.  All other backends
+(bitnet, zai, ...) are registered dynamically via the plugin system in
+``agentnova/plugins/`` and are discovered by ``PluginManager``.
+
 Written by VTSTech — https://www.vts-tech.org
 """
 
+from __future__ import annotations
+
 from .base import BaseBackend
 from .ollama import OllamaBackend
-from .bitnet import BitNetBackend
 from .llama_server import LlamaServerBackend
-from .zai import ZaiBackend
-from ..config import AGENTNOVA_BACKEND, OLLAMA_BASE_URL, BITNET_BASE_URL, LLAMA_SERVER_BASE_URL, ZAI_BASE_URL
+from ..config import AGENTNOVA_BACKEND, OLLAMA_BASE_URL, LLAMA_SERVER_BASE_URL
 from ..core.types import ApiMode
 
 
-# Backend registry
+# ---------------------------------------------------------------------------
+# Native backend registry (always available, no plugin overhead)
+# ---------------------------------------------------------------------------
 _BACKENDS: dict[str, type[BaseBackend]] = {
     "ollama": OllamaBackend,
     "llama-server": LlamaServerBackend,
     "llama_server": LlamaServerBackend,  # alias
-    "zai": ZaiBackend,
 }
 
-# BitNet is now merged into LlamaServerBackend with bitnet_mode=True
-# Kept as a separate class for backward compatibility (import path)
-_BITNET_ALIASES = {"bitnet"}
+
+def _ensure_plugin(name: str) -> None:
+    """
+    Lazy-load the plugin that provides a backend.
+
+    Called when a backend name is requested but not in the native registry.
+    """
+    from ..plugins import get_plugin_manager
+    pm = get_plugin_manager()
+    if pm.is_loaded(name):
+        return  # already loaded
+    plugin = pm.load(name)
+    if plugin is None:
+        raise ValueError(
+            f"Cannot load backend '{name}'. "
+            f"Check that the plugin exists in agentnova/plugins/{name}/"
+        )
+    # Plugin should have registered its backend via register_backend().
+    # Verify it's actually available now.
+    if pm.get_backend_class(name) is None:
+        raise ValueError(
+            f"Plugin '{name}' loaded but did not register a backend class."
+        )
 
 
 def get_backend(name: str, timeout: int | None = None, api_mode: ApiMode | str | None = None, **kwargs) -> BaseBackend:
     """
     Get a backend instance by name.
 
+    Resolves backend classes from the native registry first, then from
+    the plugin system via lazy loading.
+
     Args:
-        name: Backend name ("ollama", "bitnet")
+        name: Backend name ("ollama", "bitnet", "zai", "llama-server", ...)
         timeout: Request timeout in seconds (default: 120)
         api_mode: API mode ("openre" for OpenResponses, "openai" for Chat-Completions)
         **kwargs: Backend-specific configuration
@@ -41,33 +69,34 @@ def get_backend(name: str, timeout: int | None = None, api_mode: ApiMode | str |
         Backend instance
     """
     from .base import BackendConfig
-    
+
     name_lower = name.lower()
 
-    # BitNet alias — route to LlamaServerBackend with bitnet_mode=True
-    is_bitnet = name_lower in _BITNET_ALIASES
-    if is_bitnet:
-        name_lower = "llama-server"
+    # Resolve from native registry first
+    backend_class: type[BaseBackend] | None = _BACKENDS.get(name_lower)
 
-    if name_lower not in _BACKENDS:
-        raise ValueError(f"Unknown backend: {name}. Available: {list(_BACKENDS.keys())} + {_BITNET_ALIASES}")
-
-    backend_class = _BACKENDS[name_lower]
+    # If not native, try the plugin system (lazy load)
+    if backend_class is None:
+        _ensure_plugin(name_lower)
+        from ..plugins import get_plugin_manager
+        pm = get_plugin_manager()
+        backend_class = pm.get_backend_class(name_lower)
+        if backend_class is None:
+            raise ValueError(
+                f"Unknown backend: '{name}'. "
+                f"Available native: {list(_BACKENDS.keys())}"
+            )
 
     # Pass appropriate base_url if not provided
     if "base_url" not in kwargs:
         if name_lower == "ollama":
             kwargs["base_url"] = OLLAMA_BASE_URL
-        elif name_lower == "llama-server" and not is_bitnet:
+        elif name_lower == "llama-server":
             kwargs["base_url"] = LLAMA_SERVER_BASE_URL
-        elif is_bitnet:
-            kwargs["base_url"] = BITNET_BASE_URL
-            kwargs["bitnet_mode"] = True
-        elif name_lower == "zai":
-            kwargs["base_url"] = ZAI_BASE_URL
+        # Plugin backends set their own defaults in their __init__
 
-    # Set bitnet_mode for alias
-    if is_bitnet and "bitnet_mode" not in kwargs:
+    # BitNet-specific: route to llama-server with bitnet_mode=True
+    if name_lower == "bitnet" and "bitnet_mode" not in kwargs:
         kwargs["bitnet_mode"] = True
 
     # Create BackendConfig with timeout if specified
@@ -101,7 +130,7 @@ def get_default_backend(name: str | None = None, api_mode: ApiMode | str | None 
 
 def register_backend(name: str, backend_class: type[BaseBackend]) -> None:
     """
-    Register a custom backend.
+    Register a backend class (used by plugins).
 
     Args:
         name: Backend name
@@ -110,14 +139,33 @@ def register_backend(name: str, backend_class: type[BaseBackend]) -> None:
     _BACKENDS[name.lower()] = backend_class
 
 
+def get_backend_choices() -> list[str]:
+    """
+    Get the merged list of available backend names for CLI ``--backend``.
+
+    Includes native backends plus any registered by plugins.
+    """
+    from ..plugins import get_plugin_manager
+    pm = get_plugin_manager()
+    native = list(_BACKENDS.keys())
+    plugin_names = pm.list_backend_names()
+    # Merge, deduplicate, preserve order
+    seen = set()
+    result = []
+    for n in native + plugin_names:
+        if n not in seen:
+            seen.add(n)
+            result.append(n)
+    return result
+
+
 __all__ = [
     "BaseBackend",
     "OllamaBackend",
-    "BitNetBackend",
     "LlamaServerBackend",
-    "ZaiBackend",
     "get_backend",
     "get_default_backend",
     "register_backend",
+    "get_backend_choices",
     "ApiMode",
 ]
