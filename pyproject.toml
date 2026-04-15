@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentnova"
-version = "0.4.8"
+version = "0.5.0-dev"
 description = "⚛️ AgentNova - A minimal, hackable agentic framework for local LLM inference"
 readme = "README.md"
 license = {text = "MIT"}
@@ -64,13 +64,12 @@ localclaw = "localclaw:main"
 
 [project.entry-points."agentnova.backends"]
 ollama = "agentnova.backends.ollama:OllamaBackend"
-bitnet = "agentnova.backends.bitnet:BitNetBackend"
 
 [tool.setuptools.packages.find]
 include = ["agentnova", "agentnova.*", "localclaw"]
 
 [tool.setuptools.package-data]
-agentnova = ["py.typed", "skills/*/SKILL.md", "souls/*/soul.json", "souls/*/*.md"]
+agentnova = ["py.typed", "skills/*/SKILL.md", "souls/*/soul.json", "souls/*/*.md", "plugins/*/plugin.json"]
 
 [tool.black]
 line-length = 100
