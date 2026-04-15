@@ -666,7 +666,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
         """
         sys.stdout.write('\n\n' + _footer_text() + '\033[A\033[A\r')
         sys.stdout.flush()
-        return input(f"{dim('You:')} ")
+        return input(f"\033[90mYou:\033[0m ")
 
     def _clear_footer():
         """Clear the footer line (one row below cursor) and return cursor to its row."""
@@ -722,6 +722,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
             continue
 
         if user_input == "/quit":
+            _clear_footer()
             if acp:
                 acp.log_chat("user", "/quit")
                 acp.a2a_unregister()
