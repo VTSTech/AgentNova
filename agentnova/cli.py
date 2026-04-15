@@ -663,13 +663,13 @@ def cmd_chat(args: argparse.Namespace) -> int:
         _e_tok   = '\U0001f4c8'
         _e_dbg   = '\U0001f41b'
         parts = [
-            f"{dim(_e_brand)}  {cyan('R04.7')}",
-            f"{dim(_e_model)}  {cyan(agent.model)}",
-            f"{dim(_e_ctx)}  {yellow(ctx_str)}",
-            f"{dim(_e_resp)}  {yellow(max_t_str)}",
-            f"{dim(_e_temp)}  {yellow(str(temp))}",
-            f"{dim(_e_be)}  {green(bname)}",
-            f"{dim(_e_tok)}  {yellow(tok_str)}",
+            f"{dim(_e_brand)} {cyan('R04.7')}",
+            f"{dim(_e_model)} {cyan(agent.model)}",
+            f"{dim(_e_ctx)} {yellow(ctx_str)}",
+            f"{dim(_e_resp)} {yellow(max_t_str)}",
+            f"{dim(_e_temp)} {yellow(str(temp))}",
+            f"{dim(_e_be)} {green(bname)}",
+            f"{dim(_e_tok)} {yellow(tok_str)}",
         ]
         if agent.debug:
             parts.append(f"{red(_e_dbg + ' debug')}")
