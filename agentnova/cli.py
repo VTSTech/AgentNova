@@ -671,7 +671,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
 
     def _clear_footer():
         """Clear the footer line (one row below cursor) and return cursor to its row."""
-        sys.stdout.write('\033[B\r' + ' ' * 80 + '\r\033[A')
+        sys.stdout.write('\033[B\033[2K\r\033[A')
         sys.stdout.flush()
 
     # ── Spinner ───────────────────────────────────────────────────────
