@@ -652,7 +652,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
             if n >= 1000:
                 return f"{n/1000:.1f}k"
             return str(n)
-        tok_str = f"{_fmt_tok(_session_tokens_in)}in {_fmt_tok(_session_tokens_out)}out"
+        tok_str = f"\u2191{_fmt_tok(_session_tokens_in)} \u2193{_fmt_tok(_session_tokens_out)}"
         parts = [
             f"{dim('\u269b\ufe0f')}  {cyan('R04.7')}",
             f"{dim('\U0001f9e0')}  {cyan(agent.model)}",
