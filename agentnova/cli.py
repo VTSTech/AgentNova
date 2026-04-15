@@ -607,7 +607,13 @@ def cmd_run(args: argparse.Namespace) -> int:
     if not getattr(args, 'quiet', False):
         _print_run_header(agent, args, config)
 
-    result = agent.run(args.prompt, stream=getattr(args, "stream", False))
+    try:
+        result = agent.run(args.prompt, stream=getattr(args, "stream", False))
+    except KeyboardInterrupt:
+        print(f"\n{yellow('Cancelled.')}")
+        if acp:
+            acp.a2a_unregister()
+        return 130
     print(result.final_answer)
 
     # Print run summary (unless quiet)
@@ -844,6 +850,10 @@ def cmd_chat(args: argparse.Namespace) -> int:
             spinner_t = _spinner_start()
         try:
             result = agent.run(user_input)
+        except KeyboardInterrupt:
+            _clear_footer()
+            print(f"\n{yellow('Cancelled.')}\n")
+            continue
         finally:
             if spinner_t:
                 _spinner_stop_thread(spinner_t)
@@ -929,7 +939,11 @@ def cmd_agent(args: argparse.Namespace) -> int:
         if acp:
             acp.log_chat("user", f"Goal: {user_input}")
 
-        success, result = agent_mode.run_task(user_input)
+        try:
+            success, result = agent_mode.run_task(user_input)
+        except KeyboardInterrupt:
+            print(f"\n{yellow('Cancelled.')}\n")
+            continue
         icon = bright_green("✅") if success else bright_red("❌")
         print(f"\n{icon} {result}\n")
 
