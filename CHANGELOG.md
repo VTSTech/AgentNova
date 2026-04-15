@@ -62,10 +62,15 @@ Fixes the critical bug where native tool-calling-capable models (e.g. glm-4.5-fl
   - `/debug` — toggles `agent.debug` on/off at runtime, prints current state
 - **`/status` fixed and expanded** — was crashing with `AttributeError: 'Agent' object has no attribute '_tool_support'` (attribute never existed). Replaced with live runtime info: model, backend type, API mode, tool list, tool choice, memory turns, debug state, and soul name. Added debug ON/OFF indicator.
 - **`/help` reformatted** — changed from comma-separated inline list to aligned two-column layout with descriptions for each command.
-- **Persistent status footer bar** — a dimmed status line (e.g. `[glm-4.5-flash | zai | 3t]`) is drawn below the `You:` input prompt every turn, showing model name, backend type, and memory turn count. Uses ANSI escape sequences (`\033[A` cursor-up) to position the footer below the prompt. After `input()` returns, `_clear_footer()` moves cursor down to the footer row, clears it, and returns — preventing artifacts when output or the spinner writes to the terminal. A blank line separates `You:` from the footer for readability.
+- **Persistent emoji status footer bar** — a colorized status line is drawn below the `You:` input prompt every turn, using emoji prefixes with labeled values:
+  ```
+  ⚛️  R04.7 🧠  glm-4.5-flash 📦  125K 💬  8K 🌡️  0.1 🔌  zai 📈  ↑1.2k ↓0.8k
+  ```
+  Fields: version (⚛️), model name (🧠), context window (📦), max response tokens (💬), temperature (🌡️), backend (🔌), and cumulative session token usage with ↑/↓ arrows (📈). Labels are dimmed, values are colorized (cyan for model/version, yellow for numbers, green for backend). Debug mode appends 🐛 in red. Uses ANSI escape sequences (`\033[A` cursor-up) to position the footer below the prompt. `_clear_footer()` uses `\033[2K` to clear the entire footer line regardless of terminal width. Emoji constants extracted to local variables for Python 3.10 compatibility (backslashes not allowed in f-string expressions prior to 3.12). A blank line separates `You:` from the footer.
+- **Session token tracking** — cumulative input/output token counts are estimated from `step.tokens_used` per agent run (~60% input, ~40% completion) and displayed in the footer. Auto-formats to `k` notation at 1000+ tokens.
 - **Working spinner** — a braille spinner (`⠷⠶⠦⠴⠲⠯⠟⠻⠏`) animates on stderr while waiting for the model to respond. Uses `threading` (stdlib, zero-dependency). Writes to stderr to avoid interfering with stdout debug output. Automatically suppressed when debug mode is on (debug already prints step progress). A blank line is printed before the spinner starts for visual separation from the previous response. Spinner line is cleaned up on completion.
 - **Response spacing** — blank lines added between the Agent Nova response and the next `You:` prompt for cleaner visual separation.
-Uses `threading` (stdlib, zero-dependency). Writes to stderr to avoid interfering with stdout debug output. Automatically suppressed when debug mode is on (debug already prints step progress). Spinner line is cleaned up on completion.
+- **Grey `You:` prompt** — the `You:` input label uses `\033[90m` (bright black/dark grey) to visually distinguish user input from the agent's bright green response.
 
 ### File Changes Summary
 
@@ -79,10 +84,10 @@ Uses `threading` (stdlib, zero-dependency). Writes to stderr to avoid interferin
 | Updated | `agentnova/config.py` | +27 −1 |
 | Updated | `agentnova/backends/__init__.py` | +7 −1 |
 | Updated | `agentnova/__init__.py` | +5 −1 |
-| Updated | `agentnova/cli.py` | +113 −8 |
+| Updated | `agentnova/cli.py` | +132 −8 |
 | Updated | `agentnova/shared_args.py` | +1 −1 |
 | Updated | `agentnova/core/types.py` | +1 −0 |
-| **Total** | **12 files** | **+1333 −27** |
+| **Total** | **12 files** | **+1352 −27** |
 
 ---
 
