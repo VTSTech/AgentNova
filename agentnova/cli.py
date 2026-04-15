@@ -2386,6 +2386,29 @@ def cmd_update(args: argparse.Namespace) -> int:
 def main(argv: Optional[list[str]] = None) -> int:
     """Main entry point."""
     parser = create_parser()
+
+    # Discover plugin-provided CLI commands and mark them with * in help
+    try:
+        from .plugins import get_plugin_manager
+        pm = get_plugin_manager()
+        manifests = pm.discover()
+
+        if manifests:
+            plugin_commands = set()
+            for m in manifests:
+                for cmd in m.provides.get("cli_commands", []):
+                    plugin_commands.add(cmd)
+
+            if plugin_commands:
+                # Access the subparsers action to mark plugin commands
+                for action in parser._subparsers._actions:
+                    if hasattr(action, 'choices'):
+                        for name, sub in action.choices.items():
+                            if name in plugin_commands:
+                                sub.help = f"* {sub.help} [plugin]"
+    except Exception:
+        pass  # Plugin discovery is best-effort at help time
+
     args = parser.parse_args(argv)
 
     if args.command is None:
