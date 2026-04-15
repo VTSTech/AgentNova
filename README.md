@@ -2,7 +2,7 @@
 
 **Status: Alpha**
 
-A minimal, hackable agentic framework engineered to run **entirely locally** with [Ollama](https://ollama.com) or [BitNet](https://github.com/microsoft/BitNet).
+A minimal, hackable agentic framework for autonomous AI agents. Runs **locally** with [Ollama](https://ollama.com) or [BitNet](https://github.com/microsoft/BitNet), or **in the cloud** with [ZAI](https://api.z.ai).
 
 Inspired by the architecture of OpenClaw, rebuilt from scratch for local-first operation.
 
@@ -31,7 +31,7 @@ Inspired by the architecture of OpenClaw, rebuilt from scratch for local-first o
 ## Features
 
 - **Zero dependencies** — Uses Python stdlib only (urllib for HTTP)
-- **Ollama + BitNet backends** — Switch with `--backend` flag
+- **Ollama + BitNet + ZAI backends** — Switch with `--backend` flag (local or cloud)
 - **Dual API support** — OpenResponses (`--api openre`) and OpenAI Chat-Completions (`--api openai`)
 - **Three-tier tool support** — Native, ReAct, or none (auto-detected)
 - **Small model optimized** — Fuzzy matching, argument normalization
@@ -40,6 +40,7 @@ Inspired by the architecture of OpenClaw, rebuilt from scratch for local-first o
 - **Soul Spec v0.5** — Persona packages with progressive disclosure
 - **ACP v1.0.6 integration** — Agent Control Panel for monitoring and control
 - **AgentSkills spec** — Skill loading with SPDX license validation
+- **ZAI cloud backend** — GLM models via ZAI API with free-tier support, auto-fallback on insufficient credits
 - **Thinking models support** — Automatic handling of qwen3, deepseek-r1 thinking mode
 - **Persistent memory** — SQLite-backed conversation persistence with session management (`--session`)
 - **17 built-in tools** — Calculator, shell, file ops (read/write/edit/list/find), HTTP, web search, JSON parse, Python REPL, todo list, datetime, word/char count
@@ -112,6 +113,8 @@ agentnova update
 agentnova chat -m qwen2.5:0.5b --backend ollama         # Ollama (default)
 agentnova chat -m qwen2.5:7b --backend llama-server      # llama.cpp / TurboQuant
 agentnova chat -m bitnet-b1.58-2b-4t --backend bitnet     # BitNet
+agentnova chat -m glm-4.5-flash --backend zai             # ZAI (free tier)
+agentnova chat -m glm-5.1 --backend zai                   # ZAI (paid)
 ```
 
 ### Python API
@@ -300,6 +303,7 @@ Configured model families with optimized prompts:
 - **deepseek** — Native with `<think/>` tag handling
 - **qwen3** — ReAct mode, thinking model (auto think=False)
 - **qwen3.5** — Native on OpenAI, ReAct on OpenResponses
+- **glm (ZAI)** — Native tool support via ZAI cloud API (GLM 4.5/4.6/4.7/5/5.1)
 - **dolphin** — ReAct mode
 
 ## Security Features
@@ -325,8 +329,14 @@ BITNET_BASE_URL=http://localhost:8765              # BitNet server URL
 BITNET_TUNNEL=https://your-tunnel.com              # Alternative BitNet URL
 ACP_BASE_URL=http://localhost:8766                 # ACP server URL
 
+# ZAI API
+ZAI_BASE_URL=https://api.z.ai                    # ZAI API endpoint
+ZAI_API_KEY=sk-...                                # ZAI API key (required)
+ZAI_FREE_ONLY=true                               # Restrict to free models only
+ZAI_FREE_FALLBACK_MODEL=glm-4.5-flash            # Fallback when credits run out
+
 # Agent settings
-AGENTNOVA_BACKEND=ollama      # Default backend: ollama or bitnet
+AGENTNOVA_BACKEND=ollama      # Default backend: ollama, bitnet, or zai
 AGENTNOVA_MODEL=qwen2.5:0.5b  # Default model
 AGENTNOVA_MAX_STEPS=10        # Maximum reasoning steps
 AGENTNOVA_DEBUG=false         # Enable debug output
@@ -480,4 +490,3 @@ MIT License - See LICENSE file for details.
 ## Contributing
 
 Contributions welcome!
-
