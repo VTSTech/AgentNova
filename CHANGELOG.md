@@ -4,6 +4,75 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [R04.7] - 04-14-2026 9:56:07 PM
+
+### Native Tool Calling Fix, ZAI Free-Model Mode & Expanded Model Catalog
+
+Fixes the critical bug where native tool-calling-capable models (e.g. glm-4.5-flash) were forced into text-based ReAct format by system prompt instructions that injected `Action:/Action Input:` patterns regardless of API mode. Adds `ZAI_FREE_ONLY` mode to restrict ZAI to zero-cost models, with automatic fallback on insufficient credits. Expands the ZAI model catalog from 7 to 13 models with pricing metadata. Exports `ZaiBackend` in the public API. Documentation updated for ZAI configuration.
+
+### Fixed
+
+#### [Critical] ReAct System Prompt Overrides Native Tool Calling (`core/prompts.py`, `agent.py`, `soul/loader.py`)
+- **Bug**: Three locations injected ReAct format instructions (`Action:/Action Input:` format, few-shot examples, `Final Answer:` block) into the system prompt regardless of `api_mode`. When using `--api openai` with a model tagged as NATIVE by `--tool-support` (e.g. glm-4.5-flash), the model received both native tool definitions via the API body AND text-based ReAct instructions in the system prompt. The system prompt instructions took precedence, causing the model to output text-based tool calls instead of using native `tool_calls` in the response JSON. The agent then had to parse these with the ReAct text parser, losing structured argument typing, parallel tool call support, and error semantics that native calling provides.
+- **Root cause**: Three independent code paths generated tool-related prompt content without checking whether the model was using native function calling:
+  1. **`agent.py` `_build_default_prompt()`** — always returned the full ReAct prompt with `Action:/Action Input:` format for tool-using agents, even when `_is_comp_mode` (Chat-Completions) was True.
+  2. **`soul/loader.py` `_build_tool_section()`** — always appended `Action:/Action Input:` format block to the tool reference table, even when called from `build_system_prompt_with_tools()` which knew the API mode.
+  3. **`core/prompts.py` `get_tool_prompt()`** — always injected full ReAct instructions and `FEW_SHOT_COMPACT` examples. The `tool_support` and `family` parameters existed but were explicitly documented as ignored.
+- **Fix** (three-part):
+  1. **`agent.py` `_build_default_prompt()`**: Added `_is_comp_mode` check before the ReAct prompt block. When True, returns a simplified prompt that tells the model "tools are provided via the API — call them naturally as function calls" without any `Action:/Action Input:` formatting. ReAct prompt remains the default for OPENRE mode and BitNet.
+  2. **`soul/loader.py` `_build_tool_section(tools, native_tools=False)`**: Added `native_tools` parameter. When True, emits the tool reference table without the `Action:/Action Input:` format block. Also updated `build_system_prompt_with_tools()` to accept and forward `native_tools`, and to skip dynamic ReAct-format examples (`_build_dynamic_examples()`) when using native tools — these examples show `Thought:/Action:/Action Input:` patterns that conflict with native calling.
+  3. **`core/prompts.py` `get_tool_prompt(tools, tool_support, family)`**: The `tool_support` parameter is now functional. When `tool_support` is `"native"` or `"openai"`, the ReAct format instructions and `FEW_SHOT_COMPACT` examples are skipped. The tool reference table is still included (useful for the model to know what tools exist). Docstring updated to reflect actual behavior.
+- **Wiring in `agent.py`**: `_is_comp_mode` property (checks `backend.api_mode == ApiMode.OPENAI`) is now passed as `native_tools=self._is_comp_mode` to both `build_system_prompt_with_tools()` (soul path) and `_build_tool_section()` (default prompt path and dynamic tool refresh path). This ensures consistent behavior whether a soul is loaded or the default prompt is used.
+- **Impact**: Models with native tool support (glm-4.5-flash, glm-4.7-flash, etc.) now correctly use structured `tool_calls` in their API response when `--api openai` is set. Text-based ReAct format is preserved for OPENRE mode and models tagged REACT/UNTESTED. Verified: glm-4.5-flash with `--api openai --tools shell,read_file` now uses native function calling instead of ReAct text output.
+
+### Added
+
+#### ZAI Free-Only Mode & Auto-Fallback (`config.py`, `backends/zai.py`)
+- **`ZAI_FREE_ONLY` env var** — set to `1`, `true`, or `yes` to restrict the ZAI backend to free models only. When enabled, `generate()` checks the requested model against `_is_free_model()` before making any API call. If the model has non-zero pricing, the request is silently redirected to `ZAI_FREE_FALLBACK_MODEL` (default: `glm-4.5-flash`). Prevents accidental charges and enables zero-cost usage without an active billing plan.
+- **`ZAI_FREE_FALLBACK_MODEL` env var** — override the fallback model used when `ZAI_FREE_ONLY` rejects a paid model or when auto-fallback triggers. Default: `glm-4.5-flash`.
+- **`_is_free_model(model)`** — checks the `ZAI_MODELS` catalog pricing metadata. Returns `True` only when both `pricing.input` and `pricing.output` are `0.0`. Free models: `glm-4.5-flash`, `glm-4.7-flash`.
+- **Auto-fallback on 429/1113** — when `generate()` receives HTTP 429 with error body containing "insufficient balance", "insufficient", or "no resource package" (ZAI error code 1113), and the requested model is not free, the backend automatically retries the same request with `ZAI_FREE_FALLBACK_MODEL`. If the fallback also fails, raises a descriptive error. Prevents hard failures when credits expire mid-session.
+- **Tool rejection fallback** — when `_generate_with_auth()` receives an error containing "does not support tools", it automatically retries the request with the `tools` parameter removed. Some ZAI models may not support function calling; this ensures graceful degradation instead of a hard error.
+
+#### Expanded ZAI Model Catalog (`backends/zai.py`)
+- **13 models** — expanded from the original 7 to 13 models with pricing metadata for free/paid detection. New additions: `glm-4.7-flash` (free), `glm-4.7-flashx`, `glm-4.5-x`, `glm-4.5-airx`, `glm-4-32b-0414-128k`.
+- **Pricing metadata** — every model now includes `pricing.input` and `pricing.output` (cost per 1M tokens). Used by `_is_free_model()` for `ZAI_FREE_ONLY` enforcement and auto-fallback decisions.
+- **`glm-4.6-flash` removed** — was a phantom model (user typo); no such model exists in the ZAI API.
+- **Free models**: `glm-4.5-flash`, `glm-4.7-flash` (pricing 0.0/0.0).
+
+#### ZaiBackend Public API Export (`__init__.py`, `backends/__init__.py`)
+- **`ZaiBackend`** exported from `agentnova.__init__` and `agentnova.backends.__init__`.
+- **`ZAI_BASE_URL`** exported from `agentnova.__init__`.
+- **Backend registry** — `"zai"` added to `_BACKENDS` dict with `ZAI_BASE_URL` routing in `get_backend()`.
+
+### Changed
+
+#### ZAI Backend CLI Choices (`cli.py`, `shared_args.py`)
+- **`--backend` choices** updated across all subcommands: `chat`, `run`, `agent`, `models`, `modelfile`, `test`. `"zai"` added alongside `ollama`, `bitnet`, `llama-server`.
+- Previously `"zai"` was only available via `AGENTNOVA_BACKEND` env var or the Python API. Now fully integrated into CLI argument parsing.
+
+#### Config Dataclass (`config.py`)
+- **`zai_base_url`** field added to `Config` dataclass. Defaults to `ZAI_BASE_URL` env var (`https://api.z.ai`).
+
+### File Changes Summary
+
+| Action | File | Changes |
+|--------|------|:-------:|
+| Created | `agentnova/backends/zai.py` | +813 |
+| Created | `tests/test_zai_backend.py` | +343 |
+| Updated | `agentnova/agent.py` | +21 −1 |
+| Updated | `agentnova/core/prompts.py` | +20 −12 |
+| Updated | `agentnova/soul/loader.py` | +25 −2 |
+| Updated | `agentnova/config.py` | +27 −1 |
+| Updated | `agentnova/backends/__init__.py` | +7 −1 |
+| Updated | `agentnova/__init__.py` | +5 −1 |
+| Updated | `agentnova/cli.py` | +3 −3 |
+| Updated | `agentnova/shared_args.py` | +1 −1 |
+| Updated | `agentnova/core/types.py` | +1 −0 |
+| **Total** | **12 files** | **+1223 −22** |
+
+---
+
 ## [R04.6] - 04-14-2026 8:36:03 PM
 
 ### ZAI API Backend, Nova-Trading Soul, Expanded Test Suite, Documentation Overhaul & Infrastructure Hardening
