@@ -667,8 +667,15 @@ def cmd_chat(args: argparse.Namespace) -> int:
 
         if user_input == "/status":
             print(f"Model: {cyan(agent.model)}")
-            print(f"Tool support: {green(agent._tool_support.value) if hasattr(agent._tool_support, 'value') else agent._tool_support}")
+            backend_name = getattr(agent.backend, 'backend_type', None)
+            if backend_name is not None:
+                print(f"Backend: {green(backend_name.value if hasattr(backend_name, 'value') else str(backend_name))}")
+            print(f"API mode: {green(agent._is_comp_mode and 'openai' or 'openre')}")
+            print(f"Tools: {yellow(str(agent.tools.names()))}")
+            print(f"Tool choice: {yellow(agent.tool_choice.type.value)}")
             print(f"Memory turns: {yellow(str(len(agent.memory)))}")
+            if agent.soul:
+                print(f"Soul: {cyan(agent.soul.display_name)} v{agent.soul.version}")
             continue
 
         # Log user message to ACP
