@@ -640,7 +640,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
         backend = getattr(agent.backend, 'backend_type', None)
         bname = backend.value if backend and hasattr(backend, 'value') else str(backend) if backend else '?'
         debug_marker = bright_red('*') if agent.debug else ''
-        return f"{dim(f'[{agent.model} | {bname} | {turns}t]{debug_marker')} {dim('You:')} "
+        return f"{dim(f'[{agent.model} | {bname} | {turns}t]{debug_marker}')} {dim('You:')} "
 
     # ── Spinner ───────────────────────────────────────────────────────
     _SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
