@@ -635,7 +635,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
     print("Type '/quit' to exit, '/help' for commands\n")
 
     def _footer_text() -> str:
-        """Build the status bar footer string."""
+        """Build the status bar footer string with colorized values."""
         turns = len(agent.memory)
         backend = getattr(agent.backend, 'backend_type', None)
         bname = backend.value if backend and hasattr(backend, 'value') else str(backend) if backend else '?'
@@ -644,18 +644,19 @@ def cmd_chat(args: argparse.Namespace) -> int:
         max_t = agent._num_predict if agent._num_predict is not None else agent.model_config.default_max_tokens
         max_t_str = f"{max_t // 1024}K" if max_t >= 1024 else str(max_t)
         temp = agent._temperature if agent._temperature is not None else agent.model_config.default_temperature
+        d = dim  # shorthand
         parts = [
-            f"AN R04.7",
-            f"model:{agent.model}",
-            f"MaxCtx:{ctx_str}",
-            f"RespMax:{max_t_str}",
-            f"temp:{temp}",
-            f"be:{bname}",
-            f"{turns}t",
+            f"{d('AN:')} {cyan('R04.7')}",
+            f"{d('model:')} {cyan(agent.model)}",
+            f"{d('MaxCtx:')} {yellow(ctx_str)}",
+            f"{d('RespMax:')} {yellow(max_t_str)}",
+            f"{d('temp:')} {yellow(str(temp))}",
+            f"{d('backend:')} {green(bname)}",
+            f"{yellow(str(turns))}{d('t')}",
         ]
         if agent.debug:
-            parts.append('debug')
-        return dim('  '.join(parts))
+            parts.append(f"{red('debug')}")
+        return '  '.join(parts)
 
     def _prompt():
         """Show input prompt with a persistent status footer below it.
