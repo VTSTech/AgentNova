@@ -649,7 +649,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
         # Format token counts
         def _fmt_tok(n):
             if n >= 1000:
-                return f"{n / 1000:.1f}k"
+                return f"{n/1000:.1f}k"
             return str(n)
         tok_str = f"{_fmt_tok(_session_tokens_in)} in {_fmt_tok(_session_tokens_out)} out"
         parts = [
