@@ -268,13 +268,13 @@ def get_tool_prompt(tools: list, tool_support: str = "react", family: str | None
     """
     Generate tool description prompt.
 
-    NOTE: family and tool_support parameters are ignored.
-    Kept for backward compatibility.
+    When tool_support is "native", skips ReAct format instructions since
+    tools are passed via the API body and the model uses native function calling.
 
     Args:
         tools: List of available tools
-        tool_support: Tool support level (ignored)
-        family: Model family (ignored)
+        tool_support: Tool support level ("native", "react", "untested")
+        family: Model family (reserved for future use)
 
     Returns:
         Tool description string
@@ -282,13 +282,20 @@ def get_tool_prompt(tools: list, tool_support: str = "react", family: str | None
     if not tools:
         return ""
 
+    # In native mode, the API passes tools via the tools parameter.
+    # Skip ReAct format instructions — the model knows how to call tools natively.
+    is_native = tool_support.lower() in ("native", "openai")
+
     lines = ["## Available Tools\n"]
-    lines.append("When you need to use a tool, follow this EXACT format:\n")
-    lines.append("```")
-    lines.append("Thought: <brief reasoning>")
-    lines.append("Action: <tool_name>")
-    lines.append("Action Input: <JSON arguments>")
-    lines.append("```\n")
+
+    if not is_native:
+        lines.append("When you need to use a tool, follow this EXACT format:\n")
+        lines.append("```")
+        lines.append("Thought: <brief reasoning>")
+        lines.append("Action: <tool_name>")
+        lines.append("Action Input: <JSON arguments>")
+        lines.append("```\n")
+
     lines.append("| Tool | Description | Arguments |")
     lines.append("|------|-------------|-----------|")
 
@@ -323,15 +330,17 @@ def get_tool_prompt(tools: list, tool_support: str = "react", family: str | None
 
     lines.append("")
     lines.append("**CRITICAL RULE**: If a tool is NOT in the available tools list, do NOT try to use it. Respond directly instead.")
-    lines.append("")
-    lines.append("After tool execution, provide the Final Answer:")
-    lines.append("```")
-    lines.append("Thought: I have the result")
-    lines.append("Final Answer: <the answer>")
-    lines.append("```")
-    
-    # Add few-shot examples for better tool usage
-    lines.append(FEW_SHOT_COMPACT)
+
+    if not is_native:
+        # ReAct format instructions — only for text-parsing models
+        lines.append("")
+        lines.append("After tool execution, provide the Final Answer:")
+        lines.append("```")
+        lines.append("Thought: I have the result")
+        lines.append("Final Answer: <the answer>")
+        lines.append("```")
+        # Add few-shot examples for better tool usage
+        lines.append(FEW_SHOT_COMPACT)
 
     return "\n".join(lines)
 

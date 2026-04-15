@@ -360,6 +360,7 @@ class Agent:
                         self.tools.all(),
                         level=soul_level,
                         tool_choice=self.tool_choice,  # OpenResponses: communicate constraints
+                        native_tools=self._is_comp_mode,
                     )
                 else:
                     from .soul import build_system_prompt
@@ -384,7 +385,7 @@ class Agent:
             if has_tools:
                 # Add tool section to default prompt
                 from .soul.loader import _build_tool_section
-                tool_section = _build_tool_section(self.tools.all())
+                tool_section = _build_tool_section(self.tools.all(), native_tools=self._is_comp_mode)
                 self._custom_system_prompt = f"{self._custom_system_prompt}\n\n{tool_section}"
 
         # Append skills prompt if provided
@@ -430,6 +431,10 @@ class Agent:
         When self._is_bitnet is True, returns a lean prompt that avoids markdown
         tables, code fences, and bold markers — these produce reserved token IDs
         in BitNet's degraded tokenizer, crashing the inference engine.
+
+        When self._is_comp_mode is True (OpenAI Chat-Completions), returns a prompt
+        without ReAct format instructions — tools are passed via the API body and
+        the model uses native function calling.
         """
         if not has_tools:
             return "You are AI AgentNova. Answer questions directly and accurately."
@@ -444,6 +449,18 @@ class Agent:
                 "Use the ReAct format shown in the tool section below.\n"
                 "After tool result, give Final Answer: <answer>"
             )
+
+        if self._is_comp_mode:
+            # OpenAI Chat-Completions mode — tools are in the API body.
+            # No ReAct format instructions needed; model uses native function calling.
+            return """You are AI AgentNova with access to tools.
+
+Use the available tools when needed. The tools are provided via the API — call them naturally as function calls.
+
+**CRITICAL RULES:**
+1. Only use tools from the available tools list
+2. Always use tools for calculations and external operations
+3. Never make up information"""
 
         return """You are AI AgentNova with access to tools.
 
@@ -1564,7 +1581,7 @@ Final Answer: <the answer>
         has_tools = len(self.tools) > 0
         if has_tools:
             from .soul.loader import _build_tool_section
-            tool_section = _build_tool_section(self.tools.all())
+            tool_section = _build_tool_section(self.tools.all(), native_tools=self._is_comp_mode)
             # Find and replace tool section in system prompt
             if "### Tool Reference" in self._custom_system_prompt:
                 # Replace existing tool section

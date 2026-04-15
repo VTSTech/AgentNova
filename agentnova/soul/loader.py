@@ -566,6 +566,7 @@ def build_system_prompt_with_tools(
     tools: list,
     level: int = 3,
     tool_choice: Optional[object] = None,
+    native_tools: bool = False,
 ) -> str:
     """
     Build a system prompt with dynamic tool injection.
@@ -581,6 +582,8 @@ def build_system_prompt_with_tools(
         tools: List of Tool objects available
         level: Progressive disclosure level
         tool_choice: Optional ToolChoice object to communicate constraints
+        native_tools: If True, tools are passed via API body (native function calling).
+            Skip ReAct format instructions in the tool section.
     
     Returns:
         System prompt with tools injected
@@ -591,7 +594,7 @@ def build_system_prompt_with_tools(
     base_prompt = build_system_prompt(manifest, level=level)
     
     # Build dynamic tool section
-    tool_section = _build_tool_section(tools)
+    tool_section = _build_tool_section(tools, native_tools=native_tools)
     
     # Pattern to match the static tool section in SOUL.md
     # Matches (with ## or ###):
@@ -617,7 +620,11 @@ def build_system_prompt_with_tools(
         result = f"{base_prompt}\n\n{tool_section}"
     
     # Inject dynamic examples based on available tools
-    dynamic_examples = _build_dynamic_examples(tools)
+    # Skip ReAct-format examples when using native tool calling
+    if not native_tools:
+        dynamic_examples = _build_dynamic_examples(tools)
+    else:
+        dynamic_examples = {'example': '', 'example_flow': '', 'error_example': ''}
     
     # Replace placeholder markers with dynamic examples
     result = result.replace('{{DYNAMIC_EXAMPLE}}', dynamic_examples['example'])
@@ -714,8 +721,15 @@ def _build_tool_choice_context(tool_choice: object) -> str:
     return ""
 
 
-def _build_tool_section(tools: list) -> str:
-    """Build the dynamic tool section for system prompt."""
+def _build_tool_section(tools: list, native_tools: bool = False) -> str:
+    """Build the dynamic tool section for system prompt.
+
+    Args:
+        tools: List of Tool objects available
+        native_tools: If True, tools are passed via the API body (native function calling).
+            Skip ReAct format instructions — the model already knows how to call tools.
+            If False, include ReAct Action/Action Input format instructions.
+    """
     if not tools:
         return ""
     
@@ -755,6 +769,15 @@ def _build_tool_section(tools: list) -> str:
     
     lines.append("")
     lines.append("**CRITICAL RULE**: If a tool is NOT in the available tools list, do NOT try to use it. Respond directly instead.")
+    
+    if not native_tools:
+        # ReAct format instructions — only for text-parsing models
+        lines.append("")
+        lines.append("When you need to use a tool, follow this EXACT format:")
+        lines.append("```")
+        lines.append("Action: <tool_name>")
+        lines.append("Action Input: <JSON arguments>")
+        lines.append("```")
     
     return "\n".join(lines)
 
