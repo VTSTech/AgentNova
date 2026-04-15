@@ -72,6 +72,12 @@ if _zai_url_env:
 # ZAI API Key (required for authentication)
 ZAI_API_KEY = os.environ.get("ZAI_API_KEY", "")
 
+# Restrict ZAI to free models only (no billing required)
+ZAI_FREE_ONLY = os.environ.get("ZAI_FREE_ONLY", "").lower() in ("1", "true", "yes")
+
+# Fallback model when a paid model fails due to insufficient credits
+ZAI_FREE_FALLBACK_MODEL = os.environ.get("ZAI_FREE_FALLBACK_MODEL", "glm-4.5-flash")
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ACP CONFIGURATION
