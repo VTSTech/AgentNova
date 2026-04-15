@@ -642,7 +642,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
         parts = [agent.model, bname, f'{turns}t']
         if agent.debug:
             parts.append('debug')
-        return dim(f'[" | ".join(parts)}]')
+        return dim(f'[{" | ".join(parts)}]')
 
     def _prompt():
         """Show input prompt with a persistent status footer below it.
