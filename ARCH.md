@@ -2,9 +2,9 @@
 
 AgentNova is a modular agent framework designed for local LLMs with tool-calling capabilities. It implements the OpenResponses specification for multi-provider, interoperable LLM interfaces.
 
-**Specification Compliance**: 100% (R03.5+) -- R04.1, R04.2, R04.3, R04.4, R04.5
+**Specification Compliance**: 100% (R03.5+) -- R04.1, R04.2, R04.3, R04.4, R04.5, R04.6
 
-**Version**: R04.5
+**Version**: R04.6
 - OpenResponses API: 100%
 - Chat Completions API: 100%
 - Soul Spec v0.5: 100%
@@ -48,6 +48,12 @@ agentnova/
 │   │                         # - Family-aware prompt formatting
 │   │                         # - Turn-bleed guards
 │   ├── bitnet.py             # Thin wrapper (63-line); sets bitnet_mode=True on LlamaServerBackend
+│   ├── zai.py                # ZaiBackend(OllamaBackend) for ZAI cloud API (R04.6)
+│   │                         # - OpenAI Chat-Completions only (no openre mode)
+│   │                         # - Bearer token authentication
+│   │                         # - Dynamic model discovery + static catalog merge
+│   │                         # - Free-only mode (ZAI_FREE_ONLY)
+│   │                         # - Auto-fallback on insufficient credits (429/1113)
 │   └── ollama_registry.py    # Ollama model registry: manifest discovery, GGUF header
 │                             # parsing via mmap, TurboQuant compatibility (R04.5)
 │
@@ -417,6 +423,7 @@ The `--backend` flag selects which backend to use:
 | `ollama` | `OllamaBackend` | Ollama server (default) |
 | `llama-server` / `llama_server` | `LlamaServerBackend` | llama.cpp HTTP server / TurboQuant |
 | `bitnet` | `LlamaServerBackend(bitnet_mode=True)` | BitNet 1.58b models via llama.cpp |
+| `zai` | `ZaiBackend` | ZAI cloud API (GLM models) |
 
 ### OllamaBackend (`backends/ollama.py`)
 
@@ -446,6 +453,63 @@ class BitNetBackend(LlamaServerBackend):
     def __init__(self, **kwargs):
         kwargs.setdefault("bitnet_mode", True)
         super().__init__(**kwargs)
+```
+
+### ZAI Backend (`backends/zai.py`) (R04.6)
+
+`ZaiBackend` inherits from `OllamaBackend` and connects to the ZAI cloud API (`https://api.z.ai`) for GLM series models. Unlike local backends, ZAI is always OpenAI Chat-Completions — no openre mode.
+
+**Key differences from local backends**:
+- **Always OPENAI API mode** — Ignores `api_mode` parameter, forces `ApiMode.OPENAI`
+- **Bearer token auth** — Injects `Authorization: Bearer <key>` into every request
+- **Cloud endpoint** — No server management, no `is_running()` health check
+- **Dynamic model discovery** — Queries `/api/paas/v4/models`, merges with static catalog
+- **Free-only mode** — `ZAI_FREE_ONLY=true` swaps paid models to free fallback before calling the API
+- **Credit-exhaustion fallback** — On HTTP 429 (error 1113 "Insufficient balance"), auto-retries with free model
+- **Tool rejection fallback** — If a model doesn't support tools, strips `tools` param and retries (ReAct mode)
+
+**Endpoints**:
+- `POST /api/paas/v4/chat/completions` — OpenAI Chat-Completions compatible
+- `GET /api/paas/v4/models` — Dynamic model discovery
+
+**Environment Variables**:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ZAI_BASE_URL` | `https://api.z.ai` | API endpoint |
+| `ZAI_API_KEY` | (none) | API key (required) |
+| `ZAI_FREE_ONLY` | `false` | Restrict to free models only |
+| `ZAI_FREE_FALLBACK_MODEL` | `glm-4.5-flash` | Free model used when paid model fails |
+
+**Model Catalog** (13 models, pricing per 1M tokens input/output):
+
+| Model | Pricing | Free? |
+|-------|---------|-------|
+| GLM 5.1 | $1.40/$4.40 | No |
+| GLM 5 Turbo | $1.20/$4.00 | No |
+| GLM 5 | $1.00/$3.20 | No |
+| GLM 4.7 | $0.60/$2.20 | No |
+| GLM 4.7 Flash | Free | Yes |
+| GLM 4.7 FlashX | $0.07/$0.40 | No |
+| GLM 4.6 | $0.60/$2.20 | No |
+| GLM 4.5 | $0.60/$2.20 | No |
+| GLM 4.5 Flash | Free | Yes |
+| GLM 4.5 X | $2.20/$8.90 | No |
+| GLM 4.5 Air | $0.20/$1.10 | No |
+| GLM 4.5 AirX | $1.10/$4.50 | No |
+| GLM 4 32B | $0.10/$0.10 | No |
+
+**Usage**:
+```bash
+# Free model (no credits needed)
+agentnova chat --backend zai --model glm-4.5-flash
+
+# Paid model with free-only mode (auto-swaps to free)
+export ZAI_FREE_ONLY=true
+agentnova chat --backend zai --model glm-5.1
+
+# Credit-exhaustion fallback (auto-retries on 429)
+agentnova chat --backend zai --model glm-5.1
 ```
 
 ---
@@ -796,7 +860,7 @@ User Prompt
      │
      ▼
 ┌─────────────┐
-│   Backend   │ ── sends to Ollama/LlamaServer/BitNet (ReAct prompting)
+│   Backend   │ ── sends to Ollama/LlamaServer/BitNet/ZAI (ReAct prompting)
 └─────────────┘
      │
      ▼
@@ -1318,7 +1382,7 @@ This ensures BitNet models (which report `"bitnet"` as their architecture in GGU
 | `-m, --model` | run, chat, agent, test | Model to use |
 | `--tools` | run, chat, agent | Comma-separated tool list |
 | `--skills` | run, chat, agent | Comma-separated skill names to load |
-| `--backend` | all | Backend (ollama, bitnet, llama-server) |
+| `--backend` | all | Backend (ollama, bitnet, llama-server, zai) |
 | `--api` | run, chat, agent, test | API mode: `openre` (OpenResponses) or `openai` (OpenAI Chat-Completions) |
 | `--response-format` | run, chat, agent | Response format: `text` or `json` (Chat-Completions mode) |
 | `--truncation` | run, chat, agent | Truncation behavior: `auto` or `disabled` |
