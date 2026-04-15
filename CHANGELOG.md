@@ -4,6 +4,63 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [R04.8] - 04-15-2026 9:53:07 AM
+
+### Codebase Audit Easy Pass & Chat UX Improvements
+
+First release driven by automated codebase audit findings. Addresses 4 Low-severity audit findings (MAINT-02, MAINT-03, SEC-03, ARCH-03) from the R04.7 audit report and adds prompt budget visibility to the chat status bar. Includes codebase audit and intelligence brief artifacts. Version bumped to 0.4.8-dev.
+
+### Fixed
+
+#### [Low] Footer Version String Hardcoded (`cli.py`)
+- **Bug**: Chat mode footer bar displayed the version as a hardcoded string `cyan('R04.7')` instead of deriving it dynamically from `__version__`. Other parts of the CLI (like `print_banner()`) correctly derived the version, but the footer used a literal string. On every subsequent release, the footer would show a stale version while the banner showed the correct one.
+- **Fix**: Imported `__version__` from `agentnova.__init__` and replaced the hardcoded `'R04.7'` with `__version__`. The footer now always reflects the current version regardless of release cadence.
+- **Impact**: Footer version stays in sync across releases without manual updates.
+
+#### [Low] ZAI API Key No Format Validation (`backends/zai.py`)
+- **Bug**: The `ZAI_API_KEY` environment variable was read directly from `os.environ` and used as a Bearer token with no format validation. An empty string, whitespace, or a completely wrong value would only be caught when the API returned a 401 error, giving users unclear error messages.
+- **Fix**: Added two validation checks in `ZaiBackend.__init__()` after API key resolution: (1) rejects empty or whitespace-only keys with a descriptive `ValueError` listing the three configuration methods (`--api-key`, `ZAI_API_KEY` env var, `Config.zai_api_key`); (2) rejects suspiciously short keys (under 8 characters) with a message showing the actual length. Validation fires at construction time, before any network calls.
+- **Impact**: Misconfigured API keys now produce an immediate, actionable error at startup instead of a cryptic 401 mid-session.
+
+### Changed
+
+#### ARCH.md Version String Updated (`ARCH.md`)
+- Header version bumped from stale `R04.6` to `R04.7`. Specification compliance list updated to include R04.7. ZAI backend section header expanded to `(R04.6, expanded R04.7)` with updated bullet points reflecting native tool calling support, expanded catalog (13 models), and combined free-only + auto-fallback description. Three bullet points consolidated for clarity.
+
+#### Orchestrator Router Backend Configurable (`orchestrator.py`)
+- **`router_backend` parameter** added to `Orchestrator.__init__()`. When set, the LLM-based routing mode (`_select_agent_with_llm`) uses the specified backend instead of hardcoding `get_backend("ollama")`. When unset, falls back to `get_default_backend()`, which respects the user's configured backend (`AGENTNOVA_BACKEND` env var or `--backend` CLI flag).
+- **Impact**: LLM-based routing in the orchestrator now works with any backend (ZAI, llama-server, BitNet) — not just Ollama. Users running AgentNova with `--backend zai` can now use LLM routing without also running Ollama.
+
+#### Chat Status Bar: Prompt Budget Display (`cli.py`)
+- **Prompt size indicator** added to the footer bar between the model name and context window fields. Shows system prompt length as both character count and approximate token count (`~4 chars/token` heuristic) with memo emoji prefix (`📝`).
+- Display format: `📝 2.4k chr 600 tok`
+- Uses the same `_fmt_tok()` formatter as other footer fields (auto-converts to `k` notation at 1000+).
+- Reads `agent._custom_system_prompt` (the fully assembled system prompt including soul content, tool sections, and skill instructions) for an accurate measurement of what's actually sent to the model.
+- **Impact**: Users can monitor prompt budget usage at a glance — critical for small models with tight context windows where prompt size directly affects available response space.
+
+### Added
+
+#### Codebase Audit Artifacts (`audit.md`, `brief.md`)
+- **`audit.md`** — full codebase audit report for R04.7 generated using the codebase-audit skill v0.2.0. Contains 16 findings across 6 categories (SEC, ROB, MAINT, FEAT, ARCH, TEST): 0 High, 7 Medium, 9 Low. Includes executive summary, detailed findings with file references, priority matrix, and architecture strengths analysis.
+- **`brief.md`** — regenerated intelligence brief covering R04.5 through R04.7 changes, replacing the stale R04.5-era brief.
+
+### File Changes Summary
+
+| Action | File | Changes |
+|--------|------|:-------:|
+| Created | `audit.md` | +309 |
+| Updated | `agentnova/cli.py` | +10 −2 |
+| Updated | `agentnova/backends/zai.py` | +10 |
+| Updated | `agentnova/orchestrator.py` | +8 −2 |
+| Updated | `ARCH.md` | +7 −7 |
+| Updated | `agentnova/__init__.py` | +1 −1 |
+| Updated | `pyproject.toml` | +1 −1 |
+| Updated | `README.md` | +1 −1 |
+| Updated | `brief.md` | +317 −241 |
+| **Total** | **9 files** | **+664 −255** |
+
+---
+
 ## [R04.7] - 04-14-2026 9:56:07 PM
 
 ### Native Tool Calling Fix, ZAI Free-Model Mode & Expanded Model Catalog
