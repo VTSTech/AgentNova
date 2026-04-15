@@ -38,7 +38,7 @@ from .base import BaseBackend, BackendConfig
 from .ollama import OllamaBackend
 from ..core.types import BackendType, ToolSupportLevel, ApiMode
 from ..core.models import Tool, ToolParam
-from ..config import ZAI_BASE_URL, ZAI_API_KEY
+from ..config import ZAI_BASE_URL, ZAI_API_KEY, ZAI_FREE_ONLY, ZAI_FREE_FALLBACK_MODEL
 
 
 # ZAI model catalog with metadata for context sizing and defaults.
@@ -135,6 +135,16 @@ ZAI_MODELS: dict[str, dict] = {
 
 # Default model when none specified.
 ZAI_DEFAULT_MODEL = "glm-5.1"
+
+
+def _is_free_model(model: str) -> bool:
+    """Check if a ZAI model is free (zero pricing)."""
+    model_key = model.split("/")[-1] if "/" in model else model
+    meta = ZAI_MODELS.get(model_key)
+    if not meta:
+        return False
+    pricing = meta.get("pricing", {})
+    return pricing.get("input", -1) == 0.0 and pricing.get("output", -1) == 0.0
 
 
 class ZaiBackend(OllamaBackend):
@@ -364,9 +374,16 @@ class ZaiBackend(OllamaBackend):
         is ignored (ZAI handles thinking internally if applicable).
 
         Injects Bearer token authentication into every request.
+        Supports ZAI_FREE_ONLY mode and auto-fallback on insufficient credits.
         """
         if think is not None and os.environ.get("AGENTNOVA_DEBUG"):
             print(f"  [ZAI] 'think' parameter ignored — ZAI manages thinking internally")
+
+        # ZAI_FREE_ONLY: reject paid models upfront
+        if ZAI_FREE_ONLY and not _is_free_model(model):
+            fallback = ZAI_FREE_FALLBACK_MODEL
+            print(f"  [ZAI] FREE_ONLY mode — '{model}' is a paid model, switching to '{fallback}'")
+            model = fallback
 
         # Delegate to the inherited OpenAI Chat-Completions implementation
         # but inject our API key into the request headers
@@ -522,8 +539,30 @@ class ZaiBackend(OllamaBackend):
             error_body = e.read().decode("utf-8") if e.fp else ""
             error_msg = error_body.lower() if error_body else ""
 
+            # Check for insufficient credits — auto-fallback to free model
+            if e.code == 429 and ("insufficient balance" in error_msg or "insufficient" in error_msg or "no resource package" in error_msg):
+                fallback = ZAI_FREE_FALLBACK_MODEL
+                if not _is_free_model(model):
+                    if os.environ.get("AGENTNOVA_DEBUG"):
+                        print(f"  [ZAI] Insufficient credits for '{model}', falling back to '{fallback}'")
+                    body_fallback = {**body, "model": fallback}
+                    try:
+                        req = urllib.request.Request(
+                            url,
+                            data=json.dumps(body_fallback).encode("utf-8"),
+                            headers=headers,
+                            method="POST",
+                        )
+                        with urllib.request.urlopen(req, timeout=self.config.timeout) as response:
+                            result = json.loads(response.read().decode("utf-8"))
+                        print(f"  [ZAI] Fallback to '{fallback}' succeeded")
+                        # Continue to normal response parsing below
+                    except Exception as e2:
+                        raise RuntimeError(f"ZAI: paid model '{model}' failed (insufficient credits) and free fallback '{fallback}' also failed: {e2}")
+                else:
+                    raise RuntimeError(f"ZAI HTTP error {e.code}: {error_body}")
             # Check if model doesn't support tools — fallback to no tools
-            if "does not support tools" in error_msg and tools:
+            elif "does not support tools" in error_msg and tools:
                 if os.environ.get("AGENTNOVA_DEBUG"):
                     print(f"  [ZAI] Model doesn't support tools, falling back to ReAct mode")
                 body_fallback = {k: v for k, v in body.items() if k != "tools"}
