@@ -43,47 +43,93 @@ from ..config import ZAI_BASE_URL, ZAI_API_KEY
 
 # ZAI model catalog with metadata for context sizing and defaults.
 # Keys are model identifiers accepted by the ZAI API.
-# Context lengths and defaults are sourced from ZAI documentation.
+# Context lengths and pricing sourced from https://docs.z.ai.
+# The /api/paas/v4/models endpoint may not return all models —
+# this catalog ensures flash variants and other models are always available.
+# Updated: 2026-04-15
 ZAI_MODELS: dict[str, dict] = {
+    # ── GLM 5.x ──────────────────────────────────────────────────────
     "glm-5.1": {
         "context_length": 128000,
         "default_temperature": 0.7,
         "default_max_tokens": 8192,
+        "pricing": {"input": 1.4, "output": 4.4},
     },
-    "glm-4-plus": {
+    "glm-5": {
         "context_length": 128000,
         "default_temperature": 0.7,
         "default_max_tokens": 8192,
+        "pricing": {"input": 1.0, "output": 3.2},
     },
-    "glm-4-flash": {
+    "glm-5-turbo": {
         "context_length": 128000,
         "default_temperature": 0.7,
         "default_max_tokens": 8192,
+        "pricing": {"input": 1.2, "output": 4.0},
     },
-    "glm-4-long": {
-        "context_length": 1048576,
-        "default_temperature": 0.7,
-        "default_max_tokens": 8192,
-    },
-    "glm-4-air": {
+    # ── GLM 4.7 ─────────────────────────────────────────────────────
+    "glm-4.7": {
         "context_length": 128000,
         "default_temperature": 0.7,
         "default_max_tokens": 8192,
+        "pricing": {"input": 0.6, "output": 2.2},
     },
-    "glm-4-airx": {
+    "glm-4.7-flash": {
         "context_length": 128000,
         "default_temperature": 0.7,
         "default_max_tokens": 8192,
+        "pricing": {"input": 0.0, "output": 0.0},
     },
-    "glm-4v-plus": {
+    "glm-4.7-flashx": {
         "context_length": 128000,
         "default_temperature": 0.7,
         "default_max_tokens": 8192,
+        "pricing": {"input": 0.07, "output": 0.4},
     },
-    "glm-4v-flash": {
+    # ── GLM 4.6 ─────────────────────────────────────────────────────
+    "glm-4.6": {
         "context_length": 128000,
         "default_temperature": 0.7,
-        "default_max_tokens": 4096,
+        "default_max_tokens": 8192,
+        "pricing": {"input": 0.6, "output": 2.2},
+    },
+    # ── GLM 4.5 ─────────────────────────────────────────────────────
+    "glm-4.5": {
+        "context_length": 128000,
+        "default_temperature": 0.7,
+        "default_max_tokens": 8192,
+        "pricing": {"input": 0.6, "output": 2.2},
+    },
+    "glm-4.5-flash": {
+        "context_length": 128000,
+        "default_temperature": 0.7,
+        "default_max_tokens": 8192,
+        "pricing": {"input": 0.0, "output": 0.0},
+    },
+    "glm-4.5-x": {
+        "context_length": 128000,
+        "default_temperature": 0.7,
+        "default_max_tokens": 8192,
+        "pricing": {"input": 2.2, "output": 8.9},
+    },
+    "glm-4.5-air": {
+        "context_length": 128000,
+        "default_temperature": 0.7,
+        "default_max_tokens": 8192,
+        "pricing": {"input": 0.2, "output": 1.1},
+    },
+    "glm-4.5-airx": {
+        "context_length": 128000,
+        "default_temperature": 0.7,
+        "default_max_tokens": 8192,
+        "pricing": {"input": 1.1, "output": 4.5},
+    },
+    # ── GLM 4.x variants ─────────────────────────────────────────────
+    "glm-4-32b-0414-128k": {
+        "context_length": 128000,
+        "default_temperature": 0.7,
+        "default_max_tokens": 8192,
+        "pricing": {"input": 0.1, "output": 0.1},
     },
 }
 
