@@ -651,9 +651,14 @@ def cmd_chat(args: argparse.Namespace) -> int:
         'You:' appears above the footer. After the user presses Enter,
         the cursor lands on a new line below the footer.
         """
-        sys.stdout.write('\n' + _footer_text() + '\033[A\r')
+        sys.stdout.write('\n\n' + _footer_text() + '\033[A\033[A\r')
         sys.stdout.flush()
         return input(f"{dim('You:')} ")
+
+    def _clear_footer():
+        """Clear the footer line after input() returns (cursor lands there)."""
+        sys.stdout.write('\r' + ' ' * 80 + '\r')
+        sys.stdout.flush()
 
     # ── Spinner ───────────────────────────────────────────────────────
     _SPINNER_FRAMES = ['\u2807', '\u2839', '\u2838', '\u283C', '\u2834', '\u2826', '\u2836', '\u282D', '\u282F', '\u280F']
@@ -691,6 +696,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
     while True:
         try:
             user_input = _prompt().strip()
+            _clear_footer()
         except (EOFError, KeyboardInterrupt):
             # Ensure persistent memory is flushed and closed
             if getattr(agent, '_is_persistent', False) and hasattr(agent.memory, 'close'):
@@ -699,6 +705,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
             break
 
         if not user_input:
+            _clear_footer()
             continue
 
         if user_input == "/quit":
