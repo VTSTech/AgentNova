@@ -634,18 +634,29 @@ def cmd_chat(args: argparse.Namespace) -> int:
     _print_session_header(agent, args, config, "Chat Mode")
     print("Type '/quit' to exit, '/help' for commands\n")
 
-    def _print_footer():
-        """Print a status bar footer below the last output."""
+    def _footer_text() -> str:
+        """Build the status bar footer string."""
         turns = len(agent.memory)
         backend = getattr(agent.backend, 'backend_type', None)
         bname = backend.value if backend and hasattr(backend, 'value') else str(backend) if backend else '?'
         parts = [agent.model, bname, f'{turns}t']
         if agent.debug:
             parts.append('debug')
-        print(dim(f'[{" | ".join(parts)}]'))
+        return dim(f'[" | ".join(parts)}]')
+
+    def _prompt():
+        """Show input prompt with a persistent status footer below it.
+
+        Draws the footer line, then moves the cursor up one row so
+        'You:' appears above the footer. After the user presses Enter,
+        the cursor lands on a new line below the footer.
+        """
+        sys.stdout.write('\n' + _footer_text() + '\033[A\r')
+        sys.stdout.flush()
+        return input(f"{dim('You:')} ")
 
     # ── Spinner ───────────────────────────────────────────────────────
-    _SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+    _SPINNER_FRAMES = ['\u2807', '\u2839', '\u2838', '\u283C', '\u2834', '\u2826', '\u2836', '\u282D', '\u282F', '\u280F']
     _spinner_active = False
     _spinner_stop = threading.Event()
 
@@ -679,7 +690,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
     # ── Main loop ─────────────────────────────────────────────────────
     while True:
         try:
-            user_input = input(f"{dim('You:')} ").strip()
+            user_input = _prompt().strip()
         except (EOFError, KeyboardInterrupt):
             # Ensure persistent memory is flushed and closed
             if getattr(agent, '_is_persistent', False) and hasattr(agent.memory, 'close'):
@@ -709,7 +720,6 @@ def cmd_chat(args: argparse.Namespace) -> int:
             print(f"  {cyan('/system')}   Print the current system prompt")
             print(f"  {cyan('/tools')}    List available tools with descriptions")
             print(f"  {cyan('/quit')}     Exit AgentNova")
-            _print_footer()
             continue
 
         if user_input == "/system":
@@ -718,7 +728,6 @@ def cmd_chat(args: argparse.Namespace) -> int:
                 print(prompt)
             else:
                 print(yellow("No system prompt set."))
-            _print_footer()
             continue
 
         if user_input == "/tools":
@@ -731,12 +740,10 @@ def cmd_chat(args: argparse.Namespace) -> int:
                     if len(desc) > 60:
                         desc = desc[:57] + '...'
                     print(f"  {cyan(t.name)}  {desc}")
-            _print_footer()
             continue
 
         if user_input == "/model":
             print(f"Current model: {cyan(agent.model)}")
-            _print_footer()
             continue
 
         if user_input.startswith("/model "):
@@ -747,20 +754,17 @@ def cmd_chat(args: argparse.Namespace) -> int:
                 old_model = agent.model
                 agent.model = new_model
                 print(green(f"Model changed: {old_model} -> {new_model}"))
-            _print_footer()
             continue
 
         if user_input == "/debug":
             agent.debug = not agent.debug
             state = green("ON") if agent.debug else red("OFF")
             print(f"Debug output: {state}")
-            _print_footer()
             continue
 
         if user_input == "/clear":
             agent.clear_memory()
             print(green("Memory cleared."))
-            _print_footer()
             continue
 
         if user_input == "/status":
@@ -775,7 +779,6 @@ def cmd_chat(args: argparse.Namespace) -> int:
             print(f"Debug: {green('ON') if agent.debug else red('OFF')}")
             if agent.soul:
                 print(f"Soul: {cyan(agent.soul.display_name)} v{agent.soul.version}")
-            _print_footer()
             continue
 
         # Log user message to ACP
@@ -792,7 +795,6 @@ def cmd_chat(args: argparse.Namespace) -> int:
             if spinner_t:
                 _spinner_stop_thread(spinner_t)
         print(f"\n{bright_green('Agent Nova')}: {result.final_answer}")
-        _print_footer()
 
         # Log assistant response to ACP
         if acp:
