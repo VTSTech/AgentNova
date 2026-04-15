@@ -80,13 +80,14 @@ from .core.models import StepResult, AgentRun, Tool, ToolParam
 from .core.types import StepResultType, ToolSupportLevel, BackendType
 from .tools import ToolRegistry, make_builtin_registry, BUILTIN_REGISTRY
 from .backends import (
-    BaseBackend, OllamaBackend, BitNetBackend,
+    BaseBackend, OllamaBackend, BitNetBackend, ZaiBackend,
     get_default_backend, get_backend,
 )
 from .config import Config, get_config
 from .config import (
     OLLAMA_BASE_URL,
     BITNET_BASE_URL,
+    ZAI_BASE_URL,
     ACP_BASE_URL,
     ACP_USER,
     ACP_PASS,
@@ -158,6 +159,7 @@ __all__ = [
     "BaseBackend",
     "OllamaBackend",
     "BitNetBackend",
+    "ZaiBackend",
     "get_default_backend",
     "get_backend",
     # Config
@@ -165,6 +167,7 @@ __all__ = [
     "get_config",
     "OLLAMA_BASE_URL",
     "BITNET_BASE_URL",
+    "ZAI_BASE_URL",
     "ACP_BASE_URL",
     "ACP_USER",
     "ACP_PASS",

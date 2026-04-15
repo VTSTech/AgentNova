@@ -59,6 +59,21 @@ if _llama_server_env:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# ZAI API CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════════
+# Default for ZAI API
+ZAI_BASE_URL = "https://api.z.ai"
+
+# Override via environment variable
+_zai_url_env = os.environ.get("ZAI_BASE_URL")
+if _zai_url_env:
+    ZAI_BASE_URL = _zai_url_env
+
+# ZAI API Key (required for authentication)
+ZAI_API_KEY = os.environ.get("ZAI_API_KEY", "")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # ACP CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════════
 # Default for local ACP
@@ -95,7 +110,7 @@ TURBOQUANT_CTX = int(os.environ.get("TURBOQUANT_CTX", "8192"))
 AGENTNOVA_BACKEND = os.environ.get("AGENTNOVA_BACKEND", "ollama").lower()
 
 # Validate backend value
-if AGENTNOVA_BACKEND not in ("ollama", "bitnet", "llama-server", "llama_server"):
+if AGENTNOVA_BACKEND not in ("ollama", "bitnet", "llama-server", "llama_server", "zai"):
     print(f"Warning: Invalid AGENTNOVA_BACKEND '{AGENTNOVA_BACKEND}', defaulting to 'ollama'")
     AGENTNOVA_BACKEND = "ollama"
 
@@ -106,10 +121,13 @@ if AGENTNOVA_BACKEND not in ("ollama", "bitnet", "llama-server", "llama_server")
 # Default model for tests and examples
 # BitNet default: bitnet-b1.58-2b-4t
 # Ollama default: qwen2.5-coder:0.5b-instruct-q4_k_m
+# ZAI default: glm-4-flash
 if AGENTNOVA_BACKEND == "bitnet":
     DEFAULT_MODEL = os.environ.get("AGENTNOVA_MODEL", "bitnet-b1.58-2b-4t")
 elif AGENTNOVA_BACKEND in ("llama-server", "llama_server"):
     DEFAULT_MODEL = os.environ.get("AGENTNOVA_MODEL", "default")
+elif AGENTNOVA_BACKEND == "zai":
+    DEFAULT_MODEL = os.environ.get("AGENTNOVA_MODEL", "glm-5.1")
 else:
     DEFAULT_MODEL = os.environ.get("AGENTNOVA_MODEL", "qwen2.5:0.5b")
 
@@ -143,6 +161,7 @@ class Config:
     # Backend URLs
     ollama_base_url: str = field(default_factory=lambda: OLLAMA_BASE_URL)
     bitnet_base_url: str = field(default_factory=lambda: BITNET_BASE_URL)
+    zai_base_url: str = field(default_factory=lambda: ZAI_BASE_URL)
     acp_base_url: str = field(default_factory=lambda: ACP_BASE_URL)
 
     # ACP Credentials

@@ -180,7 +180,7 @@ def create_parser() -> argparse.ArgumentParser:
 
     # Models command
     models_parser = subparsers.add_parser("models", help="List available models")
-    models_parser.add_argument("--backend", choices=["ollama", "bitnet", "llama-server"], default=None, help="Backend to use")
+    models_parser.add_argument("--backend", choices=["ollama", "bitnet", "llama-server", "zai"], default=None, help="Backend to use")
     models_parser.add_argument("--api", choices=["openre", "openai"], default=None, dest="api_mode",
                            help="API mode for tool support testing (default: test both)")
     models_parser.add_argument("--tool-support", action="store_true", help="Test tool calling support (skips already-cached models)")
@@ -191,7 +191,7 @@ def create_parser() -> argparse.ArgumentParser:
     # Modelfile command
     modelfile_parser = subparsers.add_parser("modelfile", help="Show model's Modelfile info")
     modelfile_parser.add_argument("-m", "--model", default=None, help="Model to inspect")
-    modelfile_parser.add_argument("--backend", choices=["ollama", "bitnet", "llama-server"], default=None, help="Backend to use")
+    modelfile_parser.add_argument("--backend", choices=["ollama", "bitnet", "llama-server", "zai"], default=None, help="Backend to use")
 
     # Run command
     run_parser = subparsers.add_parser("run", help="Run a single prompt")
@@ -227,7 +227,7 @@ def create_parser() -> argparse.ArgumentParser:
                              help="Test to run: 00, 01, 02, ... 11, or 'all' (default: all)")
     test_parser.add_argument("-m", "--model", default=None, 
                              help="Model to test (supports patterns: 'qwen', 'g', ':0.5b')")
-    test_parser.add_argument("--backend", choices=["ollama", "bitnet", "llama-server"], default=None, help="Backend to use")
+    test_parser.add_argument("--backend", choices=["ollama", "bitnet", "llama-server", "zai"], default=None, help="Backend to use")
     test_parser.add_argument("--api", choices=["openre", "openai"], default="openre", dest="api_mode",
                            help="API mode: 'openre' (OpenResponses) or 'openai' (Chat-Completions)")
     test_parser.add_argument("--debug", action="store_true", help="Enable debug output")

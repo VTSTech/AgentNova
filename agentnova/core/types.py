@@ -68,6 +68,7 @@ class BackendType(Enum):
     OLLAMA = "ollama"
     LLAMA_SERVER = "llama_server"
     BITNET = "bitnet"
+    ZAI = "zai"
 
 
 class ApiMode(Enum):

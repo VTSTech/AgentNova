@@ -176,7 +176,7 @@ def add_agent_args(
     )
     parser.add_argument(
         "--backend",
-        choices=["ollama", "bitnet", "llama-server"],
+        choices=["ollama", "bitnet", "llama-server", "zai"],
         default=None,
         help="Backend to use",
     )

@@ -9,7 +9,8 @@ from .base import BaseBackend
 from .ollama import OllamaBackend
 from .bitnet import BitNetBackend
 from .llama_server import LlamaServerBackend
-from ..config import AGENTNOVA_BACKEND, OLLAMA_BASE_URL, BITNET_BASE_URL, LLAMA_SERVER_BASE_URL
+from .zai import ZaiBackend
+from ..config import AGENTNOVA_BACKEND, OLLAMA_BASE_URL, BITNET_BASE_URL, LLAMA_SERVER_BASE_URL, ZAI_BASE_URL
 from ..core.types import ApiMode
 
 
@@ -18,6 +19,7 @@ _BACKENDS: dict[str, type[BaseBackend]] = {
     "ollama": OllamaBackend,
     "llama-server": LlamaServerBackend,
     "llama_server": LlamaServerBackend,  # alias
+    "zai": ZaiBackend,
 }
 
 # BitNet is now merged into LlamaServerBackend with bitnet_mode=True
@@ -61,6 +63,8 @@ def get_backend(name: str, timeout: int | None = None, api_mode: ApiMode | str |
         elif is_bitnet:
             kwargs["base_url"] = BITNET_BASE_URL
             kwargs["bitnet_mode"] = True
+        elif name_lower == "zai":
+            kwargs["base_url"] = ZAI_BASE_URL
 
     # Set bitnet_mode for alias
     if is_bitnet and "bitnet_mode" not in kwargs:
@@ -111,6 +115,7 @@ __all__ = [
     "OllamaBackend",
     "BitNetBackend",
     "LlamaServerBackend",
+    "ZaiBackend",
     "get_backend",
     "get_default_backend",
     "register_backend",
