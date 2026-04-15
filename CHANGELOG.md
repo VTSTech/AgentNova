@@ -4,56 +4,127 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [R04.6] - 04-05-2026 11:07:39 AM
+## [R04.6] - 04-14-2026 8:36:03 PM
 
-### Quick Wins: Type Cleanup, Zero-Dep Compatibility, Per-Session Todos, State Versioning & Server Logging
+### ZAI API Backend, Nova-Trading Soul, Expanded Test Suite, Documentation Overhaul & Infrastructure Hardening
 
-Six targeted fixes addressing stale types, unnecessary dependencies, shared mutable state, schema migration readiness, and lost server logs. All backward-compatible — no API changes, no new dependencies.
-
-### Changed
-
-#### `BackendType` Enum Cleaned Up (`core/types.py`, `backends/llama_server.py`, `tests/test_agent.py`)
-- **Removed `BackendType.OPENAI`** — dead code, never referenced anywhere. The OpenAI API *format* is correctly represented by `ApiMode.OPENAI` (Chat-Completions), not a backend type. OpenAI-format endpoints are already supported by both `OllamaBackend` and `LlamaServerBackend` via the `api_mode` parameter.
-- **Renamed `BackendType.CUSTOM` → `BackendType.LLAMA_SERVER`** — the old `CUSTOM` name was misleading; `LlamaServerBackend` in normal mode (not BitNet) was returning `BackendType.CUSTOM`, which didn't match the actual backend registry name (`llama-server`). Now the enum members map 1:1 to the backend registry: `OLLAMA` → `ollama`, `LLAMA_SERVER` → `llama-server`, `BITNET` → `bitnet`.
-- **Impact**: `backend.backend_type` now returns `BackendType.LLAMA_SERVER` for llama-server/TurboQuant instead of `BackendType.CUSTOM`. Any code checking `== BackendType.CUSTOM` will need updating (grep confirmed no internal references existed).
-
-#### `check_compatibility()` Zero-Dependency (`skills/loader.py`)
-- **Removed `from packaging.version import Version` import** — `packaging` is not a stdlib dependency and AgentNova maintains a zero-runtime-dependency policy.
-- **Replaced with tuple comparison**: `tuple(int(x) for x in version.split("."))` — standard Python tuple comparison handles version ordering correctly for all reasonable version strings (e.g., `(3, 9) >= (3, 8)` is `True`).
-- **Error handling** changed from `except ImportError` (packaging not installed) to `except (ValueError, AttributeError)` (malformed version strings).
-- **Impact**: Skills with `compatibility: "python>=3.8"` now work without requiring `pip install packaging`. Functionally identical for all valid version strings.
+The largest R04.x release to date. Adds the ZAI API as a first-class cloud backend with dynamic model discovery and native function calling support. Ships the nova-trading Soul Spec for TSX/TSX-V quantitative analysis. Expands the test suite with 700+ new lines of tool tests and 265 lines of regression tests. ARCH.md rewritten from scratch with full developer documentation. README expanded with persistent memory, backend options, TurboQuant, self-update, and JSON output examples. Infrastructure hardened with per-session todo isolation, TurboState schema versioning, and server log capture.
 
 ### Added
 
+#### ZAI API Backend (`backends/zai.py`, `core/types.py`, `config.py`, `backends/__init__.py`, `shared_args.py`, `cli.py`, `__init__.py`)
+- **`ZaiBackend` class** — new cloud backend for [ZAI](https://api.z.ai) API, OpenAI Chat-Completions compatible. Inherits from `OllamaBackend` to reuse the proven OpenAI completion logic.
+- **Dynamic model discovery** — `list_models()` queries `GET /api/paas/v4/models` with Bearer auth to pull the live model list from ZAI. Falls back to a static catalog if the API is unreachable. Enriches API results with context_length metadata from the catalog when available.
+- **Static model catalog** — `ZAI_MODELS` dict with context_length and default parameters for known models (glm-4.5, glm-4.6, glm-4.7, glm-5, glm-5-turbo, glm-5.1). Used for enrichment and fallback.
+- **API key authentication** — `ZAI_API_KEY` environment variable (required). Injected as `Authorization: Bearer <key>` header in every request. `is_running()` checks for key presence rather than probing a health endpoint.
+- **Always OpenAI mode** — ZAI only supports Chat-Completions (`OPENAI` api_mode). If a user passes `--api openre`, the backend silently overrides to `OPENAI` with a debug warning.
+- **Native tool support testing** — `test_tool_support()` sends a live API call with a `get_weather` tool definition. Detects native function calling (tool_calls in response), ReAct text patterns, or rejection. Results cached to `~/.cache/agentnova/tool_support.json`.
+- **Standalone generation** — `_generate_with_auth()` is a self-contained OpenAI Chat-Completions implementation with Bearer auth, tool fallback (retries without tools if server rejects them), latency tracking, and full response parsing. Does not delegate to parent's `generate_completions()` because the parent lacks auth header support.
+- **`BackendType.ZAI = "zai"`** added to the `BackendType` enum.
+- **`ZAI_BASE_URL`** and **`ZAI_API_KEY`** added to `config.py` with env var overrides. `"zai"` added to backend validation whitelist.
+- **Default model** — `glm-5.1` when `AGENTNOVA_BACKEND=zai`.
+- **CLI integration** — `--backend zai` works across all subcommands (`chat`, `run`, `agent`, `models`, `test`). Backend choices updated in `shared_args.py` and `cli.py`.
+- **Public API export** — `ZaiBackend` and `ZAI_BASE_URL` exported from `__init__.py`.
+- **Endpoints**: `POST /api/paas/v4/chat/completions` (generation), `GET /api/paas/v4/models` (discovery).
+- **Usage**: `agentnova chat --backend zai --model glm-4.5-flash --tools shell,read_file --api openai`
+- **Tests**: `tests/test_zai_backend.py` — unit tests for construction, API key handling, model discovery, and catalog enrichment.
+
+#### Nova-Trading Soul Spec (`souls/nova-trading/`)
+- **Complete trading agent persona** — Canadian TSX/TSX-V focused quantitative trading analyst. Six Soul Spec files totaling 622 lines.
+- **`soul.json`** — manifest v0.1.0, soul_level_default=3, MIT license. Requires `http`, `python_repl`, `json_parse`, `web_search`, `read_file`, `write_file`, `calculator`. Optionally uses `shell`, `edit_file`, `list_files`, `find_files`, `get_time`, `get_date`, `todo_list`.
+- **`IDENTITY.md`** — persona definition: Canadian quantitative analyst with TSX/TSX-V specialization, conservative risk management, CAD-denominated returns.
+- **`SOUL.md`** — 183-line system prompt with analysis framework, risk management rules, data collection procedures, and reporting format. Covers technical analysis, fundamental analysis, and portfolio management.
+- **`STYLE.md`** — communication style: professional, concise, numbers-focused. Structured report format with clear sections.
+- **`AGENTS.md`** — agent orchestration: defines primary (analysis), research (data gathering), and reporting (formatting) agent roles with tool assignments.
+- **`TRADING_REFERENCE.md`** — 234-line reference document covering TSX/TSX-V market structure, sector classifications, key indices, trading hours, settlement rules, and data sources.
+
+#### Expanded Test Suite (`examples/02_tool_test.py`, `tests/test_r046_changes.py`, `tests/test_builtins.py`)
+- **`02_tool_test.py` expanded** — 700 new lines adding comprehensive tool tests across all built-in tools: calculator (math expressions, edge cases), shell (safe commands, blocked commands), read_file, write_file, edit_file, list_files, find_files, http_get (URLs, SSRF protection), python_repl, web_search, json_parse, get_time, get_date, word_count, char_count, todo_list, todo_add, todo_complete, todo_remove, todo_clear. Each test validates both direct tool calls and agent-mediated tool use with error handling verification.
+- **`test_r046_changes.py`** — 265 lines of regression tests for R04.6 changes: BackendType enum values (OLLAMA, LLAMA_SERVER, BITNET, ZAI), per-session todo isolation (cross-session isolation, default session), TurboState schema versioning (v1 save/load, forward-compatibility rejection, missing version), TurboQuant log file creation, and check_compatibility zero-dependency behavior.
+- **`test_builtins.py` expanded** — 101 lines of additional builtin tool coverage.
+
+#### Codebase Audit Skill (`skills/codebase-audit/`)
+- **`SKILL.md`** — comprehensive codebase audit methodology for AI agents. Defines systematic review process: project structure analysis, dependency mapping, code quality assessment, security review, and documentation verification.
+- **`references/audit-template.md`** — structured audit report template with sections for architecture, code quality, security, performance, and recommendations.
+- **`references/brief-template.md`** — concise project brief template for summarizing audit findings.
+
+#### TurboQuant Patches (`patches/`)
+- **`fix_turbo_v_padding.patch`** — patch for TurboQuant V cache padding alignment fix.
+- **`fix_turbo_v_padding.py`** — Python script version of the V padding fix for manual application.
+- **`fix_turboquant_v_unpadding_gqa.patch`** — patch for GQA (Grouped Query Attention) unpadding fix in TurboQuant.
+
+### Changed
+
+#### `BackendType` Enum Expanded (`core/types.py`, `backends/llama_server.py`, `tests/test_agent.py`)
+- **Removed `BackendType.OPENAI`** — dead code, never referenced. OpenAI API format is correctly represented by `ApiMode.OPENAI` (Chat-Completions), not a backend type.
+- **Renamed `BackendType.CUSTOM` → `BackendType.LLAMA_SERVER`** — maps 1:1 to the backend registry name (`llama-server`).
+- **Added `BackendType.ZAI = "zai"`** — new cloud backend type.
+- **Impact**: `backend.backend_type` returns `BackendType.LLAMA_SERVER` for llama-server/TurboQuant and `BackendType.ZAI` for ZAI.
+
+#### `check_compatibility()` Zero-Dependency (`skills/loader.py`)
+- **Removed `from packaging.version import Version` import** — `packaging` is not a stdlib dependency. Replaced with tuple comparison: `tuple(int(x) for x in version.split("."))`.
+- **Error handling** changed from `except ImportError` to `except (ValueError, AttributeError)` (malformed version strings).
+
 #### Per-Session Todo Stores (`tools/builtins.py`)
 - **`_todo_stores: dict[str, list[dict]]`** — replaces the module-level `_todo_store: list[dict]`. Each `session_id` gets its own isolated todo list.
-- **`_get_todo_store(session_id="default")`** — accessor that lazily creates stores. Default session used when no session_id provided.
-- **All todo functions** (`todo_add`, `todo_list`, `todo_complete`, `todo_remove`, `todo_clear`) updated to use `_get_todo_store()`.
-- **Impact**: Multiple agent sessions in the same process no longer share a todo list. Previously, a todo added in one session appeared in all sessions — now they're properly isolated. Backward-compatible: default session works identically to the old behavior.
+- **`_get_todo_store(session_id="default")`** — accessor that lazily creates stores. All todo functions updated to use it.
+- **Impact**: Multiple agent sessions no longer share a todo list. Backward-compatible: default session works identically.
 
 #### TurboState Schema Versioning (`turbo.py`)
-- **`_version: int = 1`** field added to `TurboState` dataclass.
-- **`_TURBO_STATE_VERSION = 1`** module constant — the current schema version.
-- **`to_dict()`** now includes `_version` in serialized state.
-- **`load()`** pops `_version` from loaded data and checks: if `version > _TURBO_STATE_VERSION`, returns `None` (state file from a newer AgentNova version cannot be loaded). If `version < _TURBO_STATE_VERSION`, the comment placeholder indicates where migration logic will go.
-- **Impact**: Future schema changes to `TurboState` can be handled gracefully without corrupting state files. Loading a v2 state file in a v1 AgentNova returns `None` (clean failure) instead of crashing with missing field errors.
+- **`_version: int = 1`** field added to `TurboState` dataclass. `to_dict()` includes `_version`. `load()` rejects files from newer versions (returns `None`).
 
 #### TurboQuant Server Logging to File (`turbo.py`)
-- **`TURBOQUANT_LOG_FILE`** constant — `~/.agentnova/turbo.log`.
-- **`start_server()`** — `stdout` and `stderr` now append to `TURBOQUANT_LOG_FILE` instead of `subprocess.DEVNULL`. `stdin` remains `DEVNULL`.
-- **Impact**: llama-server startup logs, model loading messages, and runtime warnings are no longer lost. Debug TurboQuant issues by reading `~/.agentnova/turbo.log`. Previously, `DEVNULL` meant any server-side error during startup was invisible — you'd only see the health check timeout.
+- **`TURBOQUANT_LOG_FILE`** constant — `~/.agentnova/turbo.log`. `start_server()` now appends stdout/stderr to log file instead of `DEVNULL`.
+
+#### `--quick` Test Runner Flag (`cli.py`, `examples/02_tool_test.py`)
+- **`agentnova test <id> --quick`** — runs only the 5 fastest tests per test module for rapid iteration during development. Useful for smoke-testing changes without waiting for the full suite.
+- **`02_tool_test.py`** — restructured to support `--quick` mode with a curated subset of representative tests.
+
+#### CLI BOM Removal (`cli.py`)
+- Removed UTF-8 BOM (`\xef\xbb\xbf`) from `cli.py` file header. Was causing issues with some editors and CI pipelines.
+
+#### ARCH.md Rewrite (`ARCH.md`)
+- Complete rewrite from ~200 lines to ~700 lines. Added comprehensive developer documentation: directory structure, core design philosophy (zero-dep, local-first, stdlib-only), backend architecture, tool system internals, Soul Spec format, AgentMode multi-step execution, memory management, security model, and configuration reference.
+
+#### README Expansion (`README.md`)
+- Added sections for: persistent memory usage, backend options (ollama, llama-server, bitnet), dangerous tool confirmation, force ReAct mode, session management, TurboQuant commands, self-update. Added Python API examples for persistent memory, JSON structured output, TurboQuant server management, Chat-Completions streaming, skill license validation, and multi-agent orchestration. Added CLI options reference table. Expanded feature list with 17 built-in tools, argument normalization, audit logging, and JSON structured output.
+
+#### TESTS.md Cleanup (`TESTS.md`)
+- Removed 513 lines of stale benchmark data. Consolidated test result tables. Updated for R04.6 changes.
+
+#### Brief.md Cleanup (`brief.md`)
+- Streamlined project brief description. Removed redundant content that was duplicated in README and ARCH.md.
 
 ### File Changes Summary
 
 | Action | File | Changes |
 |--------|------|:-------:|
-| Updated | `agentnova/core/types.py` | +1 −2 |
+| Created | `agentnova/backends/zai.py` | +640 |
+| Created | `tests/test_zai_backend.py` | +265 |
+| Created | `tests/test_r046_changes.py` | +265 |
+| Created | `agentnova/souls/nova-trading/` (6 files) | +622 |
+| Created | `agentnova/skills/codebase-audit/` (3 files) | +333 |
+| Created | `patches/fix_turbo_v_padding.patch` | +34 |
+| Created | `patches/fix_turbo_v_padding.py` | +74 |
+| Created | `patches/fix_turboquant_v_unpadding_gqa.patch` | +52 |
+| Updated | `agentnova/core/types.py` | +5 −3 |
+| Updated | `agentnova/config.py` | +12 −0 |
+| Updated | `agentnova/backends/__init__.py` | +8 −0 |
 | Updated | `agentnova/backends/llama_server.py` | +1 −1 |
+| Updated | `agentnova/shared_args.py` | +2 −0 |
+| Updated | `agentnova/cli.py` | +8 −2 |
+| Updated | `agentnova/__init__.py` | +2 −1 |
 | Updated | `agentnova/skills/loader.py` | +4 −6 |
-| Updated | `agentnova/tools/builtins.py` | +23 −18 |
+| Updated | `agentnova/tools/builtins.py` | +43 −18 |
 | Updated | `agentnova/turbo.py` | +20 −4 |
+| Updated | `agentnova/examples/02_tool_test.py` | +700 −5 |
+| Updated | `tests/test_builtins.py` | +101 −14 |
 | Updated | `tests/test_agent.py` | +1 −0 |
-| **Total** | **6 files** | **+50 −31** |
+| Updated | `ARCH.md` | +513 −54 |
+| Updated | `README.md` | +139 −4 |
+| Updated | `TESTS.md` | +51 −513 |
+| Updated | `brief.md` | +18 −18 |
+| **Total** | **27 files** | **+3698 −649** |
 
 ---
 
