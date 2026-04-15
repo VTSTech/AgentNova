@@ -107,7 +107,17 @@ agentnova/
 ├── model_discovery.py        # Ollama model listing and selection
 ├── shared_args.py            # Shared CLI argument definitions + SharedConfig dataclass (R04.2)
 ├── turbo.py                  # TurboQuant server lifecycle manager (R04.5)
-└── CREDITS.md                # Credits, acknowledgments, and development history
+│
+├── docs/                     # Documentation
+│   ├── ARCH.md               # Technical documentation for developers
+│   ├── CHANGELOG.md          # Version history and release notes
+│   ├── CREDITS.md            # Credits, acknowledgments, and development history
+│   ├── PLUGIN_SPEC.md        # Plugin system specification
+│   ├── audit.md              # Codebase audit findings report
+│   └── brief.md              # Condensed project orientation brief
+│
+├── README.md                 # Project overview, quick start, features
+└── TESTS.md                  # Benchmark results and testing guide
 ```
 
 ---

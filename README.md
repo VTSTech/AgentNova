@@ -23,10 +23,10 @@ Inspired by the architecture of OpenClaw, rebuilt from scratch for local-first o
 
 | Document | Description |
 |----------|-------------|
-| [ARCH.md](https://github.com/VTSTech/AgentNova/blob/main/ARCH.md) | Technical documentation for developers (directory structure, core design, orchestrator modes) |
-| [CHANGELOG.md](https://github.com/VTSTech/AgentNova/blob/main/CHANGELOG.md) | Version history and release notes (includes LocalClaw history) |
+| [ARCH.md](https://github.com/VTSTech/AgentNova/blob/main/docs/ARCH.md) | Technical documentation for developers (directory structure, core design, orchestrator modes) |
+| [CHANGELOG.md](https://github.com/VTSTech/AgentNova/blob/main/docs/CHANGELOG.md) | Version history and release notes (includes LocalClaw history) |
 | [TESTS.md](https://github.com/VTSTech/AgentNova/blob/main/TESTS.md) | Benchmark results, model recommendations, and testing guide |
-| [CREDITS.md](https://github.com/VTSTech/AgentNova/blob/main/CREDITS.md) | Acknowledges every project, inspiration, API, model creator, and specification that makes AgentNova possible |
+| [CREDITS.md](https://github.com/VTSTech/AgentNova/blob/main/docs/CREDITS.md) | Acknowledges every project, inspiration, API, model creator, and specification that makes AgentNova possible |
 
 ## Features
 
