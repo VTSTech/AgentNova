@@ -639,10 +639,23 @@ def cmd_chat(args: argparse.Namespace) -> int:
         turns = len(agent.memory)
         backend = getattr(agent.backend, 'backend_type', None)
         bname = backend.value if backend and hasattr(backend, 'value') else str(backend) if backend else '?'
-        parts = [agent.model, bname, f'{turns}t']
+        ctx = agent.num_ctx
+        ctx_str = f"{ctx // 1024}K" if ctx and ctx >= 1024 else str(ctx) if ctx else '?'
+        max_t = agent._num_predict if agent._num_predict is not None else agent.model_config.default_max_tokens
+        max_t_str = f"{max_t // 1024}K" if max_t >= 1024 else str(max_t)
+        temp = agent._temperature if agent._temperature is not None else agent.model_config.default_temperature
+        parts = [
+            f"AN R04.7",
+            f"model:{agent.model}",
+            f"MaxCtx:{ctx_str}",
+            f"RespMax:{max_t_str}",
+            f"temp:{temp}",
+            f"be:{bname}",
+            f"{turns}t",
+        ]
         if agent.debug:
             parts.append('debug')
-        return dim(f'[{" | ".join(parts)}]')
+        return dim('  '.join(parts))
 
     def _prompt():
         """Show input prompt with a persistent status footer below it.
