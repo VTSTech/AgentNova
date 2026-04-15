@@ -660,7 +660,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
             f"{dim('\U0001f4ac')}  {yellow(max_t_str)}",
             f"{dim('\U0001f321\ufe0f')}  {yellow(str(temp))}",
             f"{dim('\U0001f50c')}  {green(bname)}",
-            f"{dim('\U0001fa99')}{yellow(tok_str.lstrip())}",
+            f"{dim('\U0001fa99').rstrip()}{yellow(tok_str.lstrip())}",
         ]
         if agent.debug:
             parts.append(f"{red('\U0001f41b  debug')}")
