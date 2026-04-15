@@ -2,14 +2,15 @@
 
 AgentNova is a modular agent framework designed for local LLMs with tool-calling capabilities. It implements the OpenResponses specification for multi-provider, interoperable LLM interfaces.
 
-**Specification Compliance**: 100% (R03.5+) -- R04.1, R04.2, R04.3, R04.4, R04.5, R04.6, R04.7
+**Specification Compliance**: 100% (R03.5+) -- R04.1, R04.2, R04.3, R04.4, R04.5, R04.6, R04.7, R05.0
 
-**Version**: R04.7
+**Version**: R05.0
 - OpenResponses API: 100%
 - Chat Completions API: 100%
 - Soul Spec v0.5: 100%
 - ACP v1.0.6: 100%
 - AgentSkills: 100%
+- Plugin Spec v0.1: 100%
 
 ```
 agentnova/
@@ -39,6 +40,8 @@ agentnova/
 │   └── sandboxed_repl.py     # Sandboxed Python REPL execution
 │
 ├── backends/
+│   ├── __init__.py           # Backend registry: native (ollama, llama-server) + plugin
+│   │                         # lazy loading via _ensure_plugin() (R05.0)
 │   ├── base.py               # Abstract BaseBackend class, BackendConfig dataclass
 │   ├── ollama.py             # Ollama backend (dual API: openre + openai)
 │   ├── llama_server.py       # LlamaServerBackend(OllamaBackend) for llama.cpp / TurboQuant (R04.2)
@@ -47,15 +50,29 @@ agentnova/
 │   │                         # - /props fallback for model name discovery
 │   │                         # - Family-aware prompt formatting
 │   │                         # - Turn-bleed guards
-│   ├── bitnet.py             # Thin wrapper (63-line); sets bitnet_mode=True on LlamaServerBackend
-│   ├── zai.py                # ZaiBackend(OllamaBackend) for ZAI cloud API (R04.6, expanded R04.7)
-│   │                         # - OpenAI Chat-Completions only (no openre mode)
-│   │                         # - Bearer token authentication
-│   │                         # - Dynamic model discovery + static catalog merge (13 models)
-│   │                         # - Free-only mode (ZAI_FREE_ONLY) + auto-fallback
-│   │                         # - Native tool calling support (R04.7 fix)
 │   └── ollama_registry.py    # Ollama model registry: manifest discovery, GGUF header
 │                             # parsing via mmap, TurboQuant compatibility (R04.5)
+│
+├── plugins/                  # Plugin system (R05.0)
+│   ├── __init__.py           # get_plugin_manager() singleton export
+│   ├── _loader.py            # PluginManager: discovery, loading, dependency resolution,
+│   │                         # backend/CLI/config registration, lazy loading
+│   ├── acp/                  # ACP (Agent Control Panel) plugin
+│   │   ├── plugin.json       # Manifest (type: feature)
+│   │   └── acp_plugin.py     # ACP v1.0.6 integration (audit logging, session monitoring)
+│   ├── bitnet/               # BitNet backend plugin
+│   │   ├── plugin.json       # Manifest (type: backend, provides: bitnet)
+│   │   └── bitnet.py          # BitNetPlugin: LlamaServerBackend with bitnet_mode=True
+│   ├── zai/                  # ZAI cloud API plugin
+│   │   ├── plugin.json       # Manifest (type: backend, provides: zai)
+│   │   └── zai.py             # ZaiBackend: GLM models via ZAI API, 13-model catalog
+│   ├── turboquant/           # TurboQuant server management plugin
+│   │   ├── plugin.json       # Manifest (type: feature, provides: turbo CLI command)
+│   │   └── turbo.py           # Server lifecycle, Ollama model registry, GGUF parsing
+│   └── test-plugin/          # Plugin system validation plugin
+│       ├── plugin.json       # Manifest (type: feature, provides: test-backend, plugin-test)
+│       ├── __init__.py       # register()/unregister() entrypoints
+│       └── test_backend.py    # Minimal stub backend for integration testing
 │
 ├── skills/
 │   ├── loader.py             # Skill loader (Agent Skills spec)
@@ -88,9 +105,6 @@ agentnova/
 │
 ├── agent.py                  # Main Agent class (OpenResponses agentic loop)
 ├── agent_mode.py             # Autonomous agent mode (state machine)
-├── acp_plugin.py             # ACP v1.0.6 integration
-│                             # - Status reporting, activity logging
-│                             # - Batch context manager for atomic operations
 ├── orchestrator.py           # Multi-agent orchestration (R03.6)
 │                             # - Router, Pipeline, Parallel modes
 │                             # - LLM-based routing (optional)
@@ -101,23 +115,24 @@ agentnova/
 │                             # - Color class with ANSI codes
 │                             # - Color functions: green, yellow, cyan, etc.
 │                             # - Utility: visible_len, pad_colored
-├── config.py                 # Configuration & environment variables
-│                             # - Backend URLs, model settings, retry config
-├── cli.py                    # Command-line interface
+├── config.py                 # Core framework config (OLLAMA_BASE_URL, LLAMA_SERVER_BASE_URL)
+│                             # Plugin-owned config (BitNet, ZAI, ACP, TurboQuant) reads from
+│                             # env vars with defaults defined in each plugin's plugin.json
+├── cli.py                    # Command-line interface (with plugin CLI subcommand support)
 ├── model_discovery.py        # Ollama model listing and selection
 ├── shared_args.py            # Shared CLI argument definitions + SharedConfig dataclass (R04.2)
-├── turbo.py                  # TurboQuant server lifecycle manager (R04.5)
 │
 ├── docs/                     # Documentation
 │   ├── ARCH.md               # Technical documentation for developers
 │   ├── CHANGELOG.md          # Version history and release notes
 │   ├── CREDITS.md            # Credits, acknowledgments, and development history
-│   ├── PLUGIN_SPEC.md        # Plugin system specification
+│   ├── PLUGIN_SPEC.md        # Plugin system specification (R05.0)
+│   ├── TESTS.md              # Benchmark results and testing guide
 │   ├── audit.md              # Codebase audit findings report
 │   └── brief.md              # Condensed project orientation brief
 │
-│   └── TESTS.md            # Benchmark results and testing guide
 ├── README.md                 # Project overview, quick start, features
+└── LICENSE                   # MIT License
 ```
 
 ---
@@ -146,6 +161,7 @@ The main Agent class implements the **OpenResponses Agentic Loop**:
 - Error recovery with retry context injection
 - Dangerous tool confirmation via `confirm_dangerous` callback (R04.2)
 - Audit logging for shell, write_file, edit_file outcomes (R04.2)
+- Ctrl+C cancellation at backend, tool, and agent loop levels (R05.0)
 
 ### Orchestrator (`orchestrator.py`)
 
@@ -424,16 +440,32 @@ soul = load_soul("nova-helper", reload=True)
 
 ## Backends
 
+### Architecture (R05.0)
+
+AgentNova uses a two-tier backend architecture:
+
+1. **Native backends** -- Ollama and llama-server are built-in, always available, zero overhead.
+2. **Plugin backends** -- BitNet, ZAI, and any future backends are loaded on demand via the plugin system. Plugins register their backend classes through `register_backend(name, cls)` and are lazily loaded by `_ensure_plugin()` when first requested.
+
+Backend resolution in `get_backend(name)`:
+```
+1. Check native registry (ollama, llama-server) → immediate
+2. Check PluginManager.get_backend_class(name) → lazy load plugin if needed
+3. Raise ValueError if not found
+```
+
 ### Backend Registry
 
 The `--backend` flag selects which backend to use:
 
-| Backend Flag | Class | Description |
-|-------------|-------|-------------|
-| `ollama` | `OllamaBackend` | Ollama server (default) |
-| `llama-server` / `llama_server` | `LlamaServerBackend` | llama.cpp HTTP server / TurboQuant |
-| `bitnet` | `LlamaServerBackend(bitnet_mode=True)` | BitNet 1.58b models via llama.cpp |
-| `zai` | `ZaiBackend` | ZAI cloud API (GLM models) |
+| Backend Flag | Source | Class | Description |
+|-------------|--------|-------|-------------|
+| `ollama` | native | `OllamaBackend` | Ollama server (default) |
+| `llama-server` / `llama_server` | native | `LlamaServerBackend` | llama.cpp HTTP server / TurboQuant |
+| `bitnet` | plugin | `BitNetPlugin` | BitNet 1.58b models via llama.cpp |
+| `zai` | plugin | `ZaiBackend` | ZAI cloud API (GLM models) |
+
+Plugin backends are automatically discovered and loaded on first use. See `docs/PLUGIN_SPEC.md` for the full plugin specification.
 
 ### OllamaBackend (`backends/ollama.py`)
 
@@ -454,20 +486,20 @@ Extends `OllamaBackend` with llama.cpp server support. Used for both standard ll
 - **Turn-bleed guards** -- Stop tokens `\nUser:` and `\nAssistant:` prevent the model from generating additional conversation turns
 - **Default URL**: `LLAMA_SERVER_BASE_URL` defaults to `http://localhost:8764`
 
-### BitNet Backend (`backends/bitnet.py`) (R04.2)
+### BitNet Backend (`plugins/bitnet/`) (R04.2, plugin in R05.0)
 
-The BitNet backend is now a 63-line thin wrapper. `BitNetBackend` inherits from `LlamaServerBackend` and sets `bitnet_mode=True`. All logic was merged into `llama_server.py`.
+The BitNet backend is a plugin that provides `BitNetPlugin`, a thin wrapper inheriting from `LlamaServerBackend` with `bitnet_mode=True`. All logic lives in `backends/llama_server.py`. Lazy-loaded via the plugin system when `--backend bitnet` is used.
 
 ```python
-class BitNetBackend(LlamaServerBackend):
+class BitNetPlugin(LlamaServerBackend):
     def __init__(self, **kwargs):
         kwargs.setdefault("bitnet_mode", True)
         super().__init__(**kwargs)
 ```
 
-### ZAI Backend (`backends/zai.py`) (R04.6, expanded R04.7)
+### ZAI Backend (`plugins/zai/`) (R04.6, expanded R04.7, plugin in R05.0)
 
-`ZaiBackend` inherits from `OllamaBackend` and connects to the ZAI cloud API (`https://api.z.ai`) for GLM series models. Unlike local backends, ZAI is always OpenAI Chat-Completions — no openre mode.
+The ZAI backend is a plugin providing `ZaiBackend`, connecting to the ZAI cloud API (`https://api.z.ai`) for GLM series models. Unlike local backends, ZAI is always OpenAI Chat-Completions — no openre mode. Lazy-loaded when `--backend zai` is used.
 
 **Key differences from local backends**:
 - **Always OPENAI API mode** — Ignores `api_mode` parameter, forces `ApiMode.OPENAI`
@@ -521,6 +553,86 @@ agentnova chat --backend zai --model glm-5.1
 # Credit-exhaustion fallback (auto-retries on 429)
 agentnova chat --backend zai --model glm-5.1
 ```
+
+---
+
+## Plugin System (R05.0)
+
+The plugin system enables extending AgentNova with additional backends, CLI commands, and configuration without modifying the core framework. See `docs/PLUGIN_SPEC.md` for the full specification.
+
+### PluginManager (`plugins/_loader.py`)
+
+Central singleton registry for all plugin operations:
+
+```python
+from agentnova.plugins import get_plugin_manager
+
+pm = get_plugin_manager()
+manifests = pm.discover()           # Scan plugins/ for plugin.json manifests
+pm.load_all()                      # Load all plugins in dependency order
+plugin = pm.load("bitnet")         # Load a specific plugin
+pm.register_backend("name", cls)  # Register a backend class
+pm.register_cli_command("name", handler)  # Register a CLI subcommand
+```
+
+### Manifest Format (`plugin.json`)
+
+Each plugin ships a `plugin.json` manifest:
+
+```json
+{
+  "name": "my-plugin",
+  "version": "0.1.0",
+  "type": "backend",
+  "entrypoint": "__init__",
+  "depends": [],
+  "provides": {
+    "backends": { "my-backend": "module.MyBackendClass" },
+    "cli_commands": ["my-command"],
+    "cli_flags": { "--backend": ["my-backend"] }
+  },
+  "config": { "env_prefix": "MY_PLUGIN", "defaults": { "MY_PLUGIN_URL": "http://localhost:8080" } }
+}
+```
+
+### Key Features
+
+- **Manifest-based discovery** -- Scan `agentnova/plugins/` for subdirectories containing `plugin.json`
+- **Topological dependency resolution** -- `depends` field respected via Kahn's algorithm
+- **Lazy loading** -- Plugins loaded on first use via `_ensure_plugin()` in `backends/__init__.py`
+- **Backend name independence** -- Backend name (e.g. `test-backend`) differs from plugin directory name (e.g. `test-plugin`)
+- **CLI extension** -- Plugin commands appear in `--help` with `*` suffix (e.g. `plugin-test* [plugin]`)
+- **Config aggregation** -- Plugin defaults merged into PluginManager for framework-wide access
+
+### Shipped Plugins
+
+| Plugin | Type | Provides |
+|--------|------|----------|
+| `acp` | feature | ACP v1.0.6 integration (audit logging, session monitoring) |
+| `bitnet` | backend | `bitnet` backend (LlamaServerBackend with bitnet_mode) |
+| `zai` | backend | `zai` backend (GLM models via ZAI API, 13-model catalog) |
+| `turboquant` | feature | `turbo` CLI command (server lifecycle, model registry) |
+| `test-plugin` | feature | `test-backend` backend, `plugin-test` CLI command |
+
+### Plugin Lifecycle
+
+```
+discover() → load(name) → register(manager) → [active] → unregister() → unload()
+```
+
+Plugins are discovered by scanning `agentnova/plugins/` for subdirectories containing `plugin.json`. The entrypoint module (always `__init__`) must export `register(manager)` and `unregister(manager)` functions. The `register()` function is called with the PluginManager instance, where the plugin registers its backends, CLI commands, and config defaults.
+
+---
+
+## Ctrl+C Cancellation (R05.0)
+
+Graceful Ctrl+C handling at three layers of the agent execution stack:
+
+1. **Backend HTTP call** -- `KeyboardInterrupt` during `backend.generate()` returns a cancelled response dict with `_cancelled: True` and empty content, preventing connection leaks.
+2. **Tool execution** -- `KeyboardInterrupt` during `_execute_tool()` marks the tool call as `FAILED`, appends a cancellation step, and breaks the agent step loop. In streaming mode, yields a `RESPONSE_FAILED` SSE event.
+3. **Agent step loop** -- Cancelled responses from layer 1 are detected via the `_cancelled` flag, appending an error step and breaking the loop.
+
+`_execute_tool()` now re-raises `KeyboardInterrupt` (was previously caught by `except Exception`), allowing the step loop to handle cancellation cleanly.
 
 ---
 
@@ -635,9 +747,11 @@ Three core functions:
 
 ---
 
-## TurboQuant Server Management (R04.5)
+## TurboQuant Server Management (`plugins/turboquant/`) (R04.5, plugin in R05.0)
 
-`turbo.py` manages the lifecycle of a TurboQuant (llama.cpp) inference server for running quantized models.
+The TurboQuant plugin provides the `agentnova turbo` CLI command for managing llama.cpp inference servers. Lazy-loaded on first use.
+
+`plugins/turboquant/turbo.py` manages the lifecycle of a TurboQuant (llama.cpp) inference server for running quantized models.
 
 ### TurboState
 
