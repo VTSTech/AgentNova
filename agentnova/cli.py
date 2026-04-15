@@ -16,7 +16,7 @@ import sys
 import time
 import threading
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from .agent import Agent
 from .agent_mode import AgentMode
@@ -2387,7 +2387,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     """Main entry point."""
     parser = create_parser()
 
-    # Discover plugin-provided CLI commands and mark them with * in help
+    # Discover plugin-provided CLI commands, add as subparsers, and mark with *
+    _plugin_cli_handlers: dict[str, Callable] = {}
     try:
         from .plugins import get_plugin_manager
         pm = get_plugin_manager()
@@ -2400,12 +2401,24 @@ def main(argv: Optional[list[str]] = None) -> int:
                     plugin_commands.add(cmd)
 
             if plugin_commands:
-                # Access the subparsers action to mark plugin commands
-                for action in parser._subparsers._actions:
-                    if hasattr(action, 'choices'):
-                        for name, sub in action.choices.items():
-                            if name in plugin_commands:
-                                sub.help = f"* {sub.help} [plugin]"
+                subparsers = parser._subparsers
+                for action in subparsers._actions:
+                    if not hasattr(action, 'choices'):
+                        continue
+                    for cmd_name in plugin_commands:
+                        if cmd_name in action.choices:
+                            # Already exists as a native subparser — just mark it
+                            action.choices[cmd_name].help = f"* {action.choices[cmd_name].help} [plugin]"
+                        else:
+                            # Add a new subparser for this plugin command
+                            sp = action.add_parser(cmd_name, help=f"* {cmd_name} [plugin]")
+
+                # Load all plugins so their register_cli_command() handlers are wired
+                pm.load_all()
+
+                # Collect the handlers for dispatch
+                for cmd_name, cmd_info in pm.get_cli_commands().items():
+                    _plugin_cli_handlers[cmd_name] = cmd_info["handler"]
     except Exception:
         pass  # Plugin discovery is best-effort at help time
 
@@ -2435,6 +2448,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     }
 
     handler = commands.get(args.command)
+    if handler is None:
+        # Check plugin-provided CLI commands
+        handler = _plugin_cli_handlers.get(args.command)
+
     if handler:
         return handler(args)
 

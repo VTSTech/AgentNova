@@ -33,22 +33,31 @@ def _ensure_plugin(name: str) -> None:
     Lazy-load the plugin that provides a backend.
 
     Called when a backend name is requested but not in the native registry.
+    Resolves the backend name to a plugin name via PluginManager's manifest
+    scan (e.g. ``"test-backend"`` → ``"test-plugin"``).
     """
     from ..plugins import get_plugin_manager
     pm = get_plugin_manager()
     if pm.is_loaded(name):
         return  # already loaded
-    plugin = pm.load(name)
+
+    # Backend name might differ from plugin name — resolve it
+    plugin_name = pm.find_plugin_for_backend(name)
+    if plugin_name is None:
+        # Fall back: maybe the backend name IS the plugin name (e.g. "bitnet")
+        plugin_name = name
+
+    plugin = pm.load(plugin_name)
     if plugin is None:
         raise ValueError(
             f"Cannot load backend '{name}'. "
-            f"Check that the plugin exists in agentnova/plugins/{name}/"
+            f"Plugin '{plugin_name}' not found or failed to load."
         )
     # Plugin should have registered its backend via register_backend().
     # Verify it's actually available now.
     if pm.get_backend_class(name) is None:
         raise ValueError(
-            f"Plugin '{name}' loaded but did not register a backend class."
+            f"Plugin '{plugin_name}' loaded but did not register a backend class."
         )
 
 

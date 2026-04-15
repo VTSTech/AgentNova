@@ -391,6 +391,21 @@ class PluginManager:
         self._backend_classes.pop(name, None)
         self._backend_aliases.pop(name, None)
 
+    def find_plugin_for_backend(self, backend_name: str) -> str | None:
+        """
+        Find the plugin name that provides a given backend.
+
+        Scans discovered manifests' ``provides.backends`` to build a
+        reverse mapping from backend name to plugin name.
+
+        Returns the plugin name (e.g. ``"test-plugin"``) or ``None``.
+        """
+        for manifest in self.discover():
+            backends = manifest.provides.get("backends", {})
+            if backend_name in backends:
+                return manifest.name
+        return None
+
     def get_backend_class(self, name: str) -> type | None:
         """
         Get a backend class by name.
