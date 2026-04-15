@@ -2287,8 +2287,8 @@ def cmd_plugins(args: argparse.Namespace) -> int:
     print()
 
     # Table header
-    name_w = max(len(m.name) for m in manifests) + 2
-    name_w = max(name_w, 12)
+    name_w = max(len(m.name) for m in manifests) + 4
+    name_w = max(name_w, 14)
     type_w = 10
     ver_w = 10
 
