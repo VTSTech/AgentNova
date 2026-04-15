@@ -1873,7 +1873,7 @@ def _print_config_summary(
     print(f"\n  {yellow('Active Backend')}")
     print(f"    {dim('Backend:')}       {green(backend)}")
     print(f"    {dim('Default Model:')} {cyan(model)}")
-    print(f"    {dim('Max Steps:')}     {cyan(max_steps)}")
+    print(f"    {dim('Max Steps:')}     {cyan(str(max_steps))}")
     if num_ctx and num_ctx > 0:
         ctx_display = f"{num_ctx // 1024}K" if num_ctx >= 1024 else str(num_ctx)
         print(f"    {dim('Context Window:')} {yellow(ctx_display)} (num_ctx)")
