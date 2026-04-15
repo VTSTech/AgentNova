@@ -4,6 +4,144 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [R05.0] - 04-16-2026
+
+### Plugin System, Ctrl+C Cancellation & Documentation Restructure
+
+The largest architectural change since R04.0. Introduces a full plugin system with manifest-based discovery, topological dependency resolution, and lazy loading. Backends previously compiled into the framework (BitNet, ZAI, ACP, TurboQuant) are now pluggable, reducing the native surface to just Ollama and llama-server. Adds Ctrl+C cancellation at three layers (backend HTTP call, tool execution, agent step loop). Consolidates all documentation under `/docs/` and publishes a Plugin Specification. Version bumped to 0.5.0.
+
+### Added
+
+#### Plugin System (`plugins/_loader.py`, `plugins/__init__.py`)
+- **`PluginManager`** — central singleton registry for plugin discovery, loading, dependency resolution, backend registration, CLI extension, and config aggregation. Plugin backends, CLI commands, and config defaults are all registered through the manager and merged transparently with native functionality.
+- **Manifest-based discovery** — each plugin ships a `plugin.json` with name, version, type, entrypoint, dependencies, config defaults, and capabilities (`provides.backends`, `provides.cli_commands`, `provides.cli_flags`). Plugins are discovered by scanning `agentnova/plugins/` for subdirectories containing a manifest.
+- **Topological dependency resolution** — the `depends` field in plugin.json is respected via Kahn's algorithm. Missing hard dependencies cause the dependent plugin to be skipped with a warning. Circular dependencies are detected and rejected.
+- **Lazy loading** — plugins are loaded on first use. The `_ensure_plugin()` function in `backends/__init__.py` resolves backend names to plugin directories via manifest scan (e.g. `test-backend` maps to `test-plugin`), then loads only the required plugin.
+- **`register_backend(name, cls)`** — plugins register backend classes that integrate seamlessly with `get_backend()` and `--backend` CLI choices. Backend name is independent of plugin directory name, enabling a single plugin to provide multiple backends.
+- **`register_cli_command(name, handler, setup_parser)`** — plugins add subcommands to the `agentnova` CLI. Commands are wired into argparse at runtime in `main()` via the stashed `_SubParsersAction`, and plugin commands are marked with a `*` suffix in `--help` output.
+- **`register_config_defaults(env_prefix, defaults)`** — plugins contribute default environment variable values that are aggregated by the PluginManager for framework-wide access.
+- **`find_plugin_for_backend(backend_name)`** — reverse-maps a backend name to its plugin directory by scanning manifest `provides.backends`, solving the case where the backend name differs from the plugin directory name.
+- **Plugin types** — `backend` (registers inference backends), `feature` (extends framework with CLI commands, config), `tools` (future), `hook` (future). Lifecycle: `discover()` → `load(name)` → `register(manager)` → `[active]` → `unregister()` → `unload()`.
+
+#### Plugin: BitNet (`plugins/bitnet/`)
+- **`BitNetPlugin`** — extracts the former `BitNetBackend` (269 lines) into a self-contained plugin. Provides the `bitnet` backend via `register_backend("bitnet", BitNetPlugin)`. Config defaults (`BITNET_BASE_URL`, `BITNET_TUNNEL`) moved from `config.py` to `plugin.json`.
+- **`plugin.json`** — type `backend`, depends on nothing, provides `bitnet` backend with llama-server mode flag.
+
+#### Plugin: ZAI (`plugins/zai/`)
+- **`ZaiPlugin`** — extracts the former `ZaiBackend` (835 lines) into a self-contained plugin. Full ZAI API integration including dynamic model discovery, native function calling, pricing metadata, free-only mode, and auto-fallback on 429/1113 errors. Config defaults (`ZAI_BASE_URL`, `ZAI_API_KEY`, `ZAI_FREE_ONLY`, `ZAI_FREE_FALLBACK_MODEL`) moved from `config.py` to `plugin.json`.
+- **`plugin.json`** — type `backend`, depends on nothing, provides `zai` backend.
+
+#### Plugin: ACP (`plugins/acp/`)
+- **`ACPPlugin`** — extracts the former `acp_plugin.py` (2397 lines) into a self-contained plugin. Full Agent Control Panel integration for audit logging, session monitoring, and agent telemetry. Config defaults (`ACP_URL`, `ACP_USERNAME`, `ACP_PASSWORD`) moved from `config.py` to `plugin.json`.
+- **`plugin.json`** — type `feature`, provides no backends, extends framework with ACP logging capabilities.
+
+#### Plugin: TurboQuant (`plugins/turboquant/`)
+- **`TurboQuantPlugin`** — extracts the former `turbo.py` (694 lines) into a self-contained plugin. TurboQuant server lifecycle management (start/stop/status/list), Ollama model registry, GGUF binary header parsing, and KV cache configuration. Config defaults (`TURBOQUANT_SERVER_PATH`, `TURBOQUANT_PORT`, `TURBOQUANT_CTX`) moved from `config.py` to `plugin.json`.
+- **`plugin.json`** — type `feature`, provides the `turbo` CLI subcommand.
+
+#### Plugin: Test-Plugin (`plugins/test-plugin/`)
+- **Validation plugin** — exercises every plugin system feature: discovery, backend registration, CLI command registration, config defaults, dependency resolution, and lifecycle (register/unregister). Provides the `plugin-test` CLI command and `test-backend` backend for integration testing.
+- **`TestBackend`** — minimal stub backend that returns a fixed validation response, implementing all abstract methods from `BaseBackend`.
+- **`plugin.json`** — type `feature`, no dependencies, provides `test-backend` backend and `plugin-test` CLI command.
+
+#### Ctrl+C Cancellation (`agent.py`)
+- **Three-layer cancellation** — graceful Ctrl+C handling at every level of the agent execution stack:
+  1. **Backend HTTP call** — `KeyboardInterrupt` during `backend.generate()` returns a cancelled response dict with `_cancelled: True` and empty content, preventing connection leaks.
+  2. **Tool execution** — `KeyboardInterrupt` during `_execute_tool()` marks the tool call as `FAILED`, appends a cancellation step, and breaks the agent step loop. In streaming mode, yields a `RESPONSE_FAILED` SSE event and returns immediately.
+  3. **Agent step loop** — cancelled responses from layer 1 are detected via the `_cancelled` flag, appending an error step and breaking the loop.
+- **Tool execution re-raise** — `_execute_tool()` now re-raises `KeyboardInterrupt` (was previously caught by `except Exception`), allowing the step loop to handle cancellation cleanly.
+
+#### Documentation
+- **`docs/PLUGIN_SPEC.md`** — Plugin Specification v0.1 (462 lines). Covers manifest format (`plugin.json` schema), plugin types, entrypoint contract (`register(manager)` / `unregister(manager)`), lifecycle, dependency resolution, backend registration API, CLI extension API, config defaults API, and a complete example plugin walkthrough.
+- **Documentation restructure** — moved `ARCH.md`, `CHANGELOG.md`, `CREDITS.md`, `audit.md`, `brief.md` from repository root to `docs/` directory. All links updated in README.md and ARCH.md.
+- **`docs/TESTS.md`** — moved from root to `docs/` to consolidate documentation.
+
+### Changed
+
+#### Backend Registry Simplified (`backends/__init__.py`)
+- **Native registry reduced to 2 backends** — only `ollama` and `llama-server` remain hardcoded. All other backends (bitnet, zai) are loaded dynamically via the plugin system.
+- **`_ensure_plugin(name)`** — new lazy-loading function that resolves backend names to plugins and loads them on first access. Uses `find_plugin_for_backend()` for reverse name mapping.
+- **`get_backend()`** updated — checks native registry first, then delegates to `_ensure_plugin()` + `PluginManager.get_backend_class()` for plugin backends. Error messages distinguish between native and plugin backend failures.
+- **Removed**: hardcoded `BitNetBackend`, `ZaiBackend`, `BitNetBackend` imports. These are now provided by their respective plugins.
+
+#### Config Module Decentralized (`config.py`)
+- **Plugin-owned config moved to manifests** — `BITNET_BASE_URL`, `BITNET_TUNNEL`, `ZAI_BASE_URL`, `ZAI_API_KEY`, `ZAI_FREE_ONLY`, `ZAI_FREE_FALLBACK_MODEL`, `ACP_URL`, `ACP_USERNAME`, `ACP_PASSWORD`, `TURBOQUANT_SERVER_PATH`, `TURBOQUANT_PORT`, `TURBOQUANT_CTX` now have their defaults defined in each plugin's `plugin.json` rather than in the central config module.
+- **Backward compatibility** — config variables are still importable from `config.py` for existing code. They read from environment variables with plugin-defined defaults as fallbacks.
+- **Module-level variables kept as thin wrappers** — `BITNET_BASE_URL = os.environ.get("BITNET_TUNNEL") or os.environ.get("BITNET_BASE_URL", "http://localhost:8765")` etc.
+
+#### Public API Exports (`__init__.py`)
+- **Removed**: `BitNetBackend`, `ZaiBackend` exports (available via plugin system).
+- **Added**: `LlamaServerBackend`, `get_backend_choices` exports.
+- **ACP import path updated** — `from .acp_plugin import ACPPlugin` → `from .plugins.acp.acp_plugin import ACPPlugin` (graceful import with fallback).
+- **Version bumped**: `0.4.8` → `0.5.0`.
+
+#### CLI Plugin Integration (`cli.py`, `shared_args.py`)
+- **Plugin CLI subcommands** — `main()` discovers plugin commands from manifests, adds them as argparse subparsers with `* [plugin]` help text, loads plugins, and dispatches to registered handlers when native command lookup fails.
+- **`_subparsers_action` stashed on parser** — `create_parser()` saves the `_SubParsersAction` return value as `parser._subparsers_action` for later dynamic subparser addition. (The private `parser._subparsers` attribute is an `_ArgumentGroup`, not the subparsers registry.)
+- **`--backend` choices dynamic** — `get_backend_choices()` now merges native backends with plugin-provided values via `PluginManager._cli_flag_values["--backend"]`.
+- **Plugin command help marking** — existing native subcommands that overlap with plugin commands (e.g. `turbo`) have their help text updated via `_choices_actions` to show `* ... [plugin]`.
+- **Warning on plugin discovery failure** — replaced silent `except Exception: pass` with a descriptive warning to stderr, aiding debugging.
+
+#### `pyproject.toml`
+- **Plugin manifest packaging** — added `"plugins/*/plugin.json"` to `package-data` glob so manifests are included in the wheel distribution. Required for plugin discovery in installed environments.
+
+### Fixed
+
+#### Plugin CLI Subparser Registration (`cli.py`)
+- **Bug**: `parser._subparsers` is an `_ArgumentGroup`, not the `_SubParsersAction` that holds `.choices`. The previous fix used `parser._subparsers` to dynamically add plugin CLI subparsers, which caused an `AttributeError` silently swallowed by `except Exception: pass`. Plugin commands like `plugin-test` never appeared in the argparse subparser registry.
+- **Fix**: Stash the return value of `parser.add_subparsers()` as `parser._subparsers_action` in `create_parser()`. Use `getattr(parser, "_subparsers_action", None)` in `main()` to access the real `_SubParsersAction` with `.choices`.
+- **Bug**: Help text for existing subparsers lives in `_choices_actions`, not on the `ArgumentParser` object. Setting `subparsers_action.choices[name].help` raised `AttributeError` for the `turbo` command, aborting the entire loop before `plugin-test` could be added.
+- **Fix**: Iterate `subparsers_action._choices_actions` to find and update help text for existing subcommands.
+- **Bug**: Silent `except Exception: pass` masked the above errors, making the issue invisible during debugging.
+- **Fix**: Replaced with `except Exception as e: print(..., file=sys.stderr)`.
+
+#### Backend-to-Plugin Name Resolution (`backends/__init__.py`)
+- **Bug**: `get_backend("test-backend")` tried to load a plugin directory named `test-backend`, which didn't exist (the plugin is named `test-plugin`). The backend name and plugin directory name are independent, but the loader assumed they were the same.
+- **Fix**: Added `PluginManager.find_plugin_for_backend(name)` which scans discovered manifests' `provides.backends` to reverse-map backend name → plugin directory name. `_ensure_plugin()` now calls this before falling back to treating the backend name as the plugin name.
+
+### File Changes Summary
+
+| Action | File | Changes |
+|--------|------|:-------:|
+| Moved | `TESTS.md` → `docs/TESTS.md` | — |
+| Created | `agentnova/plugins/__init__.py` | +40 |
+| Created | `agentnova/plugins/_loader.py` | +563 |
+| Created | `agentnova/plugins/bitnet/__init__.py` | +20 |
+| Created | `agentnova/plugins/bitnet/bitnet.py` | +63 |
+| Created | `agentnova/plugins/bitnet/plugin.json` | +31 |
+| Created | `agentnova/plugins/zai/__init__.py` | +20 |
+| Created | `agentnova/plugins/zai/zai.py` | +835 |
+| Created | `agentnova/plugins/zai/plugin.json` | +33 |
+| Created | `agentnova/plugins/acp/__init__.py` | +31 |
+| Created | `agentnova/plugins/acp/acp_plugin.py` | +2397 |
+| Created | `agentnova/plugins/acp/plugin.json` | +28 |
+| Created | `agentnova/plugins/turboquant/__init__.py` | +36 |
+| Created | `agentnova/plugins/turboquant/turbo.py` | +694 |
+| Created | `agentnova/plugins/turboquant/plugin.json` | +28 |
+| Created | `agentnova/plugins/test-plugin/__init__.py` | +92 |
+| Created | `agentnova/plugins/test-plugin/plugin.json` | +31 |
+| Created | `agentnova/plugins/test-plugin/test_backend.py` | +52 |
+| Created | `docs/PLUGIN_SPEC.md` | +462 |
+| Moved | `ARCH.md` → `docs/ARCH.md` | +12 |
+| Moved | `CREDITS.md` → `docs/CREDITS.md` | — |
+| Moved | `audit.md` → `docs/audit.md` | — |
+| Moved | `brief.md` → `docs/brief.md` | — |
+| Updated | `agentnova/__init__.py` | +14 −8 |
+| Updated | `agentnova/agent.py` | +68 −4 |
+| Updated | `agentnova/agent_mode.py` | +8 −0 |
+| Updated | `agentnova/backends/__init__.py` | +121 −46 |
+| Updated | `agentnova/cli.py` | +146 −8 |
+| Updated | `agentnova/config.py` | +89 −62 |
+| Updated | `agentnova/core/openresponses.py` | +8 −0 |
+| Updated | `agentnova/shared_args.py` | +3 −1 |
+| Updated | `pyproject.toml` | +5 −1 |
+| Updated | `README.md` | +6 −2 |
+| Updated | `docs/CHANGELOG.md` | changelog entry |
+| Updated | `docs/ARCH.md` | tree update |
+| **Total** | **35 files** | **+5805 −131** |
+
+---
+
 ## [R04.8] - 04-15-2026
 
 ### Codebase Audit: Easy & Medium Pass, Chat UX Improvements & Config Overhaul
@@ -276,7 +414,7 @@ The largest R04.x release to date. Adds the ZAI API as a first-class cloud backe
 #### README Expansion (`README.md`)
 - Added sections for: persistent memory usage, backend options (ollama, llama-server, bitnet), dangerous tool confirmation, force ReAct mode, session management, TurboQuant commands, self-update. Added Python API examples for persistent memory, JSON structured output, TurboQuant server management, Chat-Completions streaming, skill license validation, and multi-agent orchestration. Added CLI options reference table. Expanded feature list with 17 built-in tools, argument normalization, audit logging, and JSON structured output.
 
-#### TESTS.md Cleanup (`TESTS.md`)
+#### TESTS.md Cleanup (`docs/TESTS.md`)
 - Removed 513 lines of stale benchmark data. Consolidated test result tables. Updated for R04.6 changes.
 
 #### Brief.md Cleanup (`brief.md`)
@@ -309,7 +447,7 @@ The largest R04.x release to date. Adds the ZAI API as a first-class cloud backe
 | Updated | `tests/test_agent.py` | +1 −0 |
 | Updated | `ARCH.md` | +513 −54 |
 | Updated | `README.md` | +139 −4 |
-| Updated | `TESTS.md` | +51 −513 |
+| Updated | `docs/TESTS.md` | +51 −513 |
 | Updated | `brief.md` | +18 −18 |
 | **Total** | **27 files** | **+3698 −649** |
 
@@ -541,7 +679,7 @@ BitNet backend merged into LlamaServerBackend, eliminating ~170 lines of duplica
 | Updated | `agentnova/backends/llama_server.py` | +30 -15 |
 | Updated | `agentnova/backends/bitnet.py` | -171 |
 | Updated | `agentnova/backends/__init__.py` | +15 -8 |
-| Updated | `TESTS.md` | Restructured |
+| Updated | `docs/TESTS.md` | Restructured |
 | **Total** | **4 files** | **+45 -194** |
 
 ---
@@ -1223,7 +1361,7 @@ Resolved 9 issues identified in the R03.7 Spec Compliance Audit (30 FAIL + 55 WA
 | Updated | `agentnova/acp_plugin.py` | +4 |
 | Updated | `agentnova/tools/sandboxed_repl.py` | −3 |
 | Updated | `agentnova/skills/skill-creator/SKILL.md` | +1 |
-| Updated | `TESTS.md` | +1 |
+| Updated | `docs/TESTS.md` | +1 |
 | **Total** | **6 files** | **+326 −18** |
 
 ### Audit Status
@@ -3902,7 +4040,7 @@ Detection is now simplified and more accurate:
   - `README.md` now serves as concise entry point (~180 lines, down from ~420)
   - `Architecture.md` - Technical documentation for developers (directory structure, design decisions, orchestrator modes)
   - `CHANGELOG.md` - Version history and release notes
-  - `TESTS.md` - Benchmark results, model recommendations, and testing guide
+  - `docs/TESTS.md` - Benchmark results, model recommendations, and testing guide
   - Added Documentation table in README with clear links to all supporting files
 - **Fixed version mismatch** - `__init__.py` now correctly shows 0.3.0.2 (was behind at 0.3.0)
 

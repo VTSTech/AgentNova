@@ -116,8 +116,8 @@ agentnova/
 │   ├── audit.md              # Codebase audit findings report
 │   └── brief.md              # Condensed project orientation brief
 │
+│   └── TESTS.md            # Benchmark results and testing guide
 ├── README.md                 # Project overview, quick start, features
-└── TESTS.md                  # Benchmark results and testing guide
 ```
 
 ---
