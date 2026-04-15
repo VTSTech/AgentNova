@@ -652,7 +652,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
             if n >= 1000:
                 return f"{n/1000:.1f}k"
             return str(n)
-        tok_str = f"{_fmt_tok(_session_tokens_in)} in {_fmt_tok(_session_tokens_out)} out"
+        tok_str = f"{_fmt_tok(_session_tokens_in)}in {_fmt_tok(_session_tokens_out)}out"
         parts = [
             f"{dim('\u269b\ufe0f')}  {cyan('R04.7')}",
             f"{dim('\U0001f9e0')}  {cyan(agent.model)}",
@@ -660,7 +660,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
             f"{dim('\U0001f4ac')}  {yellow(max_t_str)}",
             f"{dim('\U0001f321\ufe0f')}  {yellow(str(temp))}",
             f"{dim('\U0001f50c')}  {green(bname)}",
-            f"{dim('\U0001fa99')}  {yellow(tok_str)}",
+            f"{dim('\U0001f4c8')}  {yellow(tok_str)}",
         ]
         if agent.debug:
             parts.append(f"{red('\U0001f41b  debug')}")
