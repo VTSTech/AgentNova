@@ -656,8 +656,8 @@ def cmd_chat(args: argparse.Namespace) -> int:
         return input(f"{dim('You:')} ")
 
     def _clear_footer():
-        """Clear the footer line after input() returns (cursor lands there)."""
-        sys.stdout.write('\r' + ' ' * 80 + '\r')
+        """Clear the footer line (one row below cursor) and return cursor to its row."""
+        sys.stdout.write('\033[B\r' + ' ' * 80 + '\r\033[A')
         sys.stdout.flush()
 
     # ── Spinner ───────────────────────────────────────────────────────
@@ -795,13 +795,14 @@ def cmd_chat(args: argparse.Namespace) -> int:
         # Run with spinner (suppress spinner when debug is on — debug already prints progress)
         spinner_t = None
         if not agent.debug:
+            print()  # blank line before spinner
             spinner_t = _spinner_start()
         try:
             result = agent.run(user_input)
         finally:
             if spinner_t:
                 _spinner_stop_thread(spinner_t)
-        print(f"\n{bright_green('Agent Nova')}: {result.final_answer}")
+        print(f"\n{bright_green('Agent Nova')}: {result.final_answer}\n")
 
         # Log assistant response to ACP
         if acp:
