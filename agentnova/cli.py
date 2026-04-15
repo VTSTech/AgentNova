@@ -167,6 +167,8 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    # Stash the _SubParsersAction so plugin CLI commands can be added later in main()
+    parser._subparsers_action = subparsers
 
     # Agent command
     agent_parser = subparsers.add_parser("agent", help="Autonomous agent mode")
@@ -2401,15 +2403,18 @@ def main(argv: Optional[list[str]] = None) -> int:
                     plugin_commands.add(cmd)
 
             if plugin_commands:
-                # parser._subparsers IS the _SubParsersAction that holds .choices
-                subparsers_action = parser._subparsers
+                # Use the stashed _SubParsersAction (not parser._subparsers, which
+                # is an _ArgumentGroup, not the subparsers registry).
+                subparsers_action = getattr(parser, "_subparsers_action", None)
                 if subparsers_action is not None:
                     for cmd_name in plugin_commands:
                         if cmd_name in subparsers_action.choices:
-                            # Already exists as a native subparser — just mark it
-                            subparsers_action.choices[cmd_name].help = (
-                                f"* {subparsers_action.choices[cmd_name].help} [plugin]"
-                            )
+                            # Already exists as a native subparser — mark with *
+                            # Help text lives in _choices_actions, not on the parser
+                            for ca in subparsers_action._choices_actions:
+                                if ca.dest == cmd_name:
+                                    ca.help = f"* {ca.help} [plugin]"
+                                    break
                         else:
                             # Add a new subparser for this plugin command
                             subparsers_action.add_parser(
@@ -2422,8 +2427,9 @@ def main(argv: Optional[list[str]] = None) -> int:
                 # Collect the handlers for dispatch
                 for cmd_name, cmd_info in pm.get_cli_commands().items():
                     _plugin_cli_handlers[cmd_name] = cmd_info["handler"]
-    except Exception:
-        pass  # Plugin discovery is best-effort at help time
+    except Exception as e:
+        import sys
+        print(f"[PluginManager] Warning: plugin CLI discovery failed: {e}", file=sys.stderr)
 
     args = parser.parse_args(argv)
 
