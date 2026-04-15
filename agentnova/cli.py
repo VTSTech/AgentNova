@@ -653,17 +653,26 @@ def cmd_chat(args: argparse.Namespace) -> int:
                 return f"{n/1000:.1f}k"
             return str(n)
         tok_str = f"\u2191{_fmt_tok(_session_tokens_in)} \u2193{_fmt_tok(_session_tokens_out)}"
+        # Emoji constants (extracted to avoid \u in f-string expressions — Python 3.10 compat)
+        _e_brand = '\u269b\ufe0f'
+        _e_model = '\U0001f9e0'
+        _e_ctx   = '\U0001f4e6'
+        _e_resp  = '\U0001f4ac'
+        _e_temp  = '\U0001f321\ufe0f'
+        _e_be    = '\U0001f50c'
+        _e_tok   = '\U0001f4c8'
+        _e_dbg   = '\U0001f41b'
         parts = [
-            f"{dim('\u269b\ufe0f')}  {cyan('R04.7')}",
-            f"{dim('\U0001f9e0')}  {cyan(agent.model)}",
-            f"{dim('\U0001f4e6')}  {yellow(ctx_str)}",
-            f"{dim('\U0001f4ac')}  {yellow(max_t_str)}",
-            f"{dim('\U0001f321\ufe0f')}  {yellow(str(temp))}",
-            f"{dim('\U0001f50c')}  {green(bname)}",
-            f"{dim('\U0001f4c8')}  {yellow(tok_str)}",
+            f"{dim(_e_brand)}  {cyan('R04.7')}",
+            f"{dim(_e_model)}  {cyan(agent.model)}",
+            f"{dim(_e_ctx)}  {yellow(ctx_str)}",
+            f"{dim(_e_resp)}  {yellow(max_t_str)}",
+            f"{dim(_e_temp)}  {yellow(str(temp))}",
+            f"{dim(_e_be)}  {green(bname)}",
+            f"{dim(_e_tok)}  {yellow(tok_str)}",
         ]
         if agent.debug:
-            parts.append(f"{red('\U0001f41b  debug')}")
+            parts.append(f"{red(_e_dbg + ' debug')}")
         return ' '.join(parts)
 
     def _prompt():
