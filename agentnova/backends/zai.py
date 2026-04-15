@@ -191,6 +191,16 @@ class ZaiBackend(OllamaBackend):
 
         # API key — priority: explicit > env var
         self._api_key = api_key or ZAI_API_KEY
+        if not self._api_key or not self._api_key.strip():
+            raise ValueError(
+                "ZAI_API_KEY is required for the ZAI backend. "
+                "Set it via --api-key, ZAI_API_KEY env var, or Config.zai_api_key."
+            )
+        if len(self._api_key.strip()) < 8:
+            raise ValueError(
+                f"ZAI_API_KEY appears invalid (too short: {len(self._api_key.strip())} chars). "
+                "Check your ZAI_API_KEY environment variable."
+            )
 
         # ZAI is OpenAI-compatible only — force OPENAI mode
         if api_mode is not None:

@@ -24,6 +24,7 @@ from .orchestrator import Orchestrator, AgentCard
 from .tools import make_builtin_registry
 from .backends import get_backend, get_default_backend, OllamaBackend
 from .config import get_config, AGENTNOVA_BACKEND, OLLAMA_BASE_URL, BITNET_BASE_URL
+from . import __version__
 from .model_discovery import match_models, get_models
 from .shared_args import add_agent_args
 from .colors import (
@@ -663,7 +664,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
         _e_tok   = '\U0001f4c8'
         _e_dbg   = '\U0001f41b'
         parts = [
-            f"{dim(_e_brand)} {cyan('R04.7')}",
+            f"{dim(_e_brand)} {cyan(__version__)}",
             f"{dim(_e_model)} {cyan(agent.model)}",
             f"{dim(_e_ctx)} {yellow(ctx_str)}",
             f"{dim(_e_resp)} {yellow(max_t_str)}",

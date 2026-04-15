@@ -2,9 +2,9 @@
 
 AgentNova is a modular agent framework designed for local LLMs with tool-calling capabilities. It implements the OpenResponses specification for multi-provider, interoperable LLM interfaces.
 
-**Specification Compliance**: 100% (R03.5+) -- R04.1, R04.2, R04.3, R04.4, R04.5, R04.6
+**Specification Compliance**: 100% (R03.5+) -- R04.1, R04.2, R04.3, R04.4, R04.5, R04.6, R04.7
 
-**Version**: R04.6
+**Version**: R04.7
 - OpenResponses API: 100%
 - Chat Completions API: 100%
 - Soul Spec v0.5: 100%
@@ -48,12 +48,12 @@ agentnova/
 │   │                         # - Family-aware prompt formatting
 │   │                         # - Turn-bleed guards
 │   ├── bitnet.py             # Thin wrapper (63-line); sets bitnet_mode=True on LlamaServerBackend
-│   ├── zai.py                # ZaiBackend(OllamaBackend) for ZAI cloud API (R04.6)
+│   ├── zai.py                # ZaiBackend(OllamaBackend) for ZAI cloud API (R04.6, expanded R04.7)
 │   │                         # - OpenAI Chat-Completions only (no openre mode)
 │   │                         # - Bearer token authentication
-│   │                         # - Dynamic model discovery + static catalog merge
-│   │                         # - Free-only mode (ZAI_FREE_ONLY)
-│   │                         # - Auto-fallback on insufficient credits (429/1113)
+│   │                         # - Dynamic model discovery + static catalog merge (13 models)
+│   │                         # - Free-only mode (ZAI_FREE_ONLY) + auto-fallback
+│   │                         # - Native tool calling support (R04.7 fix)
 │   └── ollama_registry.py    # Ollama model registry: manifest discovery, GGUF header
 │                             # parsing via mmap, TurboQuant compatibility (R04.5)
 │
@@ -455,7 +455,7 @@ class BitNetBackend(LlamaServerBackend):
         super().__init__(**kwargs)
 ```
 
-### ZAI Backend (`backends/zai.py`) (R04.6)
+### ZAI Backend (`backends/zai.py`) (R04.6, expanded R04.7)
 
 `ZaiBackend` inherits from `OllamaBackend` and connects to the ZAI cloud API (`https://api.z.ai`) for GLM series models. Unlike local backends, ZAI is always OpenAI Chat-Completions — no openre mode.
 

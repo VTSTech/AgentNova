@@ -141,6 +141,8 @@ class Orchestrator:
         Default tools for auto-created agents
     router_model : str | None
         Model to use for LLM-based routing decisions (optional)
+    router_backend : str | None
+        Backend to use for LLM-based routing (default: current default backend)
     on_step : Callable | None
         Callback for step events (ACP integration)
     merge_strategy : str
@@ -155,6 +157,7 @@ class Orchestrator:
         default_model: str = "qwen2.5:0.5b",
         default_tools: list[str] | None = None,
         router_model: str | None = None,
+        router_backend: str | None = None,
         on_step: Callable | None = None,
         merge_strategy: Literal["concat", "first", "vote", "best"] = "concat",
         timeout: float = 120.0,
@@ -163,6 +166,7 @@ class Orchestrator:
         self.default_model = default_model
         self.default_tools = default_tools or []
         self.router_model = router_model
+        self.router_backend = router_backend
         self.on_step = on_step
         self.merge_strategy = merge_strategy
         self.timeout = timeout
@@ -297,9 +301,9 @@ class Orchestrator:
 
     def _select_agent_with_llm(self, task: str) -> str:
         """Use the router model to select the best agent."""
-        from .backends import get_backend
+        from .backends import get_backend, get_default_backend
 
-        backend = get_backend("ollama")
+        backend = get_backend(self.router_backend) if self.router_backend else get_default_backend()
 
         # Build agent descriptions
         agent_descs = "\n".join(
