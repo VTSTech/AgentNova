@@ -4,11 +4,11 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [R04.8] - 04-15-2026 9:53:07 AM
+## [R04.8] - 04-15-2026
 
-### Codebase Audit Easy Pass & Chat UX Improvements
+### Codebase Audit: Easy & Medium Pass, Chat UX Improvements & Config Overhaul
 
-First release driven by automated codebase audit findings. Addresses 4 Low-severity audit findings (MAINT-02, MAINT-03, SEC-03, ARCH-03) from the R04.7 audit report and adds prompt budget visibility to the chat status bar. Includes codebase audit and intelligence brief artifacts. Version bumped to 0.4.8-dev.
+Audit-driven release addressing 9 of 16 findings from the R04.7 codebase audit report. Easy pass (4 Low-severity: MAINT-02, MAINT-03, SEC-03, ARCH-03) and Medium pass (5 Medium-severity: ARCH-01, MAINT-01, ROB-01, SEC-01, TEST-01) resolved. Adds prompt budget visibility to the chat status bar, AST-based safe calculator, user-visible model fallback warnings, per-session todo isolation, and a fully overhauled `agentnova config` subcommand. Includes codebase audit and intelligence brief artifacts. Version bumped to 0.4.8-dev.
 
 ### Fixed
 
@@ -21,6 +21,26 @@ First release driven by automated codebase audit findings. Addresses 4 Low-sever
 - **Bug**: The `ZAI_API_KEY` environment variable was read directly from `os.environ` and used as a Bearer token with no format validation. An empty string, whitespace, or a completely wrong value would only be caught when the API returned a 401 error, giving users unclear error messages.
 - **Fix**: Added two validation checks in `ZaiBackend.__init__()` after API key resolution: (1) rejects empty or whitespace-only keys with a descriptive `ValueError` listing the three configuration methods (`--api-key`, `ZAI_API_KEY` env var, `Config.zai_api_key`); (2) rejects suspiciously short keys (under 8 characters) with a message showing the actual length. Validation fires at construction time, before any network calls.
 - **Impact**: Misconfigured API keys now produce an immediate, actionable error at startup instead of a cryptic 401 mid-session.
+
+#### [Medium] Backend Inheritance Chain Broken (`backends/base.py`, `ollama.py`, `zai.py`, `llama_server.py`)
+- **Bug**: `ZaiBackend` and `LlamaServerBackend` inherited from `OllamaBackend` but skipped `super().__init__()`, causing them to never initialize `BaseBackend` state (`_base_url`, `_api_mode`, `_backend_type`). This violated the Liskov substitution principle — a `ZaiBackend` instance could not be used where a `BaseBackend` was expected because critical attributes were missing. Adding new shared state to `BaseBackend` would silently break child backends that skipped the parent constructor.
+- **Fix**: Promoted `_base_url` and `_api_mode` to `BaseBackend.__init__()` with defaults (`"localhost"`, `ApiMode.OPENRE`). All four backends now call `super().__init__(base_url=..., api_mode=...)` properly, ensuring the full inheritance chain is initialized. `BaseBackend` is no longer a hollow shell — it holds the shared state that all backends need.
+- **Impact**: Backend inheritance is now correct and extensible. Future backends can inherit from `BaseBackend` or `OllamaBackend` without worrying about missing initialization.
+
+#### [Medium] Shared Todo Store Across Sessions (`agent.py`, `tools/builtins.py`)
+- **Bug**: The todo list was stored as a single module-level dict in `builtins.py`. All agent instances in the same process shared the same todo store regardless of session, meaning `/todo-list` in one session showed items from another. This violated session isolation expectations.
+- **Fix**: Added `set_todo_session(session_id)` to `builtins.py` and a UUID-based `self.session_id = uuid4().hex[:12]` to `Agent.__init__()`. After tool initialization, the agent auto-wires `set_todo_session(self.session_id)` so each session gets its own isolated todo list. Backward-compatible — existing code that doesn't set a session uses a `"default"` store.
+- **Impact**: Multiple concurrent agent sessions no longer share todo lists.
+
+#### [Medium] Calculator Uses Unsafe `eval()` (`tools/builtins.py`)
+- **Bug**: The `calculator` tool used Python's `eval()` to evaluate mathematical expressions. Despite a pre-check regex and blacklist of dangerous names (`__import__`, `open`, `exec`, `eval`, `compile`), `eval()` is fundamentally unsafe — it can execute arbitrary Python through attribute access chains (e.g., `().__class__.__bases__[0].__subclasses__()`), string formatting exploits, and other bypass techniques that evolve faster than any blacklist.
+- **Fix**: Replaced `eval()` with `_safe_eval()`, a custom AST-walking evaluator that traverses the Python AST node-by-node with an explicit whitelist of allowed node types (`Num`, `Constant`, `BinOp`, `UnaryOp`, `BoolOp`, `Compare`) and operators (`+`, `-`, `*`, `/`, `//`, `%`, `**`, `~`, `and`, `or`, `==`, `!=`, `<`, `>`, `<=`, `>=`). Any node type not in the whitelist raises `ValueError` immediately. No `Call`, `Attribute`, `Subscript`, or `Name` nodes are permitted — only literal numbers and operators.
+- **Impact**: The calculator tool is now safe from code injection even if the regex pre-check is bypassed.
+
+#### [Medium] Silent Model Fallback Without User Notification (`backends/zai.py`)
+- **Bug**: When a ZAI model request failed with HTTP 429 (insufficient credits) or error code 1113, the backend silently retried with the free fallback model (`glm-4.5-flash`). Users had no indication that their requested model was replaced — the response appeared to come from the model they asked for, potentially degrading output quality without explanation.
+- **Fix**: Added `warnings.warn()` calls at both fallback points: (1) when `ZAI_FREE_ONLY` redirects a paid model request, (2) when auto-fallback triggers on 429/1113. Warnings include the original model name and the fallback model name, printed to stderr with a `UserWarning` category. Also added warning when tools are rejected and stripped from the request.
+- **Impact**: Users now see clear warnings when model fallback occurs, enabling informed decisions about model selection and credit management.
 
 ### Changed
 
@@ -38,26 +58,49 @@ First release driven by automated codebase audit findings. Addresses 4 Low-sever
 - Reads `agent._custom_system_prompt` (the fully assembled system prompt including soul content, tool sections, and skill instructions) for an accurate measurement of what's actually sent to the model.
 - **Impact**: Users can monitor prompt budget usage at a glance — critical for small models with tight context windows where prompt size directly affects available response space.
 
+#### `config` Subcommand Overhauled (`cli.py`)
+- **Default mode** (`agentnova config`) now displays: active backend with `*` marker beside its URL, all 5 backend URLs (Ollama, BitNet, llama-server, ZAI, ACP), ZAI API settings with masked key display, ACP credentials (masked), TurboQuant settings, error handling configuration, DEBUG/VERBOSE flags, and all 29 supported environment variables with descriptions. Previously showed only 3 URLs and 6 env vars.
+- **`--urls` flag** expanded from 3 to 5 backend URLs (added `LLAMA_SERVER_BASE_URL` and `ZAI_BASE_URL`).
+- **`--full` flag** added — dumps every configuration variable including `Config` dataclass defaults (temperature, max_tokens, memory limits, security settings, allowed_paths).
+- **`_mask_key()` helper** — masks secrets showing only first/last 4 characters (e.g., `ghit****xyzw`). Displays `(not set)` for empty keys. Secrets are always masked in all output modes.
+- **Impact**: Users can now inspect the full runtime configuration without grepping source files or `pyproject.toml`.
+
 ### Added
 
 #### Codebase Audit Artifacts (`audit.md`, `brief.md`)
 - **`audit.md`** — full codebase audit report for R04.7 generated using the codebase-audit skill v0.2.0. Contains 16 findings across 6 categories (SEC, ROB, MAINT, FEAT, ARCH, TEST): 0 High, 7 Medium, 9 Low. Includes executive summary, detailed findings with file references, priority matrix, and architecture strengths analysis.
 - **`brief.md`** — regenerated intelligence brief covering R04.5 through R04.7 changes, replacing the stale R04.5-era brief.
 
+#### Medium-Pass Test Suite (`tests/test_r048_changes.py`)
+- **81 new tests** covering all Medium-pass findings and the prompt budget display feature. Test categories:
+  - Backend inheritance chain (BaseBackend super().__init__ wiring across all 4 backends)
+  - AST safe evaluator (whitelist enforcement, operator coverage, rejection of dangerous constructs)
+  - Per-session todo isolation (cross-session independence, default session, session_id wiring)
+  - Model fallback warnings (429/1113 auto-fallback, free-only redirect, tool rejection)
+  - Footer prompt display (chr/tok formatting, k-notation conversion, zero-prompt edge case)
+
 ### File Changes Summary
 
 | Action | File | Changes |
 |--------|------|:-------:|
 | Created | `audit.md` | +309 |
-| Updated | `agentnova/cli.py` | +10 −2 |
-| Updated | `agentnova/backends/zai.py` | +10 |
+| Created | `tests/test_r048_changes.py` | +767 |
+| Updated | `agentnova/cli.py` | +253 −14 |
+| Updated | `agentnova/backends/base.py` | +9 −0 |
+| Updated | `agentnova/backends/ollama.py` | +17 −6 |
+| Updated | `agentnova/backends/zai.py` | +52 −9 |
+| Updated | `agentnova/backends/llama_server.py` | +23 −10 |
+| Updated | `agentnova/agent.py` | +11 −0 |
+| Updated | `agentnova/tools/builtins.py` | +150 −9 |
 | Updated | `agentnova/orchestrator.py` | +8 −2 |
-| Updated | `ARCH.md` | +7 −7 |
-| Updated | `agentnova/__init__.py` | +1 −1 |
-| Updated | `pyproject.toml` | +1 −1 |
-| Updated | `README.md` | +1 −1 |
+| Updated | `ARCH.md` | +14 −7 |
+| Updated | `agentnova/__init__.py` | +2 −1 |
+| Updated | `pyproject.toml` | +2 −1 |
+| Updated | `README.md` | +2 −1 |
 | Updated | `brief.md` | +317 −241 |
-| **Total** | **9 files** | **+664 −255** |
+| Updated | `tests/test_zai_backend.py` | +18 −7 |
+| Updated | `CHANGELOG.md` | +120 −57 |
+| **Total** | **17 files** | **+1644 −365** |
 
 ---
 
