@@ -221,13 +221,17 @@ class ZaiBackend(OllamaBackend):
         """
         List available ZAI models.
 
-        Queries the ZAI API /api/paas/v4/models endpoint dynamically.
-        Falls back to the static catalog if the API call fails.
-        Enriches API results with context_length from the static catalog
-        when available.
+        Queries the ZAI API /api/paas/v4/models endpoint dynamically, then
+        merges with the static catalog. The API may not return all models
+        (e.g., flash variants), so the catalog fills in the gaps.
+
+        Enriches API results with context_length from the static catalog.
         """
         import urllib.request
         import urllib.error
+
+        # Track which models the API knows about
+        api_model_keys: set[str] = set()
 
         # Try dynamic discovery from the API
         try:
@@ -244,31 +248,16 @@ class ZaiBackend(OllamaBackend):
 
             api_models = result.get("data", [])
             if api_models:
-                models = []
                 for m in api_models:
                     name = m.get("id", "")
                     if not name:
                         continue
                     # Strip provider prefix if present (e.g., "zai/glm-4-flash")
                     model_key = name.split("/")[-1] if "/" in name else name
-
-                    # Enrich with static catalog metadata if available
-                    meta = ZAI_MODELS.get(model_key, {})
-
-                    models.append({
-                        "name": model_key,
-                        "size": 0,
-                        "details": {
-                            "family": "glm",
-                            "backend": "zai",
-                            "context_length": meta.get("context_length", 128000),
-                        },
-                    })
+                    api_model_keys.add(model_key)
 
                 if os.environ.get("AGENTNOVA_DEBUG"):
-                    print(f"  [ZAI] Discovered {len(models)} models from API")
-
-                return models
+                    print(f"  [ZAI] API returned {len(api_model_keys)} models")
 
         except (urllib.error.HTTPError, urllib.error.URLError) as e:
             if os.environ.get("AGENTNOVA_DEBUG"):
@@ -277,11 +266,19 @@ class ZaiBackend(OllamaBackend):
             if os.environ.get("AGENTNOVA_DEBUG"):
                 print(f"  [ZAI] Model discovery error ({e}), using static catalog")
 
-        # Fallback: return static catalog
+        # Build unified list: start with full static catalog
+        # API-discovered models get the same treatment (catalog enriches them)
+        seen: set[str] = set()
         models = []
-        for name, meta in ZAI_MODELS.items():
+
+        # Add API models first (they're confirmed available)
+        for model_key in sorted(api_model_keys):
+            if model_key in seen:
+                continue
+            seen.add(model_key)
+            meta = ZAI_MODELS.get(model_key, {})
             models.append({
-                "name": name,
+                "name": model_key,
                 "size": 0,
                 "details": {
                     "family": "glm",
@@ -289,6 +286,26 @@ class ZaiBackend(OllamaBackend):
                     "context_length": meta.get("context_length", 128000),
                 },
             })
+
+        # Add catalog-only models (not returned by API, e.g. flash variants)
+        for name in sorted(ZAI_MODELS.keys()):
+            if name not in seen:
+                seen.add(name)
+                meta = ZAI_MODELS[name]
+                models.append({
+                    "name": name,
+                    "size": 0,
+                    "details": {
+                        "family": "glm",
+                        "backend": "zai",
+                        "context_length": meta.get("context_length", 128000),
+                    },
+                })
+
+        if os.environ.get("AGENTNOVA_DEBUG"):
+            catalog_only = len(models) - len(api_model_keys)
+            print(f"  [ZAI] Total: {len(models)} models ({len(api_model_keys)} API + {catalog_only} catalog)")
+
         return models
 
     def get_model_info(self, model: str) -> dict | None:
