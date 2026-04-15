@@ -718,7 +718,13 @@ Example: [{{"description": "Step 1"}}, {{"description": "Step 2"}}]"""
                 return False, "Task was stopped"
             
             # Execute the step
-            success, msg = self.execute_step(step)
+            try:
+                success, msg = self.execute_step(step)
+            except KeyboardInterrupt:
+                step.status = "cancelled"
+                step.completed_at = datetime.now().isoformat()
+                self._set_state(AgentState.IDLE)
+                return False, "Task cancelled by user"
             
             # Track the final response (from last successful step)
             if success and msg:

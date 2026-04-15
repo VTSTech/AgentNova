@@ -591,6 +591,18 @@ Final Answer: <the answer>
             tokens = gen_response.get("usage", {}).get("total_tokens", 0)
             total_tokens += tokens
 
+            # Handle user cancellation (Ctrl+C during generate)
+            if gen_response.get("_cancelled"):
+                if self.debug:
+                    print(f"  [Cancelled] Generation interrupted by user")
+                steps.append(StepResult(
+                    type=StepResultType.ERROR,
+                    error="Cancelled by user",
+                    tokens_used=tokens,
+                ))
+                response.mark_cancelled(debug=self.debug)
+                break
+
             # OpenResponses: Handle finish_reason from backend
             finish_reason = gen_response.get("_finish_reason", "stop")
             if finish_reason == "length":
@@ -742,7 +754,17 @@ Final Answer: <the answer>
                         print(f"  [OpenResponses] FunctionCallItem created: id={fc_item.id}, call_id={fc_item.call_id}")
                         print(f"  [OpenResponses] FunctionCallItem status: {fc_item.status.value}")
 
-                    result = self._execute_tool(tool_name, tool_args, prompt)
+                    try:
+                        result = self._execute_tool(tool_name, tool_args, prompt)
+                    except KeyboardInterrupt:
+                        fc_item.status = ItemStatus.FAILED
+                        response.mark_cancelled(debug=self.debug)
+                        steps.append(StepResult(
+                            type=StepResultType.ERROR,
+                            error="Cancelled by user during tool execution",
+                        ))
+                        break
+
                     tool_calls += 1
                     
                     # Track success/failure for error recovery
@@ -1218,7 +1240,18 @@ Final Answer: <the answer>
                     yield fc_added.to_sse()
 
                     # Execute the tool
-                    result = self._execute_tool(tool_name, tool_args, prompt)
+                    try:
+                        result = self._execute_tool(tool_name, tool_args, prompt)
+                    except KeyboardInterrupt:
+                        fc_item.status = ItemStatus.FAILED
+                        response.mark_cancelled(debug=self.debug)
+                        # Yield cancellation event and stop
+                        cancel_event = ResponseStateEvent(
+                            type=EventType.RESPONSE_FAILED,
+                            response=response,
+                        )
+                        yield cancel_event.to_sse()
+                        return
                     tool_call_count += 1
 
                     fc_item.status = ItemStatus.COMPLETED
@@ -1499,15 +1532,25 @@ Final Answer: <the answer>
                 params_str += f", stops={stops}"
             print(f"  [DEBUG] Model params: {params_str}")
 
-        response = self.backend.generate(
-            model=self.model,
-            messages=messages,
-            tools=tools_for_backend,  # Native tool calling support
-            temperature=gen_temperature,
-            max_tokens=gen_max_tokens,
-            top_p=gen_top_p,
-            **backend_kwargs,
-        )
+        try:
+            response = self.backend.generate(
+                model=self.model,
+                messages=messages,
+                tools=tools_for_backend,  # Native tool calling support
+                temperature=gen_temperature,
+                max_tokens=gen_max_tokens,
+                top_p=gen_top_p,
+                **backend_kwargs,
+            )
+        except KeyboardInterrupt:
+            # User cancelled during backend HTTP call
+            return {
+                "content": "",
+                "tool_calls": [],
+                "usage": {},
+                "_finish_reason": "cancelled",
+                "_cancelled": True,
+            }
 
         # OpenResponses / Chat Completions: Handle finish_reason
         # Per spec, finish_reason affects response status:
@@ -1562,6 +1605,9 @@ Final Answer: <the answer>
 
         except TypeError as e:
             return f"Error: {e}"
+
+        except KeyboardInterrupt:
+            raise  # Let the caller (run loop or CLI) handle cancellation
 
         except Exception as e:
             return f"Error executing tool: {e}"

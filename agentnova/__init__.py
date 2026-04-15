@@ -28,7 +28,7 @@ Example Usage:
     agent = Agent(model="qwen2.5:0.5b", soul="/path/to/soul/package")
 """
 
-__version__ = "0.4.8"
+__version__ = "0.5.0"
 __author__ = "VTSTech"
 __status__ = "Alpha"
 
@@ -80,8 +80,8 @@ from .core.models import StepResult, AgentRun, Tool, ToolParam
 from .core.types import StepResultType, ToolSupportLevel, BackendType
 from .tools import ToolRegistry, make_builtin_registry, BUILTIN_REGISTRY
 from .backends import (
-    BaseBackend, OllamaBackend, BitNetBackend, ZaiBackend,
-    get_default_backend, get_backend,
+    BaseBackend, OllamaBackend, LlamaServerBackend,
+    get_default_backend, get_backend, get_backend_choices,
 )
 from .config import Config, get_config
 from .config import (
@@ -106,9 +106,9 @@ try:
 except ImportError:
     PersistentMemory = None  # type: ignore
 
-# Optional ACP plugin (graceful import)
+# Optional ACP plugin (graceful import — now via plugin system)
 try:
-    from .acp_plugin import ACPPlugin
+    from .plugins.acp.acp_plugin import ACPPlugin
 except ImportError:
     ACPPlugin = None  # type: ignore
 
@@ -158,10 +158,10 @@ __all__ = [
     # Backends
     "BaseBackend",
     "OllamaBackend",
-    "BitNetBackend",
-    "ZaiBackend",
+    "LlamaServerBackend",
     "get_default_backend",
     "get_backend",
+    "get_backend_choices",
     # Config
     "Config",
     "get_config",

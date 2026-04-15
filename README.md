@@ -1,8 +1,8 @@
-# ⚛️ AgentNova R04.8
+# ⚛️ AgentNova R05.0
 
 **Status: Alpha**
 
-A minimal, hackable agentic framework for autonomous AI agents. Runs **locally** with [Ollama](https://ollama.com) or [BitNet](https://github.com/microsoft/BitNet), or **in the cloud** with [ZAI](https://api.z.ai).
+A minimal, hackable agentic framework for autonomous AI agents. Runs **locally** with [Ollama](https://ollama.com), or **in the cloud** with [ZAI](https://api.z.ai). Extensible via a manifest-based **plugin system** for additional backends and features.
 
 Inspired by the architecture of OpenClaw, rebuilt from scratch for local-first operation.
 
@@ -23,32 +23,32 @@ Inspired by the architecture of OpenClaw, rebuilt from scratch for local-first o
 
 | Document | Description |
 |----------|-------------|
-| [ARCH.md](https://github.com/VTSTech/AgentNova/blob/main/ARCH.md) | Technical documentation for developers (directory structure, core design, orchestrator modes) |
-| [CHANGELOG.md](https://github.com/VTSTech/AgentNova/blob/main/CHANGELOG.md) | Version history and release notes (includes LocalClaw history) |
-| [TESTS.md](https://github.com/VTSTech/AgentNova/blob/main/TESTS.md) | Benchmark results, model recommendations, and testing guide |
-| [CREDITS.md](https://github.com/VTSTech/AgentNova/blob/main/CREDITS.md) | Acknowledges every project, inspiration, API, model creator, and specification that makes AgentNova possible |
+| [ARCH.md](https://github.com/VTSTech/AgentNova/blob/main/docs/ARCH.md) | Technical documentation for developers (directory structure, core design, orchestrator modes) |
+| [CHANGELOG.md](https://github.com/VTSTech/AgentNova/blob/main/docs/CHANGELOG.md) | Version history and release notes (includes LocalClaw history) |
+| [TESTS.md](https://github.com/VTSTech/AgentNova/blob/main/docs/TESTS.md) | Benchmark results, model recommendations, and testing guide |
+| [PLUGIN_SPEC.md](https://github.com/VTSTech/AgentNova/blob/main/docs/PLUGIN_SPEC.md) | Plugin system specification (manifest format, API, lifecycle) |
+| [CREDITS.md](https://github.com/VTSTech/AgentNova/blob/main/docs/CREDITS.md) | Acknowledges every project, inspiration, API, model creator, and specification that makes AgentNova possible |
 
 ## Features
 
 - **Zero dependencies** — Uses Python stdlib only (urllib for HTTP)
-- **Ollama + BitNet + ZAI backends** — Switch with `--backend` flag (local or cloud)
+- **Plugin system** — Manifest-based plugin discovery, lazy loading, and dependency resolution (R05.0)
+- **Native + plugin backends** — Ollama and llama-server built-in; BitNet, ZAI, ACP, TurboQuant as plugins
 - **Dual API support** — OpenResponses (`--api openre`) and OpenAI Chat-Completions (`--api openai`)
 - **Three-tier tool support** — Native, ReAct, or none (auto-detected)
 - **Small model optimized** — Fuzzy matching, argument normalization
 - **Built-in security** — Path validation, command blocklist, SSRF protection
 - **Multi-agent orchestration** — Router, pipeline, and parallel modes
 - **Soul Spec v0.5** — Persona packages with progressive disclosure
-- **ACP v1.0.6 integration** — Agent Control Panel for monitoring and control
 - **AgentSkills spec** — Skill loading with SPDX license validation
-- **ZAI cloud backend** — GLM models via ZAI API with free-tier support, auto-fallback on insufficient credits
 - **Thinking models support** — Automatic handling of qwen3, deepseek-r1 thinking mode
+- **Ctrl+C cancellation** — Graceful interrupt at backend, tool, and agent loop levels (R05.0)
 - **Persistent memory** — SQLite-backed conversation persistence with session management (`--session`)
 - **17 built-in tools** — Calculator, shell, file ops (read/write/edit/list/find), HTTP, web search, JSON parse, Python REPL, todo list, datetime, word/char count
 - **Dangerous tool confirmation** — `--confirm` flag for interactive approval of destructive operations
 - **Audit logging** — Automatic JSON-lines logging of shell, write, and edit operations
 - **Argument normalization** — ~100+ tool argument aliases for small model compatibility
 - **JSON structured output** — `--response-format json` for structured JSON responses
-- **TurboQuant server management** — Built-in llama-server lifecycle management with auto KV cache detection
 - **Self-update** — `agentnova update` to update to latest version from GitHub
 
 ## Installation
@@ -109,12 +109,17 @@ agentnova update
 ### Backend Options
 
 ```bash
-# Backend options
+# Native backends (always available)
 agentnova chat -m qwen2.5:0.5b --backend ollama         # Ollama (default)
 agentnova chat -m qwen2.5:7b --backend llama-server      # llama.cpp / TurboQuant
-agentnova chat -m bitnet-b1.58-2b-4t --backend bitnet     # BitNet
-agentnova chat -m glm-4.5-flash --backend zai             # ZAI (free tier)
-agentnova chat -m glm-5.1 --backend zai                   # ZAI (paid)
+
+# Plugin backends (loaded on demand)
+agentnova chat -m bitnet-b1.58-2b-4t --backend bitnet     # BitNet (plugin)
+agentnova chat -m glm-4.5-flash --backend zai             # ZAI (free tier, plugin)
+agentnova chat -m glm-5.1 --backend zai                   # ZAI (paid, plugin)
+
+# Plugin management
+agentnova plugins                    # List discovered plugins
 ```
 
 ### Python API
@@ -325,29 +330,31 @@ Environment variables:
 ```bash
 # Backend URLs
 OLLAMA_BASE_URL=https://your-ollama-server.com    # Default: http://localhost:11434
+LLAMA_SERVER_BASE_URL=http://localhost:8764     # llama-server URL (default: 8764)
+
+# BitNet plugin
 BITNET_BASE_URL=http://localhost:8765              # BitNet server URL
 BITNET_TUNNEL=https://your-tunnel.com              # Alternative BitNet URL
-ACP_BASE_URL=http://localhost:8766                 # ACP server URL
 
-# ZAI API
+# ZAI plugin
 ZAI_BASE_URL=https://api.z.ai                    # ZAI API endpoint
 ZAI_API_KEY=sk-...                                # ZAI API key (required)
 ZAI_FREE_ONLY=true                               # Restrict to free models only
 ZAI_FREE_FALLBACK_MODEL=glm-4.5-flash            # Fallback when credits run out
 
+# ACP plugin
+ACP_BASE_URL=http://localhost:8766                 # ACP server URL
+
+# TurboQuant plugin
+TURBOQUANT_SERVER_PATH=llama-server                # llama-server binary path
+TURBOQUANT_PORT=8764                               # TurboQuant server port
+TURBOQUANT_CTX=8192                                # Context window size
+
 # Agent settings
-AGENTNOVA_BACKEND=ollama      # Default backend: ollama, bitnet, or zai
+AGENTNOVA_BACKEND=ollama      # Default backend: ollama, llama-server, bitnet, zai, ...
 AGENTNOVA_MODEL=qwen2.5:0.5b  # Default model
 AGENTNOVA_MAX_STEPS=10        # Maximum reasoning steps
 AGENTNOVA_DEBUG=false         # Enable debug output
-
-# TurboQuant settings
-TURBOQUANT_SERVER_PATH=llama-server    # llama-server binary path
-TURBOQUANT_PORT=8764                   # TurboQuant server port
-TURBOQUANT_CTX=8192                    # Context window size
-
-# Llama Server
-LLAMA_SERVER_BASE_URL=http://localhost:8764  # llama-server URL (default: 8764, was 8080 pre-R04.5)
 
 # Retry settings
 AGENTNOVA_RETRY_ON_ERROR=true          # Retry failed tool calls with error feedback

@@ -480,6 +480,14 @@ class Response:
         self.completed_at = time.time()
         if _should_show_openresponses_debug(debug):
             print(f"[OpenResponses.Response] State transition: {old_status.value} -> {self.status.value}")
+
+    def mark_cancelled(self, debug: bool = False) -> None:
+        """Transition to cancelled state (user interrupted generation)."""
+        old_status = self.status
+        self.status = ResponseStatus.CANCELLED
+        self.completed_at = time.time()
+        if _should_show_openresponses_debug(debug):
+            print(f"[OpenResponses.Response] State transition: {old_status.value} -> {self.status.value}")
     
     def add_output_item(self, item: Item, debug: bool = False) -> None:
         """Add an output item."""
