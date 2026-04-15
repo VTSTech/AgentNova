@@ -8,13 +8,22 @@ for testing the plugin system's backend discovery and selection.
 from __future__ import annotations
 
 from agentnova.backends.base import BaseBackend, BackendConfig
+from agentnova.core.types import BackendType, ToolSupportLevel
 
 
 class TestBackend(BaseBackend):
     """A fake backend that returns a fixed response for plugin testing."""
 
-    def __init__(self, config: BackendConfig | None = None):
-        super().__init__(config or BackendConfig())
+    def __init__(self, config: BackendConfig | None = None, **kwargs):
+        super().__init__(config=config or BackendConfig(), **kwargs)
+
+    @property
+    def backend_type(self) -> BackendType:
+        return BackendType.OLLAMA  # test shim — uses Ollama enum
+
+    @property
+    def base_url(self) -> str:
+        return "http://localhost:9999"  # dummy URL, never contacted
 
     def generate(
         self,
@@ -36,5 +45,8 @@ class TestBackend(BaseBackend):
     def generate_stream(self, *args, **kwargs):
         raise NotImplementedError("TestBackend does not support streaming")
 
-    def list_models(self) -> list[str]:
-        return ["test-model"]
+    def list_models(self) -> list[dict]:
+        return [{"name": "test-model", "size": 0, "modified_at": ""}]
+
+    def test_tool_support(self, model: str = "test-model", family: str | None = None, force_test: bool = False) -> ToolSupportLevel:
+        return ToolSupportLevel.NONE

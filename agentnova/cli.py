@@ -2401,17 +2401,20 @@ def main(argv: Optional[list[str]] = None) -> int:
                     plugin_commands.add(cmd)
 
             if plugin_commands:
-                subparsers = parser._subparsers
-                for action in subparsers._actions:
-                    if not hasattr(action, 'choices'):
-                        continue
+                # parser._subparsers IS the _SubParsersAction that holds .choices
+                subparsers_action = parser._subparsers
+                if subparsers_action is not None:
                     for cmd_name in plugin_commands:
-                        if cmd_name in action.choices:
+                        if cmd_name in subparsers_action.choices:
                             # Already exists as a native subparser — just mark it
-                            action.choices[cmd_name].help = f"* {action.choices[cmd_name].help} [plugin]"
+                            subparsers_action.choices[cmd_name].help = (
+                                f"* {subparsers_action.choices[cmd_name].help} [plugin]"
+                            )
                         else:
                             # Add a new subparser for this plugin command
-                            sp = action.add_parser(cmd_name, help=f"* {cmd_name} [plugin]")
+                            subparsers_action.add_parser(
+                                cmd_name, help=f"* {cmd_name} [plugin]"
+                            )
 
                 # Load all plugins so their register_cli_command() handlers are wired
                 pm.load_all()
