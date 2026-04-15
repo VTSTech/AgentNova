@@ -634,13 +634,15 @@ def cmd_chat(args: argparse.Namespace) -> int:
     _print_session_header(agent, args, config, "Chat Mode")
     print("Type '/quit' to exit, '/help' for commands\n")
 
-    def _status_prompt() -> str:
-        """Build the input prompt with an inline status bar."""
+    def _print_footer():
+        """Print a status bar footer below the last output."""
         turns = len(agent.memory)
         backend = getattr(agent.backend, 'backend_type', None)
         bname = backend.value if backend and hasattr(backend, 'value') else str(backend) if backend else '?'
-        debug_marker = bright_red('*') if agent.debug else ''
-        return f"{dim(f'[{agent.model} | {bname} | {turns}t]{debug_marker}')} {dim('You:')} "
+        parts = [agent.model, bname, f'{turns}t']
+        if agent.debug:
+            parts.append('debug')
+        print(dim(f'[{" | ".join(parts)}]'))
 
     # ── Spinner ───────────────────────────────────────────────────────
     _SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
@@ -677,7 +679,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
     # ── Main loop ─────────────────────────────────────────────────────
     while True:
         try:
-            user_input = input(_status_prompt()).strip()
+            user_input = input(f"{dim('You:')} ").strip()
         except (EOFError, KeyboardInterrupt):
             # Ensure persistent memory is flushed and closed
             if getattr(agent, '_is_persistent', False) and hasattr(agent.memory, 'close'):
@@ -707,6 +709,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
             print(f"  {cyan('/system')}   Print the current system prompt")
             print(f"  {cyan('/tools')}    List available tools with descriptions")
             print(f"  {cyan('/quit')}     Exit AgentNova")
+            _print_footer()
             continue
 
         if user_input == "/system":
@@ -715,6 +718,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
                 print(prompt)
             else:
                 print(yellow("No system prompt set."))
+            _print_footer()
             continue
 
         if user_input == "/tools":
@@ -727,10 +731,12 @@ def cmd_chat(args: argparse.Namespace) -> int:
                     if len(desc) > 60:
                         desc = desc[:57] + '...'
                     print(f"  {cyan(t.name)}  {desc}")
+            _print_footer()
             continue
 
         if user_input == "/model":
             print(f"Current model: {cyan(agent.model)}")
+            _print_footer()
             continue
 
         if user_input.startswith("/model "):
@@ -741,17 +747,20 @@ def cmd_chat(args: argparse.Namespace) -> int:
                 old_model = agent.model
                 agent.model = new_model
                 print(green(f"Model changed: {old_model} -> {new_model}"))
+            _print_footer()
             continue
 
         if user_input == "/debug":
             agent.debug = not agent.debug
             state = green("ON") if agent.debug else red("OFF")
             print(f"Debug output: {state}")
+            _print_footer()
             continue
 
         if user_input == "/clear":
             agent.clear_memory()
             print(green("Memory cleared."))
+            _print_footer()
             continue
 
         if user_input == "/status":
@@ -766,6 +775,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
             print(f"Debug: {green('ON') if agent.debug else red('OFF')}")
             if agent.soul:
                 print(f"Soul: {cyan(agent.soul.display_name)} v{agent.soul.version}")
+            _print_footer()
             continue
 
         # Log user message to ACP
@@ -781,7 +791,8 @@ def cmd_chat(args: argparse.Namespace) -> int:
         finally:
             if spinner_t:
                 _spinner_stop_thread(spinner_t)
-        print(f"\n{bright_green('Agent Nova')}: {result.final_answer}\n")
+        print(f"\n{bright_green('Agent Nova')}: {result.final_answer}")
+        _print_footer()
 
         # Log assistant response to ACP
         if acp:
