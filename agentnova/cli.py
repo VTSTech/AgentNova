@@ -654,6 +654,11 @@ def cmd_chat(args: argparse.Namespace) -> int:
                 return f"{n/1000:.1f}k"
             return str(n)
         tok_str = f"\u2191{_fmt_tok(_session_tokens_in)} \u2193{_fmt_tok(_session_tokens_out)}"
+        # Prompt size (system prompt / soul-derived prompt)
+        _sys_prompt = getattr(agent, '_custom_system_prompt', '') or ''
+        _prompt_chr = len(_sys_prompt)
+        _prompt_tok = _prompt_chr // 4  # rough heuristic: ~4 chars per token
+        prompt_str = f"{_fmt_tok(_prompt_chr)} chr {_fmt_tok(_prompt_tok)} tok"
         # Emoji constants (extracted to avoid \u in f-string expressions — Python 3.10 compat)
         _e_brand = '\u269b\ufe0f'
         _e_model = '\U0001f9e0'
@@ -663,9 +668,11 @@ def cmd_chat(args: argparse.Namespace) -> int:
         _e_be    = '\U0001f50c'
         _e_tok   = '\U0001f4c8'
         _e_dbg   = '\U0001f41b'
+        _e_prmpt = '\U0001f4dd'
         parts = [
             f"{dim(_e_brand)} {cyan(__version__)}",
             f"{dim(_e_model)} {cyan(agent.model)}",
+            f"{dim(_e_prmpt)} {yellow(prompt_str)}",
             f"{dim(_e_ctx)} {yellow(ctx_str)}",
             f"{dim(_e_resp)} {yellow(max_t_str)}",
             f"{dim(_e_temp)} {yellow(str(temp))}",
