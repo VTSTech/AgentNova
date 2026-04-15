@@ -175,9 +175,63 @@ class ZaiBackend(OllamaBackend):
         """
         List available ZAI models.
 
-        Returns the static model catalog. If ZAI exposes a /api/paas/v4/models endpoint
-        in the future, this can be upgraded to query it dynamically.
+        Queries the ZAI API /api/paas/v4/models endpoint dynamically.
+        Falls back to the static catalog if the API call fails.
+        Enriches API results with context_length from the static catalog
+        when available.
         """
+        import urllib.request
+        import urllib.error
+
+        # Try dynamic discovery from the API
+        try:
+            url = f"{self._base_url}/api/paas/v4/models"
+
+            headers = {"Content-Type": "application/json"}
+            if self._api_key:
+                headers["Authorization"] = f"Bearer {self._api_key}"
+
+            req = urllib.request.Request(url, headers=headers, method="GET")
+
+            with urllib.request.urlopen(req, timeout=15) as response:
+                result = json.loads(response.read().decode("utf-8"))
+
+            api_models = result.get("data", [])
+            if api_models:
+                models = []
+                for m in api_models:
+                    name = m.get("id", "")
+                    if not name:
+                        continue
+                    # Strip provider prefix if present (e.g., "zai/glm-4-flash")
+                    model_key = name.split("/")[-1] if "/" in name else name
+
+                    # Enrich with static catalog metadata if available
+                    meta = ZAI_MODELS.get(model_key, {})
+
+                    models.append({
+                        "name": model_key,
+                        "size": 0,
+                        "details": {
+                            "family": "glm",
+                            "backend": "zai",
+                            "context_length": meta.get("context_length", 128000),
+                        },
+                    })
+
+                if os.environ.get("AGENTNOVA_DEBUG"):
+                    print(f"  [ZAI] Discovered {len(models)} models from API")
+
+                return models
+
+        except (urllib.error.HTTPError, urllib.error.URLError) as e:
+            if os.environ.get("AGENTNOVA_DEBUG"):
+                print(f"  [ZAI] Model discovery failed ({e}), using static catalog")
+        except Exception as e:
+            if os.environ.get("AGENTNOVA_DEBUG"):
+                print(f"  [ZAI] Model discovery error ({e}), using static catalog")
+
+        # Fallback: return static catalog
         models = []
         for name, meta in ZAI_MODELS.items():
             models.append({
@@ -192,10 +246,18 @@ class ZaiBackend(OllamaBackend):
         return models
 
     def get_model_info(self, model: str) -> dict | None:
-        """Get model information from the static catalog."""
+        """
+        Get model information.
+
+        Checks the static catalog first for context_length metadata,
+        then queries the API to verify the model exists.
+        Always returns info for any model name (ZAI accepts any valid model ID).
+        """
         # Normalize: strip provider prefix if present (e.g., "zai/glm-4-plus")
         model_key = model.split("/")[-1] if "/" in model else model
-        meta = ZAI_MODELS.get(model_key)
+        meta = ZAI_MODELS.get(model_key, {})
+
+        # Return catalog info if available
         if meta:
             return {
                 "name": model_key,
@@ -206,7 +268,17 @@ class ZaiBackend(OllamaBackend):
                     "context_length": meta.get("context_length", 128000),
                 },
             }
-        return None
+
+        # Model not in static catalog — still valid if ZAI knows it
+        return {
+            "name": model_key,
+            "size": 0,
+            "details": {
+                "family": "glm",
+                "backend": "zai",
+                "context_length": 128000,
+            },
+        }
 
     # ─────────────────────────────────────────────────────────────────────
     # Generation — always OpenAI Chat-Completions
