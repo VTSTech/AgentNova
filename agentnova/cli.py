@@ -652,18 +652,17 @@ def cmd_chat(args: argparse.Namespace) -> int:
                 return f"{n / 1000:.1f}k"
             return str(n)
         tok_str = f"{_fmt_tok(_session_tokens_in)} in  {_fmt_tok(_session_tokens_out)} out"
-        d = dim  # shorthand
         parts = [
-            f"{d('AN:')} {cyan('R04.7')}",
-            f"{d('model:')} {cyan(agent.model)}",
-            f"{d('MaxCtx:')} {yellow(ctx_str)}",
-            f"{d('RespMax:')} {yellow(max_t_str)}",
-            f"{d('temp:')} {yellow(str(temp))}",
-            f"{d('backend:')} {green(bname)}",
-            f"{d('tok:')} {yellow(tok_str)}",
+            f"{dim('\u269b\ufe0f')} {cyan('R04.7')}",
+            f"{dim('\U0001f9e0')} {cyan(agent.model)}",
+            f"{dim('\U0001f4e6')} {yellow(ctx_str)}",
+            f"{dim('\U0001f4ac')} {yellow(max_t_str)}",
+            f"{dim('\U0001f321\ufe0f')} {yellow(str(temp))}",
+            f"{dim('\U0001f50c')} {green(bname)}",
+            f"{dim('\U0001fa99')} {yellow(tok_str)}",
         ]
         if agent.debug:
-            parts.append(f"{red('debug')}")
+            parts.append(f"{red('\U0001f41b debug')}")
         return '  '.join(parts)
 
     def _prompt():
