@@ -36,8 +36,15 @@ class BaseBackend(ABC):
     - test_tool_support(): Test model's tool support capability
     """
 
-    def __init__(self, config: BackendConfig | None = None):
+    def __init__(
+        self,
+        config: BackendConfig | None = None,
+        base_url: str | None = None,
+        api_mode: object | None = None,
+    ):
         self.config = config or BackendConfig()
+        self._base_url = base_url.rstrip("/") if base_url else None
+        self._api_mode = api_mode  # Subclasses should set to ApiMode enum
 
     @property
     @abstractmethod

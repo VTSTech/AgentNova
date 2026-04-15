@@ -75,7 +75,7 @@ MAX_EXPONENT = 10_000
 
 def calculator(expression: str) -> str:
     """
-    Evaluate a mathematical expression safely.
+    Evaluate a mathematical expression safely using AST walking.
 
     Supports: +, -, *, /, **, %, sqrt, floor, ceil, factorial,
               sin, cos, tan, asin, acos, atan, atan2,
@@ -87,6 +87,7 @@ def calculator(expression: str) -> str:
     Returns:
         Result of the calculation
     """
+    import ast
     import re
 
     # Guard: block enormous exponents that would exhaust memory/CPU.
@@ -99,22 +100,19 @@ def calculator(expression: str) -> str:
                 f"({MAX_EXPONENT}). Use a smaller exponent."
             )
 
-    safe_dict = {
-        # Basic
+    # Whitelist of safe names (functions and constants).
+    _SAFE_NAMES = {
         "abs": abs,
         "round": round,
         "min": min,
         "max": max,
         "sum": sum,
         "pow": pow,
-        # Rounding / integer
         "floor": math.floor,
         "ceil": math.ceil,
         "factorial": math.factorial,
-        # Roots / power
         "sqrt": math.sqrt,
         "exp": math.exp,
-        # Trig (radians)
         "sin": math.sin,
         "cos": math.cos,
         "tan": math.tan,
@@ -122,22 +120,121 @@ def calculator(expression: str) -> str:
         "acos": math.acos,
         "atan": math.atan,
         "atan2": math.atan2,
-        # Angle conversion
         "degrees": math.degrees,
         "radians": math.radians,
-        # Logarithms
         "log": math.log,
         "log10": math.log10,
         "log2": math.log2,
-        # Constants
         "pi": math.pi,
         "e": math.e,
         "tau": math.tau,
         "inf": math.inf,
     }
 
+    # Allowed AST node types — anything else is rejected.
+    _ALLOWED_NODES = (
+        ast.Expression, ast.BinOp, ast.UnaryOp, ast.Constant, ast.Name,
+        ast.Call, ast.Compare,
+        ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.Mod,
+        ast.FloorDiv, ast.USub, ast.UAdd,
+        ast.Eq, ast.NotEq, ast.Lt, ast.LtE, ast.Gt, ast.GtE,
+    )
+
+    def _eval_node(node):
+        """Recursively evaluate an AST node — only whitelisted nodes."""
+        if not isinstance(node, _ALLOWED_NODES):
+            raise ValueError(f"Unsupported expression element: {type(node).__name__}")
+
+        if isinstance(node, ast.Constant):
+            return node.value
+
+        if isinstance(node, ast.Name):
+            if node.id in _SAFE_NAMES:
+                return _SAFE_NAMES[node.id]
+            raise ValueError(f"Unknown name: '{node.id}'")
+
+        if isinstance(node, ast.BinOp):
+            left = _eval_node(node.left)
+            right = _eval_node(node.right)
+            return node.op.__class__.__name__, left, right  # placeholder
+
+        if isinstance(node, ast.UnaryOp):
+            operand = _eval_node(node.operand)
+            if isinstance(node.op, ast.USub):
+                return -operand
+            if isinstance(node.op, ast.UAdd):
+                return +operand
+            raise ValueError(f"Unsupported unary operator: {type(node.op).__name__}")
+
+        if isinstance(node, ast.Call):
+            if not isinstance(node.func, ast.Name):
+                raise ValueError("Only named function calls are allowed")
+            func_name = node.func.id
+            if func_name not in _SAFE_NAMES or not callable(_SAFE_NAMES[func_name]):
+                raise ValueError(f"Unknown function: '{func_name}'")
+            args = [_eval_node(a) for a in node.args]
+            # Resolve nested BinOps before calling
+            resolved_args = []
+            for a in args:
+                if isinstance(a, tuple) and len(a) == 3 and isinstance(a[0], str):
+                    op_name, left, right = a
+                    resolved_args.append(_resolve_binop(op_name, left, right))
+                else:
+                    resolved_args.append(a)
+            return _SAFE_NAMES[func_name](*resolved_args)
+
+        if isinstance(node, ast.Compare):
+            left = _eval_node(node.left)
+            for op, comparator in zip(node.ops, node.comparators):
+                right = _eval_node(comparator)
+                left = _resolve_compare(op, left, right)
+            return left
+
+        raise ValueError(f"Unsupported node: {type(node).__name__}")
+
+    def _resolve_binop(op_name, left, right):
+        """Resolve a binary operation."""
+        ops = {
+            "Add": lambda a, b: a + b,
+            "Sub": lambda a, b: a - b,
+            "Mult": lambda a, b: a * b,
+            "Div": lambda a, b: a / b,
+            "Pow": lambda a, b: a ** b,
+            "Mod": lambda a, b: a % b,
+            "FloorDiv": lambda a, b: a // b,
+        }
+        fn = ops.get(op_name)
+        if fn is None:
+            raise ValueError(f"Unsupported operator: {op_name}")
+        # Recursively resolve if operands are nested tuples
+        if isinstance(left, tuple) and len(left) == 3:
+            left = _resolve_binop(left[0], left[1], left[2])
+        if isinstance(right, tuple) and len(right) == 3:
+            right = _resolve_binop(right[0], right[1], right[2])
+        return fn(left, right)
+
+    def _resolve_compare(op, left, right):
+        """Resolve a comparison operation."""
+        cmp_ops = {
+            ast.Eq: lambda a, b: a == b,
+            ast.NotEq: lambda a, b: a != b,
+            ast.Lt: lambda a, b: a < b,
+            ast.LtE: lambda a, b: a <= b,
+            ast.Gt: lambda a, b: a > b,
+            ast.GtE: lambda a, b: a >= b,
+        }
+        fn = cmp_ops.get(type(op))
+        if fn is None:
+            raise ValueError(f"Unsupported comparison: {type(op).__name__}")
+        return fn(left, right)
+
     try:
-        result = eval(expression, {"__builtins__": {}}, safe_dict)  # noqa: S307
+        tree = ast.parse(expression, mode="eval")
+        raw_result = _eval_node(tree.body)
+        # Resolve any remaining nested BinOp tuples
+        while isinstance(raw_result, tuple) and len(raw_result) == 3 and isinstance(raw_result[0], str):
+            raw_result = _resolve_binop(*raw_result)
+        result = raw_result
 
         # Format numeric results cleanly.
         if isinstance(result, float):
@@ -157,6 +254,8 @@ def calculator(expression: str) -> str:
         return "Error: division by zero"
     except ValueError as e:
         return f"Error: {e}"
+    except SyntaxError as e:
+        return f"Error: invalid expression syntax: {e}"
     except Exception as e:
         return f"Error evaluating expression: {e}"
 
@@ -897,9 +996,26 @@ def edit_file(
 # Each agent instance or session gets its own isolated todo list.
 _todo_stores: dict[str, list[dict]] = {"default": []}
 
+# The active session_id used by todo functions when none is specified.
+# Set via set_todo_session() during Agent initialization.
+_active_todo_session: str = "default"
 
-def _get_todo_store(session_id: str = "default") -> list[dict]:
+
+def set_todo_session(session_id: str) -> None:
+    """Set the active todo session for the current agent.
+
+    Called by Agent.__init__() to ensure each agent instance
+    operates on its own isolated todo list. Thread-safe for
+    single-threaded usage (AgentNova's standard mode).
+    """
+    global _active_todo_session
+    _active_todo_session = session_id or "default"
+
+
+def _get_todo_store(session_id: str | None = None) -> list[dict]:
     """Get (or create) the todo store for a given session."""
+    if session_id is None:
+        session_id = _active_todo_session
     if session_id not in _todo_stores:
         _todo_stores[session_id] = []
     return _todo_stores[session_id]
@@ -926,7 +1042,7 @@ def todo_add(content: str, priority: str = "medium") -> str:
     import uuid
     task_id = uuid.uuid4().hex[:8]
 
-    _get_todo_store().append({
+    _get_todo_store(None).append({
         "id": task_id,
         "content": content.strip(),
         "status": "pending",
@@ -948,10 +1064,10 @@ def todo_list(status: str | None = None) -> str:
     """
     if status:
         status = status.lower().strip()
-        store = _get_todo_store()
+        store = _get_todo_store(None)
         items = [t for t in store if t["status"] == status]
     else:
-        store = _get_todo_store()
+        store = _get_todo_store(None)
         items = list(store)
 
     if not items:
@@ -982,7 +1098,7 @@ def todo_complete(task_id: str) -> str:
     Returns:
         Confirmation or error message
     """
-    for t in _get_todo_store():
+    for t in _get_todo_store(None):
         if t["id"] == task_id:
             if t["status"] == "completed":
                 return f"Todo [{task_id}] is already completed: {t['content']}"
@@ -1002,7 +1118,7 @@ def todo_remove(task_id: str) -> str:
     Returns:
         Confirmation or error message
     """
-    store = _get_todo_store()
+    store = _get_todo_store(None)
     for i, t in enumerate(store):
         if t["id"] == task_id:
             removed = store.pop(i)
@@ -1018,7 +1134,7 @@ def todo_clear() -> str:
     Returns:
         Summary of how many were cleared
     """
-    store = _get_todo_store()
+    store = _get_todo_store(None)
     before = len(store)
     store[:] = [t for t in store if t["status"] != "completed"]
     cleared = before - len(store)

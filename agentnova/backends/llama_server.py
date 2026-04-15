@@ -71,28 +71,27 @@ class LlamaServerBackend(OllamaBackend):
 
         # Determine base URL - priority: base_url > host/port > env > default
         if base_url:
-            self._base_url = base_url.rstrip("/")
+            resolved_url = base_url.rstrip("/")
         elif host and port:
-            self._base_url = f"http://{host}:{port}"
+            resolved_url = f"http://{host}:{port}"
         elif bitnet_mode:
-            self._base_url = BITNET_BASE_URL.rstrip("/")
+            resolved_url = BITNET_BASE_URL.rstrip("/")
         else:
-            self._base_url = LLAMA_SERVER_BASE_URL.rstrip("/")
-
-        if config:
-            super(OllamaBackend, self).__init__(config)
-        else:
-            super(OllamaBackend, self).__init__(BackendConfig())
+            resolved_url = LLAMA_SERVER_BASE_URL.rstrip("/")
 
         # Set API mode
         if api_mode is None:
             api_mode = ApiMode.OPENRE if bitnet_mode else ApiMode.OPENAI
         if isinstance(api_mode, str):
             api_mode = ApiMode(api_mode.lower())
-        self._api_mode = api_mode
 
-        # Set environment variable so other components know the API mode
-        os.environ["AGENTNOVA_API_MODE"] = api_mode.value
+        # Call parent (OllamaBackend → BaseBackend) with resolved values.
+        # This ensures any future shared init logic is not silently skipped.
+        super().__init__(
+            base_url=resolved_url,
+            config=config,
+            api_mode=api_mode,
+        )
 
     @property
     def backend_type(self) -> BackendType:

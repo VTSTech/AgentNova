@@ -178,19 +178,30 @@ class ZaiBackend(OllamaBackend):
     ):
         # Determine base URL — priority: base_url > host/port > env > default
         if base_url:
-            self._base_url = base_url.rstrip("/")
+            resolved_url = base_url.rstrip("/")
         elif host and port:
-            self._base_url = f"https://{host}:{port}"
+            resolved_url = f"https://{host}:{port}"
         else:
-            self._base_url = ZAI_BASE_URL.rstrip("/")
+            resolved_url = ZAI_BASE_URL.rstrip("/")
 
-        if config:
-            super(OllamaBackend, self).__init__(config)
-        else:
-            super(OllamaBackend, self).__init__(BackendConfig())
+        # ZAI is OpenAI-compatible only — force OPENAI mode
+        if api_mode is not None:
+            if isinstance(api_mode, str) and api_mode.lower() != "openai":
+                if os.environ.get("AGENTNOVA_DEBUG"):
+                    print(f"  [ZAI] API mode '{api_mode}' ignored — ZAI only supports OpenAI Chat-Completions")
+        forced_mode = ApiMode.OPENAI
 
-        # API key — priority: explicit > env var
-        self._api_key = api_key or ZAI_API_KEY
+        # Call parent (OllamaBackend → BaseBackend) with resolved values.
+        # This ensures any future shared init logic in OllamaBackend or
+        # BaseBackend is not silently skipped.
+        super().__init__(
+            base_url=resolved_url,
+            config=config,
+            api_mode=forced_mode,
+        )
+
+        # API key — priority: explicit > env var > config module
+        self._api_key = api_key or os.environ.get("ZAI_API_KEY", "") or ZAI_API_KEY
         if not self._api_key or not self._api_key.strip():
             raise ValueError(
                 "ZAI_API_KEY is required for the ZAI backend. "
@@ -201,17 +212,6 @@ class ZaiBackend(OllamaBackend):
                 f"ZAI_API_KEY appears invalid (too short: {len(self._api_key.strip())} chars). "
                 "Check your ZAI_API_KEY environment variable."
             )
-
-        # ZAI is OpenAI-compatible only — force OPENAI mode
-        if api_mode is not None:
-            if isinstance(api_mode, str) and api_mode.lower() != "openai":
-                if os.environ.get("AGENTNOVA_DEBUG"):
-                    print(f"  [ZAI] API mode '{api_mode}' ignored — ZAI only supports OpenAI Chat-Completions")
-            self._api_mode = ApiMode.OPENAI
-        else:
-            self._api_mode = ApiMode.OPENAI
-
-        os.environ["AGENTNOVA_API_MODE"] = self._api_mode.value
 
     @property
     def backend_type(self) -> BackendType:
@@ -553,6 +553,12 @@ class ZaiBackend(OllamaBackend):
             if e.code == 429 and ("insufficient balance" in error_msg or "insufficient" in error_msg or "no resource package" in error_msg):
                 fallback = ZAI_FREE_FALLBACK_MODEL
                 if not _is_free_model(model):
+                    import sys
+                    print(
+                        f"\n  \033[33m[ZAI] Insufficient credits for '{model}' — "
+                        f"falling back to free model '{fallback}'\033[0m",
+                        file=sys.stderr,
+                    )
                     if os.environ.get("AGENTNOVA_DEBUG"):
                         print(f"  [ZAI] Insufficient credits for '{model}', falling back to '{fallback}'")
                     body_fallback = {**body, "model": fallback}
@@ -573,6 +579,12 @@ class ZaiBackend(OllamaBackend):
                     raise RuntimeError(f"ZAI HTTP error {e.code}: {error_body}")
             # Check if model doesn't support tools — fallback to no tools
             elif "does not support tools" in error_msg and tools:
+                import sys
+                print(
+                    f"\n  \033[33m[ZAI] Model '{model}' does not support tools — "
+                    f"retrying without tool definitions\033[0m",
+                    file=sys.stderr,
+                )
                 if os.environ.get("AGENTNOVA_DEBUG"):
                     print(f"  [ZAI] Model doesn't support tools, falling back to ReAct mode")
                 body_fallback = {k: v for k, v in body.items() if k != "tools"}

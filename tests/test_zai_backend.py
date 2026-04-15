@@ -16,9 +16,21 @@ import json
 import os
 import unittest
 
-# Ensure ZAI env vars are set before any agentnova imports
-os.environ.setdefault("ZAI_API_KEY", "test-key-12345")
-os.environ.setdefault("ZAI_BASE_URL", "https://api.z.ai")
+# Ensure ZAI env vars are set before any agentnova imports.
+# Must use os.environ directly (not setdefault) since config.py
+# may have already been imported and cached the value.
+os.environ["ZAI_API_KEY"] = "test-key-12345"
+os.environ["ZAI_BASE_URL"] = "https://api.z.ai"
+
+
+def _ensure_zai_env():
+    """Ensure ZAI config values are up to date even if config.py was already imported."""
+    import agentnova.config as _cfg
+    if not _cfg.ZAI_API_KEY:
+        _cfg.ZAI_API_KEY = "test-key-12345"
+
+
+_ensure_zai_env()
 
 
 class TestZaiBackendInit(unittest.TestCase):

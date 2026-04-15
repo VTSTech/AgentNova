@@ -36,22 +36,19 @@ class OllamaBackend(BaseBackend):
     ):
         # Determine base URL - priority: base_url > host/port > env > default
         if base_url:
-            self._base_url = base_url.rstrip("/")
+            resolved_url = base_url.rstrip("/")
         elif host and port:
-            self._base_url = f"http://{host}:{port}"
+            resolved_url = f"http://{host}:{port}"
         else:
-            self._base_url = OLLAMA_BASE_URL.rstrip("/")
+            resolved_url = OLLAMA_BASE_URL.rstrip("/")
 
-        if config:
-            super().__init__(config)
-        else:
-            super().__init__(BackendConfig())
-        
         # Set API mode (openre = OpenResponses, openai = Chat-Completions)
         if isinstance(api_mode, str):
             api_mode = ApiMode(api_mode.lower())
-        self._api_mode = api_mode
-        
+
+        # Call parent with shared state
+        super().__init__(config=config, base_url=resolved_url, api_mode=api_mode)
+
         # Set environment variable so other components know the API mode
         os.environ["AGENTNOVA_API_MODE"] = api_mode.value
 

@@ -155,6 +155,11 @@ class Agent:
         self.model = model
         self.max_steps = max_steps
         self.debug = debug
+
+        # Generate a unique session ID for this agent instance.
+        # Used for per-session todo isolation and logging.
+        import uuid as _uuid
+        self.session_id = _uuid.uuid4().hex[:12]
         # Get num_ctx from: explicit param > config/env > default 8192
         if num_ctx is not None:
             self.num_ctx = num_ctx
@@ -217,6 +222,12 @@ class Agent:
                 raise ValueError("tools must be a list of strings or Tool objects")
         else:
             raise ValueError("tools must be ToolRegistry, list[str], or list[Tool]")
+
+        # Wire up per-session todo isolation for this agent instance.
+        # Each Agent gets its own todo store keyed by session_id.
+        if "todo" in self.tools.names():
+            from .tools.builtins import set_todo_session
+            set_todo_session(self.session_id)
 
         # OpenResponses: tool_choice
         if isinstance(tool_choice, ToolChoice):
