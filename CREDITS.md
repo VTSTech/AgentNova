@@ -21,6 +21,7 @@ These projects provide the runtime environments that AgentNova connects to for l
 | **Ollama** | Local LLM inference server supporting a vast ecosystem of open-weight models with native tool calling and OpenAI-compatible APIs | [https://ollama.com](https://ollama.com) |
 | **BitNet** | Microsoft's 1-bit quantized LLM inference engine optimized for extreme CPU efficiency | [https://github.com/microsoft/BitNet](https://github.com/microsoft/BitNet) |
 | **llama.cpp (TurboQuant)** | CPU-optimized LLM inference server with TurboQuant KV cache compression, enabling sub-4K context workloads with minimal memory. AgentNova's `turbo` subcommand discovers Ollama models and manages the llama-server lifecycle. | [https://github.com/TheTom/llama-cpp-turboquant](https://github.com/TheTom/llama-cpp-turboquant) |
+| **ZAI** | Cloud-hosted LLM inference API providing GLM series models with an OpenAI Chat-Completions compatible endpoint. Offers free-tier models (GLM-4.5-Flash, GLM-4.7-Flash) and paid models with up to 128K context. AgentNova includes free-only mode and automatic credit-exhaustion fallback. | [https://api.z.ai](https://api.z.ai) |
 
 ---
 
@@ -39,6 +40,10 @@ The core agentic loop in AgentNova implements the **ReAct paradigm** — a frame
 ### ATLAS-Autonomous
 
 The **retry-with-error-feedback** feature introduced in R04.1 was inspired by the [ATLAS-Autonomous](https://github.com/itigges22/ATLAS) benchmark infrastructure. The ATLAS project demonstrated that giving models a chance to correct failed tool calls before the agent gives up significantly improves success rates on error-prone tasks. AgentNova adopted this concept, implementing it as configurable retry context injection that works across both native tool-calling and ReAct text-based paths.
+
+### Pi Coding Agent
+
+The **Pi Coding Agent** ([pi-mono](https://github.com/pi-mono)) is a coding-focused AI assistant that demonstrated the practical value of cloud-hosted LLM APIs — specifically the ZAI platform — for agentic workflows. Experience building with and using the Pi Coding Agent on ZAI inspired the addition of cloud backend support in AgentNova R04.6, marking the project's first step beyond purely local inference. The ZAI backend's design — OpenAI Chat-Completions compatibility, Bearer token authentication, free-tier awareness, and credit-exhaustion fallback — draws directly from lessons learned working with ZAI through the Pi Coding Agent ecosystem.
 
 ---
 
@@ -153,6 +158,28 @@ IBM's **Granite** models are well-suited for enterprise and tool-calling tasks.
 |-------|:----------:|:------------:|-------|
 | **Phi 3** (`phi3`) | 3.8B – 14B | Native | Microsoft's compact model. Large context window (128K tokens). |
 
+### Zhipu AI — GLM Series (ZAI)
+
+**Zhipu AI**'s **GLM** models are accessed through the ZAI cloud API. AgentNova supports the full GLM lineup with native tool calling via the OpenAI Chat-Completions compatible endpoint.
+
+| Model | Parameters | Tool Support | Pricing | Notes |
+|-------|:----------:|:------------:|---------|-------|
+| **GLM 5.1** | TBD | Native | $1.40/$4.40 | Latest GLM generation. Default model for ZAI backend. |
+| **GLM 5 Turbo** | TBD | Native | $1.20/$4.00 | Optimized for speed. |
+| **GLM 5** | TBD | Native | $1.00/$3.20 | Standard GLM 5 generation. |
+| **GLM 4.7** | TBD | Native | $0.60/$2.20 | |
+| **GLM 4.7 Flash** | TBD | Native | Free | Free-tier model. 128K context. |
+| **GLM 4.7 FlashX** | TBD | Native | $0.07/$0.40 | Low-cost variant. |
+| **GLM 4.6** | TBD | Native | $0.60/$2.20 | |
+| **GLM 4.5 X** | TBD | Native | $2.20/$8.90 | Highest capability GLM 4.5 variant. |
+| **GLM 4.5 AirX** | TBD | Native | $1.10/$4.50 | |
+| **GLM 4.5 Air** | TBD | Native | $0.20/$1.10 | |
+| **GLM 4.5 Flash** | TBD | Native | Free | Free-tier model. 128K context. Default free fallback. |
+| **GLM 4.5** | TBD | Native | $0.60/$2.20 | Standard GLM 4.5. |
+| **GLM 4 32B** | 32B | Native | $0.10/$0.10 | Legacy model. 128K context window. |
+
+Pricing shown as input/output per 1M tokens. Free models require no credits. AgentNova auto-detects insufficient credits (HTTP 429, error code 1113) and falls back to a free model.
+
 ### Community Fine-tunes
 
 | Model | Base | Creator | Notes |
@@ -193,6 +220,13 @@ The llama-server backend (including TurboQuant builds) communicates through two 
 The BitNet backend communicates through a simple completion endpoint:
 
 - **`/completion`** — Text completion API with `prompt`, `n_predict`, `temperature`, and `stop` parameters. No native tool calling support — AgentNova uses ReAct text parsing.
+
+### ZAI API
+
+The ZAI backend communicates through two endpoints:
+
+- **`/api/paas/v4/chat/completions`** — OpenAI Chat-Completions compatible endpoint with Bearer token authentication. Supports native tool calling, streaming (SSE), and the full OpenAI parameter set. Used exclusively by AgentNova's ZAI backend (no native/openre mode — always Chat-Completions).
+- **`/api/paas/v4/models`** — Model discovery endpoint. Returns available models dynamically. AgentNova merges API results with a static catalog to include flash variants and other models not returned by the endpoint.
 
 ---
 
@@ -235,7 +269,8 @@ AgentNova proudly uses **zero external dependencies** at runtime. The entire fra
 
 ---
 
-*Last updated: 2026-04-04 (AgentNova R04.5)*
+*Last updated: 2026-04-15 (AgentNova R04.6)*
 
 *Development history section added: 2026-03-30*
 *TurboQuant backend, Ollama registry, and tool support data updated: 2026-04-04*
+*ZAI backend, GLM model family, and API documentation added: 2026-04-15*
