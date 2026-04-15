@@ -62,8 +62,10 @@ Fixes the critical bug where native tool-calling-capable models (e.g. glm-4.5-fl
   - `/debug` — toggles `agent.debug` on/off at runtime, prints current state
 - **`/status` fixed and expanded** — was crashing with `AttributeError: 'Agent' object has no attribute '_tool_support'` (attribute never existed). Replaced with live runtime info: model, backend type, API mode, tool list, tool choice, memory turns, debug state, and soul name. Added debug ON/OFF indicator.
 - **`/help` reformatted** — changed from comma-separated inline list to aligned two-column layout with descriptions for each command.
-- **Status bar in input prompt** — the `You:` prompt now includes an inline status bar showing `[model | backend | Nt]` where N is the memory turn count. Updates every turn. A red `*` marker appears when debug is on.
-- **Working spinner** — a braille spinner (`⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`) animates on stderr while waiting for the model to respond. Uses `threading` (stdlib, zero-dependency). Writes to stderr to avoid interfering with stdout debug output. Automatically suppressed when debug mode is on (debug already prints step progress). Spinner line is cleaned up on completion.
+- **Persistent status footer bar** — a dimmed status line (e.g. `[glm-4.5-flash | zai | 3t]`) is drawn below the `You:` input prompt every turn, showing model name, backend type, and memory turn count. Uses ANSI escape sequences (`\033[A` cursor-up) to position the footer below the prompt. After `input()` returns, `_clear_footer()` moves cursor down to the footer row, clears it, and returns — preventing artifacts when output or the spinner writes to the terminal. A blank line separates `You:` from the footer for readability.
+- **Working spinner** — a braille spinner (`⠷⠶⠦⠴⠲⠯⠟⠻⠏`) animates on stderr while waiting for the model to respond. Uses `threading` (stdlib, zero-dependency). Writes to stderr to avoid interfering with stdout debug output. Automatically suppressed when debug mode is on (debug already prints step progress). A blank line is printed before the spinner starts for visual separation from the previous response. Spinner line is cleaned up on completion.
+- **Response spacing** — blank lines added between the Agent Nova response and the next `You:` prompt for cleaner visual separation.
+Uses `threading` (stdlib, zero-dependency). Writes to stderr to avoid interfering with stdout debug output. Automatically suppressed when debug mode is on (debug already prints step progress). Spinner line is cleaned up on completion.
 
 ### File Changes Summary
 
