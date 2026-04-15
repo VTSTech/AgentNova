@@ -634,9 +634,11 @@ def cmd_chat(args: argparse.Namespace) -> int:
     _print_session_header(agent, args, config, "Chat Mode")
     print("Type '/quit' to exit, '/help' for commands\n")
 
+    _session_tokens_in = 0
+    _session_tokens_out = 0
+
     def _footer_text() -> str:
         """Build the status bar footer string with colorized values."""
-        turns = len(agent.memory)
         backend = getattr(agent.backend, 'backend_type', None)
         bname = backend.value if backend and hasattr(backend, 'value') else str(backend) if backend else '?'
         ctx = agent.num_ctx
@@ -644,6 +646,12 @@ def cmd_chat(args: argparse.Namespace) -> int:
         max_t = agent._num_predict if agent._num_predict is not None else agent.model_config.default_max_tokens
         max_t_str = f"{max_t // 1024}K" if max_t >= 1024 else str(max_t)
         temp = agent._temperature if agent._temperature is not None else agent.model_config.default_temperature
+        # Format token counts
+        def _fmt_tok(n):
+            if n >= 1000:
+                return f"{n / 1000:.1f}k"
+            return str(n)
+        tok_str = f"{_fmt_tok(_session_tokens_in)} in  {_fmt_tok(_session_tokens_out)} out"
         d = dim  # shorthand
         parts = [
             f"{d('AN:')} {cyan('R04.7')}",
@@ -652,7 +660,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
             f"{d('RespMax:')} {yellow(max_t_str)}",
             f"{d('temp:')} {yellow(str(temp))}",
             f"{d('backend:')} {green(bname)}",
-            f"{yellow(str(turns))}{d('t')}",
+            f"{d('tok:')} {yellow(tok_str)}",
         ]
         if agent.debug:
             parts.append(f"{red('debug')}")
@@ -817,6 +825,11 @@ def cmd_chat(args: argparse.Namespace) -> int:
         finally:
             if spinner_t:
                 _spinner_stop_thread(spinner_t)
+        # Accumulate session token counts
+        for step in result.steps:
+            # Estimate: ~60% prompt, ~40% completion (rough heuristic)
+            _session_tokens_in += int(step.tokens_used * 0.6)
+            _session_tokens_out += int(step.tokens_used * 0.4)
         print(f"\n{bright_green('Agent Nova')}: {result.final_answer}\n")
 
         # Log assistant response to ACP
