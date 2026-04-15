@@ -54,6 +54,17 @@ Fixes the critical bug where native tool-calling-capable models (e.g. glm-4.5-fl
 #### Config Dataclass (`config.py`)
 - **`zai_base_url`** field added to `Config` dataclass. Defaults to `ZAI_BASE_URL` env var (`https://api.z.ai`).
 
+#### Chat Mode UX Overhaul (`cli.py`)
+- **Slash commands expanded** — `/help` now shows all 8 commands with descriptions in aligned columns. Four new commands added:
+  - `/system` — prints the current system prompt (useful for debugging soul prompts and tool sections)
+  - `/tools` — lists all loaded tools with truncated descriptions
+  - `/model` — shows current model; `/model <name>` hot-swaps the model mid-session without restarting
+  - `/debug` — toggles `agent.debug` on/off at runtime, prints current state
+- **`/status` fixed and expanded** — was crashing with `AttributeError: 'Agent' object has no attribute '_tool_support'` (attribute never existed). Replaced with live runtime info: model, backend type, API mode, tool list, tool choice, memory turns, debug state, and soul name. Added debug ON/OFF indicator.
+- **`/help` reformatted** — changed from comma-separated inline list to aligned two-column layout with descriptions for each command.
+- **Status bar in input prompt** — the `You:` prompt now includes an inline status bar showing `[model | backend | Nt]` where N is the memory turn count. Updates every turn. A red `*` marker appears when debug is on.
+- **Working spinner** — a braille spinner (`⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`) animates on stderr while waiting for the model to respond. Uses `threading` (stdlib, zero-dependency). Writes to stderr to avoid interfering with stdout debug output. Automatically suppressed when debug mode is on (debug already prints step progress). Spinner line is cleaned up on completion.
+
 ### File Changes Summary
 
 | Action | File | Changes |
@@ -66,14 +77,14 @@ Fixes the critical bug where native tool-calling-capable models (e.g. glm-4.5-fl
 | Updated | `agentnova/config.py` | +27 −1 |
 | Updated | `agentnova/backends/__init__.py` | +7 −1 |
 | Updated | `agentnova/__init__.py` | +5 −1 |
-| Updated | `agentnova/cli.py` | +3 −3 |
+| Updated | `agentnova/cli.py` | +113 −8 |
 | Updated | `agentnova/shared_args.py` | +1 −1 |
 | Updated | `agentnova/core/types.py` | +1 −0 |
-| **Total** | **12 files** | **+1223 −22** |
+| **Total** | **12 files** | **+1333 −27** |
 
 ---
 
-## [R04.6] - 04-14-2026 8:36:03 PM
+## [R04.6] - 04-14-2026
 
 ### ZAI API Backend, Nova-Trading Soul, Expanded Test Suite, Documentation Overhaul & Infrastructure Hardening
 
