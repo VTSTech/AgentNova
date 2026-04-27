@@ -22,7 +22,7 @@ from .agent import Agent
 from .agent_mode import AgentMode
 from .orchestrator import Orchestrator, AgentCard
 from .tools import make_builtin_registry
-from .backends import get_backend, get_default_backend, get_backend_choices
+from .backends import get_backend, get_default_backend, get_backend_choices, OllamaBackend
 from .config import get_config, AGENTNOVA_BACKEND, OLLAMA_BASE_URL
 from . import __version__
 from .model_discovery import match_models, get_models
