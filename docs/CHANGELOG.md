@@ -4,6 +4,12 @@ All notable changes to AgentNova will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [R05.1] - 04-27-2026 8:07:20 PM
+
+### Fixed
+
+#### Missing import (`cli.py`)
+
 ## [R05.0] - 04-15-2026 1:54:57 PM
 
 ### Plugin System, Ctrl+C Cancellation & Documentation Restructure
