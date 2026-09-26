@@ -5,6 +5,50 @@ All notable changes to AgentKthx will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [R07.05] - 2026-09-27 *(in progress — entry accumulates until release)*
+
+**Audit follow-through release — six R07.04-audit findings closed (SEC-07, ROB-03, ROB-04, MAINT-04, MAINT-05, MAINT-06) + free/paid model labeling fixed on BOTH OpenRouter and ZAI (`/models` showed genuinely-free models as "paid") + ZAI catalog pricing synced to the official per-1M-token table (glm-5.3-flash is NOT free).** Closes Known Landmine #1 from `audit/brief.md` (the `add_tool` memory wipe) and What's-Missing item #9 (the `model_config.py` deprecation with no removal date). Landed in commits `d6112c3` + `81d0087` (audit fixes + OpenRouter free-tier labels) and the ZAI free/paid + catalog-pricing fix. Suite 1290 → **1336 passed, 9 skipped, 0 failures** (+46 new tests across 3 new test files: `test_r07_05_audit_fixes.py` (20), `test_openrouter_free_models.py` (13), `test_zai_free_models.py` (13)).
+
+### Features
+
+- **ZAI model catalog expanded to 17 entries + pricing synced to ZAI's official per-1M-token table** — `ZAI_MODELS` in `agentkthx/plugins/zai/zai.py`. Corrections: `glm-5.3-flash` was erroneously priced `0.0/0.0` (appeared free) — actually **$0.15 input / $0.50 output**; the ONLY free ZAI models are `glm-4.5-flash` and `glm-4.7-flash`. Also corrected `glm-5.3-flashx` (0.07/0.4 → 0.37/1.25), `glm-5.3` (0.6/2.2 → 1.4/4.4), `glm-5.2` (0.6/2.2 → 1.4/4.4). Added 4 missing models: `glm-4.7-flashx` (0.07/0.4, 200K ctx), `glm-4.5-x` (2.2/8.9, 132K), `glm-4.5-airx` (1.1/4.5, 132K), `glm-4-32b-0414-128k` (0.1/0.1, 128K, 16K max tokens). `list_models()`/`get_model_info()` now expose `free_tier`, `is_chat_model`, and `pricing` in `details` — consumed by the in-chat `/models` free/paid/chat markers.
+
+- **`CloudBackend.get_model_info()` / `CloudBackend.list_models()` now derive `free_tier` from catalog pricing** (`agentkthx/backends/cloud_base.py`) — the shared base previously returned only `family`/`backend`/`context_length`, so any catalog-driven backend (current or future) inheriting these methods silently labeled every model "paid" in the in-chat `/models` view. `free_tier` is computed via the existing `_is_free_model()` hook (zero input + zero output pricing); models absent from the catalog default to `False` (paid — the safe assumption). OpenRouter/Gemini/OpenAI already override these methods with their own logic and are unaffected.
+
+### Bug Fixes
+
+- **ROB-03 (Medium): `PersistentMemory` writes had no thread lock — `sqlite3.OperationalError: database is locked`** — `PersistentMemory` opens SQLite with `check_same_thread=False` but wrapped no write in a lock, so the Orchestrator's parallel mode (multiple threads sharing one PersistentMemory instance) raced on writes. Fixed: `threading.Lock` (`_write_lock`) guards every write path (`add`, tool-result writes, `clear`, `delete`). +regression tests.
+
+- **ROB-04 (Medium): `Agent.add_tool()` wiped all conversation memory mid-session** (brief Landmine #1) — `agent.py:1061-1080` called `self.memory.clear()` after registering a tool; third-party code using the public API silently destroyed the entire conversation. Fixed: split into `register_tool()` (rebuilds the system prompt WITHOUT clearing memory — the safe mid-session API), `rebuild_system_prompt()` (explicit clear + rebuild, for soul swaps), and `add_tool()` (deprecated, still clears for backward compat — emits `DeprecationWarning`). The CLI's `/tool` slash command already bypassed via `tools.register_tool()` and is unaffected. +regression tests.
+
+- **OpenRouter `:free` models showed as "paid" in `/models` and `/models free` returned nothing** — `OpenRouterBackend._parse_openrouter_model` never set `details.free_tier`, which the in-chat `/models` slash command reads (`default False` = paid) — every one of the 17 `:free`-suffix models displayed as `paid`. Fixed: 3-signal detection, ANY one marks free — (1) model ID ends with `:free` (OpenRouter's canonical marker), (2) API `is_free` field (conservative), (3) `pricing.prompt == 0 AND pricing.completion == 0` (ground truth, overrides the other two). Also sets `is_chat_model` from the `modality` field. +13 tests in `tests/test_openrouter_free_models.py`.
+
+- **ZAI models — including the genuinely-free `glm-4.5-flash` / `glm-4.7-flash` — showed as "paid" in `/models`** — same bug class as the OpenRouter fix above, missed when OpenRouter was fixed: `ZaiBackend.list_models()` (both the API-discovered and catalog-only branches) and `ZaiBackend.get_model_info()` never set `details.free_tier`. Fixed: `free_tier` derived from catalog pricing via `_is_free_model()` in all three paths; unknown (non-catalog) models default to paid. Verified end-to-end: `/models` shows `free` for exactly `glm-4.5-flash` + `glm-4.7-flash`, everything else `paid` (incl. `glm-5.3-flash`); `/models free` returns exactly those two. Additionally de-hardcoded the `agentkthx models --backend zai` FREE_ONLY filter in `cli/commands/models.py` (was a literal `["glm-4.5-flash", "glm-4.7-flash"]` list that would drift from the catalog) to use `backend._is_free_model()`. +13 tests in `tests/test_zai_free_models.py`.
+
+- **SEC-07 (Low): `PersistentMemory` SQLite DB and parent dir created with permissive umask** — `~/.agentkthx/` was created with the process umask (typically `0644` dirs), leaking conversation history (which can contain API keys pasted by the user) to all local users. Fixed: parent dir created `0o700`; DB file chmod'd `0o600` after connection. +regression tests (file is 0600, dir is 0700, neither group- nor world-readable).
+
+### Architecture
+
+- **MAINT-04 (Medium): deleted `agentkthx/core/args_normal.py`** (329 LOC, dead code) — the 4 re-exported symbols (`normalize_args_full`, `fix_calculator_args`, `synthesize_missing_args`, `generate_helpful_error_message`) had zero callers in production code or tests; the live implementations live in `core/helpers.py`. Resolves the "two different `normalize_args` implementations" confusion.
+
+- **MAINT-05 (Medium): deleted the dead-code trio from `agentkthx/cli/utils.py`** (`_load_tool_cache`, `_save_tool_cache`, `_get_cloud_model_size` — 88 LOC of R06.0 legacy, zero callers). Updated `cli/__init__.py` imports + `__all__` and the expected-names list in `tests/test_cli_package_split.py`.
+
+- **MAINT-06 (Low): deleted `agentkthx/core/model_config.py`** — 30-line deprecated re-export module that emitted a `DeprecationWarning` on import (brief "What's Missing" #9: no removal date set — removed). No internal imports remained.
+
+### Tests
+
+- **20 new tests in `tests/test_r07_05_audit_fixes.py`** — SEC-07 regression (DB file chmod 0600, default dir 0700, not group/world readable/writable), ROB-03 (write-lock under concurrent writers), ROB-04 (`register_tool` preserves conversation memory, `rebuild_system_prompt` clears explicitly, `add_tool` backward compat), MAINT-04/05/06 (deleted modules + symbols no longer importable).
+
+- **13 new tests in `tests/test_openrouter_free_models.py`** — `:free`-suffix detection, `is_free` API field, zero-pricing ground truth (overrides `is_free=False`), paid models stay paid, `is_chat_model` from modality (text→chat, image-only→non-chat, missing→chat), `/models free` filter returns the `:free` set, real-world free-model list regression.
+
+- **13 new tests in `tests/test_zai_free_models.py`** — catalog pricing pinned to the official per-1M-token table (all 16 priced entries, incl. `glm-5.3-flash` = 0.15/0.5 NOT free); free models are EXACTLY `{glm-4.5-flash, glm-4.7-flash}`; `_is_free_model` classification (free/paid/unknown/provider-prefix); `list_models()` sets `free_tier` in both the API-discovered branch (mocked `urlopen`) and the catalog-only branch (discovery failure); `/models free` filter returns exactly the two free models; `get_model_info()` wiring (free model → True, paid flash → False, unknown → False).
+
+- Suite: 1290 → **1336 passed, 9 skipped, 0 failures** (+46 new tests across R07.05 so far).
+
+### Documentation
+
+- **`audit/audit.md` R07.05 delta** — findings summary updated to "10 CLOSED (4 in R07.04 + 6 in R07.05) | 52 OPEN"; SEC-07, ROB-03, ROB-04, MAINT-04, MAINT-05, MAINT-06 marked CLOSED; near-term priority matrix struck through the six closures. Remaining near-term queue for R07.05–R07.06: SEC-03 (SSRF via `ipaddress`), SEC-04 (block `bash`/heredocs), SEC-09 (warn on non-HTTPS ACP), MAINT-01 (extract `ChatSession`), ROB-05 (background update check), TEST-01 (integration test tier).
+
 ## [R07.04] - 2026-09-26
 
 **Fifth cloud-provider plugin (OrcaRouter — zero-markup gateway to 11 upstream LLM providers) + four audit findings closed (SEC-02, SEC-10, FEAT-01, MAINT-02) + `get_model_max_context` crash fix on cloud backends + `BackendType.ORCAROUTER` enum value.** Driven by the R07.04 codebase audit (`audit/brief.md` + `audit/audit.md` regenerated by the `codebase-audit` skill at commit `45c7613`), which identified 62 findings across 7 categories. This release closes the four highest-leverage near-term findings and scaffolds the 10th backend (6th cloud backend, first scaffolded from scratch on top of the new `CloudBackend` base class from MAINT-02). Suite 1132 → **1290 passed, 9 skipped, 0 failures** (+158 new tests across 5 new test files: `test_tool_output_sanitization.py` (22), `test_cloud_backend_base.py` (46), `test_orcarouter_backend.py` (67), `test_get_model_max_context.py` (20), +3 new tests in `test_agent.py`).
